@@ -143,7 +143,7 @@ void InitD3D(HWND hwnd)
 
     // TTFフォントの読み込み
     mu_font_stash_begin();
-    mu_font_add_from_file("MPLUS1p-Light.ttf", 16.0f);  // フォントサイズを大きくする
+    mu_font_add_from_file("../../fonts/MPLUS1p-Light.ttf", 16.0f);  // フォントサイズを大きくする
     mu_font_stash_end();
     create_ttf_font_texture();
 #else

@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  x86-64 code generator for TCC
  *
  *  Copyright (c) 2008 Shinichiro Hamaji
@@ -285,7 +285,7 @@ ST_FUNC void gen_addrpc32(int r, Sym *sym, int c)
 static void gen_gotpcrel(int r, Sym *sym, int c)
 {
 #ifdef TCC_TARGET_PE
-    tcc_error("internal error: no GOT on PE: %s %x %x | %02x %02x %02x\n",
+    tcc_error("内部エラー: PE に GOT がありません: %s %x %x | %02x %02x %02x\n",
         get_tok_str(sym->v, NULL), c, r,
         cur_text_section->data[ind-3],
         cur_text_section->data[ind-2],
@@ -368,7 +368,7 @@ void load(int r, SValue *sv)
     ft = sv->type.t & ~VT_DEFSIGN;
     fc = sv->c.i;
     if (fc != sv->c.i && (fr & VT_SYM))
-      tcc_error("64 bit addend in load");
+    tcc_error("ロードで 64 ビット加算子が使われています");
 
     ft &= ~(VT_VOLATILE | VT_CONSTANT);
 
@@ -427,7 +427,7 @@ void load(int r, SValue *sv)
 		case 4: ft = VT_INT; break;
 		case 8: ft = VT_LLONG; break;
 		default:
-		    tcc_error("invalid aggregate type for register load");
+            tcc_error("レジスタロードに対する集約型が不正です");
 		    break;
 	    }
 	}
@@ -572,7 +572,7 @@ void store(int r, SValue *v)
     ft = v->type.t;
     fc = v->c.i;
     if (fc != v->c.i && (fr & VT_SYM))
-      tcc_error("64 bit addend in store");
+    tcc_error("ストアで 64 ビット加算子が使われています");
     ft &= ~(VT_VOLATILE | VT_CONSTANT);
     bt = ft & VT_BTYPE;
 
@@ -1275,8 +1275,8 @@ void gfunc_call(int nb_args)
 	}
     }
 
-    if (nb_sse_args && tcc_state->nosse)
-      tcc_error("SSE disabled but floating point arguments passed");
+        if (nb_sse_args && tcc_state->nosse)
+            tcc_error("SSE が無効ですが浮動小数点引数が渡されました");
 
     /* for struct arguments, we need to call memcpy and the function
        call breaks register passing arguments we are preparing.
@@ -1546,8 +1546,8 @@ void gfunc_prolog(Sym *func_sym)
         mode = classify_x86_64_arg(type, NULL, &size, &align, &reg_count);
         switch (mode) {
         case x86_64_mode_sse:
-	    if (tcc_state->nosse)
-	        tcc_error("SSE disabled but floating point arguments used");
+        if (tcc_state->nosse)
+            	 tcc_error("SSE が無効ですが浮動小数点引数が使用されました");
             if (sse_param_index + reg_count <= 8) {
                 /* save arguments passed by register */
                 loc -= reg_count * 8;

@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  TCC - Tiny C Compiler
  * 
  *  Copyright (c) 2001-2004 Fabrice Bellard
@@ -30,139 +30,139 @@
 
 static const char help[] =
     "Tiny C Compiler "TCC_VERSION" - Copyright (C) 2001-2006 Fabrice Bellard\n"
-    "Usage: tcc [options...] [-o outfile] [-c] infile(s)...\n"
-    "       tcc [options...] -run infile (or --) [arguments...]\n"
-    "General options:\n"
-    "  -c           compile only - generate an object file\n"
-    "  -o outfile   set output filename\n"
-    "  -run         run compiled source\n"
-    "  -fflag       set or reset (with 'no-' prefix) 'flag' (see tcc -hh)\n"
-    "  -Wwarning    set or reset (with 'no-' prefix) 'warning' (see tcc -hh)\n"
-    "  -w           disable all warnings\n"
-    "  -v --version show version\n"
-    "  -vv          show search paths or loaded files\n"
-    "  -h -hh       show this, show more help\n"
-    "  -bench       show compilation statistics\n"
-    "  -            use stdin pipe as infile\n"
-    "  @listfile    read arguments from listfile\n"
-    "Preprocessor options:\n"
-    "  -Idir        add include path 'dir'\n"
-    "  -Dsym[=val]  define 'sym' with value 'val'\n"
-    "  -Usym        undefine 'sym'\n"
-    "  -E           preprocess only\n"
-    "  -nostdinc    do not use standard system include paths\n"
-    "Linker options:\n"
-    "  -Ldir        add library path 'dir'\n"
-    "  -llib        link with dynamic or static library 'lib'\n"
-    "  -nostdlib    do not link with standard crt and libraries\n"
-    "  -r           generate (relocatable) object file\n"
-    "  -rdynamic    export all global symbols to dynamic linker\n"
-    "  -shared      generate a shared library/dll\n"
-    "  -soname      set name for shared library to be used at runtime\n"
-    "  -Wl,-opt[=val]  set linker option (see tcc -hh)\n"
-    "Debugger options:\n"
-    "  -g           generate stab runtime debug info\n"
-    "  -gdwarf[-x]  generate dwarf runtime debug info\n"
+    "使い方: tcc [オプション...] [-o 出力ファイル] [-c] 入力ファイル...\n"
+    "       tcc [オプション...] -run 入力ファイル (または --) [引数...]\n"
+    "一般オプション:\n"
+    "  -c           コンパイルのみ - オブジェクトファイルを生成する\n"
+    "  -o outfile   出力ファイル名を指定する\n"
+    "  -run         コンパイルしたソースを実行する\n"
+    "  -fflag       フラグを設定またはリセットする（'no-' プレフィックスでリセット）(詳細は tcc -hh)\n"
+    "  -Wwarning    警告を設定またはリセットする（'no-' プレフィックスでリセット）(詳細は tcc -hh)\n"
+    "  -w           すべての警告を無効にする\n"
+    "  -v --version バージョンを表示する\n"
+    "  -vv          検索パスや読み込まれたファイルを表示する\n"
+    "  -h -hh       簡易/詳細ヘルプを表示する\n"
+    "  -bench       コンパイル統計を表示する\n"
+    "  -            標準入力を入力ファイルとして使用する\n"
+    "  @listfile    リストファイルから引数を読み込む\n"
+    "プリプロセッサオプション:\n"
+    "  -Idir        インクルードパス 'dir' を追加する\n"
+    "  -Dsym[=val]  シンボル 'sym' を値 'val' で定義する\n"
+    "  -Usym        シンボル 'sym' の定義を解除する\n"
+    "  -E           前処理のみを実行する\n"
+    "  -nostdinc    標準のシステムインクルードパスを使用しない\n"
+    "リンカーオプション:\n"
+    "  -Ldir        ライブラリパス 'dir' を追加する\n"
+    "  -llib        動的または静的ライブラリ 'lib' とリンクする\n"
+    "  -nostdlib    標準のCRTおよびライブラリとリンクしない\n"
+    "  -r           再配置可能オブジェクトファイルを生成する\n"
+    "  -rdynamic    すべてのグローバルシンボルを動的リンカに公開する\n"
+    "  -shared      共有ライブラリ/DLL を生成する\n"
+    "  -soname      実行時に使用する共有ライブラリ名を設定する\n"
+    "  -Wl,-opt[=val]  リンカオプションを設定する (詳細は tcc -hh)\n"
+    "デバッガーオプション:\n"
+    "  -g           stab形式のランタイムデバッグ情報を生成する\n"
+    "  -gdwarf[-x]  DWARF形式のランタイムデバッグ情報を生成する\n"
 #ifdef TCC_TARGET_PE
-    "  -g.pdb       create .pdb debug database\n"
+    "  -g.pdb       .pdb デバッグデータベースを作成する\n"
 #endif
 #ifdef CONFIG_TCC_BCHECK
-    "  -b           compile with built-in memory and bounds checker (implies -g)\n"
+    "  -b           組み込みのメモリ/境界チェックでコンパイルする (暗黙に -g を含む)\n"
 #endif
 #ifdef CONFIG_TCC_BACKTRACE
-    "  -bt[N]       link with backtrace (stack dump) support [show max N callers]\n"
+    "  -bt[N]       バックトレース（スタックダンプ）サポートをリンクする [最大 N 呼び出し元を表示]\n"
 #endif
-    "Misc. options:\n"
-    "  -std=version define __STDC_VERSION__ according to version (c11/gnu11)\n"
-    "  -x[c|a|b|n]  specify type of the next infile (C,ASM,BIN,NONE)\n"
-    "  -Bdir        set tcc's private include/library dir\n"
-    "  -M[M]D       generate make dependency file [ignore system files]\n"
-    "  -M[M]        as above but no other output\n"
-    "  -MF file     specify dependency file name\n"
+    "その他のオプション:\n"
+    "  -std=version __STDC_VERSION__ を version (例: c11/gnu11) に設定する\n"
+    "  -x[c|a|b|n]  次の入力ファイルの種別を指定する (C, ASM, BIN, NONE)\n"
+    "  -Bdir        tcc のプライベートなインクルード/ライブラリディレクトリを設定する\n"
+    "  -M[M]D       Makefile 用の依存関係ファイルを生成する [システムファイルを無視]\n"
+    "  -M[M]        上と同じだが他の出力は生成しない\n"
+    "  -MF file     依存関係ファイル名を指定する\n"
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-    "  -m32/64      defer to i386/x86_64 cross compiler\n"
+    "  -m32/64      i386/x86_64 へのクロスコンパイルを委譲する\n"
 #endif
-    "Tools:\n"
-    "  create library  : tcc -ar [crstvx] lib [files]\n"
+    "ツール:\n"
+    "  ライブラリ作成  : tcc -ar [crstvx] lib [files]\n"
 #ifdef TCC_TARGET_PE
-    "  create def file : tcc -impdef lib.dll [-v] [-o lib.def]\n"
+    "  .def ファイル作成 : tcc -impdef lib.dll [-v] [-o lib.def]\n"
 #endif
     ;
 
 static const char help2[] =
-    "Tiny C Compiler "TCC_VERSION" - More Options\n"
-    "Special options:\n"
-    "  -P -P1                        with -E: no/alternative #line output\n"
-    "  -dD -dM                       with -E: output #define directives\n"
-    "  -pthread                      same as -D_REENTRANT and -lpthread\n"
-    "  -On                           same as -D__OPTIMIZE__ for n > 0\n"
-    "  -Wp,-opt                      same as -opt\n"
-    "  -include file                 include 'file' above each input file\n"
-    "  -nostdlib                     do not link with standard crt/libs\n"
-    "  -isystem dir                  add 'dir' to system include path\n"
-    "  -static                       link to static libraries (not recommended)\n"
-    "  -dumpversion                  print version\n"
-    "  -print-search-dirs            print search paths\n"
-    "  -dt                           with -run/-E: auto-define 'test_...' macros\n"
-    "Ignored options:\n"
+    "Tiny C Compiler "TCC_VERSION" - 詳細オプション\n"
+    "特別なオプション:\n"
+    "  -P -P1                        -E と共に: #line 出力を無効化または代替出力にする\n"
+    "  -dD -dM                       -E と共に: #define ディレクティブを出力する\n"
+    "  -pthread                      -D_REENTRANT と -lpthread を指定したのと同等\n"
+    "  -On                           n > 0 の場合、-D__OPTIMIZE__ と同等\n"
+    "  -Wp,-opt                      -opt と同じ効果\n"
+    "  -include file                 各入力ファイルの前に 'file' をインクルードする\n"
+    "  -nostdlib                     標準のCRT/ライブラリとリンクしない\n"
+    "  -isystem dir                  指定したディレクトリをシステムインクルードパスに追加する\n"
+    "  -static                       静的ライブラリにリンクする（推奨されない）\n"
+    "  -dumpversion                  バージョンを表示する\n"
+    "  -print-search-dirs            検索パスを表示する\n"
+    "  -dt                           -run/-E と共に: 'test_...' マクロを自動定義する\n"
+    "無視されるオプション:\n"
     "  -arch -C --param -pedantic -pipe -s -traditional\n"
-    "-W[no-]... warnings:\n"
-    "  all                           turn on some (*) warnings\n"
-    "  error[=warning]               stop after warning (any or specified)\n"
-    "  write-strings                 strings are const\n"
-    "  unsupported                   warn about ignored options, pragmas, etc.\n"
-    "  implicit-function-declaration warn for missing prototype (*)\n"
-    "  discarded-qualifiers          warn when const is dropped (*)\n"
-    "-f[no-]... flags:\n"
-    "  unsigned-char                 default char is unsigned\n"
-    "  signed-char                   default char is signed\n"
-    "  common                        use common section instead of bss\n"
-    "  leading-underscore            decorate extern symbols\n"
-    "  ms-extensions                 allow anonymous struct in struct\n"
-    "  dollars-in-identifiers        allow '$' in C symbols\n"
-    "  reverse-funcargs              evaluate function arguments right to left\n"
-    "  gnu89-inline                  'extern inline' is like 'static inline'\n"
-    "  asynchronous-unwind-tables    create eh_frame section [on]\n"
-    "  test-coverage                 create code coverage code\n"
-    "-m... target specific options:\n"
-    "  ms-bitfields                  use MSVC bitfield layout\n"
+    "-W[no-]... 警告:\n"
+    "  all                           いくつかの警告(*)を有効にする\n"
+    "  error[=warning]               最初の警告で停止する（任意または指定可）\n"
+    "  write-strings                 文字列を const として扱う\n"
+    "  unsupported                   無視されたオプションやプラグマ等に対して警告する\n"
+    "  implicit-function-declaration プロトタイプがない場合に警告する(*)\n"
+    "  discarded-qualifiers          const などが除去された場合に警告する(*)\n"
+    "-f[no-]... フラグ:\n"
+    "  unsigned-char                 デフォルトの char を符号なしにする\n"
+    "  signed-char                   デフォルトの char を符号ありにする\n"
+    "  common                        bss の代わりに common セクションを使用する\n"
+    "  leading-underscore            外部シンボル名を修飾する\n"
+    "  ms-extensions                 構造体内で匿名構造体を許可する\n"
+    "  dollars-in-identifiers        C 記号内で '$' を許可する\n"
+    "  reverse-funcargs              関数引数を右から左へ評価する\n"
+    "  gnu89-inline                  'extern inline' を 'static inline' と同様に扱う\n"
+    "  asynchronous-unwind-tables    eh_frame セクションを作成する\n"
+    "  test-coverage                 コードカバレッジ用のコードを生成する\n"
+    "-m... ターゲット固有オプション:\n"
+    "  ms-bitfields                  MSVC 互換のビットフィールドレイアウトを使用する\n"
 #ifdef TCC_TARGET_ARM
-    "  float-abi                     hard/softfp on arm\n"
+    "  float-abi                     ARM でのハード/ソフトFP ABI を指定する\n"
 #endif
 #ifdef TCC_TARGET_X86_64
-    "  no-sse                        disable floats on x86_64\n"
+    "  no-sse                        x86_64 上で SSE による浮動小数点を無効にする\n"
 #endif
-    "-Wl,... linker options:\n"
-    "  -nostdlib                     do not search standard library paths\n"
-    "  -[no-]whole-archive           load lib(s) fully/only as needed\n"
-    "  -export-all-symbols           same as -rdynamic\n"
-    "  -export-dynamic               same as -rdynamic\n"
-    "  -image-base= -Ttext=          set base address of executable\n"
-    "  -section-alignment=           set section alignment in executable\n"
+    "-Wl,... リンカーオプション:\n"
+    "  -nostdlib                     標準ライブラリ検索パスを使用しない\n"
+    "  -[no-]whole-archive           ライブラリを完全に/必要に応じて読み込む\n"
+    "  -export-all-symbols           -rdynamic と同等\n"
+    "  -export-dynamic               -rdynamic と同等\n"
+    "  -image-base= -Ttext=          実行ファイルのベースアドレスを設定する\n"
+    "  -section-alignment=           実行ファイルのセクション配置を設定する\n"
 #ifdef TCC_TARGET_PE
-    "  -file-alignment=              set PE file alignment\n"
-    "  -stack=                       set PE stack reserve\n"
-    "  -large-address-aware          set related PE option\n"
-    "  -subsystem=[console/windows]  set PE subsystem\n"
-    "  -oformat=[pe-* binary]        set executable output format\n"
-    "Predefined macros:\n"
+    "  -file-alignment=              PE ファイルのアライメントを設定する\n"
+    "  -stack=                       PE のスタック予約サイズを設定する\n"
+    "  -large-address-aware          関連する PE オプションを設定する\n"
+    "  -subsystem=[console/windows]  PE サブシステムを設定する\n"
+    "  -oformat=[pe-* binary]        実行可能ファイルの出力形式を設定する\n"
+    "定義済みマクロ:\n"
     "  tcc -E -dM - < nul\n"
 #else
-    "  -rpath=                       set dynamic library search path\n"
-    "  -enable-new-dtags             set DT_RUNPATH instead of DT_RPATH\n"
-    "  -soname=                      set DT_SONAME elf tag\n"
+    "  -rpath=                       動的ライブラリの検索パスを設定する\n"
+    "  -enable-new-dtags             DT_RPATH の代わりに DT_RUNPATH を設定する\n"
+    "  -soname=                      DT_SONAME (ELF タグ) を設定する\n"
 #if defined(TCC_TARGET_MACHO)
-    "  -install_name=                set DT_SONAME elf tag (soname macOS alias)\n"
+    "  -install_name=                DT_SONAME を設定する（macOS の soname 別名）\n"
 #else
-    "  -Ipath, -dynamic-linker=path  set ELF interpreter to path\n"
+    "  -Ipath, -dynamic-linker=path  ELF インタプリタを path に設定する\n"
 #endif
-    "  -Bsymbolic                    set DT_SYMBOLIC elf tag\n"
-    "  -oformat=[elf32/64-* binary]  set executable output format\n"
-    "  -init= -fini= -Map= -as-needed -O -z= (ignored)\n"
-    "Predefined macros:\n"
+    "  -Bsymbolic                    DT_SYMBOLIC ELF タグを設定する\n"
+    "  -oformat=[elf32/64-* binary]  実行ファイル出力形式を設定する\n"
+    "  -init= -fini= -Map= -as-needed -O -z= (無視されます)\n"
+    "定義済みマクロ:\n"
     "  tcc -E -dM - < /dev/null\n"
 #endif
-    "See also the manual for more details.\n"
+    "詳細はマニュアルを参照してください。\n"
     ;
 
 static const char version[] =
@@ -331,18 +331,18 @@ redo:
         }
 
         if (s->nb_files == 0) {
-            tcc_error_noabort("no input files");
+            tcc_error_noabort("入力ファイルがありません");
         } else if (s->output_type == TCC_OUTPUT_PREPROCESS) {
             if (s->outfile && 0!=strcmp("-",s->outfile)) {
                 ppfp = fopen(s->outfile, "wb");
                 if (!ppfp)
-                    tcc_error_noabort("could not write '%s'", s->outfile);
+                    tcc_error_noabort("書き込みできません: '%s'", s->outfile);
             }
         } else if (s->output_type == TCC_OUTPUT_OBJ && !s->option_r) {
             if (s->nb_libraries)
-                tcc_error_noabort("cannot specify libraries with -c");
+                tcc_error_noabort("-c と共にライブラリを指定できません");
             else if (s->nb_files > 1 && s->outfile)
-                tcc_error_noabort("cannot specify output file with -c many files");
+                tcc_error_noabort("-c と複数ファイル時に出力ファイルを指定できません");
         }
         if (s->nb_errors)
             return 1;

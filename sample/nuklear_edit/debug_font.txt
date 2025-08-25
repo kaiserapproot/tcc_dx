@@ -1,0 +1,8 @@
+フォント読み込み処理を開始します
+現在の作業ディレクトリ: E:\work\work_github\tcc\sample\nuklear_edit
+フォントファイルを開こうとしています: ./MPLUS1p-Light.ttf
+フォントファイルを開こうとしています: ./SawarabiGothic-Regular.ttf
+フォントファイルを開こうとしています: C:\Windows\Fonts\msgothic.ttc
+フォントファイルを開きました: C:\Windows\Fonts\msgothic.ttc (サイズ: 8990160 バイト)
+日本語フォントを正常に読み込みました: C:\Windows\Fonts\msgothic.ttc
+フォント読み込み処理を完了しました

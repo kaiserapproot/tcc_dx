@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  TCC - Tiny C Compiler
  * 
  *  Copyright (c) 2001-2004 Fabrice Bellard
@@ -102,14 +102,14 @@ ST_FUNC void skip(int c)
     if (tok != c) {
         char tmp[40];
         pstrcpy(tmp, sizeof tmp, get_tok_str(c, &tokc));
-        tcc_error("'%s' expected (got \"%s\")", tmp, get_tok_str(tok, &tokc));
-	}
+        tcc_error("'%s' が必要です（\"%s\" が見つかりました）", tmp, get_tok_str(tok, &tokc));
+    }
     next();
 }
 
 ST_FUNC void expect(const char *msg)
 {
-    tcc_error("%s expected", msg);
+    tcc_error("%s が必要です", msg);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -355,7 +355,7 @@ ST_INLN char *unicode_to_utf8 (char *b, uint32_t Uc)
     else if (Uc-0xd800u<0x800) goto error;
     else if (Uc<0x10000) *b++=224+Uc/4096, *b++=128+Uc/64%64, *b++=128+Uc%64;
     else if (Uc<0x110000) *b++=240+Uc/262144, *b++=128+Uc/4096%64, *b++=128+Uc/64%64, *b++=128+Uc%64;
-    else error: tcc_error("0x%x is not a valid universal character", Uc);
+    else error: tcc_error("0x%x は有効なユニバーサル文字ではありません", Uc);
     return b;
 }
 
@@ -466,7 +466,7 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     int i;
 
     if (tok_ident >= SYM_FIRST_ANOM) 
-        tcc_error("memory full (symbols)");
+    tcc_error("メモリ不足 (シンボル)");
 
     /* expand token table if needed */
     i = tok_ident - TOK_IDENT;
@@ -694,7 +694,7 @@ static int handle_stray_noerror(int err)
                 *--file->buf_ptr = '\r';
             }
             if (err)
-                tcc_error("stray '\\' in program");
+                tcc_error("プログラム内に不正な '\\' があります");
             /* may take advantage of 'BufferedFile.unget[4}' */
             return *--file->buf_ptr = '\\';
         }
@@ -799,7 +799,7 @@ static uint8_t *parse_comment(uint8_t *p)
             c = handle_bs(&p);
         check_eof:
             if (c == CH_EOF)
-                tcc_error("unexpected end of file in comment");
+                tcc_error("コメント内で予期せずファイル終端に到達しました");
             if (c != '\\')
                 goto redo;
         }
@@ -822,7 +822,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
         unterminated_string:
                 /* XXX: indicate line number of start of string */
                 tok_flags &= ~TOK_FLAG_BOL;
-                tcc_error("missing terminating %c character", sep);
+                tcc_error("終端文字 %c が見つかりません", sep);
             } else if (c == '\\') {
                 if (str)
                     cstr_ccat(str, c);
@@ -1333,7 +1333,7 @@ ST_FUNC void skip_to_eol(int warn)
     if (tok == TOK_LINEFEED)
         return;
     if (warn)
-        tcc_warning("extra tokens after directive");
+        tcc_warning("ディレクティブの後に余分なトークンがあります");
     while (macro_stack)
         end_macro();
     file->buf_ptr = parse_line_comment(file->buf_ptr - 1);
@@ -1371,7 +1371,7 @@ static int parse_include(TCCState *s1, int do_next, int test)
                  || (p[0] == '<' && p[i] == '>')))
                 break;
             if (tok == TOK_LINEFEED)
-                tcc_error("'#include' expects \"FILENAME\" or <FILENAME>");
+                tcc_error("'#include' は \"FILENAME\" または <FILENAME> を期待します");
             pstrcat(name, sizeof name, get_tok_str(tok, &tokc));
 	}
         c = p[0];
@@ -1405,7 +1405,7 @@ static int parse_include(TCCState *s1, int do_next, int test)
             else if (test)
                 return 0;
             else
-                tcc_error("include file '%s' not found", name);
+                tcc_error("インクルードファイル '%s' が見つかりません", name);
             pstrcpy(buf, sizeof buf, p);
             pstrcat(buf, sizeof buf, "/");
         }
@@ -1427,7 +1427,7 @@ static int parse_include(TCCState *s1, int do_next, int test)
         tcc_close();
     } else {
         if (s1->include_stack_ptr >= s1->include_stack + INCLUDE_STACK_SIZE)
-            tcc_error("#include recursion too deep");
+            tcc_error("#include の再帰が深すぎます");
         /* push previous file on stack */
         *s1->include_stack_ptr++ = file->prev;
         file->include_next_index = i;
@@ -1466,7 +1466,7 @@ static int expr_preprocess(TCCState *s1)
             if (tok == TOK_LINEFEED || tok == TOK_EOF)
                 break;
             if (tok >= TOK_STR && tok <= TOK_CLDOUBLE)
-                tcc_error("invalid constant in preprocessor expression");
+                tcc_error("プリプロセッサ式に無効な定数があります");
 
         } else if (tok == TOK_DEFINED) {
             parse_flags &= ~PARSE_FLAG_PREPROCESS; /* no macro subst */
@@ -1510,7 +1510,7 @@ static int expr_preprocess(TCCState *s1)
         tok_str_add_tok(str);
     }
     if (0 == str->len)
-        tcc_error("#%s with no expression", get_tok_str(t0, 0));
+    tcc_error("#%s に式がありません", get_tok_str(t0, 0));
     tok_str_add(str, TOK_EOF); /* simulate end of file */
     pp_expr = t0; /* redirect pre-processor expression error messages */
     t = tok;
@@ -1544,7 +1544,7 @@ ST_FUNC void parse_define(void)
 
     v = tok;
     if (v < TOK_IDENT || v == TOK_DEFINED)
-        tcc_error("invalid macro name '%s'", get_tok_str(tok, &tokc));
+        tcc_error("無効なマクロ名 '%s'", get_tok_str(tok, &tokc));
     first = NULL;
     t = MACRO_OBJ;
     /* We have to parse the whole define as if not in asm mode, in particular
@@ -1573,7 +1573,7 @@ ST_FUNC void parse_define(void)
             }
             if (varg < TOK_IDENT)
         bad_list:
-                tcc_error("bad macro parameter list");
+                tcc_error("不正なマクロパラメータリスト");
             s = sym_push2(&define_stack, varg | SYM_FIELD, is_vaargs, 0);
             *ps = s;
             ps = &s->next;
@@ -1616,7 +1616,7 @@ ST_FUNC void parse_define(void)
     tok_str_add(&str, 0);
     if (t0 == TOK_PPJOIN)
 bad_twosharp:
-        tcc_error("'##' cannot appear at either end of macro");
+        tcc_error("'##' はマクロの先頭または末尾に出せません");
     define_push(v, t, str.str, first);
     //tok_print(str.str, "#define (%d) %s %d:", t | is_vaargs * 4, get_tok_str(v, 0));
 }
@@ -1725,7 +1725,7 @@ static int pragma_parse(TCCState *s1)
             next();
             if (s1->pack_stack_ptr <= s1->pack_stack) {
             stk_error:
-                tcc_error("out of pack stack");
+                tcc_error("パックスタックが不足しています");
             }
             s1->pack_stack_ptr--;
         } else {
@@ -1781,7 +1781,7 @@ static int pragma_parse(TCCState *s1)
     next();
     return 1;
 pragma_err:
-    tcc_error("malformed #pragma directive");
+    tcc_error("不正な #pragma 指示です");
 }
 
 /* put alternative filename */
@@ -1857,7 +1857,7 @@ ST_FUNC void preprocess(int is_bof)
     do_ifdef:
         next_nomacro();
         if (tok < TOK_IDENT)
-            tcc_error("invalid argument for '#if%sdef'", c ? "n" : "");
+            tcc_error("'#if%sdef' の引数が無効です", c ? "n" : "");
         if (is_bof) {
             if (c) {
 #ifdef INC_DEBUG
@@ -1873,23 +1873,23 @@ ST_FUNC void preprocess(int is_bof)
         next_nomacro();
     do_if:
         if (s1->ifdef_stack_ptr >= s1->ifdef_stack + IFDEF_STACK_SIZE)
-            tcc_error("memory full (ifdef)");
+            tcc_error("メモリ不足 (ifdef)");
         *s1->ifdef_stack_ptr++ = c;
         goto test_skip;
     case TOK_ELSE:
         next_nomacro();
         if (s1->ifdef_stack_ptr == s1->ifdef_stack)
-            tcc_error("#else without matching #if");
+            tcc_error("#else に対応する #if がありません");
         if (s1->ifdef_stack_ptr[-1] & 2)
-            tcc_error("#else after #else");
+            tcc_error("#else の後に別の #else があります");
         c = (s1->ifdef_stack_ptr[-1] ^= 3);
         goto test_else;
     case TOK_ELIF:
         if (s1->ifdef_stack_ptr == s1->ifdef_stack)
-            tcc_error("#elif without matching #if");
+            tcc_error("#elif に対応する #if がありません");
         c = s1->ifdef_stack_ptr[-1];
         if (c > 1)
-            tcc_error("#elif after #else");
+            tcc_error("#elif は #else の後に使用できません");
         /* last #if/#elif expression was true: we skip */
         if (c == 1) {
             skip_to_eol(0);
@@ -1912,7 +1912,7 @@ ST_FUNC void preprocess(int is_bof)
     case TOK_ENDIF:
         next_nomacro();
         if (s1->ifdef_stack_ptr <= file->ifdef_stack_ptr)
-            tcc_error("#endif without matching #if");
+            tcc_error("#endif に対応する #if がありません");
         s1->ifdef_stack_ptr--;
         /* '#ifndef macro' was at the start of file. Now we check if
            an '#endif' is exactly at the end of file */
@@ -1931,7 +1931,7 @@ ST_FUNC void preprocess(int is_bof)
         next();
         if (tok != TOK_PPNUM) {
     _line_err:
-            tcc_error("wrong #line format");
+            tcc_error("#line の形式が不正です");
         }
         c = 1;
         goto _line_num;
@@ -1992,7 +1992,7 @@ ST_FUNC void preprocess(int is_bof)
         if (tok == '!' && is_bof)
             /* '#!' is ignored at beginning to allow C scripts. */
             goto ignore;
-        tcc_warning("Ignoring unknown preprocessing directive #%s", get_tok_str(tok, &tokc));
+    tcc_warning("不明なプリプロセッサ指示 #%s を無視します", get_tok_str(tok, &tokc));
     ignore:
         skip_to_eol(0);
         goto the_end;
@@ -2097,9 +2097,9 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
             default:
             invalid_escape:
                 if (c >= '!' && c <= '~')
-                    tcc_warning("unknown escape sequence: \'\\%c\'", c);
+                    tcc_warning("不明なエスケープシーケンスです: '\\%c'", c);
                 else
-                    tcc_warning("unknown escape sequence: \'\\x%x\'", c);
+                    tcc_warning("不明なエスケープシーケンスです: '\\x%x'", c);
                 break;
             }
         } else if (is_long && c >= 0x80) {
@@ -2211,9 +2211,9 @@ static void parse_string(const char *s, int len)
             tok = TOK_LCHAR, char_size = sizeof(nwchar_t);
         n = tokcstr.size / char_size - 1;
         if (n < 1)
-            tcc_error("empty character constant");
+            tcc_error("空の文字定数です");
         if (n > 1)
-            tcc_warning_c(warn_all)("multi-character character constant");
+            tcc_warning_c(warn_all)("複数文字の文字定数です");
         for (c = i = 0; i < n; ++i) {
             if (is_long)
                 c = ((nwchar_t *)tokcstr.data)[i];
@@ -2298,7 +2298,7 @@ static void parse_number(const char *p)
             break;
         if (q >= token_buf + STRING_MAX_SIZE) {
         num_too_long:
-            tcc_error("number too long");
+            tcc_error("数値が長すぎます");
         }
         *q++ = ch;
         ch = *p++;
@@ -2347,7 +2347,7 @@ static void parse_number(const char *p)
                         break;
                     }
                     if (t >= b)
-                        tcc_error("invalid digit");
+                        tcc_error("無効な桁です");
                     bn_lshift(bn, shift, t);
                     frac_bits += shift;
                     ch = *p++;
@@ -2475,7 +2475,7 @@ static void parse_number(const char *p)
             else
                 t = t - '0';
             if (t >= b)
-                tcc_error("invalid digit");
+                tcc_error("無効な桁です");
             n1 = n;
             n = n * b + t;
             /* detect overflow */
@@ -2491,14 +2491,14 @@ static void parse_number(const char *p)
             t = toup(ch);
             if (t == 'L') {
                 if (lcount >= 2)
-                    tcc_error("three 'l's in integer constant");
+                    tcc_error("整数定数に 'l' が3つあります");
                 if (lcount && *(p - 1) != ch)
-                    tcc_error("incorrect integer suffix: %s", p1);
+                    tcc_error("整数接尾辞が不正です: %s", p1);
                 lcount++;
                 ch = *p++;
             } else if (t == 'U') {
                 if (ucount >= 1)
-                    tcc_error("two 'u's in integer constant");
+                    tcc_error("整数定数に 'u' が2つあります");
                 ucount++;
                 ch = *p++;
             } else {
@@ -2530,7 +2530,7 @@ static void parse_number(const char *p)
         }
 
         if (ov)
-            tcc_warning("integer constant overflow");
+            tcc_warning("整数定数のオーバーフローです");
 
         tok = TOK_CINT;
 	if (lcount) {
@@ -2543,7 +2543,7 @@ static void parse_number(const char *p)
         tokc.i = n;
     }
     if (ch)
-        tcc_error("invalid number");
+        tcc_error("無効な数値です");
 }
 
 
@@ -2598,7 +2598,7 @@ static void next_nomacro(void)
             } else if (!(parse_flags & PARSE_FLAG_PREPROCESS)) {
                 tok = TOK_EOF;
             } else if (s1->ifdef_stack_ptr != file->ifdef_stack_ptr) {
-                tcc_error("missing #endif");
+                tcc_error("#endif が不足しています");
             } else if (s1->include_stack_ptr == s1->include_stack) {
                 /* no include left : end of file. */
                 tok = TOK_EOF;
@@ -2960,7 +2960,7 @@ maybe_newline:
 	    goto parse_ident_fast;
         if (parse_flags & PARSE_FLAG_ASM_FILE)
             goto parse_simple;
-        tcc_error("unrecognized character \\x%02x", c);
+    tcc_error("未認識の文字 \\x%02x", c);
         break;
     }
     tok_flags = 0;
@@ -3163,8 +3163,8 @@ static inline int *macro_twosharps(const int *ptr0)
                     break;
                 tok_str_add(&macro_str1, ' ');
                 l = file->buf_ptr - file->buffer;
-                tcc_warning("pasting \"%.*s\" and \"%s\" does not give a valid"
-                    " preprocessing token", l - n, file->buffer + n, file->buf_ptr);
+                tcc_warning("貼り合わせた \"%.*s\" と \"%s\" は有効なプリプロセッサトークンになりません",
+                    l - n, file->buffer + n, file->buf_ptr);
             }
             tcc_close();
             cstr_reset(&tokcstr);
@@ -3304,12 +3304,12 @@ static int macro_subst_tok(
                     t = next_argstream(nested_list, NULL);
                 } while (t == ' ' || --i);
 
-                if (!sa) {
-                    if (t == ')') /* handle '()' case */
-                        break;
-                    tcc_error("macro '%s' used with too many args",
-                        get_tok_str(v, 0));
-                }
+                    if (!sa) {
+                        if (t == ')') /* handle '()' case */
+                            break;
+                        tcc_error("マクロ '%s' が引数を多く指定して呼び出されました",
+                            get_tok_str(v, 0));
+                    }
             empty_arg:
                 tok_str_new(&str);
                 parlevel = 0;
@@ -3317,7 +3317,7 @@ static int macro_subst_tok(
                 while (parlevel > 0
                         || (t != ')' && (t != ',' || sa->type.t))) {
                     if (t == TOK_EOF)
-                        tcc_error("EOF in invocation of macro '%s'",
+                        tcc_error("マクロ '%s' の呼び出しで EOF に到達しました",
                             get_tok_str(v, 0));
                     if (t == '(')
                         parlevel++;
@@ -3340,7 +3340,7 @@ static int macro_subst_tok(
                        var arg argument if it is omitted */
                     if (sa->type.t && gnu_ext)
                         goto empty_arg;
-                    tcc_error("macro '%s' used with too few args",
+                    tcc_error("マクロ '%s' が引数不足で呼び出されました",
                         get_tok_str(v, 0));
                 }
                 i = 1;
@@ -3506,9 +3506,9 @@ redo:
         } else {
             ++macro_ptr;
             t &= ~SYM_FIELD; /* remove 'nosubst' marker */
-            if (t == '\\') {
+                if (t == '\\') {
                 if (!(parse_flags & PARSE_FLAG_ACCEPT_STRAYS))
-                    tcc_error("stray '\\' in program");
+                    tcc_error("プログラム中に孤立した '\\' があります");
             }
         }
         tok = t;

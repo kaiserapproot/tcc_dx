@@ -1,33 +1,33 @@
-/*
+﻿/*
  *  TCC - Tiny C Compiler
  *
  *  Copyright (c) 2001-2004 Fabrice Bellard
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * このライブラリはフリーソフトウェアです。再頒布および/または
+ * 修正は、Free Software Foundation によって公開された GNU Lesser
+ * General Public License の条項（バージョン2 または（選択により）それ以降）
+ * に従って行うことができます。
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * このライブラリは有用であることを目的として配布されますが、
+ * 商品性や特定の目的への適合性を含む明示的または黙示的な保証はありません。
+ * 詳細は GNU Lesser General Public License を参照してください。
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * 本ライブラリとともに GNU Lesser General Public License の写しが
+ * 配布されているはずです。配布されていない場合は、Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * までお問い合わせください。
  */
 
 #define USING_GLOBALS
 #include "tcc.h"
 
 /********************************************************/
-/* global variables */
+/* グローバル変数 */
 
-/* loc : local variable index
-   ind : output code index
-   rsym: return symbol
-   anon_sym: anonymous symbol index
+/* loc : ローカル変数のインデックス
+    ind : 出力コードのインデックス
+    rsym: 戻り値用シンボル
+    anon_sym: 匿名シンボルのインデックス
 */
 ST_DATA int rsym, anon_sym, ind, loc;
 
@@ -49,27 +49,34 @@ ST_DATA SValue *vtop;
 static SValue _vstack[1 + VSTACK_SIZE];
 #define vstack (_vstack + 1)
 
-ST_DATA int nocode_wanted; /* no code generation wanted */
-#define NODATA_WANTED (nocode_wanted > 0) /* no static data output wanted either */
-#define DATA_ONLY_WANTED 0x80000000 /* ON outside of functions and for static initializers */
+ST_DATA int nocode_wanted; /* コード生成を抑制するフラグ */
+#define NODATA_WANTED (nocode_wanted > 0) /* 静的データ出力も不要であることを意味する */
+#define DATA_ONLY_WANTED 0x80000000 /* 関数外および静的初期化子でONになる */
 
-/* no code output after unconditional jumps such as with if (0) ... */
+/* if (0) のような無条件ジャンプの後はコード出力を行わない */
 #define CODE_OFF_BIT 0x20000000
 #define CODE_OFF() if(!nocode_wanted)(nocode_wanted |= CODE_OFF_BIT)
 #define CODE_ON() (nocode_wanted &= ~CODE_OFF_BIT)
 
-/* no code output when parsing sizeof()/typeof() etc. (using nocode_wanted++/--) */
 #define NOEVAL_MASK 0x0000FFFF
 #define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
 
-/* no code output when parsing constant expressions */
+/* sizeof()/typeof() 等を解析している間はコード出力を行わない（nocode_wanted++/-- を使用） */
+#define NOEVAL_MASK 0x0000FFFF
+#define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
+
 #define CONST_WANTED_BIT  0x00010000
 #define CONST_WANTED_MASK 0x0FFF0000
 #define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
 
-ST_DATA int global_expr;  /* true if compound literals must be allocated globally (used during initializers parsing */
-ST_DATA CType func_vt; /* current function return type (used by return instruction) */
-ST_DATA int func_var; /* true if current function is variadic (used by return instruction) */
+/* 定数式を解析している間はコード出力を行わない */
+#define CONST_WANTED_BIT  0x00010000
+#define CONST_WANTED_MASK 0x0FFF0000
+#define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
+
+ST_DATA int global_expr;  /* 複合リテラルをグローバルに割り当てる必要がある場合に真（初期化子解析時に使用） */
+ST_DATA CType func_vt; /* 現在の関数の戻り値型（return 命令で使用） */
+ST_DATA int func_var; /* 現在の関数が可変長引数かどうか（return 命令で使用） */
 ST_DATA int func_vc;
 ST_DATA int func_ind;
 ST_DATA const char *funcname;
@@ -91,19 +98,19 @@ static struct switch_t {
     struct case_t {
         int64_t v1, v2;
         int ind, line;
-    } **p; int n; /* list of case ranges */
-    int def_sym; /* default symbol */
+    } **p; int n; /* case 範囲のリスト */
+    int def_sym; /* デフォルトのシンボル */
     int nocode_wanted;
     int *bsym;
     struct scope *scope;
     struct switch_t *prev;
     SValue sv;
-} *cur_switch; /* current switch */
+} *cur_switch; /* 現在の switch 構造体 */
 
 #define MAX_TEMP_LOCAL_VARIABLE_NUMBER 8
-/*list of temporary local variables on the stack in current function. */
+/* 現在の関数でのスタック上の一時ローカル変数の一覧 */
 static struct temp_local_variable {
-	int location; //offset on stack. Svalue.c.i
+    int location; // スタック上のオフセット。SValue.c.i
 	short size;
 	short align;
 } arr_temp_local_vars[MAX_TEMP_LOCAL_VARIABLE_NUMBER];
@@ -160,9 +167,9 @@ static void end_switch(void);
 static void do_Static_assert(void);
 
 /* ------------------------------------------------------------------------- */
-/* Automagical code suppression */
+/* 自動的なコード抑制 */
 
-/* Clear 'nocode_wanted' at forward label if it was used */
+/* 順方向ラベルで使用されていた場合に 'nocode_wanted' をクリアする */
 ST_FUNC void gsym(int t)
 {
   if (t) {
@@ -171,7 +178,7 @@ ST_FUNC void gsym(int t)
   }
 }
 
-/* Clear 'nocode_wanted' if current pc is a label */
+/* 現在のプログラムカウンタがラベルである場合に 'nocode_wanted' をクリアする */
 static int gind()
 {
   int t = ind;
@@ -181,14 +188,14 @@ static int gind()
   return t;
 }
 
-/* Set 'nocode_wanted' after unconditional (backwards) jump */
+/* 無条件（後方）ジャンプの後に 'nocode_wanted' を設定する */
 static void gjmp_addr_acs(int t)
 {
   gjmp_addr(t);
   CODE_OFF();
 }
 
-/* Set 'nocode_wanted' after unconditional (forwards) jump */
+/* 無条件（前方）ジャンプの後に 'nocode_wanted' を設定する */
 static int gjmp_acs(int t)
 {
   t = gjmp(t);
@@ -196,7 +203,7 @@ static int gjmp_acs(int t)
   return t;
 }
 
-/* These are #undef'd at the end of this file */
+/* これらはファイルの最後で #undef されます */
 #define gjmp_addr gjmp_addr_acs
 #define gjmp gjmp_acs
 /* ------------------------------------------------------------------------- */
@@ -228,7 +235,7 @@ static int btype_size(int bt)
         bt == VT_PTR ? PTR_SIZE : 0;
 }
 
-/* returns function return register from type */
+/* 型に応じた関数戻りレジスタを返す */
 static int R_RET(int t)
 {
     if (!is_float(t))
@@ -243,7 +250,7 @@ static int R_RET(int t)
     return REG_FRET;
 }
 
-/* returns 2nd function return register, if any */
+/* 2番目の関数戻りレジスタを返す（存在する場合） */
 static int R2_RET(int t)
 {
     t &= VT_BTYPE;
@@ -261,23 +268,25 @@ static int R2_RET(int t)
 #endif
     return VT_CONST;
 }
-
-/* returns true for two-word types */
+/* 2ワード型かどうかを返す */
 #define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
 
-/* put function return registers to stack value */
+/* 2ワード型かどうかを判定する */
+#define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
+
+/* 関数戻りレジスタをスタック値に設定する */
 static void PUT_R_RET(SValue *sv, int t)
 {
     sv->r = R_RET(t), sv->r2 = R2_RET(t);
 }
 
-/* returns function return register class for type t */
+/* 型tに対する関数戻りレジスタのレジスタクラスを返す */
 static int RC_RET(int t)
 {
     return reg_classes[R_RET(t)] & ~(RC_FLOAT | RC_INT);
 }
 
-/* returns generic register class for type t */
+/* 型tに対する一般的なレジスタクラスを返す */
 static int RC_TYPE(int t)
 {
     if (!is_float(t))
@@ -294,7 +303,7 @@ static int RC_TYPE(int t)
     return RC_FLOAT;
 }
 
-/* returns 2nd register class corresponding to t and rc */
+/* tとrcに対応する2番目のレジスタクラスを返す */
 static int RC2_TYPE(int t, int rc)
 {
     if (!USING_TWO_WORDS(t))
@@ -312,9 +321,8 @@ static int RC2_TYPE(int t, int rc)
     return RC_INT;
 }
 
-/* we use our own 'finite' function to avoid potential problems with
-   non standard math libs */
-/* XXX: endianness dependent */
+/* 非標準の数学ライブラリでの問題を避けるため独自の 'finite' 関数を使用 */
+/* XXX: エンディアン依存 */
 ST_FUNC int ieee_finite(double d)
 {
     int p[4];
@@ -322,7 +330,7 @@ ST_FUNC int ieee_finite(double d)
     return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
 }
 
-/* compiling intel long double natively */
+/* Intel向けに long double をネイティブに処理する設定 */
 #if (defined __i386__ || defined __x86_64__) \
     && (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64)
 # define TCC_IS_NATIVE_387
@@ -337,11 +345,11 @@ ST_FUNC void test_lvalue(void)
 ST_FUNC void check_vstack(void)
 {
     if (vtop != vstack - 1)
-        tcc_error("internal compiler error: vstack leak (%d)",
+        tcc_error("内部コンパイラエラー: vstack のリーク (%d)",
                   (int)(vtop - vstack + 1));
 }
 
-/* vstack debugging aid */
+/* vstack のデバッグ補助 */
 #if 0
 void pv (const char *lbl, int a, int b)
 {
@@ -355,13 +363,13 @@ void pv (const char *lbl, int a, int b)
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* initialize vstack and types.  This must be done also for tcc -E */
+/* vstack と型の初期化。tcc -E（プリプロセスのみ）でもこれを行う必要がある */
 ST_FUNC void tccgen_init(TCCState *s1)
 {
     vtop = vstack - 1;
     memset(vtop, 0, sizeof *vtop);
 
-    /* define some often used types */
+    /* よく使われる型を定義 */
     int_type.t = VT_INT;
 
     char_type.t = VT_BYTE;
@@ -385,7 +393,7 @@ ST_FUNC int tccgen_compile(TCCState *s1)
     funcname = "";
     func_ind = -1;
     anon_sym = SYM_FIRST_ANOM;
-    nocode_wanted = DATA_ONLY_WANTED; /* no code outside of functions */
+    nocode_wanted = DATA_ONLY_WANTED; /* 関数外ではコードを生成しない */
     debug_modes = (s1->do_debug ? 1 : 0) | s1->test_coverage << 1;
 
     tcc_debug_start(s1);
@@ -401,7 +409,7 @@ ST_FUNC int tccgen_compile(TCCState *s1)
     decl(VT_CONST);
     gen_inline_functions(s1);
     check_vstack();
-    /* end of translation unit info */
+    /* 翻訳単位の情報の終わり */
 #if TCC_EH_FRAME
     tcc_eh_frame_end(s1);
 #endif
@@ -412,13 +420,13 @@ ST_FUNC int tccgen_compile(TCCState *s1)
 
 ST_FUNC void tccgen_finish(TCCState *s1)
 {
-    tcc_debug_end(s1); /* just in case of errors: free memory */
+    tcc_debug_end(s1); /* エラー発生時に備えてメモリを解放 */
     free_inline_functions(s1);
     sym_pop(&global_stack, NULL, 0);
     sym_pop(&local_stack, NULL, 0);
-    /* free preprocessor macros */
+    /* プリプロセッサのマクロを解放 */
     free_defines(NULL);
-    /* free sym_pools */
+    /* sym_pools を解放 */
     dynarray_reset(&sym_pools, &nb_sym_pools);
     cstr_free(&initstr);
     dynarray_reset(&stk_data, &nb_stk_data);
@@ -443,7 +451,7 @@ ST_FUNC ElfSym *elfsym(Sym *s)
   return &((ElfSym *)symtab_section->data)[s->c];
 }
 
-/* apply storage attributes to Elf symbol */
+/* ELF シンボルにストレージ属性を適用 */
 ST_FUNC void update_storage(Sym *sym)
 {
     ElfSym *esym;
@@ -487,8 +495,7 @@ ST_FUNC void update_storage(Sym *sym)
 }
 
 /* ------------------------------------------------------------------------- */
-/* update sym->c so that it points to an external symbol in section
-   'section' with value 'value' */
+/* sym->c を更新し、'section' セクション内の外部シンボル（値 value）を指すようにする */
 
 ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
                             addr_t value, unsigned long size,
@@ -565,7 +572,7 @@ ST_FUNC void put_extern_sym(Sym *sym, Section *s, addr_t value, unsigned long si
     put_extern_sym2(sym, s ? s->sh_num : SHN_UNDEF, value, size, 1);
 }
 
-/* add a new relocation entry to symbol 'sym' in section 's' */
+/* セクション s のシンボル sym に新しい再配置エントリを追加 */
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type,
                      addr_t addend)
 {
@@ -580,7 +587,7 @@ ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type,
         c = sym->c;
     }
 
-    /* now we can add ELF relocation info */
+    /* これで ELF 再配置情報を追加できる */
     put_elf_reloca(symtab_section, s, offset, type, c, addend);
 }
 
@@ -592,7 +599,7 @@ ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type)
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* symbol allocator */
+/* シンボルアロケータ */
 static Sym *__sym_malloc(void)
 {
     Sym *sym_pool, *sym, *last_sym;
@@ -637,7 +644,7 @@ ST_INLN void sym_free(Sym *sym)
 #endif
 }
 
-/* push, without hashing */
+/* ハッシュを使わずにプッシュ */
 ST_FUNC Sym *sym_push2(Sym **ps, int v, int t, int c)
 {
     Sym *s;
@@ -653,8 +660,7 @@ ST_FUNC Sym *sym_push2(Sym **ps, int v, int t, int c)
     return s;
 }
 
-/* find a symbol and return its associated structure. 's' is the top
-   of the symbol stack */
+/* シンボルを検索し対応する構造体を返す。's' はシンボルスタックのトップ */
 ST_FUNC Sym *sym_find2(Sym *s, int v)
 {
     while (s) {
@@ -665,7 +671,7 @@ ST_FUNC Sym *sym_find2(Sym *s, int v)
     return NULL;
 }
 
-/* structure lookup */
+/* 構造体の検索 */
 ST_INLN Sym *struct_find(int v)
 {
     v -= TOK_IDENT;
@@ -674,7 +680,7 @@ ST_INLN Sym *struct_find(int v)
     return table_ident[v]->sym_struct;
 }
 
-/* find an identifier */
+/* 識別子を検索 */
 ST_INLN Sym *sym_find(int v)
 {
     v -= TOK_IDENT;
@@ -691,7 +697,7 @@ static int sym_scope(Sym *s)
     return s->sym_scope;
 }
 
-/* push a given symbol on the symbol stack */
+/* 指定されたシンボルをシンボルスタックにプッシュ */
 ST_FUNC Sym *sym_push(int v, CType *type, int r, int c)
 {
     Sym *s, **ps;
@@ -704,10 +710,10 @@ ST_FUNC Sym *sym_push(int v, CType *type, int r, int c)
     s = sym_push2(ps, v, type->t, c);
     s->type.ref = type->ref;
     s->r = r;
-    /* don't record fields or anonymous symbols */
+    /* フィールドや匿名シンボルは記録しない */
     /* XXX: simplify */
     if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-        /* record symbol in token array */
+    /* トークン配列にシンボルを記録 */
         ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
         if (v & SYM_STRUCT)
             ps = &ts->sym_struct;
@@ -717,13 +723,13 @@ ST_FUNC Sym *sym_push(int v, CType *type, int r, int c)
         *ps = s;
         s->sym_scope = local_scope;
         if (s->prev_tok && sym_scope(s->prev_tok) == s->sym_scope)
-            tcc_error("redeclaration of '%s'",
+            tcc_error("再定義: '%s'",
                 get_tok_str(v & ~SYM_STRUCT, NULL));
     }
     return s;
 }
 
-/* push a global identifier */
+/* グローバル識別子をプッシュ */
 ST_FUNC Sym *global_identifier_push(int v, int t, int c)
 {
     Sym *s, **ps;
@@ -732,8 +738,9 @@ ST_FUNC Sym *global_identifier_push(int v, int t, int c)
     /* don't record anonymous symbol */
     if (v < SYM_FIRST_ANOM) {
         ps = &table_ident[v - TOK_IDENT]->sym_identifier;
-        /* modify the top most local identifier, so that sym_identifier will
-           point to 's' when popped; happens when called from inline asm */
+    /* トップのローカル識別子を変更し、ポップされたときに
+       sym_identifier が 's' を指すようにする；この処理はインライン asm から
+       呼び出されたときに発生する */
         while (*ps != NULL && (*ps)->sym_scope)
             ps = &(*ps)->prev_tok;
         s->prev_tok = *ps;
@@ -742,8 +749,8 @@ ST_FUNC Sym *global_identifier_push(int v, int t, int c)
     return s;
 }
 
-/* pop symbols until top reaches 'b'.  If KEEP is non-zero don't really
-   pop them yet from the list, but do remove them from the token array.  */
+/* トップが 'b' に到達するまでシンボルをポップする。KEEP が非ゼロの場合は
+    実際にはリストから取り除かず、トークン配列からのみ削除する */
 ST_FUNC void sym_pop(Sym **ptop, Sym *b, int keep)
 {
     Sym *s, *ss, **ps;
@@ -772,7 +779,7 @@ ST_FUNC void sym_pop(Sym **ptop, Sym *b, int keep)
 	*ptop = b;
 }
 
-/* label lookup */
+/* ラベルの検索 */
 ST_FUNC Sym *label_find(int v)
 {
     v -= TOK_IDENT;
@@ -798,18 +805,18 @@ ST_FUNC Sym *label_push(Sym **ptop, int v, int flags)
     return s;
 }
 
-/* pop labels until element last is reached. Look if any labels are
-   undefined. Define symbols if '&&label' was used. */
+/* 最後の要素に達するまでラベルをポップする。未定義のラベルがないか確認する。
+    '&&label' が使われていればシンボルを定義する */
 ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep)
 {
     Sym *s, *s1;
     for(s = *ptop; s != slast; s = s1) {
         s1 = s->prev;
         if (s->r == LABEL_DECLARED) {
-            tcc_warning_c(warn_all)("label '%s' declared but not used", get_tok_str(s->v, NULL));
-        } else if (s->r == LABEL_FORWARD) {
-                tcc_error("label '%s' used but not defined",
-                      get_tok_str(s->v, NULL));
+            tcc_warning_c(warn_all)("ラベル '%s' は宣言されていますが使用されていません", get_tok_str(s->v, NULL));
+    } else if (s->r == LABEL_FORWARD) {
+        tcc_error("ラベル '%s' が使用されていますが定義されていません",
+              get_tok_str(s->v, NULL));
         } else {
             if (s->c) {
                 /* define corresponding symbol. A size of
@@ -832,23 +839,18 @@ ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep)
 /* ------------------------------------------------------------------------- */
 static void vcheck_cmp(void)
 {
-    /* cannot let cpu flags if other instruction are generated. Also
-       avoid leaving VT_JMP anywhere except on the top of the stack
-       because it would complicate the code generator.
+    /* 他の命令が生成される場合には CPU フラグを残しておけない。また
+       VT_JMP をスタックの先頭以外に残すとコード生成器が複雑になるため避ける。
 
-       Don't do this when nocode_wanted.  vtop might come from
-       !nocode_wanted regions (see 88_codeopt.c) and transforming
-       it to a register without actually generating code is wrong
-       as their value might still be used for real.  All values
-       we push under nocode_wanted will eventually be popped
-       again, so that the VT_CMP/VT_JMP value will be in vtop
-       when code is unsuppressed again. */
+       nocode_wanted のときはこれを行ってはいけない。vtop は
+       !nocode_wanted の領域から来る場合があり（88_codeopt.c を参照）、
+       実際にコードを生成せずレジスタに変換すると、値が実際に使用される可能性があり誤りとなる。
+       nocode_wanted 下でプッシュされた全ての値は最終的にポップされ,
+       コード抑止が解除されたときに VT_CMP/VT_JMP の値が vtop に戻る。 */
 
-    /* However if it's just automatic suppression via CODE_OFF/ON()
-       then it seems that we better let things work undisturbed.
-       How can it work at all under nocode_wanted?  Well, gv() will
-       actually clear it at the gsym() in load()/VT_JMP in the
-       generator backends */
+    /* ただし、CODE_OFF/ON() による自動抑止だけの場合は、そのまま動作を妨げない方が良い。
+       nocode_wanted 下でどのように機能するのか？gv() がロード/VT_JMP における gsym() で
+       実際にクリアするためである（ジェネレータのバックエンド参照）。 */
 
     if (vtop->r == VT_CMP && 0 == (nocode_wanted & ~CODE_OFF_BIT))
         gv(RC_INT);
@@ -857,7 +859,7 @@ static void vcheck_cmp(void)
 static void vsetc(CType *type, int r, CValue *vc)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("memory full (vstack)");
+        tcc_error("メモリ不足 (vstack)");
     vcheck_cmp();
     vtop++;
     vtop->type = *type;
@@ -877,32 +879,32 @@ ST_FUNC void vswap(void)
     vtop[-1] = tmp;
 }
 
-/* pop stack value */
+/* スタック値をポップ */
 ST_FUNC void vpop(void)
 {
     int v;
     v = vtop->r & VT_VALMASK;
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-    /* for x86, we need to pop the FP stack */
+    /* x86 では FPU スタックをポップする必要がある */
     if (v == TREG_ST0) {
         o(0xd8dd); /* fstp %st(0) */
     } else
 #endif
     if (v == VT_CMP) {
-        /* need to put correct jump if && or || without test */
+        /* && や || のテスト無しの場合、正しいジャンプを生成する */
         gsym(vtop->jtrue);
         gsym(vtop->jfalse);
     }
     vtop--;
 }
 
-/* push constant of type "type" with useless value */
+/* 型 'type' の定数（ダミー値）をプッシュ */
 static void vpush(CType *type)
 {
     vset(type, VT_CONST, 0);
 }
 
-/* push arbitrary 64bit constant */
+/* 任意の 64bit 定数をプッシュ */
 static void vpush64(int ty, unsigned long long v)
 {
     CValue cval;
@@ -913,19 +915,19 @@ static void vpush64(int ty, unsigned long long v)
     vsetc(&ctype, VT_CONST, &cval);
 }
 
-/* push integer constant */
+/* 整数定数をプッシュ */
 ST_FUNC void vpushi(int v)
 {
     vpush64(VT_INT, v);
 }
 
-/* push a pointer sized constant */
+/* ポインタサイズの定数をプッシュ */
 static void vpushs(addr_t v)
 {
     vpush64(VT_SIZE_T, v);
 }
 
-/* push long long constant */
+/* long long 型の定数をプッシュ */
 static inline void vpushll(long long v)
 {
     vpush64(VT_LLONG, v);
@@ -949,7 +951,7 @@ static void vseti(int r, int v)
 ST_FUNC void vpushv(SValue *v)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("memory full (vstack)");
+        tcc_error("メモリ不足 (vstack)");
     vtop++;
     *vtop = *v;
 }
@@ -959,7 +961,7 @@ static void vdup(void)
     vpushv(vtop);
 }
 
-/* rotate the stack element at position n-1 to the top */
+/* スタックの位置 n-1 の要素をトップへ回転 */
 ST_FUNC void vrotb(int n)
 {
     SValue tmp;
@@ -971,7 +973,7 @@ ST_FUNC void vrotb(int n)
     vtop[0] = tmp;
 }
 
-/* rotate the top stack element into position n-1 */
+/* スタックのトップ要素を位置 n-1 に回転 */
 ST_FUNC void vrott(int n)
 {
     SValue tmp;
@@ -983,7 +985,7 @@ ST_FUNC void vrott(int n)
     vtop[-n] = tmp;
 }
 
-/* reverse order of the the first n stack elements */
+/* スタックの先頭 n 要素の順序を反転 */
 ST_FUNC void vrev(int n)
 {
     int i;
@@ -994,9 +996,9 @@ ST_FUNC void vrev(int n)
 }
 
 /* ------------------------------------------------------------------------- */
-/* vtop->r = VT_CMP means CPU-flags have been set from comparison or test. */
+/* vtop->r = VT_CMP は比較やテストにより CPU フラグが設定されていることを意味する */
 
-/* called from generators to set the result from relational ops  */
+/* ジェネレータから呼ばれ、関係演算の結果を設定する */
 ST_FUNC void vset_VT_CMP(int op)
 {
     vtop->r = VT_CMP;
@@ -1005,26 +1007,26 @@ ST_FUNC void vset_VT_CMP(int op)
     vtop->jtrue = 0;
 }
 
-/* called once before asking generators to load VT_CMP to a register */
+/* ジェネレータに VT_CMP をレジスタへロードさせる前に一度呼ばれる */
 static void vset_VT_JMP(void)
 {
     int op = vtop->cmp_op;
 
     if (vtop->jtrue || vtop->jfalse) {
         int origt = vtop->type.t;
-        /* we need to jump to 'mov $0,%R' or 'mov $1,%R' */
+    /* 'mov $0,%R' または 'mov $1,%R' へジャンプする必要がある */
         int inv = op & (op < 2); /* small optimization */
         vseti(VT_JMP+inv, gvtst(inv, 0));
         vtop->type.t |= origt & (VT_UNSIGNED | VT_DEFSIGN);
     } else {
-        /* otherwise convert flags (rsp. 0/1) to register */
+    /* それ以外の場合はフラグ（0/1）をレジスタに変換する */
         vtop->c.i = op;
         if (op < 2) /* doesn't seem to happen */
             vtop->r = VT_CONST;
     }
 }
 
-/* Set CPU Flags, doesn't yet jump */
+/* CPU フラグを設定する（まだジャンプは行わない） */
 static void gvtst_set(int inv, int t)
 {
     int *p;
@@ -1040,9 +1042,9 @@ static void gvtst_set(int inv, int t)
     *p = gjmp_append(*p, t);
 }
 
-/* Generate value test
+/* 値テストの生成
  *
- * Generate a test for any value (jump, comparison and integers) */
+ * 任意の値に対するテストを生成する（ジャンプ、比較、整数を含む） */
 static int gvtst(int inv, int t)
 {
     int op, x, u;
@@ -1065,7 +1067,7 @@ static int gvtst(int inv, int t)
     return t;
 }
 
-/* generate a zero or nozero test */
+/* ゼロ/非ゼロのテストを生成 */
 static void gen_test_zero(int op)
 {
     if (vtop->r == VT_CMP) {
@@ -1083,7 +1085,7 @@ static void gen_test_zero(int op)
 }
 
 /* ------------------------------------------------------------------------- */
-/* push a symbol value of TYPE */
+/* 指定型のシンボル値をプッシュ */
 ST_FUNC void vpushsym(CType *type, Sym *sym)
 {
     CValue cval;
@@ -1092,7 +1094,7 @@ ST_FUNC void vpushsym(CType *type, Sym *sym)
     vtop->sym = sym;
 }
 
-/* Return a static symbol pointing to a section */
+/* セクションを指す静的シンボルを返す */
 ST_FUNC Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
 {
     int v;
@@ -1105,13 +1107,13 @@ ST_FUNC Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsign
     return sym;
 }
 
-/* push a reference to a section offset by adding a dummy symbol */
+/* ダミーシンボルを追加してセクションへの参照をプッシュ */
 static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
 {
     vpushsym(type, get_sym_ref(type, sec, offset, size));  
 }
 
-/* define a new external reference to a symbol 'v' of type 'u' */
+/* 型 'u' のシンボル 'v' への新しい外部参照を定義 */
 ST_FUNC Sym *external_global_sym(int v, CType *type)
 {
     Sym *s;
@@ -1129,21 +1131,21 @@ ST_FUNC Sym *external_global_sym(int v, CType *type)
     return s;
 }
 
-/* create an external reference with no specific type similar to asm labels.
-   This avoids type conflicts if the symbol is used from C too */
+/* asm ラベルに似た型指定のない外部参照を作成する。
+    これによりシンボルが C から使われても型の衝突を避けられる */
 ST_FUNC Sym *external_helper_sym(int v)
 {
     CType ct = { VT_ASM_FUNC, NULL };
     return external_global_sym(v, &ct);
 }
 
-/* push a reference to an helper function (such as memmove) */
+/* ヘルパ関数（例: memmove）への参照をプッシュ */
 ST_FUNC void vpush_helper_func(int v)
 {
     vpushsym(&func_old_type, external_helper_sym(v));
 }
 
-/* Merge symbol attributes.  */
+/* シンボル属性をマージする */
 static void merge_symattr(struct SymAttr *sa, struct SymAttr *sa1)
 {
     if (sa1->aligned && !sa->aligned)
@@ -1163,7 +1165,7 @@ static void merge_symattr(struct SymAttr *sa, struct SymAttr *sa1)
     sa->dllimport |= sa1->dllimport;
 }
 
-/* Merge function attributes.  */
+/* 関数属性をマージする */
 static void merge_funcattr(struct FuncAttr *fa, struct FuncAttr *fa1)
 {
     if (fa1->func_call && !fa->func_call)
@@ -1180,7 +1182,7 @@ static void merge_funcattr(struct FuncAttr *fa, struct FuncAttr *fa1)
       fa->func_dtor = 1;
 }
 
-/* Merge attributes.  */
+/* 属性をマージする */
 static void merge_attr(AttributeDef *ad, AttributeDef *ad1)
 {
     merge_symattr(&ad->a, &ad1->a);
@@ -1196,12 +1198,12 @@ static void merge_attr(AttributeDef *ad, AttributeDef *ad1)
       ad->attr_mode = ad1->attr_mode;
 }
 
-/* Merge some type attributes.  */
+/* 型属性の一部をマージする */
 static void patch_type(Sym *sym, CType *type)
 {
     if (!(type->t & VT_EXTERN) || IS_ENUM_VAL(sym->type.t)) {
         if (!(sym->type.t & VT_EXTERN))
-            tcc_error("redefinition of '%s'", get_tok_str(sym->v, NULL));
+            tcc_error("再定義: '%s'", get_tok_str(sym->v, NULL));
         sym->type.t &= ~VT_EXTERN;
     }
 
@@ -1214,18 +1216,18 @@ static void patch_type(Sym *sym, CType *type)
     }
 
     if (!is_compatible_types(&sym->type, type)) {
-        tcc_error("incompatible types for redefinition of '%s'",
+        tcc_error("再定義の型が互換性がありません: '%s'",
                   get_tok_str(sym->v, NULL));
 
     } else if ((sym->type.t & VT_BTYPE) == VT_FUNC) {
         int static_proto = sym->type.t & VT_STATIC;
         /* warn if static follows non-static function declaration */
-        if ((type->t & VT_STATIC) && !static_proto
+            if ((type->t & VT_STATIC) && !static_proto
             /* XXX this test for inline shouldn't be here.  Until we
                implement gnu-inline mode again it silences a warning for
                mingw caused by our workarounds.  */
             && !((type->t | sym->type.t) & VT_INLINE))
-            tcc_warning("static storage ignored for redefinition of '%s'",
+            tcc_warning("再定義: '%s' で static 指定は無視されます",
                 get_tok_str(sym->v, NULL));
 
         /* set 'inline' if both agree or if one has static */
@@ -1256,12 +1258,12 @@ static void patch_type(Sym *sym, CType *type)
             sym->type.ref->c = type->ref->c;
         }
         if ((type->t ^ sym->type.t) & VT_STATIC)
-            tcc_warning("storage mismatch for redefinition of '%s'",
+            tcc_warning("再定義: '%s' のストレージ指定が不一致です",
                 get_tok_str(sym->v, NULL));
     }
 }
 
-/* Merge some storage attributes.  */
+/* ストレージ属性の一部をマージする */
 static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
 {
     if (type)
@@ -1269,7 +1271,7 @@ static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
 
 #ifdef TCC_TARGET_PE
     if (sym->a.dllimport != ad->a.dllimport)
-        tcc_error("incompatible dll linkage for redefinition of '%s'",
+        tcc_error("再定義 '%s' の DLL リンケージが互換性がありません",
             get_tok_str(sym->v, NULL));
 #endif
     merge_symattr(&sym->a, &ad->a);
@@ -1278,7 +1280,7 @@ static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
     update_storage(sym);
 }
 
-/* copy sym to other stack */
+/* sym を別のスタックへコピー */
 static Sym *sym_copy(Sym *s0, Sym **ps)
 {
     Sym *s;
@@ -1291,7 +1293,7 @@ static Sym *sym_copy(Sym *s0, Sym **ps)
     return s;
 }
 
-/* copy s->type.ref to stack 'ps' for VT_FUNC and VT_PTR */
+/* VT_FUNC と VT_PTR のために s->type.ref をスタック 'ps' にコピー */
 static void sym_copy_ref(Sym *s, Sym **ps)
 {
     int bt = s->type.t & VT_BTYPE;
@@ -1305,18 +1307,18 @@ static void sym_copy_ref(Sym *s, Sym **ps)
     }
 }
 
-/* define a new external reference to a symbol 'v' */
+/* シンボル 'v' への新しい外部参照を定義 */
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
 {
     Sym *s;
 
-    /* look for global symbol */
+    /* グローバルシンボルを探す */
     s = sym_find(v);
     while (s && s->sym_scope)
         s = s->prev_tok;
 
     if (!s) {
-        /* push forward reference */
+        /* 先行参照をプッシュする */
         s = global_identifier_push(v, type->t, 0);
         s->r |= r;
         s->a = ad->a;
@@ -1328,13 +1330,13 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
     } else {
         patch_storage(s, ad, type);
     }
-    /* push variables on local_stack if any */
+    /* ローカルスタックに変数があればプッシュする */
     if (local_stack && (s->type.t & VT_BTYPE) != VT_FUNC)
         s = sym_copy(s, &local_stack);
     return s;
 }
 
-/* save registers up to (vtop - n) stack entry */
+/* (vtop - n) のスタックエントリまでのレジスタを保存 */
 ST_FUNC void save_regs(int n)
 {
     SValue *p, *p1;
@@ -1342,14 +1344,14 @@ ST_FUNC void save_regs(int n)
         save_reg(p->r);
 }
 
-/* save r to the memory stack, and mark it as being free */
+/* レジスタ r をメモリスタックに保存し、空きとしてマークする */
 ST_FUNC void save_reg(int r)
 {
     save_reg_upstack(r, 0);
 }
 
-/* save r to the memory stack, and mark it as being free,
-   if seen up to (vtop - n) stack entry */
+/* レジスタ r をメモリスタックに保存し、(vtop - n) までに見つかった場合は
+    スタック上に保存されていることを示して空きとしてマークする */
 ST_FUNC void save_reg_upstack(int r, int n)
 {
     int l, size, align, bt, r2;
@@ -1362,7 +1364,7 @@ ST_FUNC void save_reg_upstack(int r, int n)
     l = r2 = 0;
     for(p = vstack, p1 = vtop - n; p <= p1; p++) {
         if ((p->r & VT_VALMASK) == r || p->r2 == r) {
-            /* must save value on stack if not already done */
+            /* まだ保存されていない場合は値をスタックに保存する必要がある */
             if (!l) {
                 bt = p->type.t & VT_BTYPE;
                 if (bt == VT_VOID)
@@ -1376,18 +1378,18 @@ ST_FUNC void save_reg_upstack(int r, int n)
                 sv.c.i = l;
                 store(p->r & VT_VALMASK, &sv);
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-                /* x86 specific: need to pop fp register ST0 if saved */
+                /* x86 固有: 保存されている場合は FP レジスタ ST0 をポップする必要がある */
                 if (r == TREG_ST0) {
                     o(0xd8dd); /* fstp %st(0) */
                 }
 #endif
-                /* special long long case */
+                /* long long の特殊ケース */
                 if (p->r2 < VT_CONST && USING_TWO_WORDS(bt)) {
                     sv.c.i += PTR_SIZE;
                     store(p->r2, &sv);
                 }
             }
-            /* mark that stack entry as being saved on the stack */
+            /* そのスタックエントリがスタック上に保存されたことを示す */
             if (p->r & VT_LVAL) {
                 /* also clear the bounded flag because the
                    relocation address of the function was stored in
@@ -1405,8 +1407,8 @@ ST_FUNC void save_reg_upstack(int r, int n)
 }
 
 #ifdef TCC_TARGET_ARM
-/* find a register of class 'rc2' with at most one reference on stack.
- * If none, call get_reg(rc) */
+/* スタック上で最大1つしか参照されていないクラス 'rc2' のレジスタを探す。
+ * 見つからなければ get_reg(rc) を呼ぶ */
 ST_FUNC int get_reg_ex(int rc, int rc2)
 {
     int r;
@@ -1429,13 +1431,13 @@ ST_FUNC int get_reg_ex(int rc, int rc2)
 }
 #endif
 
-/* find a free register of class 'rc'. If none, save one register */
+/* クラス 'rc' の空きレジスタを探す。無ければ1つ保存して確保する */
 ST_FUNC int get_reg(int rc)
 {
     int r;
     SValue *p;
 
-    /* find a free register */
+    /* 空きレジスタを探す */
     for(r=0;r<NB_REGS;r++) {
         if (reg_classes[r] & rc) {
             if (nocode_wanted)
@@ -1450,9 +1452,9 @@ ST_FUNC int get_reg(int rc)
     notfound: ;
     }
     
-    /* no register left : free the first one on the stack (VERY
-       IMPORTANT to start from the bottom to ensure that we don't
-       spill registers used in gen_opi()) */
+    /* 空きレジスタがない: スタック上の最初のものを解放する
+       （gen_opi() で使われるレジスタをこぼさないよう、下（ボトム）から
+       開始することが非常に重要） */
     for(p=vstack;p<=vtop;p++) {
         /* look at second register (if long long) */
         r = p->r2;
@@ -1469,8 +1471,8 @@ ST_FUNC int get_reg(int rc)
     return -1;
 }
 
-/* find a free temporary local variable (return the offset on stack) match
-   size and align. If none, add new temporary stack variable */
+/* サイズとアラインに合う一時ローカル変数を探す（スタック上のオフセットを返す）。
+    見つからなければ新しい一時変数を追加する */
 static int get_temp_local_var(int size,int align, int *r2)
 {
     int i;
@@ -1511,8 +1513,7 @@ ret_tmp:
     return loc;
 }
 
-/* move register 's' (of type 't') to 'r', and flush previous value of r to memory
-   if needed */
+/* レジスタ 's'（型 t）を 'r' に移動し、必要ならば r の以前の値をメモリへ書き出す */
 static void move_reg(int r, int s, int t)
 {
     SValue sv;
@@ -1527,17 +1528,17 @@ static void move_reg(int r, int s, int t)
     }
 }
 
-/* get address of vtop (vtop MUST BE an lvalue) */
+/* vtop のアドレスを得る (vtop は lvalue である必要がある) */
 ST_FUNC void gaddrof(void)
 {
     vtop->r &= ~VT_LVAL;
-    /* tricky: if saved lvalue, then we can go back to lvalue */
+    /* トリッキー: 保存された lvalue の場合は再び lvalue に戻せる */
     if ((vtop->r & VT_VALMASK) == VT_LLOCAL)
         vtop->r = (vtop->r & ~VT_VALMASK) | VT_LOCAL | VT_LVAL;
 }
 
 #ifdef CONFIG_TCC_BCHECK
-/* generate a bounded pointer addition */
+/* 境界付きポインタの加算コードを生成 */
 static void gen_bounded_ptr_add(void)
 {
     int save = (vtop[-1].r & VT_VALMASK) == VT_LOCAL;
@@ -1550,16 +1551,15 @@ static void gen_bounded_ptr_add(void)
     gfunc_call(2);
     vtop -= save;
     vpushi(0);
-    /* returned pointer is in REG_IRET */
+    /* 戻りポインタは REG_IRET に入る */
     vtop->r = REG_IRET | VT_BOUNDED;
     if (nocode_wanted)
         return;
-    /* relocation offset of the bounding function call point */
+    /* 境界チェック関数呼び出し地点の再配置オフセット */
     vtop->c.i = (cur_text_section->reloc->data_offset - sizeof(ElfW_Rel));
 }
 
-/* patch pointer addition in vtop so that pointer dereferencing is
-   also tested */
+/* vtop のポインタ加算を修正してポインタ参照もテストする */
 static void gen_bounded_ptr_deref(void)
 {
     addr_t func;
@@ -1579,29 +1579,29 @@ static void gen_bounded_ptr_deref(void)
     case 12: func = TOK___bound_ptr_indir12; break;
     case 16: func = TOK___bound_ptr_indir16; break;
     default:
-        /* may happen with struct member access */
+        /* 構造体メンバアクセスで発生することがある */
         return;
     }
     sym = external_helper_sym(func);
     if (!sym->c)
         put_extern_sym(sym, NULL, 0, 0);
-    /* patch relocation */
-    /* XXX: find a better solution ? */
+    /* 再配置を修正 */
+    /* XXX: より良い解決策を見つける？ */
     rel = (ElfW_Rel *)(cur_text_section->reloc->data + vtop->c.i);
     rel->r_info = ELFW(R_INFO)(sym->c, ELFW(R_TYPE)(rel->r_info));
 }
 
-/* generate lvalue bound code */
+/* lvalue の境界チェックコードを生成 */
 static void gbound(void)
 {
     CType type1;
 
     vtop->r &= ~VT_MUSTBOUND;
-    /* if lvalue, then use checking code before dereferencing */
+    /* lvalue の場合、参照解除（デリファレンス）する前にチェックコードを使う */
     if (vtop->r & VT_LVAL) {
-        /* if not VT_BOUNDED value, then make one */
+        /* VT_BOUNDED でない値なら、境界付き値を作成する */
         if (!(vtop->r & VT_BOUNDED)) {
-            /* must save type because we must set it to int to get pointer */
+            /* ポインタを得るために型を int に設定する必要があるので、元の型を保存する */
             type1 = vtop->type;
             vtop->type.t = VT_PTR;
             gaddrof();
@@ -1610,13 +1610,12 @@ static void gbound(void)
             vtop->r |= VT_LVAL;
             vtop->type = type1;
         }
-        /* then check for dereferencing */
+        /* 続いてデリファレンスのチェックを行う */
         gen_bounded_ptr_deref();
     }
 }
 
-/* we need to call __bound_ptr_add before we start to load function
-   args into registers */
+/* 関数引数をレジスタにロードし始める前に __bound_ptr_add を呼ぶ必要がある */
 ST_FUNC void gbound_args(int nb_args)
 {
     int i, v;
@@ -1649,23 +1648,23 @@ ST_FUNC void gbound_args(int nb_args)
             func_bound_add_epilog = 1;
 #endif
 #if TARGETOS_NetBSD
-        if (v == TOK_longjmp) /* undo rename to __longjmp14 */
+        if (v == TOK_longjmp) /* __longjmp14 への名前変更を元に戻す */
             sv->sym->asm_label = TOK___bound_longjmp;
 #endif
     }
 }
 
-/* Add bounds for local symbols from S to E (via ->prev) */
+/* S から E までのローカルシンボルに対して境界情報を追加する（->prev を辿る） */
 static void add_local_bounds(Sym *s, Sym *e)
 {
     for (; s != e; s = s->prev) {
         if (!s->v || (s->r & VT_VALMASK) != VT_LOCAL)
           continue;
-        /* Add arrays/structs/unions because we always take address */
+        /* 配列・構造体・共用体は常にアドレスを取るため追加する */
         if ((s->type.t & VT_ARRAY)
             || (s->type.t & VT_BTYPE) == VT_STRUCT
             || s->a.addrtaken) {
-            /* add local bound info */
+            /* ローカルの境界情報を追加 */
             int align, size = type_size(&s->type, &align);
             addr_t *bounds_ptr = section_ptr_add(lbounds_section,
                                                  2 * sizeof(addr_t));
@@ -1676,7 +1675,7 @@ static void add_local_bounds(Sym *s, Sym *e)
 }
 #endif
 
-/* Wrapper around sym_pop, that potentially also registers local bounds.  */
+/* sym_pop のラッパー。必要に応じてローカルの境界情報も登録する */
 static void pop_local_syms(Sym *b, int keep)
 {
 #ifdef CONFIG_TCC_BCHECK
@@ -1688,12 +1687,12 @@ static void pop_local_syms(Sym *b, int keep)
     sym_pop(&local_stack, b, keep);
 }
 
-/* increment an lvalue pointer */
+/* lvalue ポインタのオフセットを増やす（ポインタをインクリメント） */
 static void incr_offset(int offset)
 {
     int t = vtop->type.t;
-    gaddrof(); /* remove VT_LVAL */
-    vtop->type.t = VT_PTRDIFF_T; /* set scalar type */
+    gaddrof(); /* VT_LVAL を取り除く */
+    vtop->type.t = VT_PTRDIFF_T; /* スカラー型に設定 */
     vpushs(offset);
     gen_op('+');
     vtop->r |= VT_LVAL;
@@ -1706,7 +1705,7 @@ static void incr_bf_adr(int o)
     incr_offset(o);
 }
 
-/* single-byte load mode for packed or otherwise unaligned bitfields */
+/* パックされた、または整列されていないビットフィールドのためのバイト単位ロードモード */
 static void load_packed_bf(CType *type, int bit_pos, int bit_size)
 {
     int n, o, bits;
@@ -1739,7 +1738,7 @@ static void load_packed_bf(CType *type, int bit_pos, int bit_size)
     }
 }
 
-/* single-byte store mode for packed or otherwise unaligned bitfields */
+/* パックされた、または整列されていないビットフィールドのためのバイト単位ストアモード */
 static void store_packed_bf(int bit_pos, int bit_size)
 {
     int bits, n, o, m, c;
@@ -1787,21 +1786,20 @@ static int adjust_bf(SValue *sv, int bit_pos, int bit_size)
     return t;
 }
 
-/* store vtop a register belonging to class 'rc'. lvalues are
-   converted to values. Cannot be used if cannot be converted to
-   register value (such as structures). */
+/* vtop をクラス 'rc' に属するレジスタに格納する。lvalue は値に変換される。
+   構造体のようにレジスタ値に変換できない場合は使えない。 */
 ST_FUNC int gv(int rc)
 {
     int r, r2, r_ok, r2_ok, rc2, bt;
     int bit_pos, bit_size, size, align;
 
-    /* NOTE: get_reg can modify vstack[] */
+    /* 注意: get_reg は vstack[] を変更する可能性がある */
     if (vtop->type.t & VT_BITFIELD) {
         CType type;
 
         bit_pos = BIT_POS(vtop->type.t);
         bit_size = BIT_SIZE(vtop->type.t);
-        /* remove bit field info to avoid loops */
+        /* ループを避けるためビットフィールド情報を取り除く */
         vtop->type.t &= ~VT_STRUCT_MASK;
 
         type.ref = NULL;
@@ -1820,21 +1818,20 @@ ST_FUNC int gv(int rc)
             load_packed_bf(&type, bit_pos, bit_size);
         } else {
             int bits = (type.t & VT_BTYPE) == VT_LLONG ? 64 : 32;
-            /* cast to int to propagate signedness in following ops */
+            /* 後続の演算で符号を伝播させるために int にキャストする */
             gen_cast(&type);
-            /* generate shifts */
+            /* シフトを生成 */
             vpushi(bits - (bit_pos + bit_size));
             gen_op(TOK_SHL);
             vpushi(bits - bit_size);
-            /* NOTE: transformed to SHR if unsigned */
+            /* 注意: 符号無しの場合は SHR へ変換される */
             gen_op(TOK_SAR);
         }
         r = gv(rc);
     } else {
         if (is_float(vtop->type.t) && 
             (vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-            /* CPUs usually cannot use float constants, so we store them
-               generically in data segment */
+            /* CPU は通常浮動小数点定数を直接扱えないため、データセグメントに格納する */
             init_params p = { rodata_section };
             unsigned long offset;
             size = type_size(&vtop->type, &align);
@@ -1842,9 +1839,9 @@ ST_FUNC int gv(int rc)
                 size = 0, align = 1;
             offset = section_add(p.sec, size, align);
             vpush_ref(&vtop->type, p.sec, offset, size);
-	    vswap();
-	    init_putv(&p, &vtop->type, offset);
-	    vtop->r |= VT_LVAL;
+        vswap();
+        init_putv(&p, &vtop->type, offset);
+        vtop->r |= VT_LVAL;
         }
 #ifdef CONFIG_TCC_BCHECK
         if (vtop->r & VT_MUSTBOUND) 
@@ -1854,16 +1851,16 @@ ST_FUNC int gv(int rc)
         bt = vtop->type.t & VT_BTYPE;
 
 #ifdef TCC_TARGET_RISCV64
-        /* XXX mega hack */
+        /* XXX: 大きなハック */
         if (bt == VT_LDOUBLE && rc == RC_FLOAT)
           rc = RC_INT;
 #endif
         rc2 = RC2_TYPE(bt, rc);
 
-        /* need to reload if:
-           - constant
-           - lvalue (need to dereference pointer)
-           - already a register, but not in the right class */
+        /* 再ロードが必要な場合:
+           - 定数
+           - lvalue（ポインタを参照解除する必要がある）
+           - すでにレジスタにあるが適切なクラスでない */
         r = vtop->r & VT_VALMASK;
         r_ok = !(vtop->r & VT_LVAL) && (r < VT_CONST) && (reg_classes[r] & rc);
         r2_ok = !rc2 || ((vtop->r2 < VT_CONST) && (reg_classes[vtop->r2] & rc2));
@@ -1871,7 +1868,7 @@ ST_FUNC int gv(int rc)
         if (!r_ok || !r2_ok) {
 
             if (!r_ok) {
-                if (1 /* we can 'mov (r),r' in cases */
+                if (1 /* ケースによっては 'mov (r),r' が可能 */
                     && r < VT_CONST
                     && (reg_classes[r] & rc)
                     && !rc2
@@ -1885,55 +1882,53 @@ ST_FUNC int gv(int rc)
                 int load_type = (bt == VT_QFLOAT) ? VT_DOUBLE : VT_PTRDIFF_T;
                 int original_type = vtop->type.t;
 
-                /* two register type load :
-                   expand to two words temporarily */
+                /* 2 レジスタ型のロード: 一時的に 2 ワードに拡張する */
                 if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-                    /* load constant */
+                    /* 定数をロード */
                     unsigned long long ll = vtop->c.i;
-                    vtop->c.i = ll; /* first word */
+                    vtop->c.i = ll; /* 最初のワード */
                     load(r, vtop);
-                    vtop->r = r; /* save register value */
-                    vpushi(ll >> 32); /* second word */
+                    vtop->r = r; /* レジスタ値を保存 */
+                    vpushi(ll >> 32); /* 2 番目のワード */
                 } else if (vtop->r & VT_LVAL) {
-                    /* We do not want to modifier the long long pointer here.
-                       So we save any other instances down the stack */
+                    /* long long ポインタをここで変更したくないため、
+                       他のインスタンスをスタックへ退避する */
                     save_reg_upstack(vtop->r, 1);
-                    /* load from memory */
+                    /* メモリからロード */
                     vtop->type.t = load_type;
                     load(r, vtop);
                     vdup();
-                    vtop[-1].r = r; /* save register value */
-                    /* increment pointer to get second word */
+                    vtop[-1].r = r; /* レジスタ値を保存 */
+                    /* 2 番目のワードを得るためにポインタを増やす */
                     incr_offset(PTR_SIZE);
                 } else {
-                    /* move registers */
+                    /* レジスタ間の移動 */
                     if (!r_ok)
                         load(r, vtop);
                     if (r2_ok && vtop->r2 < VT_CONST)
                         goto done;
                     vdup();
-                    vtop[-1].r = r; /* save register value */
+                    vtop[-1].r = r; /* レジスタ値を保存 */
                     vtop->r = vtop[-1].r2;
                 }
-                /* Allocate second register. Here we rely on the fact that
-                   get_reg() tries first to free r2 of an SValue. */
+                /* 2 番目のレジスタを確保。get_reg() がまず SValue の r2 を開放しようとする点に依存する */
                 r2 = get_reg(rc2);
                 load(r2, vtop);
                 vpop();
-                /* write second register */
+                /* 2 番目のレジスタを書き込む */
                 vtop->r2 = r2;
             done:
                 vtop->type.t = original_type;
             } else {
                 if (vtop->r == VT_CMP)
                     vset_VT_JMP();
-                /* one register type load */
+                /* 1 レジスタ型のロード */
                 load(r, vtop);
             }
         }
         vtop->r = r;
 #ifdef TCC_TARGET_C67
-        /* uses register pairs for doubles */
+        /* double はレジスタペアを使用 */
         if (bt == VT_DOUBLE)
             vtop->r2 = r+1;
 #endif
@@ -1941,18 +1936,17 @@ ST_FUNC int gv(int rc)
     return r;
 }
 
-/* generate vtop[-1] and vtop[0] in resp. classes rc1 and rc2 */
+/* vtop[-1] と vtop[0] をそれぞれ rc1 と rc2 のクラスで生成する */
 ST_FUNC void gv2(int rc1, int rc2)
 {
-    /* generate more generic register first. But VT_JMP or VT_CMP
-       values must be generated first in all cases to avoid possible
-       reload errors */
+    /* 汎用的なレジスタを先に生成する。しかし VT_JMP や VT_CMP の値は
+       リロードエラーを避けるため常に先に生成する必要がある */
     if (vtop->r != VT_CMP && rc1 <= rc2) {
         vswap();
         gv(rc1);
         vswap();
         gv(rc2);
-        /* test if reload is needed for first register */
+        /* 最初のレジスタに対して再ロードが必要かをテスト */
         if ((vtop[-1].r & VT_VALMASK) >= VT_CONST) {
             vswap();
             gv(rc1);
@@ -1963,7 +1957,7 @@ ST_FUNC void gv2(int rc1, int rc2)
         vswap();
         gv(rc1);
         vswap();
-        /* test if reload is needed for first register */
+        /* 最初のレジスタに対して再ロードが必要かをテスト */
         if ((vtop[0].r & VT_VALMASK) >= VT_CONST) {
             gv(rc2);
         }
@@ -1971,7 +1965,7 @@ ST_FUNC void gv2(int rc1, int rc2)
 }
 
 #if PTR_SIZE == 4
-/* expand 64bit on stack in two ints */
+/* スタック上の 64bit 値を 2 つの int に展開する */
 ST_FUNC void lexpand(void)
 {
     int u, v;
@@ -1994,7 +1988,7 @@ ST_FUNC void lexpand(void)
 #endif
 
 #if PTR_SIZE == 4
-/* build a long long from two ints */
+/* 2 つの int から long long を構築する */
 static void lbuild(int t)
 {
     gv2(RC_INT, RC_INT);
@@ -2004,8 +1998,7 @@ static void lbuild(int t)
 }
 #endif
 
-/* convert stack entry to register and duplicate its value in another
-   register */
+/* スタックエントリをレジスタに変換し、その値を別のレジスタに複製する */
 static void gv_dup(void)
 {
     int t, rc, r;
@@ -2033,7 +2026,7 @@ static void gv_dup(void)
         return;
     }
 #endif
-    /* duplicate value */
+    /* 値を複製 */
     rc = RC_TYPE(t);
     gv(rc);
     r = get_reg(rc);
@@ -2043,7 +2036,7 @@ static void gv_dup(void)
 }
 
 #if PTR_SIZE == 4
-/* generate CPU independent (unsigned) long long operations */
+/* CPU 非依存の（符号無し）long long 演算を生成する */
 static void gen_opl(int op)
 {
     int t, a, b, op1, c, i;
@@ -2071,7 +2064,7 @@ static void gen_opl(int op)
         reg_lret = TREG_R3;
 #endif
     gen_func:
-        /* call generic long long function */
+        /* 汎用の long long 関数を呼び出す */
         vpush_helper_func(func);
         vrott(3);
         gfunc_call(2);
@@ -2122,7 +2115,7 @@ static void gen_opl(int op)
             gen_op('+');
             gen_op('+');
         } else if (op == '+' || op == '-') {
-            /* XXX: add non carry method too (for MIPS or alpha) */
+            /* XXX: キャリーなしの方法も追加する（MIPS や alpha 用） */
             if (op == '+')
                 op1 = TOK_ADDC1;
             else
@@ -2154,9 +2147,8 @@ static void gen_opl(int op)
             vrotb(3);
             /* stack: L H shift */
             c = (int)vtop->c.i;
-            /* constant: simpler */
-            /* NOTE: all comments are for SHL. the other cases are
-               done by swapping words */
+            /* 定数の場合: より単純 */
+            /* 注意: すべてのコメントは SHL 用。その他はワードを入れ替えることで処理される */
             vpop();
             if (op != TOK_SHL)
                 vswap();
@@ -2200,7 +2192,7 @@ static void gen_opl(int op)
                 vswap();
             lbuild(t);
         } else {
-            /* XXX: should provide a faster fallback on x86 ? */
+            /* XXX: x86 用の高速なフォールバックを用意すべきか？ */
             switch(op) {
             case TOK_SAR:
                 func = TOK___ashrdi3;
@@ -2215,7 +2207,7 @@ static void gen_opl(int op)
         }
         break;
     default:
-        /* compare operations */
+        /* 比較演算 */
         t = vtop->type.t;
         vswap();
         lexpand();
@@ -2227,14 +2219,13 @@ static void gen_opl(int op)
         vtop[-2] = tmp;
         /* stack: L1 L2 H1 H2 */
         if (!cur_switch || cur_switch->bsym) {
-            /* avoid differnt registers being saved in branches.
-               This is not needed when comparing switch cases */
+            /* 分岐で異なるレジスタが保存されるのを避ける。
+               switch の case 比較では不要 */
             save_regs(4);
         }
-        /* compare high */
+        /* 上位ワードを比較 */
         op1 = op;
-        /* when values are equal, we need to compare low words. since
-           the jump is inverted, we invert the test too. */
+        /* 値が等しい場合、下位ワードを比較する必要がある。ジャンプが反転するため、テストも反転する */
         if (op1 == TOK_LT)
             op1 = TOK_LE;
         else if (op1 == TOK_GT)
@@ -2251,13 +2242,13 @@ static void gen_opl(int op)
         } else {
             a = gvtst(1, 0);
             if (op != TOK_EQ) {
-                /* generate non equal test */
+                /* 等しくないテストを生成 */
                 vpushi(0);
                 vset_VT_CMP(TOK_NE);
                 b = gvtst(0, 0);
             }
         }
-        /* compare low. Always unsigned */
+        /* 下位ワードの比較。常に符号なし */
         op1 = op;
         if (op1 == TOK_LT)
             op1 = TOK_ULT;
@@ -2279,7 +2270,7 @@ static void gen_opl(int op)
 }
 #endif
 
-/* normalize values */
+/* 値を正規化 */
 static uint64_t value64(uint64_t l1, int t)
 {
     if ((t & VT_BTYPE) == VT_LLONG
@@ -2302,8 +2293,7 @@ static int gen_opic_lt(uint64_t a, uint64_t b)
     return (a ^ (uint64_t)1 << 63) < (b ^ (uint64_t)1 << 63);
 }
 
-/* handle integer constant optimizations and various machine
-   independent opt */
+/* 整数定数の最適化と各種機械非依存の最適化を扱う */
 static void gen_opic(int op)
 {
     SValue *v1 = vtop - 1;
@@ -2331,10 +2321,10 @@ static void gen_opic(int op)
         case '%':
         case TOK_UDIV:
         case TOK_UMOD:
-            /* if division by zero, generate explicit division */
+            /* 0 で除算する場合は、明示的な除算を生成する */
             if (l2 == 0) {
                 if (CONST_WANTED && !NOEVAL_WANTED)
-                    tcc_error("division by zero in constant");
+                    tcc_error("定数式でのゼロによる除算");
                 goto general_case;
             }
             switch(op) {
@@ -2380,13 +2370,13 @@ static void gen_opic(int op)
         if (c1 && ((l1 == 0 &&
                     (op == TOK_SHL || op == TOK_SHR || op == TOK_SAR)) ||
                    (l1 == -1 && op == TOK_SAR))) {
-            /* treat (0 << x), (0 >> x) and (-1 >> x) as constant */
+            /* (0 << x), (0 >> x) および (-1 >> x) を定数として扱う */
             vpop();
         } else if (c2 && ((l2 == 0 && (op == '&' || op == '*')) ||
                           (op == '|' &&
                             (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))) ||
                           (l2 == 1 && (op == '%' || op == TOK_UMOD)))) {
-            /* treat (x & 0), (x * 0), (x | -1) and (x % 1) as constant */
+            /* (x & 0), (x * 0), (x | -1) および (x % 1) を定数として扱う */
             if (l2 == 1)
                 vtop->c.i = 0;
             vswap();
@@ -2399,10 +2389,10 @@ static void gen_opic(int op)
                            l2 == 0) ||
                           (op == '&' &&
                             (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))))) {
-            /* filter out NOP operations like x*1, x-0, x&-1... */
+            /* x*1, x-0, x&-1 のような NOP 演算を除去する */
             vtop--;
         } else if (c2 && (op == '*' || op == TOK_PDIV || op == TOK_UDIV || op == TOK_UMOD)) {
-            /* try to use shifts instead of muls or divs */
+            /* 乗算や除算の代わりにシフトを使えるか試す */
             if (l2 > 0 && (l2 & (l2 - 1)) == 0) {
                 int n = -1;
                 if (op == TOK_UMOD) {
@@ -2426,12 +2416,11 @@ static void gen_opic(int op)
         } else if (c2 && (op == '+' || op == '-') &&
                    (r = vtop[-1].r & (VT_VALMASK | VT_LVAL | VT_SYM),
                     r == (VT_CONST | VT_SYM) || r == VT_LOCAL)) {
-            /* symbol + constant case */
+            /* シンボル + 定数 のケース */
             if (op == '-')
                 l2 = -l2;
 	    l2 += vtop[-1].c.i;
-	    /* The backends can't always deal with addends to symbols
-	       larger than +-1<<31.  Don't construct such.  */
+            /* バックエンドはシンボルに対して +-1<<31 を超える加算を常に扱えるとは限らない。そうした値は作らない */
 	    if ((int)l2 != l2)
 	        goto general_case;
             vtop--;
@@ -2483,13 +2472,13 @@ void gen_negf(int op)
 }
 #endif
 
-/* generate a floating point operation with constant propagation */
+/* 定数伝搬を伴う浮動小数点演算を生成する */
 static void gen_opif(int op)
 {
     int c1, c2, i, bt;
     SValue *v1, *v2;
 #if defined _MSC_VER && defined __x86_64__
-    /* avoid bad optimization with f1 -= f2 for f1:-0.0, f2:0.0 */
+    /* f1:-0.0, f2:0.0 の場合に f1 -= f2 の悪い最適化を避ける */
     volatile
 #endif
     long double f1, f2;
@@ -2514,8 +2503,7 @@ static void gen_opif(int op)
             f1 = v1->c.ld;
             f2 = v2->c.ld;
         }
-        /* NOTE: we only do constant propagation if finite number (not
-           NaN or infinity) (ANSI spec) */
+    /* 注意: 定数伝搬は有限な数（NaN や無限大でない）に対してのみ行う（ANSI 規格） */
         if (!(ieee_finite(f1) || !ieee_finite(f2)) && !CONST_WANTED)
             goto general_case;
         switch(op) {
@@ -2525,12 +2513,11 @@ static void gen_opif(int op)
         case '/': 
             if (f2 == 0.0) {
                 union { float f; unsigned u; } x1, x2, y;
-		/* If not in initializer we need to potentially generate
-		   FP exceptions at runtime, otherwise we want to fold.  */
+        /* 初期化子内でない場合は実行時に浮動小数点例外を発生させる必要がある可能性があるため、
+           そうでなければ定数畳み込みを行う */
                 if (!CONST_WANTED)
                     goto general_case;
-                /* the run-time result of 0.0/0.0 on x87, also of other compilers
-                   when used to compile the f1 /= f2 below, would be -nan */
+                /* x87 上での 0.0/0.0 の実行時結果は -nan となる（他のコンパイラでも同様） */
                 x1.f = f1, x2.f = f2;
                 if (f1 == 0.0)
                     y.u = 0x7fc00000; /* nan */
@@ -2589,10 +2576,9 @@ static void gen_opif(int op)
     }
 }
 
-/* print a type. If 'varstr' is not NULL, then the variable is also
-   printed in the type */
-/* XXX: union */
-/* XXX: add array and function pointers */
+/* 型を出力する。'varstr' が NULL でない場合は変数名も型に表示する */
+/* XXX: 共用体 (union) */
+/* XXX: 配列および関数ポインタの表示を追加する */
 static void type_to_str(char *buf, int buf_size,
                  CType *type, const char *varstr)
 {
@@ -2763,7 +2749,7 @@ static inline int is_null_pointer(SValue *p)
          );
 }
 
-/* compare function types. OLD functions match any new functions */
+/* 関数型を比較する。OLD（古い）関数は任意の新しい関数にマッチする */
 static int is_compatible_func(CType *type1, CType *type2)
 {
     Sym *s1, *s2;
@@ -2790,9 +2776,7 @@ static int is_compatible_func(CType *type1, CType *type2)
     }
 }
 
-/* return true if type1 and type2 are the same.  If unqualified is
-   true, qualifiers on the types are ignored.
- */
+/* type1 と type2 が同じなら真を返す。unqualified が真なら、型の修飾子は無視される。 */
 static int compare_types(CType *type1, CType *type2, int unqualified)
 {
     int bt1, t1, t2;
@@ -2845,8 +2829,15 @@ static int compare_types(CType *type1, CType *type2, int unqualified)
 #define CMP_OP 'C'
 #define SHIFT_OP 'S'
 
-/* Check if OP1 and OP2 can be "combined" with operation OP, the combined
-   type is stored in DEST if non-null (except for pointer plus/minus) . */
+/* OP1 と OP2 が演算 OP で "結合" できるかをチェックする。結合型は DEST に格納される（ポインタの加減算を除く）。 */
+    /* for shifts, 'combine' only left operand */
+    /* シフトの場合、'combine' は左オペランドのみを扱う */
+    /* strip qualifiers before comparing */
+    /* 比較前に修飾子を取り除く */
+    /* Default Vs explicit signedness only matters for char */
+    /* デフォルトと明示的な符号指定の違いは char の場合にのみ問題となる */
+    /* XXX: bitfields ? */
+    /* XXX: ビットフィールド ? */
 static int combine_types(CType *dest, SValue *op1, SValue *op2, int op)
 {
     CType *type1, *type2, type;
@@ -2882,8 +2873,8 @@ static int combine_types(CType *dest, SValue *op1, SValue *op2, int op)
                with a warning */
             if ((op == '?' || op == CMP_OP)
                 && (is_integer_btype(bt1) || is_integer_btype(bt2)))
-              tcc_warning("pointer/integer mismatch in %s",
-                          op == '?' ? "conditional expression" : "comparison");
+              tcc_warning("ポインタ/整数の不一致: %s",
+                          op == '?' ? "条件演算子" : "比較");
             else if (op != '-' || !is_integer_btype(bt2))
               ret = 0;
             type = *(bt1 == VT_PTR ? type1 : type2);
@@ -3006,7 +2997,7 @@ redo:
 	goto redo;
     } else if (!combine_types(&combtype, vtop - 1, vtop, op_class)) {
 op_err:
-        tcc_error("invalid operand types for binary operation");
+    tcc_error("二項演算のオペランド型が不正です");
     } else if (bt1 == VT_PTR || bt2 == VT_PTR) {
         /* at least one operand is a pointer */
         /* relational op: must be both pointers */
@@ -3036,7 +3027,7 @@ op_err:
             }
 #if PTR_SIZE == 4
             if (bt2 == VT_LLONG)
-                /* XXX: truncate here because gen_opl can't handle ptr + long long */
+                /* XXX: ここで切り捨てる。gen_opl は ptr + long long を扱えないため */
                 gen_cast_s(VT_INT);
 #endif
             type1 = vtop[-1].type;
@@ -3044,8 +3035,7 @@ op_err:
             gen_op('*');
 #ifdef CONFIG_TCC_BCHECK
             if (tcc_state->do_bounds_check && !CONST_WANTED) {
-                /* if bounded pointers, we generate a special code to
-                   test bounds */
+                /* 境界検査付きポインタの場合、境界をテストするための特別なコードを生成する */
                 if (op == '-') {
                     vpushi(0);
                     vswap();
@@ -3070,12 +3060,10 @@ op_err:
         }
     std_op:
         t = t2 = combtype.t;
-        /* special case for shifts and long long: we keep the shift as
-           an integer */
+    /* シフトと long long の特殊ケース: シフトは整数のままにする */
         if (op_class == SHIFT_OP)
             t2 = VT_INT;
-        /* XXX: currently, some unsigned operations are explicit, so
-           we modify them here */
+    /* XXX: 現状、一部の符号なし演算は明示的なので、ここで変換する */
         if (t & VT_UNSIGNED) {
             if (op == TOK_SAR)
                 op = TOK_SHR;
@@ -3101,7 +3089,7 @@ op_err:
         else
             gen_opic(op);
         if (op_class == CMP_OP) {
-            /* relational op: the result is an int */
+            /* 関係演算子: 結果は int */
             vtop->type.t = VT_INT;
         } else {
             vtop->type.t = t;
@@ -3201,7 +3189,7 @@ static void gen_cast(CType *type)
         gv(RC_INT);
 
     if (IS_ENUM(type->t) && type->ref->c < 0)
-        tcc_error("cast to incomplete type");
+        tcc_error("不完全型へのキャスト");
 
     dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
     sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
@@ -3330,7 +3318,7 @@ error:
         if (ds == ss && ds >= 4)
             goto done;
         if (dbt_bt == VT_PTR || sbt_bt == VT_PTR) {
-            tcc_warning("cast between pointer and integer of different size");
+            tcc_warning("ポインタと整数のサイズが異なる間のキャストです");
             if (sbt_bt == VT_PTR) {
                 /* put integer type to allow logical operations below */
                 vtop->type.t = (PTR_SIZE == 8 ? VT_LLONG : VT_INT);
@@ -3489,7 +3477,7 @@ static void vpush_type_size(CType *type, int *a)
     } else {
         int size = type_size(type, a);
         if (size < 0)
-            tcc_error("unknown type size");
+            tcc_error("不明な型サイズです");
         vpushs(size);
     }
 }
@@ -3526,7 +3514,7 @@ static int is_compatible_unqualified_types(CType *type1, CType *type2)
 
 static void cast_error(CType *st, CType *dt)
 {
-    type_incompatibility_error(st, dt, "cannot convert '%s' to '%s'");
+    type_incompatibility_error(st, dt, "'%s' を '%s' に変換できません");
 }
 
 /* verify type compatibility to store vtop in 'dt' type */
@@ -3539,11 +3527,11 @@ static void verify_assign_cast(CType *dt)
     dbt = dt->t & VT_BTYPE;
     sbt = st->t & VT_BTYPE;
     if (dt->t & VT_CONSTANT)
-        tcc_warning("assignment of read-only location");
+        tcc_warning("読み取り専用の場所への代入です");
     switch(dbt) {
     case VT_VOID:
         if (sbt != dbt)
-            tcc_error("assignment to void expression");
+            tcc_error("void 型への代入");
         break;
     case VT_PTR:
         /* special cases for pointers */
@@ -3552,7 +3540,7 @@ static void verify_assign_cast(CType *dt)
             break;
         /* accept implicit pointer to integer cast with warning */
         if (is_integer_btype(sbt)) {
-            tcc_warning("assignment makes pointer from integer without a cast");
+            tcc_warning("キャストなしで整数からポインタが作られます");
             break;
         }
         type1 = pointed_type(dt);
@@ -3587,7 +3575,7 @@ static void verify_assign_cast(CType *dt)
 		   base types, though, in particular for unsigned enums
 		   and signed int targets.  */
             } else {
-                tcc_warning("assignment from incompatible pointer type");
+                tcc_warning("互換性のないポインタ型からの代入です");
                 break;
             }
         }
@@ -3599,7 +3587,7 @@ static void verify_assign_cast(CType *dt)
     case VT_INT:
     case VT_LLONG:
         if (sbt == VT_PTR || sbt == VT_FUNC) {
-            tcc_warning("assignment makes integer from pointer without a cast");
+            tcc_warning("キャストなしでポインタから整数が作られます");
         } else if (sbt == VT_STRUCT) {
             goto case_VT_STRUCT;
         }
@@ -3874,7 +3862,7 @@ redo:
                     "implicit declaration of function '%s'", get_tok_str(tok, &tokc));
 	        s = external_global_sym(tok, &func_old_type);
             } else if ((s->type.t & VT_BTYPE) != VT_FUNC)
-                tcc_error("'%s' is not declared as function", get_tok_str(tok, &tokc));
+                            tcc_error("'%s' は関数として宣言されていません", get_tok_str(tok, &tokc));
 	    ad->cleanup_func = s;
 	    next();
             skip(')');
@@ -3929,14 +3917,14 @@ redo:
                 next();
                 n = expr_const();
                 if (n <= 0 || (n & (n - 1)) != 0) 
-                    tcc_error("alignment must be a positive power of two");
+                    tcc_error("アラインメントは正の2の冪でなければなりません");
                 skip(')');
             } else {
                 n = MAX_ALIGN;
             }
             ad->a.aligned = exact_log2p1(n);
 	    if (n != 1 << (ad->a.aligned - 1))
-	      tcc_error("alignment of %d is larger than implemented", n);
+        tcc_error("アラインメント %d は実装より大きすぎます", n);
             break;
         case TOK_PACKED1:
         case TOK_PACKED2:
@@ -4010,7 +3998,7 @@ redo:
                     ad->attr_mode = VT_INT + 1;
                     break;
                 default:
-                    tcc_warning("__mode__(%s) not supported\n", get_tok_str(tok, NULL));
+                    tcc_warning("__mode__(%s) はサポートされていません\n", get_tok_str(tok, NULL));
                     break;
             }
             next();
@@ -4026,7 +4014,7 @@ redo:
             ad->a.dllimport = 1;
             break;
         default:
-            tcc_warning_c(warn_unsupported)("'%s' attribute ignored", get_tok_str(t, NULL));
+            tcc_warning_c(warn_unsupported)("属性 '%s' は無視されます", get_tok_str(t, NULL));
             /* skip parameters */
             if (tok == '(') {
                 int parenthesis = 0;
@@ -4059,7 +4047,7 @@ static Sym * find_field (CType *type, int v, int *cumofs)
         if (v < TOK_UIDENT)
             expect("field name");
         if (s->c < 0)
-            tcc_error("dereferencing incomplete type '%s'",
+            tcc_error("不完全型 '%s' の参照解除",
                 get_tok_str(s->v & ~SYM_STRUCT, 0));
     }
     while ((s = s->next) != NULL) {
@@ -4078,7 +4066,7 @@ static Sym * find_field (CType *type, int v, int *cumofs)
         }
     }
     if (!(v & SYM_FIELD))
-        tcc_error("field not found: %s", get_tok_str(v, NULL));
+        tcc_error("フィールドが見つかりません: %s", get_tok_str(v, NULL));
     return s;
 }
 
@@ -4091,7 +4079,7 @@ static void check_fields (CType *type, int check)
         if (v < SYM_FIRST_ANOM) {
             TokenSym *ts = table_ident[v - TOK_IDENT];
             if (check && (ts->tok & SYM_FIELD))
-                tcc_error("duplicate member '%s'", get_tok_str(v, NULL));
+                tcc_error("メンバ '%s' が重複しています", get_tok_str(v, NULL));
             ts->tok ^= SYM_FIELD;
         } else if ((s->type.t & VT_BTYPE) == VT_STRUCT)
             check_fields (&s->type, check);
@@ -4384,7 +4372,7 @@ static void struct_decl(CType *type, int u)
                 goto do_decl;
             if (u == VT_ENUM && IS_ENUM(s->type.t)) /* XXX: check integral types */
                 goto do_decl;
-            tcc_error("redeclaration of '%s'", get_tok_str(v, NULL));
+            tcc_error("再定義: '%s'", get_tok_str(v, NULL));
         }
     } else {
         if (tok != '{')
@@ -4405,7 +4393,7 @@ do_decl:
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
-            tcc_error("struct/union/enum already defined");
+            tcc_error("struct/union/enum は既に定義されています");
         s->c = -2;
         /* cannot be empty */
         /* non empty enums are not allowed */
@@ -4424,7 +4412,7 @@ do_decl:
                     expect("identifier");
                 ss = sym_find(v);
                 if (ss && !local_stack)
-                    tcc_error("redefinition of enumerator '%s'",
+                    tcc_error("列挙子 '%s' の再定義",
                               get_tok_str(v, NULL));
                 next();
                 if (tok == '=') {
@@ -4494,7 +4482,7 @@ do_decl:
 		}
                 while (1) {
 		    if (flexible)
-		        tcc_error("flexible array member '%s' not at the end of struct",
+                tcc_error("可変長配列メンバ '%s' が構造体の末尾にありません",
                               get_tok_str(v, NULL));
                     bit_size = -1;
                     v = 0;
@@ -4517,13 +4505,13 @@ do_decl:
 			    if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
 			        flexible = 1;
 			    else
-			        tcc_error("field '%s' has incomplete type",
+                    tcc_error("フィールド '%s' は不完全型です",
                                       get_tok_str(v, NULL));
                         }
                         if ((type1.t & VT_BTYPE) == VT_FUNC ||
 			    (type1.t & VT_BTYPE) == VT_VOID ||
                             (type1.t & VT_STORAGE))
-                            tcc_error("invalid type for '%s'", 
+                            tcc_error("'%s' に対する無効な型", 
                                   get_tok_str(v, NULL));
                     }
                     if (tok == ':') {
@@ -4531,10 +4519,10 @@ do_decl:
                         bit_size = expr_const();
                         /* XXX: handle v = 0 case for messages */
                         if (bit_size < 0)
-                            tcc_error("negative width in bit-field '%s'", 
+                            tcc_error("ビットフィールド '%s' の幅が負です", 
                                   get_tok_str(v, NULL));
                         if (v && bit_size == 0)
-                            tcc_error("zero width for bit-field '%s'", 
+                            tcc_error("ビットフィールド '%s' の幅が0です", 
                                   get_tok_str(v, NULL));
 			parse_attribute(&ad1);
                     }
@@ -4546,17 +4534,17 @@ do_decl:
                             bt != VT_SHORT &&
                             bt != VT_BOOL &&
                             bt != VT_LLONG)
-                            tcc_error("bitfields must have scalar type");
+                            tcc_error("ビットフィールドはスカラー型でなければなりません");
                         bsize = size * 8;
                         if (bit_size > bsize) {
-                            tcc_error("width of '%s' exceeds its type",
+                            tcc_error("'%s' の幅が型の許容範囲を超えています",
                                   get_tok_str(v, NULL));
                         } else if (bit_size == bsize
                                     && !ad.a.packed && !ad1.a.packed) {
                             /* no need for bit fields */
                             ;
                         } else if (bit_size == 64) {
-                            tcc_error("field width 64 not implemented");
+                            tcc_error("ビットフィールド幅64は未実装です");
                         } else {
                             type1.t = (type1.t & ~VT_STRUCT_MASK)
                                 | VT_BITFIELD
@@ -4590,7 +4578,7 @@ do_decl:
             skip('}');
 	    parse_attribute(&ad);
             if (ad.cleanup_func) {
-                tcc_warning("attribute '__cleanup__' ignored on type");
+                tcc_warning("属性 '__cleanup__' は型に対して無視されます");
             }
 	    check_fields(type, 1);
 	    check_fields(type, 0);
@@ -4649,7 +4637,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
         basic_type1:
             if (u == VT_SHORT || u == VT_LONG) {
                 if (st != -1 || (bt != -1 && bt != VT_INT))
-                    tmbt: tcc_error("too many basic types");
+                    tmbt: tcc_error("基本型が多すぎます");
                 st = u;
             } else {
                 if (bt != -1 || (st != -1 && u != VT_INT))
@@ -4684,7 +4672,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
               } else {
                   n = expr_const();
                   if (n < 0 || (n & (n - 1)) != 0)
-                    tcc_error("alignment must be a positive power of two");
+                    tcc_error("アラインメントは正の2の冪でなければなりません");
               }
               skip(')');
               ad->a.aligned = exact_log2p1(n);
@@ -4705,7 +4693,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             u = VT_BOOL;
             goto basic_type;
         case TOK_COMPLEX:
-            tcc_error("_Complex is not yet supported");
+            tcc_error("_Complex はまだサポートされていません");
         case TOK_FLOAT:
             u = VT_FLOAT;
             goto basic_type;
@@ -4766,7 +4754,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
         case TOK_SIGNED2:
         case TOK_SIGNED3:
             if ((t & (VT_DEFSIGN|VT_UNSIGNED)) == (VT_DEFSIGN|VT_UNSIGNED))
-                tcc_error("signed and unsigned modifier");
+                tcc_error("符号付きと無符号の修飾子が混在しています");
             t |= VT_DEFSIGN;
             next();
             typespec_found = 1;
@@ -4780,7 +4768,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             break;
         case TOK_UNSIGNED:
             if ((t & (VT_DEFSIGN|VT_UNSIGNED)) == VT_DEFSIGN)
-                tcc_error("signed and unsigned modifier");
+                tcc_error("符号付きと無符号の修飾子が混在しています");
             t |= VT_DEFSIGN | VT_UNSIGNED;
             next();
             typespec_found = 1;
@@ -4798,7 +4786,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             goto storage;
        storage:
             if (t & (VT_EXTERN|VT_STATIC|VT_TYPEDEF) & ~g)
-                tcc_error("multiple storage classes");
+                tcc_error("ストレージクラスが複数指定されています");
             t |= g;
             next();
             break;
@@ -4833,7 +4821,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
                 sym_to_attr(ad, type1.ref);
             goto basic_type2;
         case TOK_THREAD_LOCAL:
-            tcc_error("_Thread_local is not implemented");
+            tcc_error("_Thread_local は実装されていません");
         default:
             if (typespec_found)
                 goto the_end;
@@ -4952,7 +4940,7 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
                         break;
                     type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT | TYPE_PARAM);
                     if ((pt.t & VT_BTYPE) == VT_VOID)
-                        tcc_error("parameter declared as void");
+                        tcc_error("パラメータが void として宣言されています");
                     if (n == 0)
                         n = SYM_FIELD;
                 } else {
@@ -4980,7 +4968,7 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
                     break;
                 }
 		if (l == FUNC_NEW && !parse_btype(&pt, &ad1, 0))
-		    tcc_error("invalid type");
+            tcc_error("無効な型");
             }
         } else
             /* if no parameters, then old type prototype */
@@ -5065,10 +5053,10 @@ check:
             if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
                 n = vtop->c.i;
                 if (n < 0)
-                    tcc_error("invalid array size");
+                    tcc_error("無効な配列サイズ");
             } else {
                 if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-                    tcc_error("size of variable length array should be an integer");
+                    tcc_error("可変長配列のサイズは整数でなければなりません");
                 n = 0;
                 t1 = VT_VLA;
             }
@@ -5078,17 +5066,17 @@ check:
         post_type(type, ad, storage, (td & ~(TYPE_DIRECT|TYPE_ABSTRACT)) | TYPE_NEST);
 
         if ((type->t & VT_BTYPE) == VT_FUNC)
-            tcc_error("declaration of an array of functions");
+            tcc_error("関数の配列の宣言は無効です");
         if ((type->t & VT_BTYPE) == VT_VOID
             || type_size(type, &align) < 0)
-            tcc_error("declaration of an array of incomplete type elements");
+            tcc_error("不完全型要素の配列宣言は無効です");
 
         t1 |= type->t & VT_VLA;
 
         if (t1 & VT_VLA) {
-            if (n < 0) {
-		if  (td & TYPE_NEST)
-                    tcc_error("need explicit inner array size in VLAs");
+                    if (n < 0) {
+        	if  (td & TYPE_NEST)
+                    tcc_error("可変長配列の内部サイズは明示的に指定する必要があります");
 	    }
 	    else {
                 loc -= type_size(&int_type, &align);
@@ -5248,7 +5236,7 @@ static void gfunc_param_typed(Sym *func, Sym *arg)
             force_charshort_cast();
         }
     } else if (arg == NULL) {
-        tcc_error("too many arguments to function");
+        tcc_error("関数への引数が多すぎます");
     } else {
         type = arg->type;
         type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
@@ -5412,9 +5400,9 @@ static void parse_atomic(int atok)
             break;
 
         case 'p':
-            if ((vtop->type.t & VT_BTYPE) != VT_PTR
-             || type_size(pointed_type(&vtop->type), &align) != size)
-                tcc_error("pointer target type mismatch in argument %d", arg + 1);
+                if ((vtop->type.t & VT_BTYPE) != VT_PTR
+                 || type_size(pointed_type(&vtop->type), &align) != size)
+                     tcc_error("引数 %d のポインタのターゲット型が一致しません", arg + 1);
             gen_assign_cast(atom_ptr);
             break;
         case 'v':
@@ -5602,7 +5590,7 @@ ST_FUNC void unary(void)
             if (CONST_WANTED && !NOEVAL_WANTED)
                 expect("constant");
             if (0 == local_scope)
-                tcc_error("statement expression outside of function");
+                tcc_error("関数外での statement expression は許可されていません");
             /* save all registers */
             save_regs(0);
             /* statement expression : we do not accept break/continue
@@ -5659,7 +5647,7 @@ ST_FUNC void unary(void)
         next();
         unary();
         if ((vtop->type.t & VT_BTYPE) == VT_PTR)
-            tcc_error("pointer not accepted for unary plus");
+            tcc_error("単項 + に対してポインタは許容されません");
         /* In order to force cast, we add zero, except for floating point
 	   where we really need an noop (otherwise -0.0 will be transformed
 	   into +0.0).  */
@@ -5756,7 +5744,7 @@ ST_FUNC void unary(void)
             skip('(');
             level = expr_const();
             if (level < 0)
-                tcc_error("%s only takes positive integers", get_tok_str(tok1, 0));
+                tcc_error("%s は正の整数のみ受け付けます", get_tok_str(tok1, 0));
             skip(')');
             type.t = VT_VOID;
             mk_pointer(&type);
@@ -5793,7 +5781,7 @@ ST_FUNC void unary(void)
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start expects a local variable");
+            tcc_error("__builtin_va_start はローカル変数を必要とします");
         gen_va_start();
 	vstore();
         break;
@@ -5806,7 +5794,7 @@ ST_FUNC void unary(void)
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start expects a local variable");
+            tcc_error("__builtin_va_start はローカル変数を必要とします");
         vtop->r = r;
 	vtop->type = char_pointer_type;
 	vtop->c.i += 8;
@@ -5931,9 +5919,9 @@ ST_FUNC void unary(void)
         for (;;) {
 	    learn = 0;
 	    skip(',');
-	    if (tok == TOK_DEFAULT) {
-		if (has_default)
-		    tcc_error("too many 'default'");
+        if (tok == TOK_DEFAULT) {
+        	if (has_default)
+        	    tcc_error("'default' が多すぎます");
 		has_default = 1;
 		if (!has_match)
 		    learn = 1;
@@ -5945,10 +5933,10 @@ ST_FUNC void unary(void)
 
 		parse_btype(&cur_type, &ad_tmp, 0);
 		type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
-		if (compare_types(&controlling_type, &cur_type, 0)) {
-		    if (has_match) {
-		      tcc_error("type match twice");
-		    }
+            if (compare_types(&controlling_type, &cur_type, 0)) {
+            	if (has_match) {
+            	  tcc_error("型が2回一致しました");
+            	}
 		    has_match = 1;
 		    learn = 1;
 		}
@@ -5964,10 +5952,10 @@ ST_FUNC void unary(void)
 	    if (tok == ')')
 		break;
 	}
-	if (!str) {
+    if (!str) {
 	    char buf[60];
 	    type_to_str(buf, sizeof buf, &controlling_type, NULL);
-	    tcc_error("type '%s' does not match any association", buf);
+        tcc_error("型 '%s' はどの関連付けにも一致しません", buf);
 	}
 	begin_macro(str, 1);
 	next();
@@ -5996,14 +5984,14 @@ special_math_val:
     default:
     tok_identifier:
         if (tok < TOK_UIDENT)
-            tcc_error("expression expected before '%s'", get_tok_str(tok, &tokc));
+            tcc_error("'%s' の前に式が必要です", get_tok_str(tok, &tokc));
         t = tok;
         next();
         s = sym_find(t);
         if (!s || IS_ASM_SYM(s)) {
             const char *name = get_tok_str(t, NULL);
             if (tok != '(')
-                tcc_error("'%s' undeclared", name);
+                tcc_error("'%s' は宣言されていません", name);
             /* for simple function calls, we tolerate undeclared
                external reference to int() function */
             tcc_warning_c(warn_implicit_function_declaration)(
@@ -6167,7 +6155,7 @@ special_math_val:
                 }
             }
             if (sa)
-                tcc_error("too few arguments to function");
+                tcc_error("関数への引数が少なすぎます");
 
             if (p) { /* with reverse_funcargs */
                 for (n = 0; p; p = p2, ++n) {
@@ -6671,7 +6659,7 @@ ST_FUNC int expr_const(void)
     int64_t wc = expr_const64();
     c = wc;
     if (c != wc && (unsigned)c != wc)
-        tcc_error("constant exceeds 32 bit");
+        tcc_error("定数が32ビットを超えています");
     return c;
 }
 
@@ -6751,7 +6739,7 @@ static void check_func_return(void)
         gen_assign_cast(&func_vt);
         gfunc_return(&func_vt);
     } else {
-        tcc_warning("function might return no value: '%s'", funcname);
+    tcc_warning("関数が値を返さない可能性があります: '%s'", funcname);
     }
 }
 
@@ -6782,7 +6770,7 @@ static void case_sort(struct switch_t *sw)
         if (case_cmp(p[0]->v2, p[1]->v1) >= 0) {
             int l1 = p[0]->line, l2 = p[1]->line;
             /* using special format "%i:..." to show specific line */
-            tcc_error("%i:duplicate case value", l1 > l2 ? l1 : l2);
+            tcc_error("%i:case の値が重複しています", l1 > l2 ? l1 : l2);
         } else if (p[0]->v2 + 1 == p[1]->v1 && p[0]->ind == p[1]->ind) {
             /* treat "case 1: case 2: case 3:" like "case 1 ... 3: */
             p[1]->v1 = p[0]->v1;
@@ -7103,11 +7091,11 @@ again:
                 gen_assign_cast(&func_vt);
             } else {
                 if (vtop->type.t != VT_VOID)
-                    tcc_warning("void function returns a value");
+                    tcc_warning("void 型の関数が値を返しています");
                 vtop--;
             }
         } else if (b) {
-            tcc_warning("'return' with no value");
+            tcc_warning("値のない 'return' です");
             b = 0;
         }
         leave_scope(root_scope);
@@ -7124,7 +7112,7 @@ again:
     } else if (t == TOK_BREAK) {
         /* compute jump */
         if (!cur_scope->bsym)
-            tcc_error("cannot break");
+            tcc_error("break はここでは使用できません");
         if (cur_switch && cur_scope->bsym == cur_switch->bsym)
             leave_scope(cur_switch->scope);
         else
@@ -7135,7 +7123,7 @@ again:
     } else if (t == TOK_CONTINUE) {
         /* compute jump */
         if (!cur_scope->csym)
-            tcc_error("cannot continue");
+            tcc_error("continue はここでは使用できません");
         leave_scope(loop_scope);
         *cur_scope->csym = gjmp(*cur_scope->csym);
         skip(';');
@@ -7155,10 +7143,10 @@ again:
         skip(';');
         a = b = 0;
         c = d = gind();
-        if (tok != ';') {
-            gexpr();
-            a = gvtst(1, 0);
-        }
+            if (tok != ';') {
+                gexpr();
+                a = gvtst(1, 0);
+            }
         skip(';');
         if (tok != ')') {
             e = gjmp(0);
@@ -7206,7 +7194,7 @@ again:
         gexpr();
         skip(')');
         if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-            tcc_error("switch value not an integer");
+            tcc_error("switch の値が整数ではありません");
         sw->sv = *vtop--; /* save switch value */
         a = 0;
         b = gjmp(0); /* jump to first case */
@@ -7244,7 +7232,7 @@ again:
             next();
             cr->v2 = value64(expr_const64(), t);
             if (case_cmp(cr->v2, cr->v1) < 0)
-                tcc_warning("empty case range");
+                tcc_warning("空の case 範囲です");
         }
         /* case and default are unreachable from a switch under nocode_wanted */
         if (!cur_switch->nocode_wanted)
@@ -7257,7 +7245,7 @@ again:
         if (!cur_switch)
             expect("switch");
         if (cur_switch->def_sym)
-            tcc_error("too many 'default'");
+            tcc_error("'default' が多すぎます");
         cur_switch->def_sym = cur_switch->nocode_wanted ? -1 : gind();
         skip(':');
         goto block_after_label;
@@ -7310,7 +7298,7 @@ again:
             s = label_find(t);
             if (s) {
                 if (s->r == LABEL_DEFINED)
-                    tcc_error("duplicate label '%s'", get_tok_str(s->v, NULL));
+                    tcc_error("ラベル '%s' が重複しています", get_tok_str(s->v, NULL));
                 s->r = LABEL_DEFINED;
 		if (s->next) {
 		    Sym *pcl; /* pending cleanup goto */
@@ -7341,7 +7329,7 @@ again:
                 /* C23: insert implicit null-statement whithin compound statement */
             } else {
                 /* we accept this, but it is a mistake */
-                tcc_warning_c(warn_all)("deprecated use of label at end of compound statement");
+                tcc_warning_c(warn_all)("複合文の末尾でのラベルの使用は非推奨です");
             }
         } else {
             /* expression case */
@@ -7385,12 +7373,12 @@ static void skip_or_save_block(TokenString **str)
              || t == ')'
              || t == ']'))
              break;
-	if (t == TOK_EOF) {
-	     if (str || level > 0)
-	       tcc_error("unexpected end of file");
-	     else
-	       break;
-	}
+        if (tok == TOK_EOF) {
+                 if (str || level > 0)
+                     tcc_error("ファイルの終端に予期せず到達しました");
+                 else
+                     break;
+        }
 	if (str)
 	  tok_str_add_tok(*str);
 	next();
@@ -7428,7 +7416,7 @@ static void parse_init_elem(int expr_type)
                  || ((vtop->r & VT_SYM) && vtop->sym->a.dllimport)
 #endif
            )
-            tcc_error("initializer element is not constant");
+            tcc_error("初期化子の要素が定数ではありません");
         break;
     case EXPR_ANY:
         expr_eq();
@@ -7497,7 +7485,7 @@ static void decl_design_flex(init_params *p, Sym *ref, int index)
         if (index >= ref->c)
             ref->c = index + 1;
     } else if (ref->c < 0)
-        tcc_error("flexible array has zero size in this context");
+        tcc_error("この文脈では可変長配列のサイズが0です");
 }
 
 /* t is the array or struct type. c is the array or struct
@@ -7541,7 +7529,7 @@ static int decl_designator(init_params *p, CType *type, unsigned long c,
             s = type->ref;
             decl_design_flex(p, s, index_last);
             if (index < 0 || index_last >= s->c || index_last < index)
-	        tcc_error("index exceeds array bounds or range is empty");
+        	 tcc_error("添字が配列の範囲を超えているか、範囲が空です");
             if (cur_field)
 		(*cur_field)->c = index_last;
             type = pointed_type(type);
@@ -7575,7 +7563,7 @@ static int decl_designator(init_params *p, CType *type, unsigned long c,
             s = type->ref;
             decl_design_flex(p, s, index);
             if (index >= s->c)
-                tcc_error("too many initializers");
+                tcc_error("初期化子の数が多すぎます");
             type = pointed_type(type);
             elem_size = type_size(type, &align);
             c += index * elem_size;
@@ -7586,7 +7574,7 @@ static int decl_designator(init_params *p, CType *type, unsigned long c,
 		   is_integer_btype(f->type.t & VT_BTYPE))
 	        *cur_field = f = f->next;
             if (!f)
-                tcc_error("too many initializers");
+                tcc_error("初期化子の数が多すぎます");
 	    type = &f->type;
             c += f->c;
         }
@@ -7662,7 +7650,7 @@ static void init_putv(init_params *p, CType *type, unsigned long c)
                 || (type->t & VT_BITFIELD))
             && !((vtop->r & VT_CONST) && vtop->sym->v >= SYM_FIRST_ANOM)
             )
-            tcc_error("initializer element is not computable at load time");
+            tcc_error("初期化子の要素はロード時に計算できません");
 
         if (NODATA_WANTED) {
             vtop--;
@@ -7779,7 +7767,7 @@ static void init_putv(init_params *p, CType *type, unsigned long c)
                     ; /* nothing to do for 0.0 */
 #ifndef TCC_CROSS_TEST
                 else
-                    tcc_error("can't cross compile long double constants");
+                    tcc_error("long double 定数をクロスコンパイルできません");
 #endif
 		break;
 
@@ -7881,8 +7869,8 @@ static void decl_initializer(init_params *p, CType *type, unsigned long c, int f
             ) || (tok == TOK_STR && (t1->t & VT_BTYPE) == VT_BYTE)) {
 	    len = 0;
             cstr_reset(&initstr);
-            if (size1 != (tok == TOK_STR ? 1 : sizeof(nwchar_t)))
-              tcc_error("unhandled string literal merging");
+                        if (size1 != (tok == TOK_STR ? 1 : sizeof(nwchar_t)))
+                            tcc_error("文字列リテラルの結合を処理できません");
             while (tok == TOK_STR || tok == TOK_LSTR) {
                 if (initstr.size)
                   initstr.size -= size1;
@@ -7908,8 +7896,8 @@ static void decl_initializer(init_params *p, CType *type, unsigned long c, int f
                 int nb = n, ch;
                 if (len < nb)
                     nb = len;
-                if (len > nb)
-                  tcc_warning("initializer-string for array is too long");
+                                if (len > nb)
+                                    tcc_warning("配列の初期化文字列が長すぎます");
                 /* in order to go faster for common case (char
                    string in global variable, we handle it
                    specifically */
@@ -8074,11 +8062,11 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     /* exactly one flexible array may be initialized, either the
        toplevel array or the last member of the toplevel struct */
 
-    if (size < 0) {
+        if (size < 0) {
         // error out except for top-level incomplete arrays
         // (arrays of incomplete types are handled in array parsing)
         if (!(type->t & VT_ARRAY))
-            tcc_error("initialization of incomplete type");
+            tcc_error("不完全型の初期化です");
 
         /* If the base type itself was an array type of unspecified size
            (like in 'typedef int arr[]; arr x = {1};') then we will
@@ -8103,7 +8091,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     if (size < 0) {
         /* If unknown size, do a dry-run 1st pass */
         if (!has_init) 
-            tcc_error("unknown type size");
+            tcc_error("型のサイズが不明です");
         if (has_init == 2) {
             /* only get strings */
             init_str = tok_str_alloc();
@@ -8127,7 +8115,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         /* if still unknown size, error */
         size = type_size(type, &align);
         if (size < 0) 
-            tcc_error("unknown type size");
+            tcc_error("型のサイズが不明です");
 
         /* If there's a flex member and it was used in the initializer
            adjust size.  */
@@ -8538,7 +8526,7 @@ static int decl(int l)
 	    if ((btype.t & VT_BTYPE) == VT_STRUCT) {
 		v = btype.ref->v;
 		if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) >= SYM_FIRST_ANOM)
-        	    tcc_warning("unnamed struct/union that defines no instances");
+        	    tcc_warning("インスタンスを定義しない無名 struct/union です");
                 next();
                 continue;
 	    }
@@ -8560,8 +8548,8 @@ static int decl(int l)
             }
 #endif
             if ((type.t & VT_BTYPE) == VT_FUNC) {
-                if ((type.t & VT_STATIC) && (l != VT_CONST))
-                    tcc_error("function without file scope cannot be static");
+                    if ((type.t & VT_STATIC) && (l != VT_CONST))
+                    tcc_error("ファイルスコープ外の関数は static にできません");
                 /* if old style function prototype, we accept a
                    declaration list */
                 sym = type.ref;
@@ -8582,7 +8570,7 @@ static int decl(int l)
                 }
 
             } else if (oldint) {
-                tcc_warning("type defaults to int");
+                tcc_warning("型は既定で int になります");
             }
 
             if (gnu_ext && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
@@ -8598,9 +8586,9 @@ static int decl(int l)
             }
 
 #ifdef TCC_TARGET_PE
-            if (ad.a.dllimport || ad.a.dllexport) {
+                if (ad.a.dllimport || ad.a.dllexport) {
                 if (type.t & VT_STATIC)
-                    tcc_error("cannot have dll linkage with static");
+                    tcc_error("static 指定と DLL リンケージは併用できません");
                 if (type.t & VT_TYPEDEF) {
                     tcc_warning("'%s' attribute ignored for typedef",
                         ad.a.dllimport ? (ad.a.dllimport = 0, "dllimport") :
@@ -8613,9 +8601,9 @@ static int decl(int l)
                 }
             }
 #endif
-            if (tok == '{') {
+                if (tok == '{') {
                 if (l != VT_CONST)
-                    tcc_error("cannot use local functions");
+                    tcc_error("ローカル関数を使用できません");
                 if ((type.t & VT_BTYPE) != VT_FUNC)
                     expect("function definition");
 
@@ -8660,18 +8648,18 @@ static int decl(int l)
             } else {
 		if (l == VT_CMP) {
 		    /* find parameter in function parameter list */
-		    for (sym = func_vt.ref->next; sym; sym = sym->next)
-			if ((sym->v & ~SYM_FIELD) == v)
-			    goto found;
-		    tcc_error("declaration for parameter '%s' but no such parameter",
-			      get_tok_str(v, NULL));
+            for (sym = func_vt.ref->next; sym; sym = sym->next)
+                if ((sym->v & ~SYM_FIELD) == v)
+                    goto found;
+            tcc_error("パラメータ '%s' の宣言ですが、そのようなパラメータはありません",
+                  get_tok_str(v, NULL));
                 found:
-		    if (type.t & VT_STORAGE) /* 'register' is okay */
-		        tcc_error("storage class specified for '%s'",
-				  get_tok_str(v, NULL));
-		    if (sym->type.t != VT_VOID)
-		        tcc_error("redefinition of parameter '%s'",
-				  get_tok_str(v, NULL));
+                        if (type.t & VT_STORAGE) /* 'register' is okay */
+                                tcc_error("'%s' にストレージクラスが指定されています",
+                                    get_tok_str(v, NULL));
+                        if (sym->type.t != VT_VOID)
+                                tcc_error("パラメータ '%s' の再定義です",
+                                    get_tok_str(v, NULL));
 		    convert_parameter_type(&type);
 		    sym->type = type;
 		} else if (type.t & VT_TYPEDEF) {
@@ -8681,7 +8669,7 @@ static int decl(int l)
                     if (sym && sym->sym_scope == local_scope) {
                         if (!is_compatible_types(&sym->type, &type)
                             || !(sym->type.t & VT_TYPEDEF))
-                            tcc_error("incompatible redefinition of '%s'",
+                            tcc_error("'%s' の再定義は互換性がありません",
                                 get_tok_str(v, NULL));
                         sym->type = type;
                     } else {
@@ -8692,9 +8680,9 @@ static int decl(int l)
                       merge_funcattr(&sym->type.ref->f, &ad.f);
                     if (debug_modes)
                         tcc_debug_typedef (tcc_state, sym);
-		} else if ((type.t & VT_BTYPE) == VT_VOID
-			   && !(type.t & VT_EXTERN)) {
-		    tcc_error("declaration of void object");
+    } else if ((type.t & VT_BTYPE) == VT_VOID
+           && !(type.t & VT_EXTERN)) {
+        tcc_error("void 型のオブジェクトを宣言することはできません");
                 } else {
                     r = 0;
                     if ((type.t & VT_BTYPE) == VT_FUNC) {
@@ -8707,7 +8695,7 @@ static int decl(int l)
                     }
                     has_init = (tok == '=');
                     if (has_init && (type.t & VT_VLA))
-                        tcc_error("variable length array cannot be initialized");
+                        tcc_error("可変長配列は初期化できません");
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
 		        || (type.t & VT_BTYPE) == VT_FUNC
@@ -8740,7 +8728,7 @@ static int decl(int l)
                            the aliases until the end of the compile unit.  */
                         esym = elfsym(sym_find(ad.alias_target));
                         if (!esym)
-                            tcc_error("unsupported forward __alias__ attribute");
+                            tcc_error("先行する __alias__ 属性はサポートされていません");
                         put_extern_sym2(sym_find(v), esym->st_shndx,
                                         esym->st_value, esym->st_size, 1);
                     }
