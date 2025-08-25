@@ -1,0 +1,16 @@
+﻿Welcome to Japanese Text Editor!
+
+This editor supports:
+- Multiple text editing
+- File save and load
+- Japanese input with IME
+
+Programming example:
+#include <stdio.h>
+int main() {
+	printf("Hello, World!\n");
+	return 0;
+}
+
+Test your Japanese input here:
+(Enable IME and type in Japanese)

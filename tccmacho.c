@@ -700,10 +700,10 @@ static void check_relocs(TCCState *s1, struct macho *mo)
                     put_elf_reloc(s1->symtab, s1->got, attr->got_offset,
                                   R_JMP_SLOT, sym_index);
 	 	    goti = tcc_realloc(goti, (mo->n_got + 1) * sizeof(*goti));
-                    if (ELFW(ST_BIND)(sym->st_info) == STB_LOCAL) {
-                        if (sym->st_shndx == SHN_UNDEF)
-                          tcc_error("undefined local symbo: '%s'",
-				    (char *) symtab_section->link->data + sym->st_name);
+                                                if (ELFW(ST_BIND)(sym->st_info) == STB_LOCAL) {
+                                                if (sym->st_shndx == SHN_UNDEF)
+                                                    tcc_error("未定義のローカルシンボル: '%s'",
+                                                        (char *) symtab_section->link->data + sym->st_name);
 			goti[mo->n_got++] = INDIRECT_SYMBOL_LOCAL;
                     } else {
                         goti[mo->n_got++] = mo->e2msym[sym_index];
@@ -798,11 +798,11 @@ static void check_relocs(TCCState *s1, struct macho *mo)
     struct sym_attr *attr;
 
 #ifdef TCC_TARGET_X86_64
-    jmp = section_ptr_add(mo->stub_helper, 16);
-    jmp[0] = 0x4c;  /* leaq _dyld_private(%rip), %r11 */
-    jmp[1] = 0x8d;
-    jmp[2] = 0x1d;
-    put_elf_reloca(s1->symtab, mo->stub_helper, 3,
+                if (ELFW(ST_BIND)(sym->st_info) == STB_LOCAL) {
+                    if (sym->st_shndx == SHN_UNDEF)
+                        tcc_error_noabort("未定義のローカルシンボル: '%s'",
+                            (char *) symtab_section->link->data + sym->st_name);
+                    goti[mo->n_got++] = INDIRECT_SYMBOL_LOCAL;
 		   R_X86_64_PC32, mo->dyld_private, -4);
     jmp[7] = 0x41;  /* pushq %r11 */
     jmp[8] = 0x53;
@@ -857,10 +857,10 @@ static void check_relocs(TCCState *s1, struct macho *mo)
                     put_elf_reloc(s1->symtab, s1->got, attr->got_offset,
                                   R_JMP_SLOT, sym_index);
 		    goti = tcc_realloc(goti, (mo->n_got + 1) * sizeof(*goti));
-                    if (ELFW(ST_BIND)(sym->st_info) == STB_LOCAL) {
-                        if (sym->st_shndx == SHN_UNDEF)
-                          tcc_error("undefined local symbo: '%s'",
-				    (char *) symtab_section->link->data + sym->st_name);
+                                                if (ELFW(ST_BIND)(sym->st_info) == STB_LOCAL) {
+                                                if (sym->st_shndx == SHN_UNDEF)
+                                                    tcc_error("未定義のローカルシンボル: '%s'",
+                                                        (char *) symtab_section->link->data + sym->st_name);
 			goti[mo->n_got++] = INDIRECT_SYMBOL_LOCAL;
                     } else {
 			goti[mo->n_got++] = mo->e2msym[sym_index];
@@ -1018,16 +1018,16 @@ static int check_symbols(TCCState *s1, struct macho *mo)
         dprintf("%4d (%4d): %09lx %4d %4d %4d %3d %s\n",
                 sym_index, elf_index, (long)sym->st_value,
                 type, bind, vis, sym->st_shndx, name);
-        if (bind == STB_LOCAL) {
+      if (bind == STB_LOCAL) {
             if (mo->ilocal == -1)
               mo->ilocal = sym_index - 1;
             if (mo->iextdef != -1 || mo->iundef != -1)
-              tcc_error("local syms after global ones");
+          tcc_error("ローカルシンボルがグローバルシンボルの後にあります");
         } else if (sym->st_shndx != SHN_UNDEF) {
             if (mo->iextdef == -1)
               mo->iextdef = sym_index - 1;
             if (mo->iundef != -1)
-              tcc_error("external defined symbol after undefined");
+          tcc_error("未定義の後に定義された外部シンボルがあります");
         } else if (sym->st_shndx == SHN_UNDEF) {
             if (mo->iundef == -1)
               mo->iundef = sym_index - 1;
@@ -1042,7 +1042,7 @@ static int check_symbols(TCCState *s1, struct macho *mo)
                 sym->st_shndx = SHN_FROMDLL;
                 continue;
             }
-            tcc_error_noabort("undefined symbol '%s'", name);
+            tcc_error_noabort("未定義のシンボル '%s'", name);
             ret = -1;
         }
     }
@@ -1064,22 +1064,22 @@ static void convert_symbol(TCCState *s1, struct macho *mo, struct nlist_64 *pn)
     case STT_FILE:
         n.n_type = N_ABS;
         break;
-    default:
-        tcc_error("unhandled ELF symbol type %d %s",
-                  ELFW(ST_TYPE)(sym->st_info), name);
+        default:
+                tcc_error("未処理の ELF シンボル型 %d %s",
+                                    ELFW(ST_TYPE)(sym->st_info), name);
     }
     if (sym->st_shndx == SHN_UNDEF)
-      tcc_error("should have been rewritten to SHN_FROMDLL: %s", name);
+            tcc_error("SHN_FROMDLL に書き換えられているべきでした: %s", name);
     else if (sym->st_shndx == SHN_FROMDLL)
       n.n_type = N_UNDF, n.n_sect = 0;
     else if (sym->st_shndx == SHN_ABS)
       n.n_type = N_ABS, n.n_sect = 0;
     else if (sym->st_shndx >= SHN_LORESERVE)
-      tcc_error("unhandled ELF symbol section %d %s", sym->st_shndx, name);
+            tcc_error("未処理の ELF シンボルセクション %d %s", sym->st_shndx, name);
     else if (!mo->elfsectomacho[sym->st_shndx]) {
       if (strncmp(s1->sections[sym->st_shndx]->name, ".debug_", 7))
-        tcc_error("ELF section %d(%s) not mapped into Mach-O for symbol %s",
-                  sym->st_shndx, s1->sections[sym->st_shndx]->name, name);
+                tcc_error("ELF セクション %d(%s) がシンボル %s のために Mach-O にマッピングされていません",
+                                    sym->st_shndx, s1->sections[sym->st_shndx]->name, name);
     }
     else
       n.n_sect = mo->elfsectomacho[sym->st_shndx];
@@ -1854,8 +1854,8 @@ static void collect_sections(TCCState *s1, struct macho *mo, const char *filenam
             if (sec)
               sec->align = al;
             al = 1ULL << al;
-            if (al > 4096)
-              tcc_warning("alignment > 4096"), sec->align = 12, al = 4096;
+                        if (al > 4096)
+                            tcc_warning("アラインメントが4096より大きいです"), sec->align = 12, al = 4096;
             curaddr = (curaddr + al - 1) & -al;
             fileofs = (fileofs + al - 1) & -al;
             if (sec) {
@@ -2041,10 +2041,10 @@ ST_FUNC void bind_rebase_import(TCCState *s1, struct macho *mo)
 	    sym_index = ELFW(R_SYM)(mo->bind_rebase[i].rel.r_info);
             sym = &((ElfW(Sym) *)symtab_section->data)[sym_index];
 	    name = (char *) symtab_section->link->data + sym->st_name;
-	    tcc_error("Overlap %s/%s %s:%s",
-		      mo->bind_rebase[i].bind ? "bind" : "rebase",
-		      mo->bind_rebase[i + 1].bind ? "bind" : "rebase",
-		      s1->sections[mo->bind_rebase[i].section]->name, name);
+        tcc_error("重複しています %s/%s %s:%s",
+              mo->bind_rebase[i].bind ? "bind" : "rebase",
+              mo->bind_rebase[i + 1].bind ? "bind" : "rebase",
+              s1->sections[mo->bind_rebase[i].section]->name, name);
 	}
     header = (struct dyld_chained_fixups_header *) data;
     data += (sizeof(struct dyld_chained_fixups_header) + 7) & -8;
@@ -2098,10 +2098,10 @@ ST_FUNC void bind_rebase_import(TCCState *s1, struct macho *mo)
 		addr_t r_offset = mo->bind_rebase[k].rel.r_offset;
 		addr_t addr = s->sh_addr + r_offset;
 
-		if ((addr & 3) ||
-		    (addr & (SEG_PAGE_SIZE - 1)) > SEG_PAGE_SIZE - PTR_SIZE)
-		    tcc_error("Illegal rel_offset %s %lld",
-			      s->name, (long long)r_offset);
+        if ((addr & 3) ||
+            (addr & (SEG_PAGE_SIZE - 1)) > SEG_PAGE_SIZE - PTR_SIZE)
+            tcc_error("不正な rel_offset %s %lld",
+                  s->name, (long long)r_offset);
 		if (addr >= end)
 		    break;
 		if (addr >= start) {
@@ -2138,8 +2138,8 @@ ST_FUNC void bind_rebase_import(TCCState *s1, struct macho *mo)
 			      PTR_64_OFFSET;
 		        rebase->target = cur & PTR_64_MASK;
 		        rebase->high8 = cur >> (64 - 8);
-			if (cur != ((uint64_t)rebase->high8 << (64 - 8)) + rebase->target)
-			    tcc_error("rebase error");
+            if (cur != ((uint64_t)rebase->high8 << (64 - 8)) + rebase->target)
+                tcc_error("リベースエラー");
 		        rebase->reserved = 0;
 		        rebase->next = 0;
 		        rebase->bind = 0;
@@ -2192,7 +2192,7 @@ ST_FUNC int macho_output_file(TCCState *s1, const char *filename)
     unlink(filename);
     fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode);
     if (fd < 0 || (fp = fdopen(fd, "wb")) == NULL) {
-        tcc_error_noabort("could not write '%s: %s'", filename, strerror(errno));
+        tcc_error_noabort("書き込みできません: '%s: %s'", filename, strerror(errno));
         return -1;
     }
     tcc_add_runtime(s1);
@@ -2390,8 +2390,8 @@ ST_FUNC int macho_load_dll(TCCState * s1, int fd, const char* filename, int lev)
         lseek(fd, machofs, SEEK_SET);
         goto again;
     } else if (fh.magic == FAT_MAGIC_64 || fh.magic == FAT_CIGAM_64) {
-        tcc_warning("%s: Mach-O fat 64bit files of type 0x%x not handled",
-                    filename, fh.magic);
+    tcc_warning("%s: Mach-O fat 64bit ファイルのタイプ 0x%x は未処理です",
+            filename, fh.magic);
         return -1;
     }
 
@@ -2427,8 +2427,8 @@ ST_FUNC int macho_load_dll(TCCState * s1, int fd, const char* filename, int lev)
             char *name = (char*)lc + dc->name;
             int subfd = open(name, O_RDONLY | O_BINARY);
             dprintf(" REEXPORT %s\n", name);
-            if (subfd < 0)
-              tcc_warning("can't open %s (reexported from %s)", name, filename);
+                        if (subfd < 0)
+                            tcc_warning("%s を開けません (再輸出元: %s)", name, filename);
             else {
                 /* Hopefully the REEXPORTs never form a cycle, we don't check
                    for that!  */
@@ -2451,8 +2451,8 @@ ST_FUNC int macho_load_dll(TCCState * s1, int fd, const char* filename, int lev)
     if (tcc_add_dllref(s1, soname, lev)->found)
         goto the_end;
 
-    if (!nsyms || !nextdef)
-      tcc_warning("%s doesn't export any symbols?", filename);
+        if (!nsyms || !nextdef)
+            tcc_warning("%s はシンボルをエクスポートしていないようです", filename);
 
     //dprintf("symbols (all):\n");
     dprintf("symbols (exported):\n");

@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  TCC - Tiny C Compiler
  *
  *  Copyright (c) 2001-2004 Fabrice Bellard
@@ -1150,7 +1150,7 @@ static int tcc_add_binary(TCCState *s1, int flags, const char *filename, int fd)
     close(fd);
     s1->current_filename = saved_filename;
     if (ret == FILE_NOT_RECOGNIZED)
-        return tcc_error_noabort("%s: unrecognized file type", filename);
+        return tcc_error_noabort("%s: 認識できないファイルタイプです", filename);
     return ret;
 }
 
@@ -1226,7 +1226,7 @@ ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
     fd = _tcc_open(s1, filename);
     if (fd < 0) {
         if (flags & AFF_PRINT_ERROR)
-            tcc_error_noabort("file '%s' not found", filename);
+            tcc_error_noabort("ファイル '%s' が見つかりません", filename);
         return FILE_NOT_FOUND;
     }
 
@@ -1255,7 +1255,7 @@ static int tcc_add_library_internal(TCCState *s1, const char *fmt,
             return ret;
     }
     if (flags & AFF_PRINT_ERROR)
-        tcc_error_noabort("%s '%s' not found",
+        tcc_error_noabort("%s '%s' が見つかりません",
             flags & AFF_TYPE_LIB ? "library" : "file", filename);
     return FILE_NOT_FOUND;
 }
@@ -1511,10 +1511,10 @@ static int tcc_set_linker(TCCState *s, const char *optarg)
             return 0; /* expecting argument with next '-Wl,' */
         } else {
     err:
-            return tcc_error_noabort("unsupported linker option '%s'", o.opt);
+            return tcc_error_noabort("サポートされていないリンカオプションです: '%s'", o.opt);
         }
         if (ignoring)
-            tcc_warning_c(warn_unsupported)("unsupported linker option '%s'", o.opt);
+            tcc_warning_c(warn_unsupported)("サポートされていないリンカオプションです: '%s'", o.opt);
         ++s->link_optind;
     }
     return 0;
@@ -1849,7 +1849,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             int fd; char *p;
             fd = open(++r, O_RDONLY | O_BINARY);
             if (fd < 0)
-                return tcc_error_noabort("listfile '%s' not found", r);
+                return tcc_error_noabort("リストファイル '%s' が見つかりません", r);
             p = tcc_load_text(fd);
             insert_args(s1, &argv, &argc, optind, p, 0);
             close(fd), tcc_free(p);
@@ -1883,14 +1883,14 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             const char *p1 = popt->name;
             const char *r1 = r + 1;
             if (p1 == NULL)
-                return tcc_error_noabort("invalid option -- '%s'", r);
+                return tcc_error_noabort("無効なオプションです: '%s'", r);
             if (!strstart(p1, &r1))
                 continue;
             optarg = r1;
             if (popt->flags & TCC_OPTION_HAS_ARG) {
                 if (*r1 == '\0' && !(popt->flags & TCC_OPTION_NOSEP)) {
                     if (optind >= argc)
-                        return tcc_error_noabort("argument to '%s' is missing", r);
+                        return tcc_error_noabort("オプション '%s' に引数がありません", r);
                     optarg = argv[optind++];
                 }
             } else if (*r1 != '\0')
@@ -1961,7 +1961,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             x = TCC_OUTPUT_OBJ;
         set_output_type:
             if (s->output_type)
-                tcc_warning("-%s: overriding compiler action already specified", popt->name);
+                tcc_warning("-%s: 既に指定されているコンパイラの動作を上書きします", popt->name);
             s->output_type = x;
             break;
         case TCC_OPTION_d:
@@ -1991,7 +1991,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             break;
         case TCC_OPTION_o:
             if (s->outfile) {
-                tcc_warning("multiple -o option");
+                tcc_warning("複数の -o オプションが指定されています");
                 tcc_free(s->outfile);
             }
             tcc_set_str(&s->outfile, optarg);
@@ -2021,7 +2021,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             x = TCC_OUTPUT_MEMORY;
             goto set_output_type;
 #else
-            return tcc_error_noabort("-run is not available in a cross compiler");
+            return tcc_error_noabort("-run はクロスコンパイラでは利用できません");
 #endif
         case TCC_OPTION_v:
             do ++s->verbose; while (*optarg++ == 'v');
@@ -2038,7 +2038,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             } else if (!strcmp(optarg, "hard"))
                 s->float_abi = ARM_HARD_FLOAT;
             else
-                return tcc_error_noabort("unsupported float abi '%s'", optarg);
+                return tcc_error_noabort("サポートされていない float ABI です: '%s'", optarg);
             break;
 #endif
         case TCC_OPTION_m:
@@ -2113,7 +2113,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             else if (*optarg == 'n')
                 x = AFF_TYPE_NONE;
             else
-                tcc_warning("unsupported language '%s'", optarg);
+                tcc_warning("サポートされていない言語 '%s'", optarg);
             s->filetype = x | (s->filetype & ~AFF_TYPE_MASK);
             break;
         case TCC_OPTION_O:
@@ -2156,19 +2156,19 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
         extra_action:
             arg_start = optind - 1;
             if (not_empty)
-                return tcc_error_noabort("cannot parse %s here", r);
+                return tcc_error_noabort("ここでは '%s' を解析できません", r);
             tool = x;
             break;
         default:
 unsupported_option:
-            tcc_warning_c(warn_unsupported)("unsupported option '%s'", r);
+            tcc_warning_c(warn_unsupported)("サポートされていないオプションです: '%s'", r);
             break;
         }
         not_empty = 1;
     }
 
     if (s->link_optind < s->link_argc)
-        return tcc_error_noabort("argument to '-Wl,%s' is missing", s->link_argv[s->link_optind]);
+        return tcc_error_noabort("オプション '-Wl,%s' の引数がありません", s->link_argv[s->link_optind]);
     if (NULL == argv[0]) /* from tcc_set_options() */
         return 0;
     if (arg_start) {

@@ -143,7 +143,7 @@ static void asm_expr_unary(TCCState *s1, ExprValue *pe)
                 if (sym && (!sym->c || elfsym(sym)->st_shndx == SHN_UNDEF))
                     sym = sym->prev_tok;
                 if (!sym)
-                    tcc_error("local label '%d' not found backward", (int)n);
+                    tcc_error("ローカルラベル '%d' が後方に見つかりません", (int)n);
             } else {
                 /* forward */
                 if (!sym || (sym->c && elfsym(sym)->st_shndx != SHN_UNDEF)) {
@@ -159,7 +159,7 @@ static void asm_expr_unary(TCCState *s1, ExprValue *pe)
             pe->sym = NULL;
 	    pe->pcrel = 0;
         } else {
-            tcc_error("invalid number syntax");
+            tcc_error("数値の構文が無効です");
         }
         next();
         break;
@@ -173,7 +173,7 @@ static void asm_expr_unary(TCCState *s1, ExprValue *pe)
         next();
         asm_expr_unary(s1, pe);
         if (pe->sym)
-            tcc_error("invalid operation with label");
+            tcc_error("ラベルを使った無効な操作です");
         if (op == '-')
             pe->v = -pe->v;
         else
@@ -215,7 +215,7 @@ static void asm_expr_unary(TCCState *s1, ExprValue *pe)
             }
             next();
         } else {
-            tcc_error("bad expression syntax [%s]", get_tok_str(tok, &tokc));
+            tcc_error("式の構文が不正です [%s]", get_tok_str(tok, &tokc));
         }
         break;
     }
@@ -235,15 +235,15 @@ static void asm_expr_prod(TCCState *s1, ExprValue *pe)
         next();
         asm_expr_unary(s1, &e2);
         if (pe->sym || e2.sym)
-            tcc_error("invalid operation with label");
+            tcc_error("ラベルを使った無効な操作です");
         switch(op) {
         case '*':
             pe->v *= e2.v;
             break;
         case '/':  
             if (e2.v == 0) {
-            div_error:
-                tcc_error("division by zero");
+                div_error:
+                tcc_error("ゼロ除算です");
             }
             pe->v /= e2.v;
             break;
@@ -276,7 +276,7 @@ static void asm_expr_logic(TCCState *s1, ExprValue *pe)
         next();
         asm_expr_prod(s1, &e2);
         if (pe->sym || e2.sym)
-            tcc_error("invalid operation with label");
+            tcc_error("ラベルを使った無効な操作です");
         switch(op) {
         case '&':
             pe->v &= e2.v;
@@ -338,7 +338,7 @@ static inline void asm_expr_sum(TCCState *s1, ExprValue *pe)
 		    e2.sym = NULL;
 		} else {
 cannot_relocate:
-		    tcc_error("invalid operation with label");
+		    tcc_error("ラベルを使った無効な操作です");
 		}
 	    }
         }
@@ -359,7 +359,7 @@ static inline void asm_expr_cmp(TCCState *s1, ExprValue *pe)
         next();
         asm_expr_sum(s1, &e2);
         if (pe->sym || e2.sym)
-            tcc_error("invalid operation with label");
+            tcc_error("ラベルを使った無効な操作です");
         switch(op) {
 	case TOK_EQ:
 	    pe->v = pe->v == e2.v;
@@ -419,7 +419,7 @@ static Sym* asm_new_label1(TCCState *s1, int label, int is_local,
                 && (is_local == 1 || (sym->type.t & VT_EXTERN)))
                 goto new_label;
             if (!(sym->type.t & VT_EXTERN))
-                tcc_error("assembler label '%s' already defined",
+                tcc_error("アセンブララベル '%s' は既に定義されています",
                           get_tok_str(label, NULL));
         }
     } else {
@@ -485,7 +485,7 @@ static void pop_section(TCCState *s1)
 {
     Section *prev = cur_text_section->prev;
     if (!prev)
-        tcc_error(".popsection without .pushsection");
+        tcc_error("'.popsection' が '.pushsection' なしで使用されました");
     cur_text_section->prev = NULL;
     use_section1(s1, prev);
 }
@@ -507,16 +507,16 @@ static void asm_parse_directive(TCCState *s1, int global)
         tok1 = tok;
         next();
         n = asm_int_expr(s1);
-        if (tok1 == TOK_ASMDIR_p2align)
+            if (tok1 == TOK_ASMDIR_p2align)
         {
             if (n < 0 || n > 30)
-                tcc_error("invalid p2align, must be between 0 and 30");
+                tcc_error("p2align が無効です。0?30 の間でなければなりません");
             n = 1 << n;
             tok1 = TOK_ASMDIR_align;
         }
-        if (tok1 == TOK_ASMDIR_align || tok1 == TOK_ASMDIR_balign) {
+            if (tok1 == TOK_ASMDIR_align || tok1 == TOK_ASMDIR_balign) {
             if (n < 0 || (n & (n-1)) != 0)
-                tcc_error("alignment must be a positive power of two");
+                tcc_error("アラインメントは正の2の冪でなければなりません");
             offset = (ind + n - 1) & -n;
             size = offset - ind;
             /* the section must have a compatible alignment */
@@ -553,7 +553,7 @@ static void asm_parse_directive(TCCState *s1, int global)
             p = tokc.str.data;
             if (tok != TOK_PPNUM) {
             error_constant:
-                tcc_error("64 bit constant");
+                tcc_error("64ビット定数");
             }
             vl = strtoll(p, (char **)&p, 0);
             if (*p != '\0')
@@ -617,7 +617,7 @@ static void asm_parse_directive(TCCState *s1, int global)
             next();
             repeat = asm_int_expr(s1);
             if (repeat < 0) {
-                tcc_error("repeat < 0; .fill ignored");
+                tcc_error("repeat < 0; .fill を無視します");
                 break;
             }
             size = 1;
@@ -626,7 +626,7 @@ static void asm_parse_directive(TCCState *s1, int global)
                 next();
                 size = asm_int_expr(s1);
                 if (size < 0) {
-                    tcc_error("size < 0; .fill ignored");
+                    tcc_error("size < 0; .fill を無視します");
                     break;
                 }
                 if (size > 8)
@@ -660,8 +660,8 @@ static void asm_parse_directive(TCCState *s1, int global)
             repeat = asm_int_expr(s1);
             init_str = tok_str_alloc();
             while (next(), tok != TOK_ASMDIR_endr) {
-                if (tok == CH_EOF)
-                    tcc_error("we at end of file, .endr not found");
+                    if (tok == CH_EOF)
+                        tcc_error("ファイル末尾に到達しました。.endr が見つかりません");
                 tok_str_add_tok(init_str);
             }
             tok_str_add(init_str, TOK_EOF);
@@ -690,7 +690,7 @@ static void asm_parse_directive(TCCState *s1, int global)
 		n += esym->st_value;
 	    }
             if (n < ind)
-                tcc_error("attempt to .org backwards");
+                tcc_error(".org を逆方向に移動しようとしました");
             v = 0;
             size = n - ind;
             goto zero_pad;
@@ -800,7 +800,7 @@ static void asm_parse_directive(TCCState *s1, int global)
                 pstrcat(ident, sizeof(ident), tokc.str.data);
             else
                 pstrcat(ident, sizeof(ident), get_tok_str(tok, NULL));
-            tcc_warning_c(warn_unsupported)("ignoring .ident %s", ident);
+            tcc_warning_c(warn_unsupported)(".ident %s を無視します", ident);
             next();
         }
         break;
@@ -809,12 +809,12 @@ static void asm_parse_directive(TCCState *s1, int global)
             Sym *sym;
 
             next();
-            sym = asm_label_find(tok);
-            if (!sym) {
-                tcc_error("label not found: %s", get_tok_str(tok, NULL));
+                    sym = asm_label_find(tok);
+                    if (!sym) {
+                        tcc_error("ラベルが見つかりません: %s", get_tok_str(tok, NULL));
             }
             /* XXX .size name,label2-label1 */
-            tcc_warning_c(warn_unsupported)("ignoring .size %s,*", get_tok_str(tok, NULL));
+            tcc_warning_c(warn_unsupported)(".size %s,* を無視します", get_tok_str(tok, NULL));
             next();
             skip(',');
             while (tok != TOK_LINEFEED && tok != ';' && tok != CH_EOF) {
@@ -853,7 +853,7 @@ static void asm_parse_directive(TCCState *s1, int global)
                 st_type = STT_OBJECT;
                 goto set_st_type;
             } else
-                tcc_warning_c(warn_unsupported)("change type of '%s' from 0x%x to '%s' ignored",
+                tcc_warning_c(warn_unsupported)("'%s' の型を 0x%x から '%s' に変更する操作は無視されます",
                     get_tok_str(sym->v, NULL), sym->type.t, newtype);
 
             next();
@@ -916,7 +916,7 @@ static void asm_parse_directive(TCCState *s1, int global)
             Section *sec;
             next();
             if (!last_text_section)
-                tcc_error("no previous section referenced");
+                tcc_error("参照された前のセクションがありません");
             sec = cur_text_section;
             use_section1(s1, last_text_section);
             last_text_section = sec;
@@ -963,10 +963,10 @@ static void asm_parse_directive(TCCState *s1, int global)
                 break;
             case TOK_ASM_arch:
                 /* TODO: unimplemented, requires extra parsing */
-                tcc_error("unimp .option '.%s'", get_tok_str(tok, NULL));
+                tcc_error("未実装の .option '.%s' です", get_tok_str(tok, NULL));
                 break;
             default:
-                tcc_error("unknown .option '.%s'", get_tok_str(tok, NULL));
+                tcc_error("不明な .option '.%s' です", get_tok_str(tok, NULL));
                 break;
         }
         break;
@@ -981,7 +981,7 @@ static void asm_parse_directive(TCCState *s1, int global)
 	next();
 	break;
     default:
-        tcc_error("unknown assembler directive '.%s'", get_tok_str(tok, NULL));
+        tcc_error("不明なアセンブリディレクティブ '.%s'", get_tok_str(tok, NULL));
         break;
     }
 }
@@ -1156,7 +1156,7 @@ static void subst_asm_operands(ASMOperand *operands, int nb_operands,
                 modifier = *str++;
             index = find_constraint(operands, nb_operands, str, &str);
             if (index < 0)
-                tcc_error("invalid operand reference after %%");
+                tcc_error("% の後のオペランド参照が無効です");
             op = &operands[index];
             if (modifier == 'l') {
                 cstr_cat(out_str, get_tok_str(op->is_label, NULL), -1);
@@ -1190,7 +1190,7 @@ static void parse_asm_operands(ASMOperand *operands, int *nb_operands_ptr,
         nb_operands = *nb_operands_ptr;
         for(;;) {
             if (nb_operands >= MAX_ASM_OPERANDS)
-                tcc_error("too many asm operands");
+                tcc_error("アセンブリのオペランドが多すぎます");
             op = &operands[nb_operands++];
             op->id = 0;
             if (tok == '[') {
@@ -1294,7 +1294,7 @@ ST_FUNC void asm_instr(void)
                         Sym *csym;
                         int asmname;
                         if (nb_operands + nb_labels >= MAX_ASM_OPERANDS)
-                          tcc_error("too many asm operands");
+                          tcc_error("アセンブリのオペランドが多すぎます");
                         if (tok < TOK_UIDENT)
                           expect("label identifier");
                         operands[nb_operands + nb_labels++].id = tok;
@@ -1363,7 +1363,7 @@ ST_FUNC void asm_instr(void)
     tcc_assemble_inline(tcc_state, astr.data, astr.size - 1, 0);
     cstr_free_s(&astr);
     if (sec != cur_text_section) {
-        tcc_warning("inline asm tries to change current section");
+    tcc_warning("インラインアセンブリが現在のセクションを変更しようとしました");
         use_section1(tcc_state, sec);
     }
 
@@ -1417,16 +1417,16 @@ ST_FUNC void asm_global_instr(void)
 #else
 ST_FUNC int tcc_assemble(TCCState *s1, int do_preprocess)
 {
-    tcc_error("asm not supported");
+    tcc_error("asm はサポートされていません");
 }
 
 ST_FUNC void asm_instr(void)
 {
-    tcc_error("inline asm() not supported");
+    tcc_error("inline asm() はサポートされていません");
 }
 
 ST_FUNC void asm_global_instr(void)
 {
-    tcc_error("inline asm() not supported");
+    tcc_error("inline asm() はサポートされていません");
 }
 #endif /* CONFIG_TCC_ASM */

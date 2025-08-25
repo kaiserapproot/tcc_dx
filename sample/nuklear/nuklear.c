@@ -288,7 +288,7 @@ int main(void)
         nk_input_end(ctx);
 
 		/* GUI */
-		if (nk_begin(ctx, "Demo", nk_rect(50, 50, 230, 250),
+		if (nk_begin(ctx, "‚ ‚ ‚ ", nk_rect(50, 50, 230, 250),
 			NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
 			NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
 		{

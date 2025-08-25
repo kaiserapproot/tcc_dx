@@ -1,0 +1,1 @@
+tcc main.c microui.c ttf_font.c renderer.c dxguid.c -lopengl32 -lglut32 -lgdi32 -luser32 -lkernel32 -lgdi32 -lmsvcrt -ld3d9 -limm32 -lcomdlg32 -g
