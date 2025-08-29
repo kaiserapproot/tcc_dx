@@ -74,7 +74,7 @@ static BOOL AttachConsole(DWORD dwProcessId)
 #ifndef ATTACH_PARENT_PROCESS
 #define ATTACH_PARENT_PROCESS ((DWORD)-1)
 #endif
-#define MOBILE_PORTRAIT
+//#define MOBILE_PORTRAIT
 /*****
  * ウィンドウサイズの条件付き定義
  * デスクトップ用とスマホ縦長（MOBILE_PORTRAIT）を切り替え可能にします。
