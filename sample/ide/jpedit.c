@@ -74,9 +74,24 @@ static BOOL AttachConsole(DWORD dwProcessId)
 #ifndef ATTACH_PARENT_PROCESS
 #define ATTACH_PARENT_PROCESS ((DWORD)-1)
 #endif
+#define MOBILE_PORTRAIT
+/*****
+ * ウィンドウサイズの条件付き定義
+ * デスクトップ用とスマホ縦長（MOBILE_PORTRAIT）を切り替え可能にします。
+ * スマホ用に切り替えるにはビルド時に -DMOBILE_PORTRAIT を渡すか、下の
+ * コメントを外してソース内で有効化してください（例: #define MOBILE_PORTRAIT）。
+ */
 
+/* #define MOBILE_PORTRAIT */
+
+#ifdef MOBILE_PORTRAIT
+/* スマホ縦長の既定サイズ（必要なら調整してください） */
+#define WINDOW_WIDTH 360
+#define WINDOW_HEIGHT 800
+#else
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 800
+#endif
 #define MAX_TEXT_SIZE 65536
 /* 編集可能なドキュメントの最大数（必要ならここを変更） */
 #ifndef MAX_EDITORS
@@ -86,82 +101,108 @@ static void open_file_dialog_and_load(void);
 static void build_current_doc_with_tcc(const char* filename);
 static void run_current_doc(const char* exe_name);
 
-/* タブをスペースに展開するヘルパー。読み込み時だけ適用して表示崩れを防ぐ。 */
-/* Convert internal buffer (contains '\t') to display buffer (tabs expanded to spaces). */
-static void internal_to_display(const char* in, char* out, int tab_width)
+/* 設定変数（ここで定義） */
+char cfg_tcc_path[MAX_PATH] = "";
+char cfg_fonts_path[MAX_PATH] = "";
+char cfg_src_path[MAX_PATH] = "";
+char cfg_compiler_opts[512] = "";
+int cfg_tab_width = 4;
+
+/* 注意: Nuklear に渡す前にタブをスペースへ展開しない方法（フォント幅コールバックの上書き）
+	と、編集時にタブをスペースへ展開して編集後に戻す方法の二通りがあります。
+	ここでは実装を簡潔にするために後者（表示用にタブをスペースへ展開し、編集後に元に戻す）を採用しています。 */
+
+/* 表示用にタブをスペースへ展開するヘルパー関数 */
+static char* expand_tabs_to_spaces(const char* text, int tab_width, char* buffer, int buffer_size)
 {
-	int i = 0, j = 0;
-	while (in[i] != '\0' && j < (MAX_TEXT_SIZE - 1))
-	{
-		if (in[i] == '\t')
-		{
-			int k;
-			for (k = 0; k < tab_width && j < (MAX_TEXT_SIZE - 1); ++k) out[j++] = ' ';
-			i++;
-		}
-		else
-		{
-			out[j++] = in[i++];
+	if (!text || !buffer) return NULL;
+	
+	int out_pos = 0;
+	int column = 0;
+	int len = (int)strlen(text);
+	
+	for (int i = 0; i < len && out_pos < buffer_size - 1; i++) {
+		if (text[i] == '\t') {
+			/* 次のタブストップに到達するために必要なスペース数を計算 */
+			int next_tab_stop = ((column / tab_width) + 1) * tab_width;
+			int spaces_needed = next_tab_stop - column;
+			
+			/* タブストップまでスペースを追加 */
+			for (int j = 0; j < spaces_needed && out_pos < buffer_size - 1; j++) {
+				buffer[out_pos++] = ' ';
+			}
+			column = next_tab_stop;
+		} else if (text[i] == '\n' || text[i] == '\r') {
+			buffer[out_pos++] = text[i];
+			column = 0;  /* 改行でカラムをリセット */
+		} else {
+			buffer[out_pos++] = text[i];
+			column++;
 		}
 	}
-	out[j] = '\0';
+	
+	buffer[out_pos] = '\0';
+	return buffer;
 }
 
-/* Convert display buffer (may contain spaces representing tabs) back to internal: sequences of tab_width spaces are converted to '\t'. */
-static void display_to_internal(const char* in, char* out, int tab_width)
+/* 表示バッファのスペースをタブへ戻すヘルパー関数 */
+static void collapse_spaces_to_tabs(const char* expanded_text, char* internal_text, int tab_width, int buffer_size)
 {
-	int i = 0, j = 0;
-	while (in[i] != '\0' && j < (MAX_TEXT_SIZE - 1))
-	{
-		if (in[i] == ' ')
-		{
-			int count = 0;
-			while (in[i + count] == ' ') count++;
-			/* convert groups of tab_width spaces to tabs */
-			while (count >= tab_width && j < (MAX_TEXT_SIZE - 1)) { out[j++] = '\t'; count -= tab_width; i += tab_width; }
-			/* remaining spaces */
-			while (count > 0 && j < (MAX_TEXT_SIZE - 1)) { out[j++] = ' '; count--; i++; }
-		}
-		else
-		{
-			out[j++] = in[i++];
+	if (!expanded_text || !internal_text) return;
+	
+	int in_pos = 0, out_pos = 0;
+	int column = 0;
+	int len = (int)strlen(expanded_text);
+	
+	while (in_pos < len && out_pos < buffer_size - 1) {
+		if (expanded_text[in_pos] == ' ') {
+			/* 連続するスペースを数える */
+			int space_count = 0;
+			int temp_pos = in_pos;
+			
+			while (temp_pos < len && expanded_text[temp_pos] == ' ') {
+				space_count++;
+				temp_pos++;
+			}
+			
+			/* スペースがタブストップに揃っているか確認 */
+			int spaces_to_tab_stop = tab_width - (column % tab_width);
+			if (space_count >= spaces_to_tab_stop && (column % tab_width) != 0) {
+				/* タブストップに達したらタブに変換 */
+				internal_text[out_pos++] = '\t';
+				in_pos += spaces_to_tab_stop;
+				column += spaces_to_tab_stop;
+				
+				/* 残りのスペースを処理 */
+				space_count -= spaces_to_tab_stop;
+				while (space_count >= tab_width) {
+					internal_text[out_pos++] = '\t';
+					in_pos += tab_width;
+					column += tab_width;
+					space_count -= tab_width;
+				}
+				/* 残りのスペースをそのまま追加 */
+				while (space_count > 0 && out_pos < buffer_size - 1) {
+					internal_text[out_pos++] = ' ';
+					in_pos++;
+					column++;
+					space_count--;
+				}
+			} else {
+				/* スペースのまま保持 */
+				internal_text[out_pos++] = expanded_text[in_pos++];
+				column++;
+			}
+		} else if (expanded_text[in_pos] == '\n' || expanded_text[in_pos] == '\r') {
+			internal_text[out_pos++] = expanded_text[in_pos++];
+			column = 0;
+		} else {
+			internal_text[out_pos++] = expanded_text[in_pos++];
+			column++;
 		}
 	}
-	out[j] = '\0';
-}
-
-/* Map display cursor index to internal index (number of internal characters before display cursor). */
-static int display_cursor_to_internal_index(const char* display, int disp_cursor, int tab_width)
-{
-	int i = 0, internal_count = 0;
-	while (i < disp_cursor && display[i] != '\0')
-	{
-		if (display[i] == ' ')
-		{
-			int count = 0;
-			while (i + count < disp_cursor && display[i + count] == ' ') count++;
-			internal_count += count / tab_width;
-			internal_count += count % tab_width;
-			i += count;
-		}
-		else
-		{
-			internal_count++; i++;
-		}
-	}
-	return internal_count;
-}
-
-/* Map internal index to display cursor (expand tabs up to internal_index to compute display cursor). */
-static int internal_index_to_display_cursor(const char* internal, int internal_index, int tab_width)
-{
-	int oi = 0, di = 0;
-	while (oi < internal_index && internal[oi] != '\0')
-	{
-		if (internal[oi] == '\t') { di += tab_width; oi++; }
-		else { di++; oi++; }
-	}
-	return di;
+	
+	internal_text[out_pos] = '\0';
 }
 #if defined(_MSC_VER) && (_MSC_VER <= 1200)
 #include <stdarg.h>
@@ -241,11 +282,6 @@ static IDirect3DDevice9Ex* deviceEx = NULL;
 static D3DPRESENT_PARAMETERS present;
 static AppState app;
 /* 設定保存用グローバル */
-static char cfg_tcc_path[MAX_PATH] = {0};
-static char cfg_fonts_path[MAX_PATH] = {0};
-static char cfg_src_path[MAX_PATH] = {0};
-static int cfg_tab_width = 4;
-static char cfg_compiler_opts[512] = {0};
 
 static void load_or_create_ini(void);
 /* デバッグ用フラグ: スクロールバーをドラッグしている間に立つフラグ（実体は nuklear.h で定義） */
@@ -599,9 +635,25 @@ static void save_file(JapaneseTextEditor* editor)
 static void draw_gui(void)
 {
 	struct nk_rect bounds;
+	/* レイアウト用の矩形を条件付きで設定：モバイル縦長では Properties を下に配置 */
+	struct nk_rect editor_bounds;
+	struct nk_rect props_bounds;
+#ifdef MOBILE_PORTRAIT
+	{
+		int props_h = WINDOW_HEIGHT / 3; /* 下部に置く Properties の高さ */
+		editor_bounds = nk_rect(10, 10, WINDOW_WIDTH - 20, WINDOW_HEIGHT - props_h - 20);
+		props_bounds = nk_rect(10, WINDOW_HEIGHT - props_h - 10, WINDOW_WIDTH - 20, props_h);
+	}
+#else
+	{
+		/* デスクトップ既存レイアウト */
+		editor_bounds = nk_rect(310, 10, WINDOW_WIDTH - 320, WINDOW_HEIGHT - 20);
+		props_bounds = nk_rect(10, 10, 290, WINDOW_HEIGHT - 20);
+	}
+#endif
 	int i;
-	// メイン編集領域は左の Properties 領域のために右へ移動
-	bounds = nk_rect(310, 10, WINDOW_WIDTH - 320, WINDOW_HEIGHT - 20);
+	// メイン編集領域
+	bounds = editor_bounds;
 	if (nk_begin(ctx, "Japanese Multi Text Editor", bounds,
 		NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE))
 	{
@@ -641,51 +693,29 @@ static void draw_gui(void)
 		old_len = editor->text_len;
 		/* track cursor/active state to update IME only when needed */
 		edit_bounds = nk_widget_bounds(ctx);
-		/* create a display buffer where tabs are expanded to spaces */
+		/* use tab expansion approach for consistent rendering */
 		{
-			char display_buf[MAX_TEXT_SIZE];
-			char new_internal[MAX_TEXT_SIZE];
+			static char expanded_buffer[MAX_TEXT_SIZE];
+			char temp_buffer[MAX_TEXT_SIZE];
 			int tabw = cfg_tab_width > 0 ? cfg_tab_width : 4;
-			int disp_cursor_before = ctx->text_edit.cursor; /* may be 0 if none */
-			internal_to_display(editor->text, display_buf, tabw);
-			edit_result = nk_edit_string_zero_terminated(ctx, edit_flags, display_buf, sizeof(display_buf), nk_filter_default);
-			/* Adjust cursor movement for single-step left/right so that arrows jump whole tabs */
-			{
-				int disp_cursor_after = ctx->text_edit.cursor;
-				if (disp_cursor_after > disp_cursor_before && disp_cursor_after - disp_cursor_before == 1)
-				{
-					int internal_before = display_cursor_to_internal_index(display_buf, disp_cursor_before, tabw);
-					if (internal_before >= 0 && editor->text[internal_before] == '\t')
-					{
-						int internal_after = internal_before + 1;
-						int new_disp = internal_index_to_display_cursor(editor->text, internal_after, tabw);
-						ctx->text_edit.cursor = new_disp;
-					}
+			
+			/* Expand tabs to spaces for Nuklear editing */
+			expand_tabs_to_spaces(editor->text, tabw, expanded_buffer, sizeof(expanded_buffer));
+			
+			/* Edit the expanded text */
+			edit_result = nk_edit_string_zero_terminated(ctx, edit_flags, expanded_buffer, sizeof(expanded_buffer), nk_filter_default);
+			
+			/* Convert back to tab format and update editor */
+			if (edit_result & (NK_EDIT_COMMITED | NK_EDIT_ACTIVE)) {
+				collapse_spaces_to_tabs(expanded_buffer, temp_buffer, tabw, sizeof(temp_buffer));
+				
+				/* Update only if text actually changed */
+				if (strcmp(temp_buffer, editor->text) != 0) {
+					strncpy(editor->text, temp_buffer, sizeof(editor->text) - 1);
+					editor->text[sizeof(editor->text) - 1] = '\0';
+					editor->text_len = (int)strlen(editor->text);
+					editor->modified = 1;
 				}
-				else if (disp_cursor_after < disp_cursor_before && disp_cursor_before - disp_cursor_after == 1)
-				{
-					int internal_pos_right = display_cursor_to_internal_index(display_buf, disp_cursor_before, tabw);
-					if (internal_pos_right > 0 && editor->text[internal_pos_right - 1] == '\t')
-					{
-						int internal_after = internal_pos_right - 1;
-						int new_disp = internal_index_to_display_cursor(editor->text, internal_after, tabw);
-						ctx->text_edit.cursor = new_disp;
-					}
-				}
-			}
-			/* convert display back to internal (converting groups of tabw spaces to \t) */
-			display_to_internal(display_buf, new_internal, tabw);
-			/* if content changed, copy back and mark modified */
-			if (strcmp(new_internal, editor->text) != 0)
-			{
-				strncpy(editor->text, new_internal, sizeof(editor->text) - 1);
-				editor->text[sizeof(editor->text) - 1] = '\0';
-				editor->text_len = (int)strlen(editor->text);
-				editor->modified = 1;
-			}
-			else
-			{
-				editor->text_len = (int)strlen(editor->text);
 			}
 		}
 
@@ -701,8 +731,8 @@ static void draw_gui(void)
 	}
 	nk_end(ctx);
 
-	// Properties（プロパティ領域）を左に配置
-	bounds = nk_rect(10, 10, 290, WINDOW_HEIGHT - 20);
+	// Properties（プロパティ領域）
+	bounds = props_bounds;
 	if (nk_begin(ctx, "Properties", bounds,
 		NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE))
 	{
@@ -710,7 +740,66 @@ static void draw_gui(void)
 		char stats[256];
 		JapaneseTextEditor* current;
 
-		/* Mode toggle + Run/Build の横並び */
+		/* Mode toggle + Run/Build: モバイルでは縦に積む、デスクトップは横並びを維持 */
+#ifdef MOBILE_PORTRAIT
+		/* モバイル：モード表示とトグルを縦に並べる */
+		nk_layout_row_dynamic(ctx, 26, 1);
+		if (app.is_interpreter_mode) nk_label(ctx, "Mode: Interpreter", NK_TEXT_LEFT);
+		else nk_label(ctx, "Mode: Compiler", NK_TEXT_LEFT);
+		nk_layout_row_dynamic(ctx, 32, 2);
+		if (nk_button_label(ctx, "Compiler")) app.is_interpreter_mode = 0;
+		if (nk_button_label(ctx, "Interpreter")) app.is_interpreter_mode = 1;
+
+		/* Run / Build ボタンを大きめに横並び */
+		nk_layout_row_dynamic(ctx, 40, 2);
+		if (nk_button_label(ctx, "Run"))
+		{
+			/* Run behavior depends on mode */
+			if (app.is_interpreter_mode)
+			{
+				/* call pcc.exe with the current title (assumed script) */
+				char inner_cmd[1024]; char cmdline[2048];
+				const char* title = app.editors[app.current_editor].title;
+				if (strchr(title, ' ')) snprintf(inner_cmd, sizeof(inner_cmd), "pcc.exe \"%s\"", title);
+				else snprintf(inner_cmd, sizeof(inner_cmd), "pcc.exe %s", title);
+				snprintf(cmdline, sizeof(cmdline), "cmd.exe  %s", inner_cmd);
+				/* start in new console */
+				STARTUPINFOA si; PROCESS_INFORMATION pi; ZeroMemory(&si, sizeof(si)); si.cb = sizeof(si); ZeroMemory(&pi, sizeof(pi));
+				if (!CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi))
+				{
+					MessageBoxA(NULL, "Failed to start interpreter (pcc.exe)", "Run Error", MB_OK | MB_ICONERROR);
+				}
+				else { CloseHandle(pi.hProcess); CloseHandle(pi.hThread); }
+			}
+			else
+			{
+				char exe_name[512];
+				char* dot;
+				const char* title = app.editors[app.current_editor].title;
+				strncpy(exe_name, title, sizeof(exe_name) - 1);
+				exe_name[sizeof(exe_name) - 1] = '\0';
+				dot = strrchr(exe_name, '.');
+				if (dot && dot[1] && dot[2] == '\0')
+				{
+					char ch = dot[1];
+					if (ch == 'c' || ch == 'C' || ch == 'h' || ch == 'H') *dot = '\0';
+				}
+				run_current_doc(exe_name);
+			}
+		}
+		if (!app.is_interpreter_mode)
+		{
+			if (nk_button_label(ctx, "Build"))
+			{
+				char filename[512];
+				const char* title = app.editors[app.current_editor].title;
+				const char* ext = strrchr(title, '.');
+				if (ext && strlen(ext) > 1) snprintf(filename, sizeof(filename), "%s", title);
+				else snprintf(filename, sizeof(filename), "%s.c", title);
+				build_current_doc_with_tcc(filename);
+			}
+		}
+#else
 		nk_layout_row_begin(ctx, NK_STATIC, 30, 3);
 		nk_layout_row_push(ctx, 80);
 		/* Mode display */
@@ -775,20 +864,33 @@ static void draw_gui(void)
 			}
 		}
 		nk_layout_row_end(ctx);
+#endif
 
-		/* Tab width control */
-		nk_layout_row_begin(ctx, NK_STATIC, 26, 3);
-		nk_layout_row_push(ctx, 90);
-		{
-			char tbstr[32];
-			snprintf(tbstr, sizeof(tbstr), "Tab width: %d", cfg_tab_width);
-			nk_label(ctx, tbstr, NK_TEXT_LEFT);
-		}
-		 nk_layout_row_push(ctx, 40);
-		 if (nk_button_label(ctx, "-")) { if (cfg_tab_width > 1) cfg_tab_width--; }
-		 nk_layout_row_push(ctx, 40);
-		 if (nk_button_label(ctx, "+")) { cfg_tab_width++; }
-		 nk_layout_row_end(ctx);
+	/* Tab width control */
+#ifdef MOBILE_PORTRAIT
+	nk_layout_row_dynamic(ctx, 28, 1);
+	{
+	    char tbstr[32];
+	    snprintf(tbstr, sizeof(tbstr), "Tab width: %d", cfg_tab_width);
+	    nk_label(ctx, tbstr, NK_TEXT_LEFT);
+	}
+	nk_layout_row_dynamic(ctx, 36, 3);
+	if (nk_button_label(ctx, "-")) { if (cfg_tab_width > 1) cfg_tab_width--; }
+	if (nk_button_label(ctx, "+")) { cfg_tab_width++; }
+#else
+	nk_layout_row_begin(ctx, NK_STATIC, 26, 3);
+	nk_layout_row_push(ctx, 90);
+	{
+	    char tbstr[32];
+	    snprintf(tbstr, sizeof(tbstr), "Tab width: %d", cfg_tab_width);
+	    nk_label(ctx, tbstr, NK_TEXT_LEFT);
+	}
+	 nk_layout_row_push(ctx, 40);
+	 if (nk_button_label(ctx, "-")) { if (cfg_tab_width > 1) cfg_tab_width--; }
+	 nk_layout_row_push(ctx, 40);
+	 if (nk_button_label(ctx, "+")) { cfg_tab_width++; }
+	 nk_layout_row_end(ctx);
+#endif
 		/* Save tab width to ini immediately if changed */
 		{
 			char ini_path[MAX_PATH]; char curdir[MAX_PATH]; char tb[16];
@@ -1135,6 +1237,7 @@ int main(void)
 		nk_style_load_all_cursors(ctx, atlas_local->cursors);
 		nk_style_set_font(ctx, &jp_font->handle);
 		nk_d3d9_font_stash_end();
+		/* No custom font wrapper needed - use standard font with tab expansion */
 		atlas_ptr = atlas_local;
 		/* 文字色だけ白にする（背景やボタン色は変更しない） */
 		{
@@ -1764,4 +1867,72 @@ static void load_or_create_ini(void)
 		}
 		WritePrivateProfileStringA("ide", "compiler_opts", cfg_compiler_opts, ini_path);
 	}
+}
+
+/* Helper: expand internal text (with '\t') into display buffer (tabs->spaces) */
+static void internal_to_display(const char* internal, char* display, int tabw)
+{
+	int i = 0, o = 0;
+	if (!internal || !display) return;
+	while (internal[i]) {
+		if (internal[i] == '\t') {
+			int k;
+			for (k = 0; k < tabw; ++k) display[o++] = ' ';
+			i++;
+		} else {
+			display[o++] = internal[i++];
+		}
+	}
+	display[o] = '\0';
+}
+
+/* Helper: convert display buffer back to internal (collapse runs of spaces to tabs where appropriate).
+   This is a conservative mapping: sequences of exactly tabw spaces become a single '\t'. */
+static void display_to_internal(const char* display, char* internal, int tabw)
+{
+	int i = 0, o = 0;
+	if (!display || !internal) return;
+	while (display[i]) {
+		if (display[i] == ' ') {
+			int j = i; int count = 0;
+			while (display[j] == ' ' && count < tabw) { j++; count++; }
+			if (count == tabw) { internal[o++] = '\t'; i += tabw; }
+			else internal[o++] = display[i++];
+		} else {
+			internal[o++] = display[i++];
+		}
+	}
+	internal[o] = '\0';
+}
+
+/* 内部テキストと表示上のカーサ位置（文字数）から対応する内部インデックスを返す。
+	タブは tabw 個のスペースに展開されることを想定。 */
+static int display_to_internal_index_using_internal(const char* internal, int disp_idx, int tabw)
+{
+	int i = 0, disp = 0;
+	if (!internal) return 0;
+	while (internal[i]) {
+		if (internal[i] == '\t') {
+			if (disp + tabw > disp_idx) return i; /* cursor inside tab -> return tab char index */
+			disp += tabw;
+			i++;
+		} else {
+			if (disp == disp_idx) return i;
+			disp++;
+			i++;
+		}
+	}
+	return i; /* end */
+}
+
+/* 内部インデックスを表示上のカーソル位置（文字数）に変換する */
+static int internal_index_to_display_cursor(const char* internal, int internal_idx, int tabw)
+{
+	int i = 0, disp = 0;
+	if (!internal) return 0;
+	while (i < internal_idx && internal[i]) {
+		if (internal[i] == '\t') { disp += tabw; i++; }
+		else { disp++; i++; }
+	}
+	return disp;
 }
