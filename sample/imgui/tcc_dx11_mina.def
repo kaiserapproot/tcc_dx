@@ -1,0 +1,17 @@
+LIBRARY tcc_dx11_mina.exe
+
+EXPORTS
+igBegin
+igButton
+igColorEdit3
+igCreateContext
+igDestroyContext
+igEnd
+igGetDrawData
+igNewFrame
+igRender
+igSameLine
+igSeparator
+igShowDemoWindow
+igStyleColorsDark
+igText
