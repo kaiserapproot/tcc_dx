@@ -241,3 +241,5 @@ proj/iosprooj/iosbase.vsimporter/
 /ext/cppunit/msvc/*.lib
 /win
 /.vscode
+/dev/*.o
+/dev/*.o
