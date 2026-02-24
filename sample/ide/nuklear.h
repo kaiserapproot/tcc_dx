@@ -2,123 +2,99 @@
 # Nuklear
 ![](https://cloud.githubusercontent.com/assets/8057201/11761525/ae06f0ca-a0c6-11e5-819d-5610b25f6ef4.gif)
 
-## Contents
-1. About section
-2. Highlights section
-3. Features section
-4. Usage section
-    1. Flags section
-    2. Constants section
-    3. Dependencies section
-5. Example section
-6. API section
-    1. Context section
-    2. Input section
-    3. Drawing section
-    4. Window section
-    5. Layouting section
-    6. Groups section
-    7. Tree section
-    8. Properties section
-7. License section
-8. Changelog section
-9. Gallery section
-10. Credits section
+## 目次
+1. 概要
+2. ハイライト
+3. 特徴
+4. 使い方
+    1. フラグ
+    2. 定数
+    3. 依存関係
+5. サンプル
+6. API
+    1. コンテキスト
+    2. 入力
+    3. 描画
+    4. ウィンドウ
+    5. レイアウト
+    6. グループ
+    7. ツリー
+    8. プロパティ
+7. ライセンス
+8. 更新履歴
+9. ギャラリー
+10. クレジット
 
-## About
-This is a minimal state immediate mode graphical user interface toolkit
-written in ANSI C and licensed under public domain. It was designed as a simple
-embeddable user interface for application and does not have any dependencies,
-a default renderbackend or OS window and input handling but instead provides a very modular
-library approach by using simple input state for input and draw
-commands describing primitive shapes as output. So instead of providing a
-layered library that tries to abstract over a number of platform and
-render backends it only focuses on the actual UI.
+## 概要
+これは ANSI C で書かれた最小限のステート即時モード GUI ツールキットで、パブリックドメインとして公開されています。アプリケーションに組み込み可能なシンプルな UI を目的として設計されており、特定のレンダーバックエンドや OS のウィンドウ/入力処理に依存しません。代わりに、入力状態を受け取り、プリミティブな描画コマンドを出力する非常にモジュール化されたライブラリ方式を採用しています。そのため、複数のプラットフォームやレンダリングバックエンドを抽象化する層を提供するのではなく、UI 本体にのみ集中しています。
 
-## Highlights
-- Graphical user interface toolkit
-- Single header library
-- Written in C89 (a.k.a. ANSI C or ISO C90)
-- Small codebase (~18kLOC)
-- Focus on portability, efficiency and simplicity
-- No dependencies (not even the standard library if not wanted)
-- Fully skinnable and customizable
-- Low memory footprint with total memory control if needed or wanted
-- UTF-8 support
-- No global or hidden state
-- Customizable library modules (you can compile and use only what you need)
-- Optional font baker and vertex buffer output
-- [Code available on github](https://github.com/Immediate-Mode-UI/Nuklear/)
+## ハイライト
+- GUI ツールキット
+- 単一ヘッダライブラリ
+- C89（ANSI C / ISO C90）で記述
+- 小さなコードベース（約 18kLOC）
+- 移植性、効率性、単純さに注力
+- 依存関係なし（望めば標準ライブラリすら不要）
+- スキン／カスタマイズが可能
+- 必要に応じた低メモリフットプリントとメモリ管理の完全制御
+- UTF-8 サポート
+- グローバルや隠れた状態を持たない
+- 必要なモジュールのみをコンパイルして使用可能
+- フォントベイカーや頂点バッファ出力はオプション
+- [コード（GitHub）](https://github.com/Immediate-Mode-UI/Nuklear/)
 
-## Features
-- Absolutely no platform dependent code
-- Memory management control ranging from/to
-    - Ease of use by allocating everything from standard library
-    - Control every byte of memory inside the library
-- Font handling control ranging from/to
-    - Use your own font implementation for everything
-    - Use this libraries internal font baking and handling API
-- Drawing output control ranging from/to
-    - Simple shapes for more high level APIs which already have drawing capabilities
-    - Hardware accessible anti-aliased vertex buffer output
-- Customizable colors and properties ranging from/to
-    - Simple changes to color by filling a simple color table
-    - Complete control with ability to use skinning to decorate widgets
-- Bendable UI library with widget ranging from/to
-    - Basic widgets like buttons, checkboxes, slider, ...
-    - Advanced widget like abstract comboboxes, contextual menus,...
-- Compile time configuration to only compile what you need
-    - Subset which can be used if you do not want to link or use the standard library
-- Can be easily modified to only update on user input instead of frame updates
+## 特徴
+- プラットフォーム依存コードを含まない
+- メモリ管理の制御範囲は柔軟（標準ライブラリで簡単に使うことも、ライブラリ内部の全バイトを制御することも可能）
+- フォント処理は外部実装を使うことも、内部のフォントベイク/処理 API を使うことも可能
+- 描画出力は単純な図形ベースからハードウェア対応のアンチエイリアス頂点バッファ出力まで対応
+- カラーやプロパティは簡単に変更でき、スキニングでウィジェットを装飾可能
+- 基本ウィジェット（ボタン、チェックボックス、スライダー等）から、抽象的なコンボボックスやコンテキストメニュー等の高度なウィジェットまで対応
+- コンパイル時の設定で必要な機能のみを含められる
+- ユーザー入力に応じてのみ更新するように簡単に変更可能
 
-## Usage
-This library is self contained in one single header file and can be used either
-in header only mode or in implementation mode. The header only mode is used
-by default when included and allows including this header in other headers
-and does not contain the actual implementation. <br /><br />
+## 使い方
+このライブラリは一つのヘッダファイルに自己完結しており、ヘッダのみのモードまたは実装モードで使用できます。ヘッダのみのモードはデフォルトで、他のヘッダ内にこのヘッダをインクルードでき、実装部分は含みません。
 
-The implementation mode requires to define  the preprocessor macro
-NK_IMPLEMENTATION in *one* .c/.cpp file before #including this file, e.g.:
+実装モードでは、少なくとも一つの .c/.cpp ファイルでプリプロセッサマクロ `NK_IMPLEMENTATION` を定義してからこのヘッダをインクルードする必要があります。例：
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~C
     #define NK_IMPLEMENTATION
     #include "nuklear.h"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Also optionally define the symbols listed in the section "OPTIONAL DEFINES"
-below in header and implementation mode if you want to use additional functionality
-or need more control over the library.
+また、下の「OPTIONAL DEFINES」セクションにあるシンボルを、追加機能が必要な場合やライブラリの制御を細かく行いたい場合に定義してください（ヘッダ／実装モード両方で必要なものがあります）。
 
 !!! WARNING
-    Every time nuklear is included define the same compiler flags. This very important not doing so could lead to compiler errors or even worse stack corruptions.
+    nuklear をインクルードする際は毎回同じコンパイラフラグを定義してください。これを守らないとコンパイルエラーや、最悪スタック破壊などの問題が発生する可能性があります。
 
-### Flags
-Flag                            | Description
+### フラグ（Flags）
+Flag                            | 説明
 --------------------------------|------------------------------------------
-NK_PRIVATE                      | If defined declares all functions as static, so they can only be accessed inside the file that contains the implementation
-NK_INCLUDE_FIXED_TYPES          | If defined it will include header `<stdint.h>` for fixed sized types otherwise nuklear tries to select the correct type. If that fails it will throw a compiler error and you have to select the correct types yourself.
-NK_INCLUDE_DEFAULT_ALLOCATOR    | If defined it will include header `<stdlib.h>` and provide additional functions to use this library without caring for memory allocation control and therefore ease memory management.
-NK_INCLUDE_STANDARD_IO          | If defined it will include header `<stdio.h>` and provide additional functions depending on file loading.
-NK_INCLUDE_STANDARD_VARARGS     | If defined it will include header <stdarg.h> and provide additional functions depending on file loading.
-NK_INCLUDE_STANDARD_BOOL        | If defined it will include header `<stdbool.h>` for nk_bool otherwise nuklear defines nk_bool as int.
-NK_INCLUDE_VERTEX_BUFFER_OUTPUT | Defining this adds a vertex draw command list backend to this library, which allows you to convert queue commands into vertex draw commands. This is mainly if you need a hardware accessible format for OpenGL, DirectX, Vulkan, Metal,...
-NK_INCLUDE_FONT_BAKING          | Defining this adds `stb_truetype` and `stb_rect_pack` implementation to this library and provides font baking and rendering. If you already have font handling or do not want to use this font handler you don't have to define it.
-NK_INCLUDE_DEFAULT_FONT         | Defining this adds the default font: ProggyClean.ttf into this library which can be loaded into a font atlas and allows using this library without having a truetype font
-NK_INCLUDE_COMMAND_USERDATA     | Defining this adds a userdata pointer into each command. Can be useful for example if you want to provide custom shaders depending on the used widget. Can be combined with the style structures.
-NK_BUTTON_TRIGGER_ON_RELEASE    | Different platforms require button clicks occurring either on buttons being pressed (up to down) or released (down to up). By default this library will react on buttons being pressed, but if you define this it will only trigger if a button is released.
-NK_ZERO_COMMAND_MEMORY          | Defining this will zero out memory for each drawing command added to a drawing queue (inside nk_command_buffer_push). Zeroing command memory is very useful for fast checking (using memcmp) if command buffers are equal and avoid drawing frames when nothing on screen has changed since previous frame.
-NK_UINT_DRAW_INDEX              | Defining this will set the size of vertex index elements when using NK_VERTEX_BUFFER_OUTPUT to 32bit instead of the default of 16bit
-NK_KEYSTATE_BASED_INPUT         | Define this if your backend uses key state for each frame rather than key press/release events
-NK_IS_WORD_BOUNDARY(c)          | Define this to a function macro that takes a single nk_rune (nk_uint) and returns true if it's a word separator. If not defined, uses the default definition (see nk_is_word_boundary())
+NK_PRIVATE                      | 定義すると全ての関数が static になり、実装を含むファイル内部のみで参照可能になります。
+NK_INCLUDE_FIXED_TYPES          | 定義すると `<stdint.h>` を含み固定幅整数型を使います。未定義だと自動選択を試みますが失敗するとコンパイルエラーになります。
+NK_INCLUDE_DEFAULT_ALLOCATOR    | 定義すると `<stdlib.h>` を含み、デフォルトのアロケータ関数群を提供します（メモリ管理を簡略化します）。
+NK_INCLUDE_STANDARD_IO          | 定義すると `<stdio.h>` を含み、ファイル入出力に依存する追加機能を提供します。
+NK_INCLUDE_STANDARD_VARARGS     | 定義すると `<stdarg.h>` を含み、可変引数を使う追加機能を提供します。
+NK_INCLUDE_STANDARD_BOOL        | 定義すると `<stdbool.h>` を含み `nk_bool` を bool 型として扱います。未定義だと `nk_bool` は int として定義されます。
+NK_INCLUDE_VERTEX_BUFFER_OUTPUT | 定義すると頂点描画コマンドリストのバックエンドを追加し、コマンドキューを頂点描画コマンドへ変換できます（OpenGL/DirectX/Vulkan/Metal 等のハードウェア出力に便利）。
+NK_INCLUDE_FONT_BAKING          | 定義すると `stb_truetype` と `stb_rect_pack` の実装を取り込み、フォントベイクと描画機能を提供します。既にフォント処理を持っている場合は定義不要です。
+NK_INCLUDE_DEFAULT_FONT         | 定義するとデフォルトフォント（ProggyClean.ttf）を組み込み、TrueType フォントを用意しなくても利用できるようになります。
+NK_INCLUDE_COMMAND_USERDATA     | 定義すると各コマンドに userdata ポインタが追加されます。カスタムシェーダをウィジェット毎に切り替える等に便利です。
+NK_BUTTON_TRIGGER_ON_RELEASE    | デフォルトではボタンは押下時（down）に反応します。これを定義するとリリース時（up）にのみ反応するようになります。
+NK_ZERO_COMMAND_MEMORY          | 定義すると描画キューに追加される各コマンドのメモリをゼロ初期化します。memcmp による比較を容易にし、画面に変化がない場合は描画を避けられます。
+NK_UINT_DRAW_INDEX              | 定義すると `NK_VERTEX_BUFFER_OUTPUT` 使用時のインデックス要素を 16bit ではなく 32bit にします。
+NK_KEYSTATE_BASED_INPUT         | バックエンドがフレームごとのキー状態を使う場合に定義します。
+NK_IS_WORD_BOUNDARY(c)          | nk_rune (nk_uint) を受け取り単語境界か判定するマクロを定義できます。未定義時はデフォルト実装を使用します（`nk_is_word_boundary()` を参照）。
 
 !!! WARNING
-    The following flags will pull in the standard C library:
+    次のフラグは標準 C ライブラリを取り込みます：
     - NK_INCLUDE_DEFAULT_ALLOCATOR
     - NK_INCLUDE_STANDARD_IO
     - NK_INCLUDE_STANDARD_VARARGS
 
 !!! WARNING
-    The following flags if defined need to be defined for both header and implementation:
+    以下のフラグはヘッダと実装の両方で定義する必要があります：
     - NK_INCLUDE_FIXED_TYPES
     - NK_INCLUDE_DEFAULT_ALLOCATOR
     - NK_INCLUDE_STANDARD_VARARGS
@@ -126,46 +102,45 @@ NK_IS_WORD_BOUNDARY(c)          | Define this to a function macro that takes a s
     - NK_INCLUDE_VERTEX_BUFFER_OUTPUT
     - NK_INCLUDE_FONT_BAKING
     - NK_INCLUDE_DEFAULT_FONT
-    - NK_INCLUDE_STANDARD_VARARGS
     - NK_INCLUDE_COMMAND_USERDATA
     - NK_UINT_DRAW_INDEX
 
-### Constants
-Define                          | Description
+### 定数（Constants）
+Define                          | 説明
 --------------------------------|---------------------------------------
-NK_BUFFER_DEFAULT_INITIAL_SIZE  | Initial buffer size allocated by all buffers while using the default allocator functions included by defining NK_INCLUDE_DEFAULT_ALLOCATOR. If you don't want to allocate the default 4k memory then redefine it.
-NK_MAX_NUMBER_BUFFER            | Maximum buffer size for the conversion buffer between float and string Under normal circumstances this should be more than sufficient.
-NK_INPUT_MAX                    | Defines the max number of bytes which can be added as text input in one frame. Under normal circumstances this should be more than sufficient.
+NK_BUFFER_DEFAULT_INITIAL_SIZE  | `NK_INCLUDE_DEFAULT_ALLOCATOR` 使用時に各バッファが確保する初期サイズ。デフォルトの 4KB を変更したければ再定義してください。
+NK_MAX_NUMBER_BUFFER            | float と文字列の変換バッファの最大サイズ。通常は十分な値です。
+NK_INPUT_MAX                    | 1フレームで追加できるテキスト入力の最大バイト数。通常は十分な値です。
 
 !!! WARNING
-    The following constants if defined need to be defined for both header and implementation:
+    以下の定数はヘッダと実装の両方で定義する必要があります：
     - NK_MAX_NUMBER_BUFFER
     - NK_BUFFER_DEFAULT_INITIAL_SIZE
     - NK_INPUT_MAX
 
-### Dependencies
-Function    | Description
+### 依存関係（Dependencies）
+Function    | 説明
 ------------|---------------------------------------------------------------
-NK_ASSERT   | If you don't define this, nuklear will use <assert.h> with assert().
-NK_MEMSET   | You can define this to 'memset' or your own memset implementation replacement. If not nuklear will use its own version.
-NK_MEMCPY   | You can define this to 'memcpy' or your own memcpy implementation replacement. If not nuklear will use its own version.
-NK_INV_SQRT | You can define this to your own inverse sqrt implementation replacement. If not nuklear will use its own slow and not highly accurate version.
-NK_SIN      | You can define this to 'sinf' or your own sine implementation replacement. If not nuklear will use its own approximation implementation.
-NK_COS      | You can define this to 'cosf' or your own cosine implementation replacement. If not nuklear will use its own approximation implementation.
-NK_STRTOD   | You can define this to `strtod` or your own string to double conversion implementation replacement. If not defined nuklear will use its own imprecise and possibly unsafe version (does not handle nan or infinity!).
-NK_DTOA     | You can define this to `dtoa` or your own double to string conversion implementation replacement. If not defined nuklear will use its own imprecise and possibly unsafe version (does not handle nan or infinity!).
-NK_VSNPRINTF| If you define `NK_INCLUDE_STANDARD_VARARGS` as well as `NK_INCLUDE_STANDARD_IO` and want to be safe define this to `vsnprintf` on compilers supporting later versions of C or C++. By default nuklear will check for your stdlib version in C as well as compiler version in C++. if `vsnprintf` is available it will define it to `vsnprintf` directly. If not defined and if you have older versions of C or C++ it will be defined to `vsprintf` which is unsafe.
+NK_ASSERT   | 未定義の場合、nuklear は `<assert.h>` の `assert()` を使用します。
+NK_MEMSET   | 標準の `memset` か独自実装を指定できます。未定義時は内部実装を使用します。
+NK_MEMCPY   | 標準の `memcpy` か独自実装を指定できます。未定義時は内部実装を使用します。
+NK_INV_SQRT | 逆平方根の独自実装を指定できます。未定義時は内部の簡易実装を使用します（高精度ではありません）。
+NK_SIN      | `sinf` や独自の正弦関数を指定できます。未定義時は近似実装を使用します。
+NK_COS      | `cosf` や独自の余弦関数を指定できます。未定義時は近似実装を使用します。
+NK_STRTOD   | `strtod` や独自の文字列→double 変換を指定できます。未定義時は精度や NaN/inf を扱えない簡易実装になります。
+NK_DTOA     | `dtoa` や独自の double→文字列 変換を指定できます。未定義時は簡易実装になります。
+NK_VSNPRINTF| `NK_INCLUDE_STANDARD_VARARGS` と `NK_INCLUDE_STANDARD_IO` を定義している場合、`vsnprintf` を指定するのが安全です。環境に応じて自動で `vsnprintf` を使用することがありますが、古い環境では `vsprintf` にフォールバックする場合があります。
 
 !!! WARNING
-    The following dependencies will pull in the standard C library if not redefined:
+    未定義の場合、次の依存関係は標準 C ライブラリを取り込みます：
     - NK_ASSERT
 
 !!! WARNING
-    The following dependencies if defined need to be defined for both header and implementation:
+    以下の依存関係はヘッダと実装の両方で定義する必要があります：
     - NK_ASSERT
 
 !!! WARNING
-    The following dependencies if defined need to be defined only for the implementation part:
+    以下の依存関係は実装部のみで定義する必要があります：
     - NK_MEMSET
     - NK_MEMCPY
     - NK_SQRT
@@ -175,10 +150,10 @@ NK_VSNPRINTF| If you define `NK_INCLUDE_STANDARD_VARARGS` as well as `NK_INCLUDE
     - NK_DTOA
     - NK_VSNPRINTF
 
-## Example
+## サンプル
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~c
-// init gui state
+// GUI 状態の初期化
 enum {EASY, HARD};
 static int op = EASY;
 static float value = 0.6f;
@@ -188,18 +163,18 @@ struct nk_context ctx;
 nk_init_fixed(&ctx, calloc(1, MAX_MEMORY), MAX_MEMORY, &font);
 if (nk_begin(&ctx, "Show", nk_rect(50, 50, 220, 220),
     NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE)) {
-    // fixed widget pixel width
+    // 固定ピクセル幅のウィジェット
     nk_layout_row_static(&ctx, 30, 80, 1);
     if (nk_button_label(&ctx, "button")) {
-        // event handling
+        // イベント処理
     }
 
-    // fixed widget window ratio width
+    // ウィンドウ幅に対する比率指定のウィジェット
     nk_layout_row_dynamic(&ctx, 30, 2);
     if (nk_option_label(&ctx, "easy", op == EASY)) op = EASY;
     if (nk_option_label(&ctx, "hard", op == HARD)) op = HARD;
 
-    // custom widget pixel width
+    // カスタムウィジェット（ピクセル幅）
     nk_layout_row_begin(&ctx, NK_STATIC, 30, 2);
     {
         nk_layout_row_push(&ctx, 50);
@@ -235,7 +210,7 @@ extern "C" {
 /*
  * ==============================================================
  *
- *                          CONSTANTS
+ *                          定数（CONSTANTS）
  *
  * ===============================================================
  */
@@ -255,7 +230,7 @@ extern "C" {
 /*
  * ==============================================================
  *
- *                          HELPER
+ *                          ヘルパー（HELPER）
  *
  * ===============================================================
  */
@@ -334,7 +309,7 @@ extern "C" {
 /*
  * ===============================================================
  *
- *                          BASIC
+ *                          基本（BASIC）
  *
  * ===============================================================
  */
@@ -545,16 +520,14 @@ enum nk_symbol_type {
  * =============================================================================*/
 /**
  * \page Context
- * Contexts are the main entry point and the majestro of nuklear and contain all required state.
- * They are used for window, memory, input, style, stack, commands and time management and need
- * to be passed into all nuklear GUI specific functions.
+ * Context（コンテキスト）は Nuklear の主要なエントリポイントであり、必要な全ての状態を保持します。
+ * ウィンドウ、メモリ、入力、スタイル、スタック、描画コマンド、時間管理などを扱い、
+ * Nuklear の GUI 関連関数に渡す必要があります。
  *
- * # Usage
- * To use a context it first has to be initialized which can be achieved by calling
- * one of either `nk_init_default`, `nk_init_fixed`, `nk_init`, `nk_init_custom`.
- * Each takes in a font handle and a specific way of handling memory. Memory control
- * hereby ranges from standard library to just specifying a fixed sized block of memory
- * which nuklear has to manage itself from.
+ * # 使い方
+ * コンテキストを利用するにはまず初期化する必要があります。これは `nk_init_default`、`nk_init_fixed`、
+ * `nk_init`、`nk_init_custom` のいずれかを呼ぶことで行えます。各関数はフォントハンドルとメモリ管理の方式を受け取り、
+ * メモリ管理は標準ライブラリによる自動割当てから、ライブラリが管理する固定サイズのメモリブロック指定まで選べます。
  *
  * ```c
  * struct nk_context ctx;
@@ -566,142 +539,140 @@ enum nk_symbol_type {
  * nk_free(&ctx);
  * ```
  *
- * # Reference
- * Function            | Description
+ * # リファレンス
+ * 関数                | 説明
  * --------------------|-------------------------------------------------------
- * \ref nk_init_default | Initializes context with standard library memory allocation (malloc,free)
- * \ref nk_init_fixed   | Initializes context from single fixed size memory block
- * \ref nk_init         | Initializes context with memory allocator callbacks for alloc and free
- * \ref nk_init_custom  | Initializes context from two buffers. One for draw commands the other for window/panel/table allocations
- * \ref nk_clear        | Called at the end of the frame to reset and prepare the context for the next frame
- * \ref nk_free         | Shutdown and free all memory allocated inside the context
- * \ref nk_set_user_data| Utility function to pass user data to draw command
+ * \ref nk_init_default | 標準ライブラリのメモリ割当て（malloc/free）を用いてコンテキストを初期化します
+ * \ref nk_init_fixed   | 固定サイズのメモリブロックからコンテキストを初期化します
+ * \ref nk_init         | アロケータコールバックを用いてコンテキストを初期化します（alloc/free を指定）
+ * \ref nk_init_custom  | 描画コマンド用とウィンドウ/パネル/テーブル用の2つのバッファからコンテキストを初期化します
+ * \ref nk_clear        | フレームの終わりに呼び出し、コンテキストをリセットして次フレームの準備をします
+ * \ref nk_free         | Nuklear により割り当てられたメモリを解放します
+ * \ref nk_set_user_data| 描画コマンドにユーザーデータを渡すユーティリティ関数
  */
 
 #ifdef NK_INCLUDE_DEFAULT_ALLOCATOR
-
 /**
  * # nk_init_default
- * Initializes a `nk_context` struct with a default standard library allocator.
- * Should be used if you don't want to be bothered with memory management in nuklear.
+ * 標準ライブラリのアロケータを使用して `nk_context` 構造体を初期化します。
+ * Nuklear 内のメモリ管理を気にしたくない場合に使用してください。
  *
  * ```c
  * nk_bool nk_init_default(struct nk_context *ctx, const struct nk_user_font *font);
  * ```
  *
- * Parameter   | Description
- * ------------|---------------------------------------------------------------
- * \param[in] ctx     | Must point to an either stack or heap allocated `nk_context` struct
- * \param[in] font    | Must point to a previously initialized font handle for more info look at font documentation
+ * パラメータ   | 説明
+ * -------------|---------------------------------------------------------------
+ * \param[in] ctx     | スタックまたはヒープ上に確保された `nk_context` 構造体へのポインタを渡してください
+ * \param[in] font    | 事前に初期化されたフォントハンドルへのポインタ（フォントの詳細はフォントのドキュメント参照）
  *
- * \returns either `false(0)` on failure or `true(1)` on success.
+ * \returns 失敗時は `false(0)`、成功時は `true(1)` を返します。
  */
 NK_API nk_bool nk_init_default(struct nk_context*, const struct nk_user_font*);
 #endif
 /**
  * # nk_init_fixed
- * Initializes a `nk_context` struct from single fixed size memory block
- * Should be used if you want complete control over nuklear's memory management.
- * Especially recommended for system with little memory or systems with virtual memory.
- * For the later case you can just allocate for example 16MB of virtual memory
- * and only the required amount of memory will actually be committed.
+ * 固定サイズのメモリブロックから `nk_context` 構造体を初期化します。
+ * Nuklear のメモリ管理を完全に制御したい場合に使用してください。
+ * メモリが限られた組み込み系や仮想メモリを利用するシステムに特に推奨されます。
+ * 例えば 16MB の仮想メモリを割り当て、実際に必要な分だけがコミットされるような使い方が可能です。
  *
  * ```c
  * nk_bool nk_init_fixed(struct nk_context *ctx, void *memory, nk_size size, const struct nk_user_font *font);
  * ```
  *
- * !!! Warning
- *     make sure the passed memory block is aligned correctly for `nk_draw_commands`.
+ * !!! 注意
+ *     渡されるメモリブロックが `nk_draw_commands` に対して正しくアラインされていることを確認してください。
  *
- * Parameter   | Description
- * ------------|--------------------------------------------------------------
- * \param[in] ctx     | Must point to an either stack or heap allocated `nk_context` struct
- * \param[in] memory  | Must point to a previously allocated memory block
- * \param[in] size    | Must contain the total size of memory
- * \param[in] font    | Must point to a previously initialized font handle for more info look at font documentation
+ * パラメータ   | 説明
+ * -------------|--------------------------------------------------------------
+ * \param[in] ctx     | スタックまたはヒープ上に確保された `nk_context` 構造体へのポインタを渡してください
+ * \param[in] memory  | 事前に確保されたメモリブロックへのポインタ
+ * \param[in] size    | メモリブロックの総サイズ（バイト単位）
+ * \param[in] font    | 事前に初期化されたフォントハンドルへのポインタ（詳細はフォントドキュメント参照）
  *
- * \returns either `false(0)` on failure or `true(1)` on success.
+ * \returns 失敗時は `false(0)`、成功時は `true(1)` を返します。
  */
 NK_API nk_bool nk_init_fixed(struct nk_context*, void *memory, nk_size size, const struct nk_user_font*);
 
 /**
  * # nk_init
- * Initializes a `nk_context` struct with memory allocation callbacks for nuklear to allocate
- * memory from. Used internally for `nk_init_default` and provides a kitchen sink allocation
- * interface to nuklear. Can be useful for cases like monitoring memory consumption.
+ * `nk_context` 構造体を Nuklear のためのメモリアロケータコールバックを使って初期化します。
+ * `nk_init_default` の内部で使用されることがあり、Nuklear に対して柔軟なメモリ割当インターフェースを提供します。
+ * カスタムアロケータを使ってメモリ使用量を監視したい場合や、独自の割当戦略を適用したい場合に有用です。
  *
  * ```c
  * nk_bool nk_init(struct nk_context *ctx, const struct nk_allocator *alloc, const struct nk_user_font *font);
  * ```
  *
- * Parameter   | Description
- * ------------|---------------------------------------------------------------
- * \param[in] ctx     | Must point to an either stack or heap allocated `nk_context` struct
- * \param[in] alloc   | Must point to a previously allocated memory allocator
- * \param[in] font    | Must point to a previously initialized font handle for more info look at font documentation
+ * パラメータ   | 説明
+ * -------------|---------------------------------------------------------------
+ * \param[in] ctx   | スタックまたはヒープ上に確保された `nk_context` 構造体へのポインタを渡してください
+ * \param[in] alloc | 事前に初期化されたメモリアロケータへのポインタを渡してください
+ * \param[in] font  | 事前に初期化されたフォントハンドルへのポインタ（詳細はフォントのドキュメント参照）
  *
- * \returns either `false(0)` on failure or `true(1)` on success.
+ * \returns 失敗時は `false(0)`、成功時は `true(1)` を返します。
  */
 NK_API nk_bool nk_init(struct nk_context*, const struct nk_allocator*, const struct nk_user_font*);
 
 /**
- * \brief Initializes a `nk_context` struct from two different either fixed or growing buffers.
+ * # nk_init_custom
+ * 2つのバッファ（固定サイズまたは伸張可能）から `nk_context` 構造体を初期化します。
  *
  * \details
- * The first buffer is for allocating draw commands while the second buffer is
- * used for allocating windows, panels and state tables.
+ * 最初のバッファは描画コマンドの割当てに使用され、2番目のバッファはウィンドウ、パネル、
+ * および状態テーブルなどの内部状態を格納するために使用されます。
  *
  * ```c
  * nk_bool nk_init_custom(struct nk_context *ctx, struct nk_buffer *cmds, struct nk_buffer *pool, const struct nk_user_font *font);
  * ```
  *
- * \param[in] ctx    Must point to an either stack or heap allocated `nk_context` struct
- * \param[in] cmds   Must point to a previously initialized memory buffer either fixed or dynamic to store draw commands into
- * \param[in] pool   Must point to a previously initialized memory buffer either fixed or dynamic to store windows, panels and tables
- * \param[in] font   Must point to a previously initialized font handle for more info look at font documentation
+ * \param[in] ctx   | スタックまたはヒープ上に確保された `nk_context` 構造体へのポインタを渡してください
+ * \param[in] cmds  | 描画コマンドを格納するために事前に初期化された固定または動的バッファへのポインタ
+ * \param[in] pool  | ウィンドウ、パネル、テーブル等の状態を格納するために事前に初期化された固定または動的バッファへのポインタ
+ * \param[in] font  | 事前に初期化されたフォントハンドルへのポインタ（詳細はフォントのドキュメント参照）
  *
- * \returns either `false(0)` on failure or `true(1)` on success.
+ * \returns 失敗時は `false(0)`、成功時は `true(1)` を返します。
  */
 NK_API nk_bool nk_init_custom(struct nk_context*, struct nk_buffer *cmds, struct nk_buffer *pool, const struct nk_user_font*);
 
 /**
- * \brief Resets the context state at the end of the frame.
+ * \brief フレーム終了時にコンテキストの状態をリセットします。
  *
  * \details
- * This includes mostly garbage collector tasks like removing windows or table
- * not called and therefore used anymore.
+ * 主にガベージコレクション的な処理を行います（例：もはや使用されていないウィンドウやテーブルの削除など）。
  *
  * ```c
  * void nk_clear(struct nk_context *ctx);
  * ```
  *
- * \param[in] ctx  Must point to a previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタを渡してください
  */
 NK_API void nk_clear(struct nk_context*);
 
 /**
- * \brief Frees all memory allocated by nuklear; Not needed if context was initialized with `nk_init_fixed`.
+ * \brief Nuklear によって割り当てられた全てのメモリを解放します。`nk_init_fixed` で初期化した場合は不要です。
  *
  * \details
  * ```c
  * void nk_free(struct nk_context *ctx);
  * ```
  *
- * \param[in] ctx  Must point to a previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタを渡してください
  */
 NK_API void nk_free(struct nk_context*);
 
 #ifdef NK_INCLUDE_COMMAND_USERDATA
 /**
- * \brief Sets the currently passed userdata passed down into each draw command.
+ * \brief 現在のユーザーデータを設定し、それを各描画コマンドに渡します。
  *
  * \details
  * ```c
  * void nk_set_user_data(struct nk_context *ctx, nk_handle data);
  * ```
  *
- * \param[in] ctx Must point to a previously initialized `nk_context` struct
- * \param[in] data  Handle with either pointer or index to be passed into every draw commands
+ * \param[in] ctx   事前に初期化された `nk_context` 構造体へのポインタを渡してください
+ * \param[in] data  各描画コマンドに渡されるポインタまたはインデックスを含むハンドル
  */
 NK_API void nk_set_user_data(struct nk_context*, nk_handle handle);
 #endif
@@ -713,13 +684,11 @@ NK_API void nk_set_user_data(struct nk_context*, nk_handle handle);
 /**
  * \page Input
  *
- * The input API is responsible for holding the current input state composed of
- * mouse, key and text input states.
- * It is worth noting that no direct OS or window handling is done in nuklear.
- * Instead all input state has to be provided by platform specific code. This on one hand
- * expects more work from the user and complicates usage but on the other hand
- * provides simple abstraction over a big number of platforms, libraries and other
- * already provided functionality.
+ * 入力 API は、マウス・キー・テキスト入力など現在の入力状態を保持する責務を持ちます。
+ * Nuklear 自体は OS やウィンドウのイベントを直接扱わない点に注意してください。
+ * プラットフォーム固有のコード側で入力状態を収集し、それを Nuklear に渡す必要があります。
+ * これにより実装側の手間は増えますが、多くのプラットフォームやライブラリに対して
+ * シンプルな抽象化を提供できるという利点があります。
  *
  * ```c
  * nk_input_begin(&ctx);
@@ -729,17 +698,16 @@ NK_API void nk_set_user_data(struct nk_context*, nk_handle handle);
  *     else if (evt.type == [...]) {
  *         // [...]
  *     }
- * } nk_input_end(&ctx);
+ * }
+ * nk_input_end(&ctx);
  * ```
  *
- * # Usage
- * Input state needs to be provided to nuklear by first calling `nk_input_begin`
- * which resets internal state like delta mouse position and button transitions.
- * After `nk_input_begin` all current input state needs to be provided. This includes
- * mouse motion, button and key pressed and released, text input and scrolling.
- * Both event- or state-based input handling are supported by this API
- * and should work without problems. Finally after all input state has been
- * mirrored `nk_input_end` needs to be called to finish input process.
+ * # 使い方
+ * 入力状態はまず `nk_input_begin` を呼び出して Nuklear 側の内部状態（マウス移動の差分や
+ * ボタンの遷移など）をリセットすることから始めます。`nk_input_begin` の後に現在の入力状態を
+ * すべて渡してください（マウス移動、ボタン/キーの押下・解放、テキスト入力、スクロールなど）。
+ * 本 API はイベント駆動型と状態ポーリング型の両方をサポートします。すべての入力状態を反映し終えたら
+ * `nk_input_end` を呼び出して入力処理を完了してください。
  *
  * ```c
  * struct nk_context ctx;
@@ -757,21 +725,22 @@ NK_API void nk_set_user_data(struct nk_context*, nk_handle handle);
  *     nk_input_end(&ctx);
  *     // [...]
  *     nk_clear(&ctx);
- * } nk_free(&ctx);
+ * }
+ * nk_free(&ctx);
  * ```
  *
- * # Reference
- * Function            | Description
+ * # リファレンス
+ * Function            | 説明
  * --------------------|-------------------------------------------------------
- * \ref nk_input_begin  | Begins the input mirroring process. Needs to be called before all other `nk_input_xxx` calls
- * \ref nk_input_motion | Mirrors mouse cursor position
- * \ref nk_input_key    | Mirrors key state with either pressed or released
- * \ref nk_input_button | Mirrors mouse button state with either pressed or released
- * \ref nk_input_scroll | Mirrors mouse scroll values
- * \ref nk_input_char   | Adds a single ASCII text character into an internal text buffer
- * \ref nk_input_glyph  | Adds a single multi-byte UTF-8 character into an internal text buffer
- * \ref nk_input_unicode| Adds a single unicode rune into an internal text buffer
- * \ref nk_input_end    | Ends the input mirroring process by calculating state changes. Don't call any `nk_input_xxx` function referenced above after this call
+ * \ref nk_input_begin  | 入力ミラーリング処理を開始します。全ての `nk_input_xxx` 呼び出しの前に実行する必要があります
+ * \ref nk_input_motion | マウスカーソル位置を Nuklear に伝えます
+ * \ref nk_input_key    | キー状態（押下/解放）を Nuklear に伝えます
+ * \ref nk_input_button | マウスボタンの状態（押下/解放）を Nuklear に伝えます
+ * \ref nk_input_scroll | マウスのスクロール値を Nuklear に伝えます
+ * \ref nk_input_char   | 単一の ASCII 文字を内部テキストバッファに追加します
+ * \ref nk_input_glyph  | 単一のマルチバイト UTF-8 文字を内部テキストバッファに追加します
+ * \ref nk_input_unicode| 単一の Unicode ルーンを内部テキストバッファに追加します
+ * \ref nk_input_end    | 入力ミラーリング処理を終了し、状態変化を計算します。この呼び出し以降は上記の `nk_input_xxx` を呼ばないでください
  */
 
 enum nk_keys {
@@ -818,140 +787,137 @@ enum nk_buttons {
 };
 
 /**
- * \brief Begins the input mirroring process by resetting text, scroll
- * mouse, previous mouse position and movement as well as key state transitions.
+ * \brief 入力ミラーリング処理を開始します（テキスト／スクロール／前回のマウス位置・移動量やキー遷移のリセット）。
  *
  * \details
  * ```c
  * void nk_input_begin(struct nk_context*);
  * ```
  *
- * \param[in] ctx Must point to a previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_input_begin(struct nk_context*);
 
 /**
- * \brief Mirrors current mouse position to nuklear
+ * \brief 現在のマウス位置を Nuklear に渡します。
  *
  * \details
  * ```c
  * void nk_input_motion(struct nk_context *ctx, int x, int y);
  * ```
  *
- * \param[in] ctx   Must point to a previously initialized `nk_context` struct
- * \param[in] x     Must hold an integer describing the current mouse cursor x-position
- * \param[in] y     Must hold an integer describing the current mouse cursor y-position
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] x    現在のマウスカーソルの X 座標（整数）
+ * \param[in] y    現在のマウスカーソルの Y 座標（整数）
  */
 NK_API void nk_input_motion(struct nk_context*, int x, int y);
 
 /**
- * \brief Mirrors the state of a specific key to nuklear
+ * \brief 指定したキーの状態（押下/解放）を Nuklear に渡します。
  *
  * \details
  * ```c
  * void nk_input_key(struct nk_context*, enum nk_keys key, nk_bool down);
  * ```
  *
- * \param[in] ctx      Must point to a previously initialized `nk_context` struct
- * \param[in] key      Must be any value specified in enum `nk_keys` that needs to be mirrored
- * \param[in] down     Must be 0 for key is up and 1 for key is down
+ * \param[in] ctx   事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] key   enum `nk_keys` に定義されたキーのいずれか
+ * \param[in] down  0 が解放、1 が押下を表します
  */
 NK_API void nk_input_key(struct nk_context*, enum nk_keys, nk_bool down);
 
 /**
- * \brief Mirrors the state of a specific mouse button to nuklear
+ * \brief 指定したマウスボタンの状態（押下/解放）を Nuklear に渡します。
  *
  * \details
  * ```c
  * void nk_input_button(struct nk_context *ctx, enum nk_buttons btn, int x, int y, nk_bool down);
  * ```
  *
- * \param[in] ctx     Must point to a previously initialized `nk_context` struct
- * \param[in] btn     Must be any value specified in enum `nk_buttons` that needs to be mirrored
- * \param[in] x       Must contain an integer describing mouse cursor x-position on click up/down
- * \param[in] y       Must contain an integer describing mouse cursor y-position on click up/down
- * \param[in] down    Must be 0 for key is up and 1 for key is down
+ * \param[in] ctx   事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] btn   enum `nk_buttons` に定義されたボタンのいずれか
+ * \param[in] x     クリック時のマウスカーソル X 座標（整数）
+ * \param[in] y     クリック時のマウスカーソル Y 座標（整数）
+ * \param[in] down  0 が解放、1 が押下を表します
  */
 NK_API void nk_input_button(struct nk_context*, enum nk_buttons, int x, int y, nk_bool down);
 
 /**
- * \brief Copies the last mouse scroll value to nuklear.
+ * \brief 最後のマウススクロール値を Nuklear に渡します。
  *
  * \details
- * Is generally a scroll value. So does not have to come from mouse and could
- * also originate from balls, tracks, linear guide rails, or other programs.
+ * 一般的にはスクロール値を渡すための関数です。必ずしもマウス由来である必要はなく、
+ * トラックボールや別のプログラムなどからのスクロール値でも構いません。
  *
  * ```c
  * void nk_input_scroll(struct nk_context *ctx, struct nk_vec2 val);
  * ```
  *
- * \param[in] ctx     | Must point to a previously initialized `nk_context` struct
- * \param[in] val     | vector with both X- as well as Y-scroll value
+ * \param[in] ctx   事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] val   X/Y のスクロール値を含むベクトル
  */
 NK_API void nk_input_scroll(struct nk_context*, struct nk_vec2 val);
 
 /**
- * \brief Copies a single ASCII character into an internal text buffer
+ * \brief 単一の ASCII 文字を内部テキストバッファにコピーします。
  *
  * \details
- * This is basically a helper function to quickly push ASCII characters into
- * nuklear.
+ * ASCII 文字を簡単に Nuklear に渡すためのヘルパー関数です。
  *
  * \note
- *     Stores up to NK_INPUT_MAX bytes between `nk_input_begin` and `nk_input_end`.
+ *     `nk_input_begin` と `nk_input_end` の間で最大 NK_INPUT_MAX バイトまで格納されます。
  *
  * ```c
  * void nk_input_char(struct nk_context *ctx, char c);
  * ```
  *
- * \param[in] ctx     | Must point to a previously initialized `nk_context` struct
- * \param[in] c       | Must be a single ASCII character preferable one that can be printed
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] c    単一の表示可能な ASCII 文字を渡してください
  */
 NK_API void nk_input_char(struct nk_context*, char);
 
 /**
- * \brief Converts an encoded unicode rune into UTF-8 and copies the result into an
- * internal text buffer.
+ * \brief エンコードされた Unicode ルーンを UTF-8 に変換し、結果を内部テキストバッファにコピーします。
  *
  * \note
- *     Stores up to NK_INPUT_MAX bytes between `nk_input_begin` and `nk_input_end`.
+ *     `nk_input_begin` と `nk_input_end` の間で最大 NK_INPUT_MAX バイトまで格納されます。
  *
  * ```c
  * void nk_input_glyph(struct nk_context *ctx, const nk_glyph g);
  * ```
  *
- * \param[in] ctx     | Must point to a previously initialized `nk_context` struct
- * \param[in] g       | UTF-32 unicode codepoint
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] g    UTF-32 の Unicode コードポイント
  */
 NK_API void nk_input_glyph(struct nk_context*, const nk_glyph);
 
 /**
- * \brief Converts a unicode rune into UTF-8 and copies the result
- * into an internal text buffer.
+ * \brief Unicode ルーンを UTF-8 に変換し、内部テキストバッファにコピーします。
  *
  * \details
+ *
  * \note
- *     Stores up to NK_INPUT_MAX bytes between `nk_input_begin` and `nk_input_end`.
+ *     `nk_input_begin` と `nk_input_end` の間で最大 NK_INPUT_MAX バイトまで格納されます。
  *
  * ```c
  * void nk_input_unicode(struct nk_context*, nk_rune rune);
  * ```
  *
- * \param[in] ctx     | Must point to a previously initialized `nk_context` struct
- * \param[in] rune    | UTF-32 unicode codepoint
+ * \param[in] ctx   事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] rune  UTF-32 の Unicode コードポイント
  */
 NK_API void nk_input_unicode(struct nk_context*, nk_rune);
 
 /**
- * \brief End the input mirroring process by resetting mouse grabbing
- * state to ensure the mouse cursor is not grabbed indefinitely.
+ * \brief 入力ミラーリング処理を終了します。マウスのグラブ状態をリセットし、
+ * カーソルが不当に捕捉され続けないようにします。
  *
  * \details
  * ```c
  * void nk_input_end(struct nk_context *ctx);
  * ```
  *
- * \param[in] ctx     | Must point to a previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_input_end(struct nk_context*);
 
@@ -962,22 +928,17 @@ NK_API void nk_input_end(struct nk_context*);
  * =============================================================================*/
 /**
  * \page Drawing
- * This library was designed to be render backend agnostic so it does
- * not draw anything to screen directly. Instead all drawn shapes, widgets
- * are made of, are buffered into memory and make up a command queue.
- * Each frame therefore fills the command buffer with draw commands
- * that then need to be executed by the user and his own render backend.
- * After that the command buffer needs to be cleared and a new frame can be
- * started. It is probably important to note that the command buffer is the main
- * drawing API and the optional vertex buffer API only takes this format and
- * converts it into a hardware accessible format.
+ * このライブラリはレンダリングバックエンドに依存しない設計になっているため、画面へ直接描画は行いません。
+ * 代わりに描画されるすべての図形やウィジェットはメモリ上にバッファされ、コマンドキューを構成します。
+ * 各フレームで描画コマンドバッファにコマンドが蓄積され、ユーザ側のレンダーバックエンドがそれらのコマンドを
+ * 実行する必要があります。その後コマンドバッファをクリアして新しいフレームを開始します。
+ * コマンドバッファはメインの描画 API であり、オプションの頂点バッファ API はこのフォーマットを受け取り
+ * ハードウェア向けの形式に変換する役割を持ちます。
  *
- * # Usage
- * To draw all draw commands accumulated over a frame you need your own render
- * backend able to draw a number of 2D primitives. This includes at least
- * filled and stroked rectangles, circles, text, lines, triangles and scissors.
- * As soon as this criterion is met you can iterate over each draw command
- * and execute each draw command in a interpreter like fashion:
+ * # 使用方法
+ * フレーム中に蓄積された描画コマンドを描画するには、矩形、円、テキスト、線、三角形、シザー（クリッピング）などの
+ * 2D プリミティブを描画できるレンダーバックエンドが必要です。条件を満たしていれば、各描画コマンドを反復処理し
+ * インタプリタのようにコマンドごとに描画処理を実行できます：
  *
  * ```c
  * const struct nk_command *cmd = 0;
@@ -986,19 +947,17 @@ NK_API void nk_input_end(struct nk_context*);
  *     case NK_COMMAND_LINE:
  *         your_draw_line_function(...)
  *         break;
- *     case NK_COMMAND_RECT
+ *     case NK_COMMAND_RECT:
  *         your_draw_rect_function(...)
  *         break;
  *     case //...:
- *         //[...]
+ *         //[...] 
  *     }
  * }
  * ```
  *
- * In program flow context draw commands need to be executed after input has been
- * gathered and the complete UI with windows and their contained widgets have
- * been executed and before calling `nk_clear` which frees all previously
- * allocated draw commands.
+ * プログラムの流れとしては、入力を収集し、ウィンドウやその中のウィジェットをすべて実行した後に
+ * 描画コマンドを実行し、最後に `nk_clear` を呼んで以前に確保された描画コマンドを解放します。
  *
  * ```c
  * struct nk_context ctx;
@@ -1014,88 +973,76 @@ NK_API void nk_input_end(struct nk_context*);
  *         }
  *     }
  *     nk_input_end(&ctx);
- *     //
- *     // [...]
- *     //
+ *     // UI 更新と実行
  *     const struct nk_command *cmd = 0;
  *     nk_foreach(cmd, &ctx) {
- *     switch (cmd->type) {
- *     case NK_COMMAND_LINE:
- *         your_draw_line_function(...)
- *         break;
- *     case NK_COMMAND_RECT
- *         your_draw_rect_function(...)
- *         break;
- *     case ...:
- *         // [...]
+ *         switch (cmd->type) {
+ *         case NK_COMMAND_LINE:
+ *             your_draw_line_function(...)
+ *             break;
+ *         case NK_COMMAND_RECT:
+ *             your_draw_rect_function(...)
+ *             break;
+ *         case ...:
+ *             // [...]
+ *         }
  *     }
  *     nk_clear(&ctx);
  * }
  * nk_free(&ctx);
  * ```
  *
- * You probably noticed that you have to draw all of the UI each frame which is
- * quite wasteful. While the actual UI updating loop is quite fast rendering
- * without actually needing it is not. So there are multiple things you could do.
+ * 毎フレーム UI をすべて描画する必要があるため無駄があるように思えます。UI の更新ループ自体は高速ですが、
+ * 実際のレンダリングは高コストになることがあります。いくつかの対策が可能です。
  *
- * First is only update on input. This of course is only an option if your
- * application only depends on the UI and does not require any outside calculations.
- * If you actually only update on input make sure to update the UI two times each
- * frame and call `nk_clear` directly after the first pass and only draw in
- * the second pass. In addition it is recommended to also add additional timers
- * to make sure the UI is not drawn more than a fixed number of frames per second.
+ * まずは「入力があったときだけ更新する」方法です。これはアプリケーションが UI のみを扱い、外部計算を必要としない場合に有効です。
+ * この場合はフレームごとに UI を2回実行し、最初のパスの後で `nk_clear` を呼び出し、2回目のパスで描画を行うようにします。
+ * また、描画頻度の上限を設定するタイマーを併用すると良いでしょう。
  *
  * ```c
  * struct nk_context ctx;
  * nk_init_xxx(&ctx, ...);
  * while (1) {
- *     // [...wait for input ]
- *     // [...do two UI passes ...]
- *     do_ui(...)
+ *     // [... 入力待ち ...]
+ *     // [... UI を2パス実行 ...]
+ *     do_ui(...);
  *     nk_clear(&ctx);
- *     do_ui(...)
- *     //
- *     // draw
+ *     do_ui(...);
+ *     // 描画処理
  *     const struct nk_command *cmd = 0;
  *     nk_foreach(cmd, &ctx) {
- *     switch (cmd->type) {
- *     case NK_COMMAND_LINE:
- *         your_draw_line_function(...)
- *         break;
- *     case NK_COMMAND_RECT
- *         your_draw_rect_function(...)
- *         break;
- *     case ...:
- *         //[...]
+ *         switch (cmd->type) {
+ *         case NK_COMMAND_LINE:
+ *             your_draw_line_function(...)
+ *             break;
+ *         case NK_COMMAND_RECT:
+ *             your_draw_rect_function(...)
+ *             break;
+ *         case ...:
+ *             //[...]
+ *         }
  *     }
  *     nk_clear(&ctx);
  * }
  * nk_free(&ctx);
  * ```
  *
- * The second probably more applicable trick is to only draw if anything changed.
- * It is not really useful for applications with continuous draw loop but
- * quite useful for desktop applications. To actually get nuklear to only
- * draw on changes you first have to define `NK_ZERO_COMMAND_MEMORY` and
- * allocate a memory buffer that will store each unique drawing output.
- * After each frame you compare the draw command memory inside the library
- * with your allocated buffer by memcmp. If memcmp detects differences
- * you have to copy the command buffer into the allocated buffer
- * and then draw like usual (this example uses fixed memory but you could
- * use dynamically allocated memory).
+ * もう一つの実用的な手法は「変化があったときだけ描画する」方法です。連続的に描画を行うループには向きませんが、
+ * デスクトップアプリケーションでは有効です。これを実現するには `NK_ZERO_COMMAND_MEMORY` を定義し、
+ * 各フレームの描画出力を保存するバッファを確保します。フレームごとにライブラリ内部のコマンドバッファと
+ * あなたの保存バッファを memcmp で比較し、差分があればコマンドバッファを保存バッファにコピーしてから描画します。
+ * （例では固定メモリを使用していますが、動的メモリでも構いません）
  *
  * ```c
  * //[... other defines ...]
  * #define NK_ZERO_COMMAND_MEMORY
  * #include "nuklear.h"
- * //
- * // setup context
+ * // セットアップ
  * struct nk_context ctx;
  * void *last = calloc(1,64*1024);
  * void *buf = calloc(1,64*1024);
  * nk_init_fixed(&ctx, buf, 64*1024);
- * //
- * // loop
+ * // ループ
  * while (1) {
  *     // [...input...]
  *     // [...ui...]
@@ -1108,7 +1055,7 @@ NK_API void nk_input_end(struct nk_context*);
  *             case NK_COMMAND_LINE:
  *                 your_draw_line_function(...)
  *                 break;
- *             case NK_COMMAND_RECT
+ *             case NK_COMMAND_RECT:
  *                 your_draw_rect_function(...)
  *                 break;
  *             case ...:
@@ -1121,14 +1068,10 @@ NK_API void nk_input_end(struct nk_context*);
  * nk_free(&ctx);
  * ```
  *
- * Finally while using draw commands makes sense for higher abstracted platforms like
- * X11 and Win32 or drawing libraries it is often desirable to use graphics
- * hardware directly. Therefore it is possible to just define
- * `NK_INCLUDE_VERTEX_BUFFER_OUTPUT` which includes optional vertex output.
- * To access the vertex output you first have to convert all draw commands into
- * vertexes by calling `nk_convert` which takes in your preferred vertex format.
- * After successfully converting all draw commands just iterate over and execute all
- * vertex draw commands:
+ * 高レベルなプラットフォーム（X11 や Win32、描画ライブラリ等）では描画コマンドを使うのが便利ですが、
+ * GPU を直接使って描画したい場合もあります。その場合は `NK_INCLUDE_VERTEX_BUFFER_OUTPUT` を定義すると
+ * 頂点出力を有効にできます。頂点出力にアクセスするには、まず `nk_convert` を呼び出して全ての描画コマンドを
+ * あなたの選んだ頂点フォーマットに変換する必要があります。変換に成功したら、頂点描画コマンドを反復して実行します：
  *
  * ```c
  * // fill configuration
@@ -1155,14 +1098,12 @@ NK_API void nk_input_end(struct nk_context*);
  * cfg.arc_segment_count = 22;
  * cfg.global_alpha = 1.0f;
  * cfg.tex_null = dev->tex_null;
- * //
  * // setup buffers and convert
  * struct nk_buffer cmds, verts, idx;
  * nk_buffer_init_default(&cmds);
  * nk_buffer_init_default(&verts);
  * nk_buffer_init_default(&idx);
  * nk_convert(&ctx, &cmds, &verts, &idx, &cfg);
- * //
  * // draw
  * nk_draw_foreach(cmd, &ctx, &cmds) {
  * if (!cmd->elem_count) continue;
@@ -1173,17 +1114,17 @@ NK_API void nk_input_end(struct nk_context*);
  * nk_buffer_free(&idx);
  * ```
  *
- * # Reference
+ * # リファレンス
  * Function            | Description
  * --------------------|-------------------------------------------------------
- * \ref nk__begin       | Returns the first draw command in the context draw command list to be drawn
- * \ref nk__next        | Increments the draw command iterator to the next command inside the context draw command list
- * \ref nk_foreach      | Iterates over each draw command inside the context draw command list
- * \ref nk_convert      | Converts from the abstract draw commands list into a hardware accessible vertex format
- * \ref nk_draw_begin   | Returns the first vertex command in the context vertex draw list to be executed
- * \ref nk__draw_next   | Increments the vertex command iterator to the next command inside the context vertex command list
- * \ref nk__draw_end    | Returns the end of the vertex draw list
- * \ref nk_draw_foreach | Iterates over each vertex draw command inside the vertex draw list
+ * \ref nk__begin       | コンテキストの描画コマンドリスト内で描画される最初のコマンドを返します
+ * \ref nk__next        | 描画コマンドイテレータを次のコマンドへ進めます
+ * \ref nk_foreach      | コンテキストの描画コマンドリスト内の各コマンドを反復します
+ * \ref nk_convert      | 抽象的な描画コマンドリストをハードウェア向けの頂点形式に変換します
+ * \ref nk_draw_begin   | コンテキストの頂点描画リスト内で実行される最初の頂点コマンドを返します
+ * \ref nk__draw_next   | 頂点コマンドイテレータを次のコマンドへ進めます
+ * \ref nk__draw_end    | 頂点描画リストの終端を返します
+ * \ref nk_draw_foreach | 頂点描画リスト内の各頂点描画コマンドを反復します
  */
 
 enum nk_anti_aliasing {NK_ANTI_ALIASING_OFF, NK_ANTI_ALIASING_ON};
@@ -1195,215 +1136,197 @@ enum nk_convert_result {
     NK_CONVERT_ELEMENT_BUFFER_FULL = NK_FLAG(3)
 };
 struct nk_draw_null_texture {
-    nk_handle texture; /**!< texture handle to a texture with a white pixel */
-    struct nk_vec2 uv; /**!< coordinates to a white pixel in the texture  */
+    nk_handle texture; /**!< 白いピクセルを持つテクスチャのハンドル */
+    struct nk_vec2 uv; /**!< そのテクスチャ内の白いピクセルの UV 座標 */
 };
 struct nk_convert_config {
-    float global_alpha;             /**!< global alpha value */
-    enum nk_anti_aliasing line_AA;  /**!< line anti-aliasing flag can be turned off if you are tight on memory */
-    enum nk_anti_aliasing shape_AA; /**!< shape anti-aliasing flag can be turned off if you are tight on memory */
-    unsigned circle_segment_count;  /**!< number of segments used for circles: default to 22 */
-    unsigned arc_segment_count;     /**!< number of segments used for arcs: default to 22 */
-    unsigned curve_segment_count;   /**!< number of segments used for curves: default to 22 */
-    struct nk_draw_null_texture tex_null; /**!< handle to texture with a white pixel for shape drawing */
-    const struct nk_draw_vertex_layout_element *vertex_layout; /**!< describes the vertex output format and packing */
-    nk_size vertex_size;      /**!< sizeof one vertex for vertex packing */
-    nk_size vertex_alignment; /**!< vertex alignment: Can be obtained by NK_ALIGNOF */
+    float global_alpha;             /**!< グローバルなアルファ値 */
+    enum nk_anti_aliasing line_AA;  /**!< 線のアンチエイリアシングフラグ（メモリが限られる場合は無効にできます） */
+    enum nk_anti_aliasing shape_AA; /**!< 図形のアンチエイリアシングフラグ（メモリが限られる場合は無効にできます） */
+    unsigned circle_segment_count;  /**!< 円を描く際に使用するセグメント数（デフォルト 22） */
+    unsigned arc_segment_count;     /**!< 弧を描く際に使用するセグメント数（デフォルト 22） */
+    unsigned curve_segment_count;   /**!< 曲線を描く際に使用するセグメント数（デフォルト 22） */
+    struct nk_draw_null_texture tex_null; /**!< 形状描画用の白いピクセルを持つテクスチャのハンドル */
+    const struct nk_draw_vertex_layout_element *vertex_layout; /**!< 頂点出力のフォーマットとパッキングを記述する配列へのポインタ */
+    nk_size vertex_size;      /**!< 頂点パッキングのための 1 頂点あたりのバイト数（sizeof） */
+    nk_size vertex_alignment; /**!< 頂点のアライメント（NK_ALIGNOF で取得可能） */
 };
 
 /**
- * \brief Returns a draw command list iterator to iterate all draw
- * commands accumulated over one frame.
+ * \brief 1 フレーム分に蓄積された描画コマンドを反復するためのイテレータを返します。
  *
  * \details
  * ```c
  * const struct nk_command* nk__begin(struct nk_context*);
  * ```
  *
- * \param[in] ctx     | must point to an previously initialized `nk_context` struct at the end of a frame
+ * \param[in] ctx  フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns draw command pointer pointing to the first command inside the draw command list
+ * \returns 描画コマンドリスト内の最初のコマンドを指すポインタを返します
  */
 NK_API const struct nk_command* nk__begin(struct nk_context*);
 
 /**
- * \brief Returns draw command pointer pointing to the next command inside the draw command list
+ * \brief 描画コマンドリスト内で次のコマンドを指す描画コマンドポインタを返します。
  *
  * \details
  * ```c
  * const struct nk_command* nk__next(struct nk_context*, const struct nk_command*);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct at the end of a frame
- * \param[in] cmd     | Must point to an previously a draw command either returned by `nk__begin` or `nk__next`
+ * \param[in] ctx  フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] cmd  `nk__begin` または前回の `nk__next` が返した描画コマンドへのポインタ
  *
- * \returns draw command pointer pointing to the next command inside the draw command list
+ * \returns 描画コマンドリスト内の次のコマンドを指すポインタを返します
  */
 NK_API const struct nk_command* nk__next(struct nk_context*, const struct nk_command*);
 
 /**
- * \brief Iterates over each draw command inside the context draw command list
+ * \brief コンテキストの描画コマンドリスト内の各コマンドを反復処理します。
  *
  * ```c
  * #define nk_foreach(c, ctx)
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct at the end of a frame
- * \param[in] cmd     | Command pointer initialized to NULL
+ * \param[in] ctx  フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] cmd  NULL に初期化されたコマンドポインタ
  */
 #define nk_foreach(c, ctx) for((c) = nk__begin(ctx); (c) != 0; (c) = nk__next(ctx,c))
 
 #ifdef NK_INCLUDE_VERTEX_BUFFER_OUTPUT
 
 /**
- * \brief Converts all internal draw commands into vertex draw commands and fills
- * three buffers with vertexes, vertex draw commands and vertex indices.
+ * \brief 内部の描画コマンドをすべて頂点描画コマンドに変換し、
+ * 生成された頂点、頂点描画コマンド、および頂点インデックスを3つのバッファに格納します。
  *
  * \details
- * The vertex format as well as some other configuration values have to be
- * configured by filling out a `nk_convert_config` struct.
+ * 頂点フォーマットやその他の変換設定は `nk_convert_config` 構造体を埋めることで指定します。
  *
  * ```c
  * nk_flags nk_convert(struct nk_context *ctx, struct nk_buffer *cmds,
  *     struct nk_buffer *vertices, struct nk_buffer *elements, const struct nk_convert_config*);
  * ```
  *
- * \param[in] ctx      Must point to an previously initialized `nk_context` struct at the end of a frame
- * \param[out] cmds     Must point to a previously initialized buffer to hold converted vertex draw commands
- * \param[out] vertices Must point to a previously initialized buffer to hold all produced vertices
- * \param[out] elements Must point to a previously initialized buffer to hold all produced vertex indices
- * \param[in] config   Must point to a filled out `nk_config` struct to configure the conversion process
+ * \param[in] ctx      フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[out] cmds     変換後の頂点描画コマンドを格納するために事前に初期化されたバッファへのポインタ
+ * \param[out] vertices 生成されたすべての頂点を格納するために事前に初期化されたバッファへのポインタ
+ * \param[out] elements 生成されたすべての頂点インデックスを格納するために事前に初期化されたバッファへのポインタ
+ * \param[in] config   変換処理を設定した `nk_convert_config` 構造体へのポインタ
  *
- * \returns one of enum nk_convert_result error codes
+ * \returns enum `nk_convert_result` のいずれかのエラーコードを返します
  *
- * Parameter                       | Description
+ * Parameter                       | 説明
  * --------------------------------|-----------------------------------------------------------
- * NK_CONVERT_SUCCESS              | Signals a successful draw command to vertex buffer conversion
- * NK_CONVERT_INVALID_PARAM        | An invalid argument was passed in the function call
- * NK_CONVERT_COMMAND_BUFFER_FULL  | The provided buffer for storing draw commands is full or failed to allocate more memory
- * NK_CONVERT_VERTEX_BUFFER_FULL   | The provided buffer for storing vertices is full or failed to allocate more memory
- * NK_CONVERT_ELEMENT_BUFFER_FULL  | The provided buffer for storing indices is full or failed to allocate more memory
+ * NK_CONVERT_SUCCESS              | 描画コマンドから頂点バッファへの変換が成功したことを示します
+ * NK_CONVERT_INVALID_PARAM        | 無効な引数が渡されました
+ * NK_CONVERT_COMMAND_BUFFER_FULL  | 描画コマンド格納用バッファがいっぱい、またはメモリ確保に失敗しました
+ * NK_CONVERT_VERTEX_BUFFER_FULL   | 頂点格納用バッファがいっぱい、またはメモリ確保に失敗しました
+ * NK_CONVERT_ELEMENT_BUFFER_FULL  | インデックス格納用バッファがいっぱい、またはメモリ確保に失敗しました
  */
 NK_API nk_flags nk_convert(struct nk_context*, struct nk_buffer *cmds, struct nk_buffer *vertices, struct nk_buffer *elements, const struct nk_convert_config*);
 
 /**
- * \brief Returns a draw vertex command buffer iterator to iterate over the vertex draw command buffer
+ * \brief 頂点描画コマンドバッファを反復するためのイテレータを返します。
  *
  * \details
  * ```c
  * const struct nk_draw_command* nk__draw_begin(const struct nk_context*, const struct nk_buffer*);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct at the end of a frame
- * \param[in] buf     | Must point to an previously by `nk_convert` filled out vertex draw command buffer
+ * \param[in] ctx  フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] buf  `nk_convert` によって埋められた頂点描画コマンドバッファへのポインタ
  *
- * \returns vertex draw command pointer pointing to the first command inside the vertex draw command buffer
+ * \returns 頂点描画コマンドバッファ内の最初のコマンドを指すポインタを返します
  */
 NK_API const struct nk_draw_command* nk__draw_begin(const struct nk_context*, const struct nk_buffer*);
 
 /**
-
- * # # nk__draw_end
- * \returns the vertex draw command at the end of the vertex draw command buffer
+ * \brief 頂点描画コマンドバッファの終端を示す頂点描画コマンドポインタを返します。
  *
  * ```c
  * const struct nk_draw_command* nk__draw_end(const struct nk_context *ctx, const struct nk_buffer *buf);
  * ```
  *
- * Parameter   | Description
+ * Parameter   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct at the end of a frame
- * \param[in] buf     | Must point to an previously by `nk_convert` filled out vertex draw command buffer
+ * \param[in] ctx  フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] buf  `nk_convert` によって埋められた頂点描画コマンドバッファへのポインタ
  *
- * \returns vertex draw command pointer pointing to the end of the last vertex draw command inside the vertex draw command buffer
-
+ * \returns 頂点描画コマンドバッファ内の最後の頂点描画コマンドの終端を指すポインタを返します
  */
 NK_API const struct nk_draw_command* nk__draw_end(const struct nk_context*, const struct nk_buffer*);
 
 /**
- * # # nk__draw_next
- * Increments the vertex draw command buffer iterator
+ * \brief 頂点描画コマンドバッファのイテレータを次へ進めます。
  *
  * ```c
  * const struct nk_draw_command* nk__draw_next(const struct nk_draw_command*, const struct nk_buffer*, const struct nk_context*);
  * ```
  *
- * Parameter   | Description
+ * Parameter   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] cmd     | Must point to an previously either by `nk__draw_begin` or `nk__draw_next` returned vertex draw command
- * \param[in] buf     | Must point to an previously by `nk_convert` filled out vertex draw command buffer
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct at the end of a frame
+ * \param[in] cmd  `nk__draw_begin` または前回の `nk__draw_next` が返した頂点描画コマンドへのポインタ
+ * \param[in] buf  `nk_convert` によって埋められた頂点描画コマンドバッファへのポインタ
+ * \param[in] ctx  フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns vertex draw command pointer pointing to the end of the last vertex draw command inside the vertex draw command buffer
-
+ * \returns 頂点描画コマンドバッファ内の次の頂点描画コマンドを指すポインタを返します
  */
 NK_API const struct nk_draw_command* nk__draw_next(const struct nk_draw_command*, const struct nk_buffer*, const struct nk_context*);
 
 /**
- * # # nk_draw_foreach
- * Iterates over each vertex draw command inside a vertex draw command buffer
+ * \brief 頂点描画コマンドバッファ内の各頂点描画コマンドを反復処理します。
  *
  * ```c
  * #define nk_draw_foreach(cmd,ctx, b)
  * ```
  *
- * Parameter   | Description
+ * Parameter   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] cmd     | `nk_draw_command`iterator set to NULL
- * \param[in] buf     | Must point to an previously by `nk_convert` filled out vertex draw command buffer
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct at the end of a frame
+ * \param[in] cmd  NULL に初期化された `nk_draw_command` イテレータ
+ * \param[in] buf  `nk_convert` によって埋められた頂点描画コマンドバッファへのポインタ
+ * \param[in] ctx  フレームの終端にある、事前に初期化された `nk_context` 構造体へのポインタ
  */
 
 #define nk_draw_foreach(cmd,ctx, b) for((cmd)=nk__draw_begin(ctx, b); (cmd)!=0; (cmd)=nk__draw_next(cmd, b, ctx))
 #endif
 
-/** =============================================================================
+/* =============================================================================
  *
  *                                  WINDOW
  *
  * =============================================================================*/
 /**
  * \page Window
- * Windows are the main persistent state used inside nuklear and are life time
- * controlled by simply "retouching" (i.e. calling) each window each frame.
- * All widgets inside nuklear can only be added inside the function pair `nk_begin_xxx`
- * and `nk_end`. Calling any widgets outside these two functions will result in an
- * assert in debug or no state change in release mode.<br /><br />
+ * ウィンドウは Nuklear 内で使用される主要な永続状態であり、各フレームでそのウィンドウを
+ * 再度呼び出す（retouch）ことでライフタイムが管理されます。
+ * Nuklear のウィジェットは `nk_begin_xxx` と `nk_end` のペア内でのみ追加できます。
+ * これらの関数の外でウィジェットを呼ぶと、デバッグビルドでは assert、リリースビルドでは状態変化が起きません。
  *
- * Each window holds frame persistent state like position, size, flags, state tables,
- * and some garbage collected internal persistent widget state. Each window
- * is linked into a window stack list which determines the drawing and overlapping
- * order. The topmost window thereby is the currently active window.<br /><br />
+ * ウィンドウは位置、サイズ、フラグ、状態テーブル、そして一部のガベージコレクションされる内部ウィジェット状態など
+ * フレームを跨いで保持される状態を持ちます。各ウィンドウは重なり順や描画順を決めるウィンドウスタックリストにリンクされ、
+ * スタックの最上位ウィンドウが現在アクティブなウィンドウになります。
  *
- * To change window position inside the stack occurs either automatically by
- * user input by being clicked on or programmatically by calling `nk_window_focus`.
- * Windows by default are visible unless explicitly being defined with flag
- * `NK_WINDOW_HIDDEN`, the user clicked the close button on windows with flag
- * `NK_WINDOW_CLOSABLE` or if a window was explicitly hidden by calling
- * `nk_window_show`. To explicitly close and destroy a window call `nk_window_close`.<br /><br />
+ * ウィンドウのスタック内の位置は、ユーザ操作によるクリックや `nk_window_focus` の呼び出しにより変更されます。
+ * ウィンドウはデフォルトで表示されます（`NK_WINDOW_HIDDEN` フラグで明示的に非表示にしない限り）。
+ * `NK_WINDOW_CLOSABLE` が設定されたウィンドウではユーザがクローズボタンを押すとウィンドウが閉じられます。
+ * また `nk_window_show` を呼ぶことで明示的に表示/非表示を切り替えられます。ウィンドウを閉じて破棄するには `nk_window_close` を呼んでください。
  *
- * # Usage
- * To create and keep a window you have to call one of the two `nk_begin_xxx`
- * functions to start window declarations and `nk_end` at the end. Furthermore it
- * is recommended to check the return value of `nk_begin_xxx` and only process
- * widgets inside the window if the value is not 0. Either way you have to call
- * `nk_end` at the end of window declarations. Furthermore, do not attempt to
- * nest `nk_begin_xxx` calls which will hopefully result in an assert or if not
- * in a segmentation fault.
+ * # 使用方法
+ * ウィンドウを作成して保持するには `nk_begin_xxx` 系の関数のいずれかを呼んでウィンドウ宣言を開始し、
+ * 最後に `nk_end` を呼んで終了します。`nk_begin_xxx` の戻り値をチェックし、0 でない場合のみウィジェット処理を行うことを推奨します。
+ * また `nk_begin_xxx` を入れ子にすることは避けてください（assert やセグメンテーションフォルトの原因になります）。
  *
  * ```c
- * if (nk_begin_xxx(...) {
- *     // [... widgets ...]
+ * if (nk_begin_xxx(...)) {
+ *     // [... ウィジェット ...]
  * }
  * nk_end(ctx);
  * ```
  *
- * In the grand concept window and widget declarations need to occur after input
- * handling and before drawing to screen. Not doing so can result in higher
- * latency or at worst invalid behavior. Furthermore make sure that `nk_clear`
- * is called at the end of the frame. While nuklear's default platform backends
- * already call `nk_clear` for you if you write your own backend not calling
- * `nk_clear` can cause asserts or even worse undefined behavior.
+ * 全体の流れとして、ウィンドウとウィジェットの宣言は入力処理の後、画面への描画の前に行う必要があります。
+ * これを守らないと遅延が増えたり無効な動作を招く可能性があります。またフレームの終わりに `nk_clear` を呼ぶことを忘れないでください。
+ * Nuklear の標準プラットフォームバックエンドは自動的に `nk_clear` を呼びますが、独自バックエンドを実装する場合は
+ * `nk_clear` を呼ばないと assert や未定義動作を引き起こすことがあります。
  *
  * ```c
  * struct nk_context ctx;
@@ -1441,67 +1364,67 @@ NK_API const struct nk_draw_command* nk__draw_next(const struct nk_draw_command*
  * nk_free(&ctx);
  * ```
  *
- * # Reference
- * Function                            | Description
+ * # リファレンス
+ * Function                            | 説明
  * ------------------------------------|----------------------------------------
- * \ref nk_begin                            | Starts a new window; needs to be called every frame for every window (unless hidden) or otherwise the window gets removed
- * \ref nk_begin_titled                     | Extended window start with separated title and identifier to allow multiple windows with same name but not title
- * \ref nk_end                              | Needs to be called at the end of the window building process to process scaling, scrollbars and general cleanup
+ * \ref nk_begin                        | 新しいウィンドウを開始します。各ウィンドウについてフレームごとに呼び出す必要があります（非表示でない限り）、呼ばれないとウィンドウは削除されます
+ * \ref nk_begin_titled                 | タイトルと識別子を分けて指定できる拡張版。タイトルは同じだが識別子を変えたい複数ウィンドウを扱う場合に便利です
+ * \ref nk_end                          | ウィンドウ生成処理の終了時に呼び出し、スケーリングやスクロールバー、一般的な後始末を行います
  *
- * \ref nk_window_find                      | Finds and returns the window with give name
- * \ref nk_window_get_bounds                | Returns a rectangle with screen position and size of the currently processed window.
- * \ref nk_window_get_position              | Returns the position of the currently processed window
- * \ref nk_window_get_size                  | Returns the size with width and height of the currently processed window
- * \ref nk_window_get_width                 | Returns the width of the currently processed window
- * \ref nk_window_get_height                | Returns the height of the currently processed window
- * \ref nk_window_get_panel                 | Returns the underlying panel which contains all processing state of the current window
- * \ref nk_window_get_content_region        | Returns the position and size of the currently visible and non-clipped space inside the currently processed window
- * \ref nk_window_get_content_region_min    | Returns the upper rectangle position of the currently visible and non-clipped space inside the currently processed window
- * \ref nk_window_get_content_region_max    | Returns the upper rectangle position of the currently visible and non-clipped space inside the currently processed window
- * \ref nk_window_get_content_region_size   | Returns the size of the currently visible and non-clipped space inside the currently processed window
- * \ref nk_window_get_canvas                | Returns the draw command buffer. Can be used to draw custom widgets
- * \ref nk_window_get_scroll                | Gets the scroll offset of the current window
- * \ref nk_window_has_focus                 | Returns if the currently processed window is currently active
- * \ref nk_window_is_collapsed              | Returns if the window with given name is currently minimized/collapsed
- * \ref nk_window_is_closed                 | Returns if the currently processed window was closed
- * \ref nk_window_is_hidden                 | Returns if the currently processed window was hidden
- * \ref nk_window_is_active                 | Same as nk_window_has_focus for some reason
- * \ref nk_window_is_hovered                | Returns if the currently processed window is currently being hovered by mouse
- * \ref nk_window_is_any_hovered            | Return if any window currently hovered
- * \ref nk_item_is_any_active               | Returns if any window or widgets is currently hovered or active
+ * \ref nk_window_find                  | 指定した名前のウィンドウを検索して返します
+ * \ref nk_window_get_bounds            | 処理中のウィンドウの画面上の位置とサイズを矩形で返します
+ * \ref nk_window_get_position          | 処理中のウィンドウの位置を返します
+ * \ref nk_window_get_size              | 処理中のウィンドウの幅と高さを返します
+ * \ref nk_window_get_width             | 処理中のウィンドウの幅を返します
+ * \ref nk_window_get_height            | 処理中のウィンドウの高さを返します
+ * \ref nk_window_get_panel             | 現在のウィンドウの内部処理状態を保持するパネルを返します
+ * \ref nk_window_get_content_region    | 現在処理中のウィンドウ内で表示され、クリップされていない領域の位置とサイズを返します
+ * \ref nk_window_get_content_region_min| 現在表示されている領域の左上位置を返します
+ * \ref nk_window_get_content_region_max| 現在表示されている領域の右下位置を返します
+ * \ref nk_window_get_content_region_size| 現在表示されている領域のサイズを返します
+ * \ref nk_window_get_canvas            | 描画コマンドバッファを返します。カスタムウィジェットの描画に使用できます
+ * \ref nk_window_get_scroll            | 現在のウィンドウのスクロールオフセットを取得します
+ * \ref nk_window_has_focus             | 処理中のウィンドウがアクティブかどうかを返します
+ * \ref nk_window_is_collapsed          | 指定したウィンドウが最小化/折りたたまれているかを返します
+ * \ref nk_window_is_closed             | 処理中のウィンドウが閉じられたかどうかを返します
+ * \ref nk_window_is_hidden             | 処理中のウィンドウが非表示かどうかを返します
+ * \ref nk_window_is_active             | `nk_window_has_focus` と同様の判定を行います
+ * \ref nk_window_is_hovered            | 処理中のウィンドウがマウスでホバーされているかどうかを返します
+ * \ref nk_window_is_any_hovered        | いずれかのウィンドウが現在ホバーされているかを返します
+ * \ref nk_item_is_any_active           | いずれかのウィンドウやウィジェットが現在アクティブまたはホバーされているかを返します
 //
- * \ref nk_window_set_bounds                | Updates position and size of the currently processed window
- * \ref nk_window_set_position              | Updates position of the currently process window
- * \ref nk_window_set_size                  | Updates the size of the currently processed window
- * \ref nk_window_set_focus                 | Set the currently processed window as active window
- * \ref nk_window_set_scroll                | Sets the scroll offset of the current window
+ * \ref nk_window_set_bounds            | 処理中のウィンドウの位置とサイズを更新します
+ * \ref nk_window_set_position          | 処理中のウィンドウの位置を更新します
+ * \ref nk_window_set_size              | 処理中のウィンドウのサイズを更新します
+ * \ref nk_window_set_focus             | 処理中のウィンドウをアクティブウィンドウに設定します
+ * \ref nk_window_set_scroll            | 現在のウィンドウのスクロールオフセットを設定します
 //
- * \ref nk_window_close                     | Closes the window with given window name which deletes the window at the end of the frame
- * \ref nk_window_collapse                  | Collapses the window with given window name
- * \ref nk_window_collapse_if               | Collapses the window with given window name if the given condition was met
- * \ref nk_window_show                      | Hides a visible or reshows a hidden window
- * \ref nk_window_show_if                   | Hides/shows a window depending on condition
+ * \ref nk_window_close                 | 指定したウィンドウ名のウィンドウを閉じます（フレームの終わりにウィンドウは削除されます）
+ * \ref nk_window_collapse              | 指定したウィンドウを折りたたみます
+ * \ref nk_window_collapse_if           | 条件が満たされた場合に指定したウィンドウを折りたたみます
+ * \ref nk_window_show                  | 表示中のウィンドウを非表示にしたり、非表示のウィンドウを再表示します
+ * \ref nk_window_show_if               | 条件に応じてウィンドウを表示/非表示にします
 
  * # nk_panel_flags
- * Flag                        | Description
+ * Flag                        | 説明
  * ----------------------------|----------------------------------------
- * NK_WINDOW_BORDER            | Draws a border around the window to visually separate window from the background
- * NK_WINDOW_MOVABLE           | The movable flag indicates that a window can be moved by user input or by dragging the window header
- * NK_WINDOW_SCALABLE          | The scalable flag indicates that a window can be scaled by user input by dragging a scaler icon at the button of the window
- * NK_WINDOW_CLOSABLE          | Adds a closable icon into the header
- * NK_WINDOW_MINIMIZABLE       | Adds a minimize icon into the header
- * NK_WINDOW_NO_SCROLLBAR      | Removes the scrollbar from the window
- * NK_WINDOW_TITLE             | Forces a header at the top at the window showing the title
- * NK_WINDOW_SCROLL_AUTO_HIDE  | Automatically hides the window scrollbar if no user interaction: also requires delta time in `nk_context` to be set each frame
- * NK_WINDOW_BACKGROUND        | Always keep window in the background
- * NK_WINDOW_SCALE_LEFT        | Puts window scaler in the left-bottom corner instead right-bottom
- * NK_WINDOW_NO_INPUT          | Prevents window of scaling, moving or getting focus
+ * NK_WINDOW_BORDER            | ウィンドウの周囲にボーダーを描画して背景と視覚的に分離します
+ * NK_WINDOW_MOVABLE           | このフラグがあると、ユーザ操作またはヘッダのドラッグでウィンドウを移動できます
+ * NK_WINDOW_SCALABLE          | このフラグがあると、ウィンドウの右下（または設定により左下）のスケーラをドラッグしてサイズ変更できます
+ * NK_WINDOW_CLOSABLE          | ヘッダにクローズ（閉じる）アイコンを追加します
+ * NK_WINDOW_MINIMIZABLE       | ヘッダに最小化アイコンを追加します
+ * NK_WINDOW_NO_SCROLLBAR      | ウィンドウからスクロールバーを削除します
+ * NK_WINDOW_TITLE             | ウィンドウの上部にタイトルヘッダを強制的に表示します
+ * NK_WINDOW_SCROLL_AUTO_HIDE  | ユーザ操作がない場合にスクロールバーを自動的に隠します（そのため各フレームで `nk_context` のデルタ時間を設定する必要があります）
+ * NK_WINDOW_BACKGROUND        | 常にウィンドウを背景に固定します
+ * NK_WINDOW_SCALE_LEFT        | ウィンドウのスケーラを右下ではなく左下に配置します
+ * NK_WINDOW_NO_INPUT          | ウィンドウのスケーリング、移動、フォーカス取得を無効にします
  *
  * # nk_collapse_states
- * State           | Description
+ * State           | 説明
  * ----------------|-----------------------------------------------------------
- * NK_MINIMIZED| UI section is collapsed and not visible until maximized
- * NK_MAXIMIZED| UI section is extended and visible until minimized
+ * NK_MINIMIZED    | UI セクションが折りたたまれ、最大化されるまで表示されません
+ * NK_MAXIMIZED    | UI セクションが展開され、最小化されるまで表示されます
  */
 
 enum nk_panel_flags {
@@ -1520,364 +1443,314 @@ enum nk_panel_flags {
 
 /**
  * # # nk_begin
- * Starts a new window; needs to be called every frame for every
- * window (unless hidden) or otherwise the window gets removed
+ * 新しいウィンドウを開始します。各ウィンドウについてフレームごとに呼び出す必要があります（非表示でない限り）。
+ * 呼び出されない場合、そのウィンドウは削除されます。
  *
  * ```c
  * nk_bool nk_begin(struct nk_context *ctx, const char *title, struct nk_rect bounds, nk_flags flags);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] title   | Window title and identifier. Needs to be persistent over frames to identify the window
- * \param[in] bounds  | Initial position and window size. However if you do not define `NK_WINDOW_SCALABLE` or `NK_WINDOW_MOVABLE` you can set window position and size every frame
- * \param[in] flags   | Window flags defined in the nk_panel_flags section with a number of different window behaviors
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] title   | ウィンドウのタイトル兼識別子。フレーム間で一貫している必要があります
+ * \param[in] bounds  | 初期の位置とウィンドウサイズ。`NK_WINDOW_SCALABLE` や `NK_WINDOW_MOVABLE` を定義していない場合は
+ *                   | 毎フレーム位置とサイズを設定できます
+ * \param[in] flags   | `nk_panel_flags` で定義されたウィンドウフラグ（動作オプション）
  *
- * \returns `true(1)` if the window can be filled up with widgets from this point
- * until `nk_end` or `false(0)` otherwise for example if minimized
-
+ * \returns `true(1)` を返す場合、その後 `nk_end` までウィジェットを配置できます。例：最小化時は `false(0)` を返します。
  */
 NK_API nk_bool nk_begin(struct nk_context *ctx, const char *title, struct nk_rect bounds, nk_flags flags);
 
 /**
  * # # nk_begin_titled
- * Extended window start with separated title and identifier to allow multiple
- * windows with same title but not name
+ * タイトルと識別子を分けて指定できる拡張版のウィンドウ開始関数で、同じタイトルを持つが識別子の異なる複数のウィンドウを扱えます。
  *
  * ```c
  * nk_bool nk_begin_titled(struct nk_context *ctx, const char *name, const char *title, struct nk_rect bounds, nk_flags flags);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Window identifier. Needs to be persistent over frames to identify the window
- * \param[in] title   | Window title displayed inside header if flag `NK_WINDOW_TITLE` or either `NK_WINDOW_CLOSABLE` or `NK_WINDOW_MINIMIZED` was set
- * \param[in] bounds  | Initial position and window size. However if you do not define `NK_WINDOW_SCALABLE` or `NK_WINDOW_MOVABLE` you can set window position and size every frame
- * \param[in] flags   | Window flags defined in the nk_panel_flags section with a number of different window behaviors
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | ウィンドウ識別子。フレーム間で一貫している必要があります
+ * \param[in] title   | `NK_WINDOW_TITLE` または `NK_WINDOW_CLOSABLE` / `NK_WINDOW_MINIMIZABLE` が設定されている場合にヘッダ内に表示されるタイトル
+ * \param[in] bounds  | 初期の位置とウィンドウサイズ（`NK_WINDOW_SCALABLE`/`NK_WINDOW_MOVABLE` がない場合は毎フレーム変更可）
+ * \param[in] flags   | `nk_panel_flags` で定義されたウィンドウフラグ
  *
- * \returns `true(1)` if the window can be filled up with widgets from this point
- * until `nk_end` or `false(0)` otherwise for example if minimized
-
+ * \returns `true(1)` を返す場合、その後 `nk_end` までウィジェットを配置できます。例：最小化時は `false(0)` を返します。
  */
 NK_API nk_bool nk_begin_titled(struct nk_context *ctx, const char *name, const char *title, struct nk_rect bounds, nk_flags flags);
 
 /**
  * # # nk_end
- * Needs to be called at the end of the window building process to process scaling, scrollbars and general cleanup.
- * All widget calls after this functions will result in asserts or no state changes
+ * ウィンドウ構築処理の終了時に呼び出し、スケーリング、スクロールバー処理、一般的なクリーンアップを行います。
+ * この関数の後でウィジェットを呼ぶと assert になるか、状態変更が行われません。
  *
  * ```c
  * void nk_end(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
-
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_end(struct nk_context *ctx);
 
 /**
  * # # nk_window_find
- * Finds and returns a window from passed name
+ * 指定した名前のウィンドウを検索して返します。
  *
  * ```c
  * struct nk_window *nk_window_find(struct nk_context *ctx, const char *name);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Window identifier
+ * \param[in] ctx   事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name  ウィンドウ識別子
  *
- * \returns a `nk_window` struct pointing to the identified window or NULL if
- * no window with the given name was found
+ * \returns 指定されたウィンドウを指す `nk_window` ポインタを返します。見つからなければ NULL を返します。
  */
 NK_API struct nk_window *nk_window_find(const struct nk_context *ctx, const char *name);
 
 /**
  * # # nk_window_get_bounds
- * \returns a rectangle with screen position and size of the currently processed window
+ * 処理中のウィンドウの画面上の位置とサイズを矩形で返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * ```c
  * struct nk_rect nk_window_get_bounds(const struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns a `nk_rect` struct with window upper left window position and size
-
+ * \returns ウィンドウの左上位置とサイズを表す `nk_rect` 構造体を返します
  */
 NK_API struct nk_rect nk_window_get_bounds(const struct nk_context *ctx);
 
 /**
  * # # nk_window_get_position
- * \returns the position of the currently processed window.
+ * 処理中のウィンドウの位置を返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * ```c
  * struct nk_vec2 nk_window_get_position(const struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns a `nk_vec2` struct with window upper left position
-
+ * \returns ウィンドウの左上位置を表す `nk_vec2` 構造体を返します
  */
 NK_API struct nk_vec2 nk_window_get_position(const struct nk_context *ctx);
 
 /**
  * # # nk_window_get_size
- * \returns the size with width and height of the currently processed window.
+ * 処理中のウィンドウの幅と高さを返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * ```c
  * struct nk_vec2 nk_window_get_size(const struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns a `nk_vec2` struct with window width and height
-
+ * \returns 幅と高さを持つ `nk_vec2` 構造体を返します
  */
 NK_API struct nk_vec2 nk_window_get_size(const struct nk_context *ctx);
 
 /**
- * nk_window_get_width
- * \returns the width of the currently processed window.
+ * # # nk_window_get_width
+ * 処理中のウィンドウの幅を返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * ```c
  * float nk_window_get_width(const struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns the current window width
+ * \returns 現在のウィンドウ幅を返します
  */
 NK_API float nk_window_get_width(const struct nk_context *ctx);
 
 /**
  * # # nk_window_get_height
- * \returns the height of the currently processed window.
+ * 処理中のウィンドウの高さを返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * ```c
  * float nk_window_get_height(const struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns the current window height
-
+ * \returns 現在のウィンドウ高さを返します
  */
 NK_API float nk_window_get_height(const struct nk_context* ctx);
 
 /**
  * # # nk_window_get_panel
- * \returns the underlying panel which contains all processing state of the current window.
+ * 現在のウィンドウの内部処理状態を保持するパネルへのポインタを返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * !!! \warning
- *     Do not keep the returned panel pointer around, it is only valid until `nk_end`
+ *     返されたパネルポインタを保持しないでください。`nk_end` が呼ばれるまでのみ有効です。
  * ```c
  * struct nk_panel* nk_window_get_panel(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns a pointer to window internal `nk_panel` state.
-
+ * \returns ウィンドウ内部の `nk_panel` 状態を指すポインタを返します
  */
 NK_API struct nk_panel* nk_window_get_panel(const struct nk_context* ctx);
 
 /**
  * # # nk_window_get_content_region
- * \returns the position and size of the currently visible and non-clipped space
- * inside the currently processed window.
+ * 現在処理中のウィンドウ内で表示され、クリップされていない領域の位置とサイズを返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  *
  * ```c
  * struct nk_rect nk_window_get_content_region(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `nk_rect` struct with screen position and size (no scrollbar offset)
- * of the visible space inside the current window
-
+ * \returns 可視領域の画面上の位置とサイズ（スクロールバーのオフセットを含まない）を表す `nk_rect` を返します
  */
 NK_API struct nk_rect nk_window_get_content_region(const struct nk_context* ctx);
 
 /**
  * # # nk_window_get_content_region_min
- * \returns the upper left position of the currently visible and non-clipped
- * space inside the currently processed window.
+ * 現在処理中のウィンドウ内で表示され、クリップされていない領域の左上位置を返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  *
  * ```c
  * struct nk_vec2 nk_window_get_content_region_min(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * returns `nk_vec2` struct with  upper left screen position (no scrollbar offset)
- * of the visible space inside the current window
-
+ * \returns 可視領域の左上位置（スクロールバーのオフセットを含まない）を示す `nk_vec2` を返します
  */
 NK_API struct nk_vec2 nk_window_get_content_region_min(const struct nk_context *ctx);
 
 /**
  * # # nk_window_get_content_region_max
- * \returns the lower right screen position of the currently visible and
- * non-clipped space inside the currently processed window.
+ * 現在処理中のウィンドウ内で表示され、クリップされていない領域の右下位置を返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  *
  * ```c
  * struct nk_vec2 nk_window_get_content_region_max(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `nk_vec2` struct with lower right screen position (no scrollbar offset)
- * of the visible space inside the current window
-
+ * \returns 可視領域の右下位置（スクロールバーのオフセットを含まない）を示す `nk_vec2` を返します
  */
 NK_API struct nk_vec2 nk_window_get_content_region_max(const struct nk_context *ctx);
 
 /**
  * # # nk_window_get_content_region_size
- * \returns the size of the currently visible and non-clipped space inside the
- * currently processed window
+ * 現在処理中のウィンドウ内で表示され、クリップされていない領域のサイズを返します。
  *
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  *
  * ```c
  * struct nk_vec2 nk_window_get_content_region_size(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
- * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx  事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `nk_vec2` struct with size the visible space inside the current window
-
+ * \returns 可視領域のサイズを示す `nk_vec2` を返します（スクロールバーオフセットを含まない）
  */
 NK_API struct nk_vec2 nk_window_get_content_region_size(const struct nk_context *ctx);
 
 /**
  * # # nk_window_get_canvas
- * \returns the draw command buffer. Can be used to draw custom widgets
+ * 描画コマンドバッファ（キャンバス）を返します。カスタムウィジェットの描画に使用できます。
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * !!! \warning
- *     Do not keep the returned command buffer pointer around it is only valid until `nk_end`
+ *     返されるコマンドバッファポインタは `nk_end` までしか有効ではないため、保持しないでください。
  *
  * ```c
  * struct nk_command_buffer* nk_window_get_canvas(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns a pointer to window internal `nk_command_buffer` struct used as
- * drawing canvas. Can be used to do custom drawing.
+ * \returns ウィンドウ内部の描画用 `nk_command_buffer` へのポインタを返します。カスタム描画に利用できます。
  */
 NK_API struct nk_command_buffer* nk_window_get_canvas(const struct nk_context* ctx);
 
 /**
  * # # nk_window_get_scroll
- * Gets the scroll offset for the current window
+ * 現在のウィンドウのスクロールオフセットを取得します。
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  *
  * ```c
  * void nk_window_get_scroll(struct nk_context *ctx, nk_uint *offset_x, nk_uint *offset_y);
  * ```
  *
- * Parameter    | Description
+ * パラメータ    | 説明
  * -------------|-----------------------------------------------------------
- * \param[in] ctx      | Must point to an previously initialized `nk_context` struct
- * \param[in] offset_x | A pointer to the x offset output (or NULL to ignore)
- * \param[in] offset_y | A pointer to the y offset output (or NULL to ignore)
-
+ * \param[in] ctx      | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] offset_x | X方向のスクロールオフセットを書き込む先のポインタ（無視する場合は NULL）
+ * \param[in] offset_y | Y方向のスクロールオフセットを書き込む先のポインタ（無視する場合は NULL）
  */
 NK_API void nk_window_get_scroll(const struct nk_context *ctx, nk_uint *offset_x, nk_uint *offset_y);
 
 /**
  * # # nk_window_has_focus
- * \returns if the currently processed window is currently active
+ * 処理中のウィンドウがアクティブ（フォーカスを持っている）かどうかを返します。
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * ```c
  * nk_bool nk_window_has_focus(const struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `false(0)` if current window is not active or `true(1)` if it is
-
+ * \returns 現在のウィンドウがアクティブであれば `true(1)`、そうでなければ `false(0)` を返します
  */
 NK_API nk_bool nk_window_has_focus(const struct nk_context *ctx);
 
 /**
  * # # nk_window_is_hovered
- * Return if the current window is being hovered
+ * 現在のウィンドウがマウスでホバーされているかを返します。
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  * ```c
  * nk_bool nk_window_is_hovered(struct nk_context *ctx);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `true(1)` if current window is hovered or `false(0)` otherwise
-
+ * \returns 現在のウィンドウがホバーされていれば `true(1)`、そうでなければ `false(0)` を返します
  */
 NK_API nk_bool nk_window_is_hovered(const struct nk_context *ctx);
 
 /**
  * # # nk_window_is_collapsed
- * \returns if the window with given name is currently minimized/collapsed
+ * 指定した名前のウィンドウが現在最小化（折りたたまれている）かどうかを返します。
  * ```c
  * nk_bool nk_window_is_collapsed(struct nk_context *ctx, const char *name);
  * ```
@@ -1887,163 +1760,153 @@ NK_API nk_bool nk_window_is_hovered(const struct nk_context *ctx);
  * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
  * \param[in] name    | Identifier of window you want to check if it is collapsed
  *
- * \returns `true(1)` if current window is minimized and `false(0)` if window not
- * found or is not minimized
-
+ * \returns 指定したウィンドウが最小化されていれば `true(1)`、見つからないか最小化されていなければ `false(0)` を返します
  */
 NK_API nk_bool nk_window_is_collapsed(const struct nk_context *ctx, const char *name);
 
 /**
  * # # nk_window_is_closed
- * \returns if the window with given name was closed by calling `nk_close`
+ * 指定した名前のウィンドウが `nk_close` によって閉じられたかどうかを返します。
  * ```c
  * nk_bool nk_window_is_closed(struct nk_context *ctx, const char *name);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Identifier of window you want to check if it is closed
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | 閉じられたかを確認したいウィンドウの識別子
  *
- * \returns `true(1)` if current window was closed or `false(0)` window not found or not closed
-
+ * \returns ウィンドウが閉じられていれば `true(1)`、見つからないか閉じられていなければ `false(0)` を返します
  */
 NK_API nk_bool nk_window_is_closed(const struct nk_context *ctx, const char* name);
 
 /**
  * # # nk_window_is_hidden
- * \returns if the window with given name is hidden
+ * 指定した名前のウィンドウが非表示になっているかを返します。
  * ```c
  * nk_bool nk_window_is_hidden(struct nk_context *ctx, const char *name);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Identifier of window you want to check if it is hidden
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | 非表示かどうかを確認したいウィンドウの識別子
  *
- * \returns `true(1)` if current window is hidden or `false(0)` window not found or visible
-
+ * \returns 非表示であれば `true(1)`、見つからないか表示されていれば `false(0)` を返します
  */
 NK_API nk_bool nk_window_is_hidden(const struct nk_context *ctx, const char* name);
 
 /**
  * # # nk_window_is_active
- * Same as nk_window_has_focus for some reason
+ * `nk_window_has_focus` と同様の動作をするヘルパー関数です。
  * ```c
  * nk_bool nk_window_is_active(struct nk_context *ctx, const char *name);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Identifier of window you want to check if it is active
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | アクティブかどうかを確認したいウィンドウの識別子
  *
- * \returns `true(1)` if current window is active or `false(0)` window not found or not active
+ * \returns アクティブであれば `true(1)`、見つからないかアクティブでなければ `false(0)` を返します
  */
 NK_API nk_bool nk_window_is_active(const struct nk_context *ctx, const char* name);
 
 /**
  * # # nk_window_is_any_hovered
- * \returns if the any window is being hovered
+ * どのウィンドウかにかかわらず、マウスでホバーされているウィンドウが存在するかを返します。
  * ```c
  * nk_bool nk_window_is_any_hovered(struct nk_context*);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `true(1)` if any window is hovered or `false(0)` otherwise
+ * \returns どれかのウィンドウがホバーされていれば `true(1)`、そうでなければ `false(0)` を返します
  */
 NK_API nk_bool nk_window_is_any_hovered(const struct nk_context *ctx);
 
 /**
  * # # nk_item_is_any_active
- * \returns if the any window is being hovered or any widget is currently active.
- * Can be used to decide if input should be processed by UI or your specific input handling.
- * Example could be UI and 3D camera to move inside a 3D space.
+ * どのウィンドウがホバーされているか、または任意のウィジェットがアクティブかどうかを返します。
+ * UI が入力を受け取るべきか、アプリ固有の入力処理（例：3D カメラ操作）を実行するべきかを判定するのに使えます。
  * ```c
  * nk_bool nk_item_is_any_active(struct nk_context*);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `true(1)` if any window is hovered or any item is active or `false(0)` otherwise
-
+ * \returns 任意のウィンドウがホバー中、または任意のアイテムがアクティブであれば `true(1)`、そうでなければ `false(0)` を返します
  */
 NK_API nk_bool nk_item_is_any_active(const struct nk_context *ctx);
 
 /**
  * # # nk_window_set_bounds
- * Updates position and size of window with passed in name
+ * 指定したウィンドウの位置とサイズを更新します。
  * ```c
  * void nk_window_set_bounds(struct nk_context*, const char *name, struct nk_rect bounds);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Identifier of the window to modify both position and size
- * \param[in] bounds  | Must point to a `nk_rect` struct with the new position and size
-
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | 位置とサイズを変更するウィンドウの識別子
+ * \param[in] bounds  | 新しい位置とサイズを示す `nk_rect` 構造体
  */
 NK_API void nk_window_set_bounds(struct nk_context *ctx, const char *name, struct nk_rect bounds);
 
 /**
  * # # nk_window_set_position
- * Updates position of window with passed name
+ * 指定したウィンドウの位置を更新します。
  * ```c
  * void nk_window_set_position(struct nk_context*, const char *name, struct nk_vec2 pos);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Identifier of the window to modify both position
- * \param[in] pos     | Must point to a `nk_vec2` struct with the new position
-
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | 位置を変更するウィンドウの識別子
+ * \param[in] pos     | 新しい位置を示す `nk_vec2` 構造体
  */
 NK_API void nk_window_set_position(struct nk_context *ctx, const char *name, struct nk_vec2 pos);
 
 /**
  * # # nk_window_set_size
- * Updates size of window with passed in name
+ * 指定したウィンドウのサイズを更新します。
  * ```c
  * void nk_window_set_size(struct nk_context*, const char *name, struct nk_vec2);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Identifier of the window to modify both window size
- * \param[in] size    | Must point to a `nk_vec2` struct with new window size
-
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | サイズを変更するウィンドウの識別子
+ * \param[in] size    | 新しいウィンドウサイズを示す `nk_vec2` 構造体
  */
 NK_API void nk_window_set_size(struct nk_context *ctx, const char *name, struct nk_vec2 size);
 
 /**
  * # # nk_window_set_focus
- * Sets the window with given name as active
+ * 指定したウィンドウをアクティブ（フォーカスを持つウィンドウ）に設定します。
  * ```c
  * void nk_window_set_focus(struct nk_context*, const char *name);
  * ```
  *
- * Parameter   | Description
+ * パラメータ   | 説明
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] name    | Identifier of the window to set focus on
-
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] name    | フォーカスを設定するウィンドウの識別子
  */
 NK_API void nk_window_set_focus(struct nk_context *ctx, const char *name);
 
 /**
  * # # nk_window_set_scroll
- * Sets the scroll offset for the current window
+ * 現在のウィンドウのスクロールオフセットを設定します。
  * !!! \warning
- *     Only call this function between calls `nk_begin_xxx` and `nk_end`
+ *     この関数は `nk_begin_xxx` と `nk_end` の間でのみ呼んでください。
  *
  * ```c
  * void nk_window_set_scroll(struct nk_context *ctx, nk_uint offset_x, nk_uint offset_y);
@@ -2160,71 +2023,49 @@ NK_API void nk_rule_horizontal(struct nk_context *ctx, struct nk_color color, nk
  * =============================================================================*/
 /**
  * \page Layouting
- * Layouting in general describes placing widget inside a window with position and size.
- * While in this particular implementation there are five different APIs for layouting
- * each with different trade offs between control and ease of use. <br /><br />
+ * レイアウトとは、ウィンドウ内にウィジェットを位置とサイズで配置することを指します。
+ * この実装には用途や制御のしやすさに応じて5種類のレイアウト API があり、それぞれトレードオフがあります。
  *
- * All layouting methods in this library are based around the concept of a row.
- * A row has a height the window content grows by and a number of columns and each
- * layouting method specifies how each widget is placed inside the row.
- * After a row has been allocated by calling a layouting functions and then
- * filled with widgets will advance an internal pointer over the allocated row. <br /><br />
+ * 本ライブラリの全てのレイアウト手法は "行（row）" の概念に基づいています。
+ * 行は高さを持ち、列数を指定します。各レイアウト方式は、行内でウィジェットをどのように配置するかを定義します。
+ * 行が確保されウィジェットで埋められると、内部のポインタが進んで次の領域が割り当てられます。
  *
- * To actually define a layout you just call the appropriate layouting function
- * and each subsequent widget call will place the widget as specified. Important
- * here is that if you define more widgets then columns defined inside the layout
- * functions it will allocate the next row without you having to make another layouting <br /><br />
- * call.
+ * レイアウトを定義するには適切なレイアウト関数を呼び、その後のウィジェット呼び出しは定義どおりに配置されます。
+ * 重要なのは、列数より多くウィジェットを定義した場合、自動で次の行が割り当てられる点です。
  *
- * Biggest limitation with using all these APIs outside the `nk_layout_space_xxx` API
- * is that you have to define the row height for each. However the row height
- * often depends on the height of the font. <br /><br />
+ * `nk_layout_space_xxx` API 以外のほとんどの API の制約は行の高さを毎回指定する必要がある点です。
+ * 行の高さは通常フォントの高さに依存するため、自動的に適切な最小行高が使用されます。
  *
- * To fix that internally nuklear uses a minimum row height that is set to the
- * height plus padding of currently active font and overwrites the row height
- * value if zero. <br /><br />
+ * 内部では、表示中のフォントの高さとパディングに基づいて最小行高が決まり、行高さに 0 を指定した場合は最小行高で上書きされます。
+ * 明示的に最小行高を変更したい場合は `nk_layout_set_min_row_height` を使用し、元に戻すには `nk_layout_reset_min_row_height` を使ってください。
  *
- * If you manually want to change the minimum row height then
- * use nk_layout_set_min_row_height, and use nk_layout_reset_min_row_height to
- * reset it back to be derived from font height. <br /><br />
+ * フォントを変更すると nuklear は自動で最小行高を更新します。フォント変更後に元のより小さい最小行高を使いたい場合は、再度値を設定してください。
  *
- * Also if you change the font in nuklear it will automatically change the minimum
- * row height for you and. This means if you change the font but still want
- * a minimum row height smaller than the font you have to repush your value. <br /><br />
+ * 高度な UI を作る場合は `nk_layout_space_xxx` を使い、制約ソルバー（例：Cassowary）と組み合わせて柔軟なレイアウトを実装することを推奨します。
+ * 簡易なレイアウトであれば以下の API で十分です。
  *
- * For actually more advanced UI I would even recommend using the `nk_layout_space_xxx`
- * layouting method in combination with a cassowary constraint solver (there are
- * some versions on github with permissive license model) to take over all control over widget
- * layouting yourself. However for quick and dirty layouting using all the other layouting
- * functions should be fine.
+ * # 使用例
+ * 1.  __nk_layout_row_dynamic__
  *
- * # Usage
- * 1.  __nk_layout_row_dynamic__<br /><br />
- *     The easiest layouting function is `nk_layout_row_dynamic`. It provides each
- *     widgets with same horizontal space inside the row and dynamically grows
- *     if the owning window grows in width. So the number of columns dictates
- *     the size of each widget dynamically by formula:
+ *     最も簡単なレイアウト関数 `nk_layout_row_dynamic` は、行内の各ウィジェットに同じ横幅を与え、ウィンドウ幅に応じて動的に伸縮します。
+ *     列数に応じて各ウィジェットの幅は次の式で決まります：
  *
  *     ```c
  *     widget_width = (window_width - padding - spacing) * (1/column_count)
  *     ```
  *
- *     Just like all other layouting APIs if you define more widget than columns this
- *     library will allocate a new row and keep all layouting parameters previously
- *     defined.
+ *     他のレイアウト同様、列数より多くウィジェットを定義すると自動で次の行が割り当てられます。
  *
  *     ```c
  *     if (nk_begin_xxx(...) {
- *         // first row with height: 30 composed of two widgets
+ *         // 高さ 30、列数 2 の最初の行
  *         nk_layout_row_dynamic(&ctx, 30, 2);
  *         nk_widget(...);
  *         nk_widget(...);
- *         //
- *         // second row with same parameter as defined above
+ *         // 2 行目
  *         nk_widget(...);
  *         nk_widget(...);
- *         //
- *         // third row uses 0 for height which will use auto layouting
+ *         // 3 行目: 高さに 0 を指定すると自動行高が使われる
  *         nk_layout_row_dynamic(&ctx, 0, 2);
  *         nk_widget(...);
  *         nk_widget(...);
@@ -2232,134 +2073,85 @@ NK_API void nk_rule_horizontal(struct nk_context *ctx, struct nk_color color, nk
  *     nk_end(...);
  *     ```
  *
- * 2.  __nk_layout_row_static__<br /><br />
- *     Another easy layouting function is `nk_layout_row_static`. It provides each
- *     widget with same horizontal pixel width inside the row and does not grow
- *     if the owning window scales smaller or bigger.
+ * 2.  __nk_layout_row_static__
+ *
+ *     `nk_layout_row_static` は行内で各ウィジェットに固定ピクセル幅を与え、ウィンドウの拡大縮小で幅が変化しません。
  *
  *     ```c
  *     if (nk_begin_xxx(...) {
- *         // first row with height: 30 composed of two widgets with width: 80
+ *         // 高さ 30、幅 80 のウィジェットを 2 列
  *         nk_layout_row_static(&ctx, 30, 80, 2);
  *         nk_widget(...);
  *         nk_widget(...);
- *         //
- *         // second row with same parameter as defined above
- *         nk_widget(...);
- *         nk_widget(...);
- *         //
- *         // third row uses 0 for height which will use auto layouting
- *         nk_layout_row_static(&ctx, 0, 80, 2);
- *         nk_widget(...);
- *         nk_widget(...);
+ *         // …
  *     }
  *     nk_end(...);
  *     ```
  *
- * 3.  __nk_layout_row_xxx__<br /><br />
- *     A little bit more advanced layouting API are functions `nk_layout_row_begin`,
- *     `nk_layout_row_push` and `nk_layout_row_end`. They allow to directly
- *     specify each column pixel or window ratio in a row. It supports either
- *     directly setting per column pixel width or widget window ratio but not
- *     both. Furthermore it is a immediate mode API so each value is directly
- *     pushed before calling a widget. Therefore the layout is not automatically
- *     repeating like the last two layouting functions.
+ * 3.  __nk_layout_row_xxx__
+ *
+ *     `nk_layout_row_begin` / `nk_layout_row_push` / `nk_layout_row_end` はやや上級者向けで、各列ごとにピクセル幅またはウィンドウ比率を直接指定できます。
+ *     即時モード API のため、各値を都度 push してからウィジェットを呼び出します。
  *
  *     ```c
  *     if (nk_begin_xxx(...) {
- *         // first row with height: 25 composed of two widgets with width 60 and 40
+ *         // 高さ 25、幅 60 と 40 の 2 列
  *         nk_layout_row_begin(ctx, NK_STATIC, 25, 2);
  *         nk_layout_row_push(ctx, 60);
  *         nk_widget(...);
  *         nk_layout_row_push(ctx, 40);
  *         nk_widget(...);
  *         nk_layout_row_end(ctx);
- *         //
- *         // second row with height: 25 composed of two widgets with window ratio 0.25 and 0.75
- *         nk_layout_row_begin(ctx, NK_DYNAMIC, 25, 2);
- *         nk_layout_row_push(ctx, 0.25f);
- *         nk_widget(...);
- *         nk_layout_row_push(ctx, 0.75f);
- *         nk_widget(...);
- *         nk_layout_row_end(ctx);
- *         //
- *         // third row with auto generated height: composed of two widgets with window ratio 0.25 and 0.75
- *         nk_layout_row_begin(ctx, NK_DYNAMIC, 0, 2);
- *         nk_layout_row_push(ctx, 0.25f);
- *         nk_widget(...);
- *         nk_layout_row_push(ctx, 0.75f);
- *         nk_widget(...);
- *         nk_layout_row_end(ctx);
+ *         // …
  *     }
  *     nk_end(...);
  *     ```
  *
- * 4.  __nk_layout_row__<br /><br />
- *     The array counterpart to API nk_layout_row_xxx is the single nk_layout_row
- *     functions. Instead of pushing either pixel or window ratio for every widget
- *     it allows to define it by array. The trade of for less control is that
- *     `nk_layout_row` is automatically repeating. Otherwise the behavior is the
- *     same.
+ * 4.  __nk_layout_row__
+ *
+ *     `nk_layout_row_xxx` の配列版が `nk_layout_row` です。各ウィジェットの幅を配列で指定できます。
+ *     制御性はやや落ちますが、自動繰り返し動作があり、基本的な動作は同じです。
  *
  *     ```c
  *     if (nk_begin_xxx(...) {
- *         // two rows with height: 30 composed of two widgets with width 60 and 40
  *         const float ratio[] = {60,40};
  *         nk_layout_row(ctx, NK_STATIC, 30, 2, ratio);
  *         nk_widget(...);
  *         nk_widget(...);
- *         nk_widget(...);
- *         nk_widget(...);
- *         //
- *         // two rows with height: 30 composed of two widgets with window ratio 0.25 and 0.75
- *         const float ratio[] = {0.25, 0.75};
- *         nk_layout_row(ctx, NK_DYNAMIC, 30, 2, ratio);
- *         nk_widget(...);
- *         nk_widget(...);
- *         nk_widget(...);
- *         nk_widget(...);
- *         //
- *         // two rows with auto generated height composed of two widgets with window ratio 0.25 and 0.75
- *         const float ratio[] = {0.25, 0.75};
- *         nk_layout_row(ctx, NK_DYNAMIC, 30, 2, ratio);
- *         nk_widget(...);
- *         nk_widget(...);
- *         nk_widget(...);
- *         nk_widget(...);
+ *         // …
  *     }
  *     nk_end(...);
  *     ```
  *
- * 5.  __nk_layout_row_template_xxx__<br /><br />
- *     The most complex and second most flexible API is a simplified flexbox version without
- *     line wrapping and weights for dynamic widgets. It is an immediate mode API but
- *     unlike `nk_layout_row_xxx` it has auto repeat behavior and needs to be called
- *     before calling the templated widgets.
- *     The row template layout has three different per widget size specifier. The first
- *     one is the `nk_layout_row_template_push_static`  with fixed widget pixel width.
- *     They do not grow if the row grows and will always stay the same.
- *     The second size specifier is `nk_layout_row_template_push_variable`
- *     which defines a minimum widget size but it also can grow if more space is available
- *     not taken by other widgets.
- *     Finally there are dynamic widgets with `nk_layout_row_template_push_dynamic`
- *     which are completely flexible and unlike variable widgets can even shrink
- *     to zero if not enough space is provided.
+ * 5.  __nk_layout_row_template_xxx__
+ *
+ *     最も複雑で柔軟性の高い API はテンプレートベースのレイアウトで、改行や重み付けのない簡易な Flexbox に似た挙動を提供します。
+ *     即時モードですが自動繰り返しを持ち、テンプレートウィジェット呼び出し前に呼ぶ必要があります。
+ */
+
+ /*     行テンプレートレイアウトでは、ウィジェットごとに3種類のサイズ指定方法を提供します。
+ *     1つ目は `nk_layout_row_template_push_static` で、ピクセル単位の固定幅を指定します。
+ *     この指定は行が拡大しても変化せず、常に同じ幅を保持します。
+ *     2つ目は `nk_layout_row_template_push_variable` で、最小幅を定義します。余剰スペースがあれば幅を拡張できますが、
+ *     最小幅より小さくはなりません。
+ *     最後に `nk_layout_row_template_push_dynamic` による動的ウィジェットがあります。これは完全に柔軟で、
+ *     スペースが不足する場合はゼロまで縮小することも可能です。
  *
  *     ```c
  *     if (nk_begin_xxx(...) {
- *         // two rows with height: 30 composed of three widgets
+ *         // 高さ 30 の行を持ち、3 つのウィジェットで構成される例
  *         nk_layout_row_template_begin(ctx, 30);
  *         nk_layout_row_template_push_dynamic(ctx);
  *         nk_layout_row_template_push_variable(ctx, 80);
  *         nk_layout_row_template_push_static(ctx, 80);
  *         nk_layout_row_template_end(ctx);
  *         //
- *         // first row
- *         nk_widget(...); // dynamic widget can go to zero if not enough space
- *         nk_widget(...); // variable widget with min 80 pixel but can grow bigger if enough space
- *         nk_widget(...); // static widget with fixed 80 pixel width
+ *         // 1 行目
+ *         nk_widget(...); // dynamic ウィジェットはスペース不足時に 0 まで縮む可能性がある
+ *         nk_widget(...); // variable ウィジェットは最小 80 ピクセルを維持しつつ、余裕があれば拡張する
+ *         nk_widget(...); // static ウィジェットは固定 80 ピクセル幅を持つ
  *         //
- *         // second row same layout
+ *         // 2 行目（同じレイアウト）
  *         nk_widget(...);
  *         nk_widget(...);
  *         nk_widget(...);
@@ -2368,13 +2160,11 @@ NK_API void nk_rule_horizontal(struct nk_context *ctx, struct nk_color color, nk
  *     ```
  *
  * 6.  __nk_layout_space_xxx__<br /><br />
- *     Finally the most flexible API directly allows you to place widgets inside the
- *     window. The space layout API is an immediate mode API which does not support
- *     row auto repeat and directly sets position and size of a widget. Position
- *     and size hereby can be either specified as ratio of allocated space or
- *     allocated space local position and pixel size. Since this API is quite
- *     powerful there are a number of utility functions to get the available space
- *     and convert between local allocated space and screen space.
+ *     最も柔軟な API であり、ウィンドウ内にウィジェットを直接配置することを可能にします。
+ *     space レイアウト API は即時モードで動作し、行の自動繰り返しをサポートしません。ウィジェットの位置とサイズは
+ *     直接指定します。位置とサイズは、割り当てられたスペースに対する比率（0.0〜1.0）または
+ *     スペース内ローカル座標とピクセルサイズのいずれかで指定できます。この API は強力なため、
+ *     利用可能なスペースを取得したりローカル座標とスクリーン座標を相互変換するユーティリティ関数が提供されています。
  *
  *     ```c
  *     if (nk_begin_xxx(...) {
@@ -2386,7 +2176,7 @@ NK_API void nk_rule_horizontal(struct nk_context *ctx, struct nk_color color, nk
  *         nk_widget(...);
  *         nk_layout_space_end(ctx);
  *         //
- *         // dynamic row with height: 500 (you can set column count to INT_MAX if you don't want to be bothered)
+ *         // dynamic 行（高さ 500）の例（手間を省きたい場合は列数に INT_MAX を使える）
  *         nk_layout_space_begin(ctx, NK_DYNAMIC, 500, INT_MAX);
  *         nk_layout_space_push(ctx, nk_rect(0.5,0.5,0.1,0.1));
  *         nk_widget(...);
@@ -2399,29 +2189,29 @@ NK_API void nk_rule_horizontal(struct nk_context *ctx, struct nk_color color, nk
  * # Reference
  * Function                                     | Description
  * ---------------------------------------------|------------------------------------
- * \ref nk_layout_set_min_row_height            | Set the currently used minimum row height to a specified value
- * \ref nk_layout_reset_min_row_height          | Resets the currently used minimum row height to font height
- * \ref nk_layout_widget_bounds                 | Calculates current width a static layout row can fit inside a window
- * \ref nk_layout_ratio_from_pixel              | Utility functions to calculate window ratio from pixel size
- * \ref nk_layout_row_dynamic                   | Current layout is divided into n same sized growing columns
- * \ref nk_layout_row_static                    | Current layout is divided into n same fixed sized columns
- * \ref nk_layout_row_begin                     | Starts a new row with given height and number of columns
- * \ref nk_layout_row_push                      | Pushes another column with given size or window ratio
- * \ref nk_layout_row_end                       | Finished previously started row
- * \ref nk_layout_row                           | Specifies row columns in array as either window ratio or size
- * \ref nk_layout_row_template_begin            | Begins the row template declaration
- * \ref nk_layout_row_template_push_dynamic     | Adds a dynamic column that dynamically grows and can go to zero if not enough space
- * \ref nk_layout_row_template_push_variable    | Adds a variable column that dynamically grows but does not shrink below specified pixel width
- * \ref nk_layout_row_template_push_static      | Adds a static column that does not grow and will always have the same size
- * \ref nk_layout_row_template_end              | Marks the end of the row template
- * \ref nk_layout_space_begin                   | Begins a new layouting space that allows to specify each widgets position and size
- * \ref nk_layout_space_push                    | Pushes position and size of the next widget in own coordinate space either as pixel or ratio
- * \ref nk_layout_space_end                     | Marks the end of the layouting space
- * \ref nk_layout_space_bounds                  | Callable after nk_layout_space_begin and returns total space allocated
- * \ref nk_layout_space_to_screen               | Converts vector from nk_layout_space coordinate space into screen space
- * \ref nk_layout_space_to_local                | Converts vector from screen space into nk_layout_space coordinates
- * \ref nk_layout_space_rect_to_screen          | Converts rectangle from nk_layout_space coordinate space into screen space
- * \ref nk_layout_space_rect_to_local           | Converts rectangle from screen space into nk_layout_space coordinates
+ * \ref nk_layout_set_min_row_height            | 現在使用される最小行高を指定した値に設定します
+ * \ref nk_layout_reset_min_row_height          | 最小行高をフォント高さ（font height）にリセットします
+ * \ref nk_layout_widget_bounds                 | 静的レイアウト行がウィンドウ内に収まる幅と位置を計算します
+ * \ref nk_layout_ratio_from_pixel              | ピクセル幅からウィンドウ比率を計算するユーティリティ関数
+ * \ref nk_layout_row_dynamic                   | 現在のレイアウトを n 個の等幅な成長するカラムに分割します
+ * \ref nk_layout_row_static                    | 現在のレイアウトを n 個の固定幅カラムに分割します
+ * \ref nk_layout_row_begin                     | 指定した高さと列数で新しい行を開始します
+ * \ref nk_layout_row_push                      | 前に開始した行の次の列の幅を比率またはピクセルで指定します
+ * \ref nk_layout_row_end                       | 以前に開始した行を終了します
+ * \ref nk_layout_row                           | 列幅を配列で指定します（ウィンドウ比率またはピクセル幅）
+ * \ref nk_layout_row_template_begin            | 行テンプレート宣言を開始します
+ * \ref nk_layout_row_template_push_dynamic     | 動的に成長し、スペース不足時には 0 まで縮小するカラムを追加します
+ * \ref nk_layout_row_template_push_variable    | 指定した最小ピクセル幅を下回らない可変幅カラムを追加します
+ * \ref nk_layout_row_template_push_static      | 常に同じサイズを持つ静的カラムを追加します
+ * \ref nk_layout_row_template_end              | 行テンプレート宣言を終了します
+ * \ref nk_layout_space_begin                   | 各ウィジェットの位置とサイズを直接指定できるレイアウトスペースを開始します
+ * \ref nk_layout_space_push                    | 次のウィジェットの位置とサイズをスペースローカル座標でプッシュします（ピクセルまたは比率）
+ * \ref nk_layout_space_end                     | レイアウトスペースの終了をマークします
+ * \ref nk_layout_space_bounds                  | `nk_layout_space_begin` 呼び出し後に使える、割り当てられた合計スペースを返します
+ * \ref nk_layout_space_to_screen               | `nk_layout_space` 座標系のベクトルをスクリーン座標に変換します
+ * \ref nk_layout_space_to_local                | スクリーン座標のベクトルを `nk_layout_space` 座標に変換します
+ * \ref nk_layout_space_rect_to_screen          | レイアウトスペース内の矩形をスクリーン座標に変換します
+ * \ref nk_layout_space_rect_to_local           | スクリーン座標の矩形をレイアウトスペース座標に変換します
  */
 
 
@@ -2441,348 +2231,344 @@ enum nk_widget_alignment {
 };
 
 /**
- * Sets the currently used minimum row height.
+ * 現在使用される最小行高を設定します。
  * !!! \warning
- *     The passed height needs to include both your preferred row height
- *     as well as padding. No internal padding is added.
+ *     引数で渡す高さには、行の望ましい高さとパディングの両方を含める必要があります。内部で追加のパディングは加えられません。
  *
  * ```c
  * void nk_layout_set_min_row_height(struct nk_context*, float height);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] height  | New minimum row height to be used for auto generating the row height
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] height  | 自動生成される行高に使用する新しい最小行高
  */
 NK_API void nk_layout_set_min_row_height(struct nk_context*, float height);
 
 /**
- * Reset the currently used minimum row height back to `font_height + text_padding + padding`
+ * 現在使用されている最小行高を `font_height + text_padding + padding` の値にリセットします。
  * ```c
  * void nk_layout_reset_min_row_height(struct nk_context*);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_layout_reset_min_row_height(struct nk_context*);
 
 /**
- * \brief Returns the width of the next row allocate by one of the layouting functions
+ * \brief 次に割り当てられる行（ウィジェット領域）の位置とサイズを返します
  *
  * \details
  * ```c
  * struct nk_rect nk_layout_widget_bounds(struct nk_context*);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
  *
- * \return `nk_rect` with both position and size of the next row
+ * \return 次に割り当てられる行の位置とサイズを持つ `nk_rect`
  */
 NK_API struct nk_rect nk_layout_widget_bounds(const struct nk_context *ctx);
 
 /**
- * \brief Utility functions to calculate window ratio from pixel size
+ * \brief ピクセル幅からウィンドウ比率を計算するユーティリティ関数
  *
  * \details
  * ```c
  * float nk_layout_ratio_from_pixel(struct nk_context*, float pixel_width);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] pixel   | Pixel_width to convert to window ratio
+ * \param[in] ctx           | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] pixel_width   | ウィンドウ比率に変換するピクセル幅
  *
- * \returns `nk_rect` with both position and size of the next row
+ * \returns 指定したピクセル幅に対応するウィンドウ比率（0.0〜1.0の範囲）
  */
 NK_API float nk_layout_ratio_from_pixel(const struct nk_context *ctx, float pixel_width);
 
 /**
- * \brief Sets current row layout to share horizontal space
- * between @cols number of widgets evenly. Once called all subsequent widget
- * calls greater than @cols will allocate a new row with same layout.
+ * \brief 現在の行レイアウトを設定し、@cols 個のウィジェットに水平スペースを均等に分配します。
+ * この関数を呼んだ後、@cols を超えるウィジェット呼び出しは同じレイアウトで新しい行を割り当てます。
  *
  * \details
  * ```c
  * void nk_layout_row_dynamic(struct nk_context *ctx, float height, int cols);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] height  | Holds height of each widget in row or zero for auto layouting
- * \param[in] columns | Number of widget inside row
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] height  | 行内の各ウィジェットの高さ（0 を指定すると自動行高が使用されます）
+ * \param[in] columns | 行内のウィジェット数
  */
 NK_API void nk_layout_row_dynamic(struct nk_context *ctx, float height, int cols);
 
 /**
- * \brief Sets current row layout to fill @cols number of widgets
- * in row with same @item_width horizontal size. Once called all subsequent widget
- * calls greater than @cols will allocate a new row with same layout.
+ * \brief 現在の行レイアウトを設定し、@cols 個のウィジェットを同じ幅（@item_width）で並べます。
+ * この関数を呼んだ後、@cols を超えるウィジェット呼び出しは同じレイアウトで新しい行を割り当てます。
  *
  * \details
  * ```c
  * void nk_layout_row_static(struct nk_context *ctx, float height, int item_width, int cols);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] height  | Holds height of each widget in row or zero for auto layouting
- * \param[in] width   | Holds pixel width of each widget in the row
- * \param[in] columns | Number of widget inside row
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] height  | 行内の各ウィジェットの高さ（0 を指定すると自動行高が使用されます）
+ * \param[in] width   | 行内の各ウィジェットの幅（ピクセル）
+ * \param[in] columns | 行内のウィジェット数
  */
 NK_API void nk_layout_row_static(struct nk_context *ctx, float height, int item_width, int cols);
 
 /**
- * \brief Starts a new dynamic or fixed row with given height and columns.
+ * \brief 指定した高さと列数で、新しい動的（比率）または固定幅の行を開始します。
  *
  * \details
  * ```c
  * void nk_layout_row_begin(struct nk_context *ctx, enum nk_layout_format fmt, float row_height, int cols);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] fmt     | either `NK_DYNAMIC` for window ratio or `NK_STATIC` for fixed size columns
- * \param[in] height  | holds height of each widget in row or zero for auto layouting
- * \param[in] columns | Number of widget inside row
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] fmt     | `NK_DYNAMIC`（ウィンドウ比率に基づく）または `NK_STATIC`（固定幅列）
+ * \param[in] height  | 行内の各ウィジェットの高さ（0 を指定すると自動行高が使用されます）
+ * \param[in] columns | 行内のウィジェット数
  */
 NK_API void nk_layout_row_begin(struct nk_context *ctx, enum nk_layout_format fmt, float row_height, int cols);
 
 /**
- * \breif Specifies either window ratio or width of a single column
+ * \brief 単一列の幅をウィンドウ比率またはピクセル幅で指定します。
  *
  * \details
  * ```c
  * void nk_layout_row_push(struct nk_context*, float value);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] value   | either a window ratio or fixed width depending on @fmt in previous `nk_layout_row_begin` call
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] value   | 前に呼ばれた `nk_layout_row_begin` の fmt に依存して、ウィンドウ比率または固定幅（ピクセル）を指定します
  */
 NK_API void nk_layout_row_push(struct nk_context*, float value);
 
 /**
- * \brief Finished previously started row
+ * \brief 以前に開始した行を終了します。
  *
  * \details
  * ```c
  * void nk_layout_row_end(struct nk_context*);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_layout_row_end(struct nk_context*);
 
 /**
- * \brief Specifies row columns in array as either window ratio or size
+ * \brief 列ごとの幅を配列で指定します（ウィンドウ比率またはピクセル幅のいずれか）。
  *
  * \details
  * ```c
  * void nk_layout_row(struct nk_context*, enum nk_layout_format, float height, int cols, const float *ratio);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] fmt     | Either `NK_DYNAMIC` for window ratio or `NK_STATIC` for fixed size columns
- * \param[in] height  | Holds height of each widget in row or zero for auto layouting
- * \param[in] columns | Number of widget inside row
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] fmt     | `NK_DYNAMIC`（ウィンドウ比率）または `NK_STATIC`（固定幅ピクセル）
+ * \param[in] height  | 行内の各ウィジェットの高さ（0 を指定すると自動行高が使用されます）
+ * \param[in] columns | 行内のウィジェット数
  */
 NK_API void nk_layout_row(struct nk_context*, enum nk_layout_format, float height, int cols, const float *ratio);
 
 /**
  * # # nk_layout_row_template_begin
- * Begins the row template declaration
+ * 行テンプレートの宣言を開始します。
  * ```c
  * void nk_layout_row_template_begin(struct nk_context*, float row_height);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] height  | Holds height of each widget in row or zero for auto layouting
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] height  | 行内の各ウィジェットの高さ（0 を指定すると自動行高が使用されます）
  */
 NK_API void nk_layout_row_template_begin(struct nk_context*, float row_height);
 
 /**
  * # # nk_layout_row_template_push_dynamic
- * Adds a dynamic column that dynamically grows and can go to zero if not enough space
+ * 動的に成長するカラムを追加します。スペース不足時には幅が 0 まで縮小することがあります。
  * ```c
  * void nk_layout_row_template_push_dynamic(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] height  | Holds height of each widget in row or zero for auto layouting
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_layout_row_template_push_dynamic(struct nk_context*);
 
 /**
  * # # nk_layout_row_template_push_variable
- * Adds a variable column that dynamically grows but does not shrink below specified pixel width
+ * 可変幅のカラムを追加します。余剰スペースに応じて拡張しますが、指定した最小ピクセル幅を下回りません。
  * ```c
  * void nk_layout_row_template_push_variable(struct nk_context*, float min_width);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] width   | Holds the minimum pixel width the next column must always be
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] min_width | 次のカラムが最低限保持すべきピクセル幅
  */
 NK_API void nk_layout_row_template_push_variable(struct nk_context*, float min_width);
 
 /**
  * # # nk_layout_row_template_push_static
- * Adds a static column that does not grow and will always have the same size
+ * 静的なカラムを追加します。行が拡大しても幅は変わらず、常に同じサイズになります。
  * ```c
  * void nk_layout_row_template_push_static(struct nk_context*, float width);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] width   | Holds the absolute pixel width value the next column must be
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] width   | 次のカラムが持つべき絶対ピクセル幅
  */
 NK_API void nk_layout_row_template_push_static(struct nk_context*, float width);
 
 /**
  * # # nk_layout_row_template_end
- * Marks the end of the row template
+ * 行テンプレートの宣言を終了します。
  * ```c
  * void nk_layout_row_template_end(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_layout_row_template_end(struct nk_context*);
 
 /**
  * # # nk_layout_space_begin
- * Begins a new layouting space that allows to specify each widgets position and size.
+ * 各ウィジェットの位置とサイズを直接指定できる新しいレイアウトスペースを開始します。
  * ```c
  * void nk_layout_space_begin(struct nk_context*, enum nk_layout_format, float height, int widget_count);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_begin_xxx`
- * \param[in] fmt     | Either `NK_DYNAMIC` for window ratio or `NK_STATIC` for fixed size columns
- * \param[in] height  | Holds height of each widget in row or zero for auto layouting
- * \param[in] columns | Number of widgets inside row
+ * \param[in] ctx     | `nk_begin_xxx` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] fmt     | `NK_DYNAMIC`（ウィンドウ比率）または `NK_STATIC`（固定ピクセル）
+ * \param[in] height  | スペースの高さ（0 を指定すると自動行高）
+ * \param[in] widget_count | スペース内に配置するウィジェット数
  */
 NK_API void nk_layout_space_begin(struct nk_context*, enum nk_layout_format, float height, int widget_count);
 
 /**
  * # # nk_layout_space_push
- * Pushes position and size of the next widget in own coordinate space either as pixel or ratio
+ * 次のウィジェットの位置とサイズを、スペースローカル座標（ピクセルまたは比率）で指定します。
  * ```c
  * void nk_layout_space_push(struct nk_context *ctx, struct nk_rect bounds);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
- * \param[in] bounds  | Position and size in laoyut space local coordinates
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] bounds  | レイアウトスペース内のローカル座標での位置とサイズ
  */
 NK_API void nk_layout_space_push(struct nk_context*, struct nk_rect bounds);
 
 /**
  * # # nk_layout_space_end
- * Marks the end of the layout space
+ * レイアウトスペースの終了をマークします。
  * ```c
  * void nk_layout_space_end(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_layout_space_end(struct nk_context*);
 
 /**
  * # # nk_layout_space_bounds
- * Utility function to calculate total space allocated for `nk_layout_space`
+ * `nk_layout_space` に割り当てられた合計スペースを計算するユーティリティ関数です。
  * ```c
  * struct nk_rect nk_layout_space_bounds(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` 構造体へのポインタ
  *
- * \returns `nk_rect` holding the total space allocated
+ * \returns 割り当てられた合計スペースを表す `nk_rect`
  */
 NK_API struct nk_rect nk_layout_space_bounds(const struct nk_context *ctx);
 
 /**
  * # # nk_layout_space_to_screen
- * Converts vector from nk_layout_space coordinate space into screen space
+ * `nk_layout_space` 座標系のベクトルをスクリーン座標に変換します。
  * ```c
  * struct nk_vec2 nk_layout_space_to_screen(struct nk_context*, struct nk_vec2);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
- * \param[in] vec     | Position to convert from layout space into screen coordinate space
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` へのポインタ
+ * \param[in] vec     | レイアウトスペース座標での位置ベクトル
  *
- * \returns transformed `nk_vec2` in screen space coordinates
+ * \returns スクリーン座標に変換された `nk_vec2`
  */
 NK_API struct nk_vec2 nk_layout_space_to_screen(const struct nk_context* ctx, struct nk_vec2 vec);
 
 /**
  * # # nk_layout_space_to_local
- * Converts vector from layout space into screen space
+ * スクリーン座標のベクトルを `nk_layout_space`（ローカル）座標に変換します。
  * ```c
  * struct nk_vec2 nk_layout_space_to_local(struct nk_context*, struct nk_vec2);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
- * \param[in] vec     | Position to convert from screen space into layout coordinate space
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` へのポインタ
+ * \param[in] vec     | スクリーン座標での位置ベクトル
  *
- * \returns transformed `nk_vec2` in layout space coordinates
+ * \returns レイアウトスペース座標に変換された `nk_vec2`
  */
 NK_API struct nk_vec2 nk_layout_space_to_local(const struct nk_context *ctx, struct nk_vec2 vec);
 
 /**
  * # # nk_layout_space_rect_to_screen
- * Converts rectangle from screen space into layout space
+ * レイアウトスペース内の矩形をスクリーン座標に変換します。
  * ```c
  * struct nk_rect nk_layout_space_rect_to_screen(struct nk_context*, struct nk_rect);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
- * \param[in] bounds  | Rectangle to convert from layout space into screen space
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` へのポインタ
+ * \param[in] bounds  | レイアウトスペース座標での矩形
  *
- * \returns transformed `nk_rect` in screen space coordinates
+ * \returns スクリーン座標に変換された `nk_rect`
  */
 NK_API struct nk_rect nk_layout_space_rect_to_screen(const struct nk_context *ctx, struct nk_rect bounds);
 
 /**
  * # # nk_layout_space_rect_to_local
- * Converts rectangle from layout space into screen space
+ * スクリーン座標の矩形をレイアウトスペース座標に変換します。
  * ```c
  * struct nk_rect nk_layout_space_rect_to_local(struct nk_context*, struct nk_rect);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
- * \param[in] bounds  | Rectangle to convert from layout space into screen space
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` へのポインタ
+ * \param[in] bounds  | スクリーン座標での矩形
  *
- * \returns transformed `nk_rect` in layout space coordinates
+ * \returns レイアウトスペース座標に変換された `nk_rect`
  */
 NK_API struct nk_rect nk_layout_space_rect_to_local(const struct nk_context *ctx, struct nk_rect bounds);
 
 /**
  * # # nk_spacer
- * Spacer is a dummy widget that consumes space as usual but doesn't draw anything
+ * Spacer はダミーウィジェットで、通常どおり領域を消費しますが何も描画しません。
  * ```c
  * void nk_spacer(struct nk_context* );
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after call `nk_layout_space_begin`
+ * \param[in] ctx     | `nk_layout_space_begin` 呼び出し後に初期化された `nk_context` へのポインタ
  *
  */
 NK_API void nk_spacer(struct nk_context *ctx);
@@ -2795,37 +2581,33 @@ NK_API void nk_spacer(struct nk_context *ctx);
  * =============================================================================*/
 /**
  * \page Groups
- * Groups are basically windows inside windows. They allow to subdivide space
- * in a window to layout widgets as a group. Almost all more complex widget
- * layouting requirements can be solved using groups and basic layouting
- * fuctionality. Groups just like windows are identified by an unique name and
- * internally keep track of scrollbar offsets by default. However additional
- * versions are provided to directly manage the scrollbar.
+ * Groups はウィンドウの内部に配置できる“ウィンドウ風”の領域で、ウィンドウ内の空間を subdivide して
+ * ウィジェットをグループ単位でレイアウトするために使います。複雑なウィジェット配置の多くは
+ * グループと基本的なレイアウト機能で実現できます。Groups はウィンドウと同様に一意の名前で識別され、
+ * デフォルトでスクロールオフセットを内部的に保持します。必要に応じてスクロールバーを手動で管理する
+ * バリエーションも提供されています。
  *
- * # Usage
- * To create a group you have to call one of the three `nk_group_begin_xxx`
- * functions to start group declarations and `nk_group_end` at the end. Furthermore it
- * is required to check the return value of `nk_group_begin_xxx` and only process
- * widgets inside the window if the value is not 0.
- * Nesting groups is possible and even encouraged since many layouting schemes
- * can only be achieved by nesting. Groups, unlike windows, need `nk_group_end`
- * to be only called if the corresponding `nk_group_begin_xxx` call does not return 0:
+ * # 使用法
+ * グループを作成するには、`nk_group_begin_xxx` 系の関数のいずれかでグループの宣言を開始し、
+ * 最後に `nk_group_end` を呼びます。`nk_group_begin_xxx` が返す戻り値をチェックし、戻り値が 0 でない場合にのみ
+ * グループ内のウィジェット処理を行ってください。
+ * グループのネストは可能であり、推奨されます。多くのレイアウトはネストによってのみ達成できます。
+ * `nk_group_begin_xxx` が 0 を返した場合には `nk_group_end` を呼ばない点に注意してください。
  *
  * ```c
- * if (nk_group_begin_xxx(ctx, ...) {
+ * if (nk_group_begin_xxx(ctx, ...) ) {
  *     // [... widgets ...]
  *     nk_group_end(ctx);
  * }
  * ```
  *
- * In the grand concept groups can be called after starting a window
- * with `nk_begin_xxx` and before calling `nk_end`:
+ * グループは `nk_begin_xxx` の後、`nk_end` の前で呼び出せます:
  *
  * ```c
  * struct nk_context ctx;
  * nk_init_xxx(&ctx, ...);
  * while (1) {
- *     // Input
+ *     // 入力処理
  *     Event evt;
  *     nk_input_begin(&ctx);
  *     while (GetEvent(&evt)) {
@@ -2836,30 +2618,29 @@ NK_API void nk_spacer(struct nk_context *ctx);
  *         }
  *     }
  *     nk_input_end(&ctx);
- *     //
- *     // Window
- *     if (nk_begin_xxx(...) {
+ *     // ウィンドウ
+ *     if (nk_begin_xxx(...) ) {
  *         // [...widgets...]
  *         nk_layout_row_dynamic(...);
- *         if (nk_group_begin_xxx(ctx, ...) {
+ *         if (nk_group_begin_xxx(ctx, ...) ) {
  *             //[... widgets ...]
  *             nk_group_end(ctx);
  *         }
  *     }
  *     nk_end(ctx);
- *     //
- *     // Draw
+ *     // 描画
  *     const struct nk_command *cmd = 0;
  *     nk_foreach(cmd, &ctx) {
- *     switch (cmd->type) {
- *     case NK_COMMAND_LINE:
- *         your_draw_line_function(...)
- *         break;
- *     case NK_COMMAND_RECT
- *         your_draw_rect_function(...)
- *         break;
- *     case ...:
- *         // [...]
+ *         switch (cmd->type) {
+ *         case NK_COMMAND_LINE:
+ *             your_draw_line_function(...);
+ *             break;
+ *         case NK_COMMAND_RECT:
+ *             your_draw_rect_function(...);
+ *             break;
+ *         case ...:
+ *             // [...]
+ *         }
  *     }
  *     nk_clear(&ctx);
  * }
@@ -2868,142 +2649,142 @@ NK_API void nk_spacer(struct nk_context *ctx);
  * # Reference
  * Function                        | Description
  * --------------------------------|-------------------------------------------
- * \ref nk_group_begin                  | Start a new group with internal scrollbar handling
- * \ref nk_group_begin_titled           | Start a new group with separated name and title and internal scrollbar handling
- * \ref nk_group_end                    | Ends a group. Should only be called if nk_group_begin returned non-zero
- * \ref nk_group_scrolled_offset_begin  | Start a new group with manual separated handling of scrollbar x- and y-offset
- * \ref nk_group_scrolled_begin         | Start a new group with manual scrollbar handling
- * \ref nk_group_scrolled_end           | Ends a group with manual scrollbar handling. Should only be called if nk_group_begin returned non-zero
- * \ref nk_group_get_scroll             | Gets the scroll offset for the given group
- * \ref nk_group_set_scroll             | Sets the scroll offset for the given group
+ * \ref nk_group_begin                  | 内部スクロール処理を持つ新しいグループを開始します
+ * \ref nk_group_begin_titled           | 名前とタイトルを分離して指定できる、内部スクロール処理付きの新しいグループを開始します
+ * \ref nk_group_end                    | グループを終了します。`nk_group_begin` が非ゼロを返した場合にのみ呼び出してください
+ * \ref nk_group_scrolled_offset_begin  | スクロールオフセット（x, y）を外部で管理するグループを開始します
+ * \ref nk_group_scrolled_begin         | スクロールを手動で管理するグループを開始します
+ * \ref nk_group_scrolled_end           | 手動スクロール制御のグループを終了します。`nk_group_begin` が非ゼロを返した場合にのみ呼び出してください
+ * \ref nk_group_get_scroll             | 指定したグループのスクロールオフセットを取得します
+ * \ref nk_group_set_scroll             | 指定したグループのスクロールオフセットを設定します
  */
 
- /**
- * \brief Starts a new widget group. Requires a previous layouting function to specify a pos/size.
+/**
+ * \brief 新しいウィジェットグループを開始します。事前にレイアウト関数で位置/サイズを指定する必要があります。
  * ```c
  * nk_bool nk_group_begin(struct nk_context*, const char *title, nk_flags);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] title   | Must be an unique identifier for this group that is also used for the group header
- * \param[in] flags   | Window flags defined in the nk_panel_flags section with a number of different group behaviors
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] title   | グループの一意な識別子で、グループヘッダにも表示されます
+ * \param[in] flags   | `nk_panel_flags` セクションで定義されたウィンドウフラグ（グループの挙動を制御）
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され、ウィジェットで埋めることが可能）または `false(0)`（不可）
  */
 NK_API nk_bool nk_group_begin(struct nk_context*, const char *title, nk_flags);
 
  /**
- * \brief Starts a new widget group. Requires a previous layouting function to specify a pos/size.
+ * \brief 新しいウィジェットグループを開始します（名前とタイトルを分離して指定可能）。事前にレイアウト関数で位置/サイズを指定する必要があります。
  * ```c
  * nk_bool nk_group_begin_titled(struct nk_context*, const char *name, const char *title, nk_flags);
  * ```
  *
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] id      | Must be an unique identifier for this group
- * \param[in] title   | Group header title
- * \param[in] flags   | Window flags defined in the nk_panel_flags section with a number of different group behaviors
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] id      | グループの一意な識別子
+ * \param[in] title   | グループヘッダに表示されるタイトル文字列
+ * \param[in] flags   | `nk_panel_flags` セクションで定義されたウィンドウフラグ
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され、ウィジェットで埋めることが可能）または `false(0)`（不可）
  */
 NK_API nk_bool nk_group_begin_titled(struct nk_context*, const char *name, const char *title, nk_flags);
 
 /**
  * # # nk_group_end
- * Ends a widget group
+ * ウィジェットグループを終了します。
  * ```c
  * void nk_group_end(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_group_end(struct nk_context*);
 
 /**
  * # # nk_group_scrolled_offset_begin
- * starts a new widget group. requires a previous layouting function to specify
- * a size. Does not keep track of scrollbar.
+ * 新しいウィジェットグループを開始します。事前にレイアウト関数でサイズを指定する必要があります。
+ * この関数はスクロールバーの状態を内部で保持せず、x/y のオフセットを外部で管理します。
  * ```c
  * nk_bool nk_group_scrolled_offset_begin(struct nk_context*, nk_uint *x_offset, nk_uint *y_offset, const char *title, nk_flags flags);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] x_offset| Scrollbar x-offset to offset all widgets inside the group horizontally.
- * \param[in] y_offset| Scrollbar y-offset to offset all widgets inside the group vertically
- * \param[in] title   | Window unique group title used to both identify and display in the group header
- * \param[in] flags   | Window flags from the nk_panel_flags section
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] x_offset| グループ内部のウィジェットを水平方向にオフセットするスクロール x オフセットへのポインタ
+ * \param[in] y_offset| グループ内部のウィジェットを垂直方向にオフセットするスクロール y オフセットへのポインタ
+ * \param[in] title   | グループを識別し、ヘッダに表示する一意のタイトル
+ * \param[in] flags   | `nk_panel_flags` セクションで定義されたウィンドウフラグ
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され、ウィジェットで埋めることが可能）または `false(0)`（不可）
  */
 NK_API nk_bool nk_group_scrolled_offset_begin(struct nk_context*, nk_uint *x_offset, nk_uint *y_offset, const char *title, nk_flags flags);
 
 /**
  * # # nk_group_scrolled_begin
- * Starts a new widget group. requires a previous
- * layouting function to specify a size. Does not keep track of scrollbar.
+ * 新しいウィジェットグループを開始します。事前にレイアウト関数でサイズを指定する必要があります。
+ * スクロール状態は外部で管理します（`nk_scroll` 構造体を使用）。
  * ```c
  * nk_bool nk_group_scrolled_begin(struct nk_context*, struct nk_scroll *off, const char *title, nk_flags);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] off     | Both x- and y- scroll offset. Allows for manual scrollbar control
- * \param[in] title   | Window unique group title used to both identify and display in the group header
- * \param[in] flags   | Window flags from nk_panel_flags section
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] off     | x および y のスクロールオフセットを保持する構造体（手動スクロール制御用）
+ * \param[in] title   | グループを識別し、ヘッダに表示する一意のタイトル
+ * \param[in] flags   | `nk_panel_flags` セクションで定義されたウィンドウフラグ
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され、ウィジェットで埋めることが可能）または `false(0)`（不可）
  */
 NK_API nk_bool nk_group_scrolled_begin(struct nk_context*, struct nk_scroll *off, const char *title, nk_flags);
 
 /**
  * # # nk_group_scrolled_end
- * Ends a widget group after calling nk_group_scrolled_offset_begin or nk_group_scrolled_begin.
+ * `nk_group_scrolled_offset_begin` または `nk_group_scrolled_begin` で開始したグループを終了します。
  * ```c
  * void nk_group_scrolled_end(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
  */
 NK_API void nk_group_scrolled_end(struct nk_context*);
 
 /**
  * # # nk_group_get_scroll
- * Gets the scroll position of the given group.
+ * 指定したグループのスクロール位置（オフセット）を取得します。
  * ```c
  * void nk_group_get_scroll(struct nk_context*, const char *id, nk_uint *x_offset, nk_uint *y_offset);
  * ```
  *
  * Parameter    | Description
  * -------------|-----------------------------------------------------------
- * \param[in] ctx      | Must point to an previously initialized `nk_context` struct
- * \param[in] id       | The id of the group to get the scroll position of
- * \param[in] x_offset | A pointer to the x offset output (or NULL to ignore)
- * \param[in] y_offset | A pointer to the y offset output (or NULL to ignore)
- */
+ * \param[in] ctx      | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] id       | スクロール位置を取得する対象グループの ID
+ * \param[in] x_offset | x オフセットの出力先ポインタ（無視する場合は NULL）
+ * \param[in] y_offset | y オフセットの出力先ポインタ（無視する場合は NULL）
+ * */
 NK_API void nk_group_get_scroll(struct nk_context*, const char *id, nk_uint *x_offset, nk_uint *y_offset);
 
 /**
  * # # nk_group_set_scroll
- * Sets the scroll position of the given group.
+ * 指定したグループのスクロール位置（オフセット）を設定します。
  * ```c
  * void nk_group_set_scroll(struct nk_context*, const char *id, nk_uint x_offset, nk_uint y_offset);
  * ```
  *
  * Parameter    | Description
  * -------------|-----------------------------------------------------------
- * \param[in] ctx      | Must point to an previously initialized `nk_context` struct
- * \param[in] id       | The id of the group to scroll
- * \param[in] x_offset | The x offset to scroll to
- * \param[in] y_offset | The y offset to scroll to
- */
+ * \param[in] ctx      | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] id       | スクロール位置を設定する対象グループの ID
+ * \param[in] x_offset | 設定する x オフセット
+ * \param[in] y_offset | 設定する y オフセット
+ * */
 NK_API void nk_group_set_scroll(struct nk_context*, const char *id, nk_uint x_offset, nk_uint y_offset);
 
 /** =============================================================================
@@ -3013,40 +2794,29 @@ NK_API void nk_group_set_scroll(struct nk_context*, const char *id, nk_uint x_of
  * =============================================================================*/
 /**
  * \page Tree
- * Trees represent two different concept. First the concept of a collapsible
- * UI section that can be either in a hidden or visible state. They allow the UI
- * user to selectively minimize the current set of visible UI to comprehend.
- * The second concept are tree widgets for visual UI representation of trees.<br /><br />
+ * Tree は 2 つの概念を表します。1 つは折りたたみ可能な UI セクションで、非表示または表示状態になり得ます。
+ * ユーザは表示中の UI を選択的に折りたたんで可視要素を整理できます。もう 1 つの概念は木構造を視覚的に表現する
+ * ツリービューウィジェットです。<br /><br />
  *
- * Trees thereby can be nested for tree representations and multiple nested
- * collapsible UI sections. All trees are started by calling of the
- * `nk_tree_xxx_push_tree` functions and ended by calling one of the
- * `nk_tree_xxx_pop_xxx()` functions. Each starting functions takes a title label
- * and optionally an image to be displayed and the initial collapse state from
- * the nk_collapse_states section.<br /><br />
+ * Tree はネスト可能で、ツリー表現や複数のネストした折りたたみセクションを構成できます。すべての Tree は
+ * `nk_tree_xxx_push_xxx` 系の関数で開始し、対応する `nk_tree_xxx_pop_xxx()` 系の関数で終了します。開始関数はタイトル
+ * ラベルと任意で表示する画像、初期の折りたたみ状態（`nk_collapse_states`）を受け取ります。<br /><br />
  *
- * The runtime state of the tree is either stored outside the library by the caller
- * or inside which requires a unique ID. The unique ID can either be generated
- * automatically from `__FILE__` and `__LINE__` with function `nk_tree_push`,
- * by `__FILE__` and a user provided ID generated for example by loop index with
- * function `nk_tree_push_id` or completely provided from outside by user with
- * function `nk_tree_push_hashed`.
+ * ランタイムの折りたたみ状態は、呼び出し元側で外部に保持するか、ライブラリ内部で一意の ID を使って保持するかの
+ * どちらかです。一意の ID は `nk_tree_push` によって `__FILE__` と `__LINE__` を組み合わせて自動生成するか、
+ * ループ内で使う場合は `nk_tree_push_id` を使って `__FILE__` とループインデックスのようなユーザ指定 ID を組み合わせるか、
+ * 完全に外部から与える場合は `nk_tree_push_hashed` を利用します。
  *
- * # Usage
- * To create a tree you have to call one of the seven `nk_tree_xxx_push_xxx`
- * functions to start a collapsible UI section and `nk_tree_xxx_pop` to mark the
- * end.
- * Each starting function will either return `false(0)` if the tree is collapsed
- * or hidden and therefore does not need to be filled with content or `true(1)`
- * if visible and required to be filled.
+ * # 使用法
+ * Tree を作成するには七種類の `nk_tree_xxx_push_xxx` 関数のいずれかで折りたたみセクションを開始し、
+ * `nk_tree_xxx_pop` で終了をマークします。開始関数は折りたたまれて非表示の場合は `false(0)` を、表示され内容を
+ * 受け付ける場合は `true(1)` を返します。
  *
  * !!! Note
- *     The tree header does not require and layouting function and instead
- *     calculates a auto height based on the currently used font size
+ *     Tree ヘッダはレイアウト関数を必要とせず、現在のフォントサイズに基づいて自動高さを計算します
  *
- * The tree ending functions only need to be called if the tree content is
- * actually visible. So make sure the tree push function is guarded by `if`
- * and the pop call is only taken if the tree is visible.
+ * 終了関数は実際に Tree の内容が表示されている場合にのみ呼び出す必要があります。つまり、Tree の開始は `if` で
+ * ガードし、表示時にのみ `nk_tree_pop` を呼んでください。
  *
  * ```c
  * if (nk_tree_push(ctx, NK_TREE_TAB, "Tree", NK_MINIMIZED)) {
@@ -3056,35 +2826,33 @@ NK_API void nk_group_set_scroll(struct nk_context*, const char *id, nk_uint x_of
  * }
  * ```
  *
- * # Reference
- * Function                    | Description
+ * # 参照
+ * Function                    | 説明
  * ----------------------------|-------------------------------------------
- * nk_tree_push                | Start a collapsible UI section with internal state management
- * nk_tree_push_id             | Start a collapsible UI section with internal state management callable in a look
- * nk_tree_push_hashed         | Start a collapsible UI section with internal state management with full control over internal unique ID use to store state
- * nk_tree_image_push          | Start a collapsible UI section with image and label header
- * nk_tree_image_push_id       | Start a collapsible UI section with image and label header and internal state management callable in a look
- * nk_tree_image_push_hashed   | Start a collapsible UI section with image and label header and internal state management with full control over internal unique ID use to store state
- * nk_tree_pop                 | Ends a collapsible UI section
- * nk_tree_state_push          | Start a collapsible UI section with external state management
- * nk_tree_state_image_push    | Start a collapsible UI section with image and label header and external state management
- * nk_tree_state_pop           | Ends a collapsabale UI section
+ * nk_tree_push                | 内部状態管理を用いて折りたたみセクションを開始します
+ * nk_tree_push_id             | ループ内で呼べる内部状態管理付きの折りたたみセクションを開始します
+ * nk_tree_push_hashed         | 内部状態を保存するための一意 ID を完全に制御できる折りたたみセクションを開始します
+ * nk_tree_image_push          | 画像とラベルを持つ折りたたみセクションを開始します
+ * nk_tree_image_push_id       | 画像とラベルを持ち、ループ内で使える内部状態管理付きの折りたたみセクションを開始します
+ * nk_tree_image_push_hashed   | 画像とラベルを持ち、一意 ID を完全に制御できる内部状態管理付きの折りたたみセクションを開始します
+ * nk_tree_pop                 | 折りたたみセクションを終了します
+ * nk_tree_state_push          | 外部で状態を管理する折りたたみセクションを開始します
+ * nk_tree_state_image_push    | 画像とラベルを持ち、外部状態管理の折りたたみセクションを開始します
+ * nk_tree_state_pop           | 折りたたみセクションを終了します
  *
  * # nk_tree_type
- * Flag            | Description
+ * Flag            | 説明
  * ----------------|----------------------------------------
- * NK_TREE_NODE    | Highlighted tree header to mark a collapsible UI section
- * NK_TREE_TAB     | Non-highlighted tree header closer to tree representations
+ * NK_TREE_NODE    | 折りたたみセクションとして強調表示されるヘッダ
+ * NK_TREE_TAB     | ツリー表現に近い非強調ヘッダ
  */
 
 /**
  * # # nk_tree_push
- * Starts a collapsible UI section with internal state management
+ * 内部状態管理を用いて折りたたみセクションを開始します。
  * !!! \warning
- *     To keep track of the runtime tree collapsible state this function uses
- *     defines `__FILE__` and `__LINE__` to generate a unique ID. If you want
- *     to call this function in a loop please use `nk_tree_push_id` or
- *     `nk_tree_push_hashed` instead.
+ *     ランタイムの折りたたみ状態を追跡するために、この関数は `__FILE__` と `__LINE__` を組み合わせて
+ *     一意の ID を生成します。ループ内で呼び出す場合は `nk_tree_push_id` か `nk_tree_push_hashed` を使用してください。
  *
  * ```c
  * #define nk_tree_push(ctx, type, title, state)
@@ -3092,84 +2860,80 @@ NK_API void nk_group_set_scroll(struct nk_context*, const char *id, nk_uint x_of
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Initial tree state value out of nk_collapse_states
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] type    | ツリーノードヘッダを折りたたみセクションまたはツリーノードとして視覚的にマークする `nk_tree_type` の値
+ * \param[in] title   | ツリーのヘッダに表示されるラベル
+ * \param[in] state   | `nk_collapse_states` の初期状態
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 #define nk_tree_push(ctx, type, title, state) nk_tree_push_hashed(ctx, type, title, state, NK_FILE_LINE,nk_strlen(NK_FILE_LINE),__LINE__)
 
 /**
  * # # nk_tree_push_id
- * Starts a collapsible UI section with internal state management callable in a look
+ * ループ内で呼べる内部状態管理付きの折りたたみセクションを開始します。
  * ```c
  * #define nk_tree_push_id(ctx, type, title, state, id)
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Initial tree state value out of nk_collapse_states
- * \param[in] id      | Loop counter index if this function is called in a loop
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] type    | `nk_tree_type` の値（折りたたみセクションかツリーノードかを示す）
+ * \param[in] title   | ヘッダに表示されるラベル
+ * \param[in] state   | `nk_collapse_states` の初期状態
+ * \param[in] id      | ループ内で使用するカウンタなど、ユーザ提供の ID
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 #define nk_tree_push_id(ctx, type, title, state, id) nk_tree_push_hashed(ctx, type, title, state, NK_FILE_LINE,nk_strlen(NK_FILE_LINE),id)
 
 /**
  * # # nk_tree_push_hashed
- * Start a collapsible UI section with internal state management with full
- * control over internal unique ID used to store state
+ * 内部状態管理を用いて折りたたみセクションを開始します。状態を保存する一意の ID を完全に制御できます。
  * ```c
  * nk_bool nk_tree_push_hashed(struct nk_context*, enum nk_tree_type, const char *title, enum nk_collapse_states initial_state, const char *hash, int len,int seed);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Initial tree state value out of nk_collapse_states
- * \param[in] hash    | Memory block or string to generate the ID from
- * \param[in] len     | Size of passed memory block or string in __hash__
- * \param[in] seed    | Seeding value if this function is called in a loop or default to `0`
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] type    | `nk_tree_type` の値（折りたたみセクションかツリーノードかを示す）
+ * \param[in] title   | ヘッダに表示されるラベル
+ * \param[in] state   | `nk_collapse_states` の初期状態
+ * \param[in] hash    | ID を生成するためのメモリブロックまたは文字列
+ * \param[in] len     | `hash` に渡されたメモリまたは文字列のサイズ
+ * \param[in] seed    | ループ内で呼ぶ場合のシード値（デフォルト 0）
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 NK_API nk_bool nk_tree_push_hashed(struct nk_context*, enum nk_tree_type, const char *title, enum nk_collapse_states initial_state, const char *hash, int len,int seed);
 
 /**
  * # # nk_tree_image_push
- * Start a collapsible UI section with image and label header
+ * 画像とラベルを持つ折りたたみセクションを開始します。
  * !!! \warning
- *     To keep track of the runtime tree collapsible state this function uses
- *     defines `__FILE__` and `__LINE__` to generate a unique ID. If you want
- *     to call this function in a loop please use `nk_tree_image_push_id` or
- *     `nk_tree_image_push_hashed` instead.
+ *     ランタイムの折りたたみ状態を追跡するために、この関数は `__FILE__` と `__LINE__` を組み合わせて
+ *     一意の ID を生成します。ループ内で呼び出す場合は `nk_tree_image_push_id` か `nk_tree_image_push_hashed` を使用してください。
  *
  * ```c
  * #define nk_tree_image_push(ctx, type, img, title, state)
  * ```
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] img     | Image to display inside the header on the left of the label
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Initial tree state value out of nk_collapse_states
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] type    | `nk_tree_type` の値（折りたたみセクションかツリーノードかを示す）
+ * \param[in] img     | ラベルの左に表示する画像
+ * \param[in] title   | ヘッダに表示されるラベル
+ * \param[in] state   | `nk_collapse_states` の初期状態
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 #define nk_tree_image_push(ctx, type, img, title, state) nk_tree_image_push_hashed(ctx, type, img, title, state, NK_FILE_LINE,nk_strlen(NK_FILE_LINE),__LINE__)
 
 /**
  * # # nk_tree_image_push_id
- * Start a collapsible UI section with image and label header and internal state
- * management callable in a look
+ * 画像とラベルを持つ折りたたみセクションを開始します（ループ内で呼べる内部状態管理付き）。
  *
  * ```c
  * #define nk_tree_image_push_id(ctx, type, img, title, state, id)
@@ -3177,101 +2941,100 @@ NK_API nk_bool nk_tree_push_hashed(struct nk_context*, enum nk_tree_type, const 
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] img     | Image to display inside the header on the left of the label
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Initial tree state value out of nk_collapse_states
- * \param[in] id      | Loop counter index if this function is called in a loop
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] type    | `nk_tree_type` の値
+ * \param[in] img     | ヘッダのラベル左に表示する画像
+ * \param[in] title   | ヘッダに表示されるラベル
+ * \param[in] state   | `nk_collapse_states` の初期状態
+ * \param[in] id      | ループ内で呼ぶ場合のユーザ提供 ID
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 #define nk_tree_image_push_id(ctx, type, img, title, state, id) nk_tree_image_push_hashed(ctx, type, img, title, state, NK_FILE_LINE,nk_strlen(NK_FILE_LINE),id)
 
 /**
  * # # nk_tree_image_push_hashed
- * Start a collapsible UI section with internal state management with full
- * control over internal unique ID used to store state
+ * 画像を持つ折りたたみセクションを開始します。状態を保存する一意の ID を完全に制御できます。
  * ```c
  * nk_bool nk_tree_image_push_hashed(struct nk_context*, enum nk_tree_type, struct nk_image, const char *title, enum nk_collapse_states initial_state, const char *hash, int len,int seed);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] img     | Image to display inside the header on the left of the label
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Initial tree state value out of nk_collapse_states
- * \param[in] hash    | Memory block or string to generate the ID from
- * \param[in] len     | Size of passed memory block or string in __hash__
- * \param[in] seed    | Seeding value if this function is called in a loop or default to `0`
+ * \param[in] ctx     | 事前に初期化された `nk_context` 構造体へのポインタ
+ * \param[in] type    | `nk_tree_type` の値
+ * \param[in] img     | ヘッダ左に表示する画像
+ * \param[in] title   | ヘッダに表示されるラベル
+ * \param[in] state   | `nk_collapse_states` の初期状態
+ * \param[in] hash    | ID 生成用のメモリブロックまたは文字列
+ * \param[in] len     | `hash` の長さ
+ * \param[in] seed    | ループでのシード値（デフォルト 0）
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 NK_API nk_bool nk_tree_image_push_hashed(struct nk_context*, enum nk_tree_type, struct nk_image, const char *title, enum nk_collapse_states initial_state, const char *hash, int len,int seed);
 
 /**
  * # # nk_tree_pop
- * Ends a collapsabale UI section
+ * 折りたたみセクションを終了します。
  * ```c
  * void nk_tree_pop(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after calling `nk_tree_xxx_push_xxx`
- */
+ * \param[in] ctx     | `nk_tree_xxx_push_xxx` を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * */
 NK_API void nk_tree_pop(struct nk_context*);
 
 /**
  * # # nk_tree_state_push
- * Start a collapsible UI section with external state management
+ * 外部で状態を管理する折りたたみセクションを開始します。
  * ```c
  * nk_bool nk_tree_state_push(struct nk_context*, enum nk_tree_type, const char *title, enum nk_collapse_states *state);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after calling `nk_tree_xxx_push_xxx`
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Persistent state to update
+ * \param[in] ctx     | `nk_tree_xxx_push_xxx` を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] type    | `nk_tree_type` の値
+ * \param[in] title   | ヘッダに表示されるラベル
+ * \param[in] state   | 更新する永続的な状態へのポインタ
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 NK_API nk_bool nk_tree_state_push(struct nk_context*, enum nk_tree_type, const char *title, enum nk_collapse_states *state);
 
 /**
  * # # nk_tree_state_image_push
- * Start a collapsible UI section with image and label header and external state management
+ * 画像とラベルを持ち、外部で状態を管理する折りたたみセクションを開始します。
  * ```c
  * nk_bool nk_tree_state_image_push(struct nk_context*, enum nk_tree_type, struct nk_image, const char *title, enum nk_collapse_states *state);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after calling `nk_tree_xxx_push_xxx`
- * \param[in] img     | Image to display inside the header on the left of the label
- * \param[in] type    | Value from the nk_tree_type section to visually mark a tree node header as either a collapseable UI section or tree node
- * \param[in] title   | Label printed in the tree header
- * \param[in] state   | Persistent state to update
+ * \param[in] ctx     | `nk_tree_xxx_push_xxx` を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] img     | ヘッダ左に表示する画像
+ * \param[in] type    | `nk_tree_type` の値
+ * \param[in] title   | ヘッダに表示されるラベル
+ * \param[in] state   | 更新する永続的な状態へのポインタ
  *
- * \returns `true(1)` if visible and fillable with widgets or `false(0)` otherwise
+ * \returns `true(1)`（表示され内容を埋められる）または `false(0)`（折りたたまれている）
  */
 NK_API nk_bool nk_tree_state_image_push(struct nk_context*, enum nk_tree_type, struct nk_image, const char *title, enum nk_collapse_states *state);
 
 /**
  * # # nk_tree_state_pop
- * Ends a collapsabale UI section
+ * 折りたたみセクションを終了します（外部状態管理版）。
  * ```c
  * void nk_tree_state_pop(struct nk_context*);
  * ```
  *
  * Parameter   | Description
  * ------------|-----------------------------------------------------------
- * \param[in] ctx     | Must point to an previously initialized `nk_context` struct after calling `nk_tree_xxx_push_xxx`
- */
+ * \param[in] ctx     | `nk_tree_xxx_push_xxx` を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * */
 NK_API void nk_tree_state_pop(struct nk_context*);
 
 #define nk_tree_element_push(ctx, type, title, state, sel) nk_tree_element_push_hashed(ctx, type, title, state, sel, NK_FILE_LINE,nk_strlen(NK_FILE_LINE),__LINE__)
@@ -3488,28 +3251,21 @@ NK_API nk_bool nk_color_pick(struct nk_context*, struct nk_colorf*, enum nk_colo
  * =============================================================================*/
 /**
  * \page Properties
- * Properties are the main value modification widgets in Nuklear. Changing a value
- * can be achieved by dragging, adding/removing incremental steps on button click
- * or by directly typing a number.
+ * Properties は Nuklear における主な値編集用ウィジェット群です。値の変更はドラッグ操作、
+ * 増減ボタンのクリックによるステップ追加/削除、または直接数値を入力することで行えます。
  *
- * # Usage
- * Each property requires a unique name for identification that is also used for
- * displaying a label. If you want to use the same name multiple times make sure
- * add a '#' before your name. The '#' will not be shown but will generate a
- * unique ID. Each property also takes in a minimum and maximum value. If you want
- * to make use of the complete number range of a type just use the provided
- * type limits from `limits.h`. For example `INT_MIN` and `INT_MAX` for
- * `nk_property_int` and `nk_propertyi`. In additional each property takes in
- * a increment value that will be added or subtracted if either the increment
- * decrement button is clicked. Finally there is a value for increment per pixel
- * dragged that is added or subtracted from the value.
+ * # 使用法
+ * 各プロパティは識別のための一意の名前を必要とし、その名前はラベル表示にも使われます。
+ * 同じ名前を複数回使いたい場合は名前の先頭に `#` を付けてください。`#` は表示されませんが、一意な ID を生成します。
+ * 各プロパティでは最小値・最大値を指定します。型の全レンジを使いたい場合は `limits.h` の定数（例: `INT_MIN`/`INT_MAX`）を使ってください。
+ * また各プロパティは増分ステップ値（ボタンで増減する量）と、ドラッグ時のピクセルあたりの増分値を受け取ります。
  *
  * ```c
  * int value = 0;
  * struct nk_context ctx;
  * nk_init_xxx(&ctx, ...);
  * while (1) {
- *     // Input
+ *     // 入力
  *     Event evt;
  *     nk_input_begin(&ctx);
  *     while (GetEvent(&evt)) {
@@ -3520,49 +3276,47 @@ NK_API nk_bool nk_color_pick(struct nk_context*, struct nk_colorf*, enum nk_colo
  *         }
  *     }
  *     nk_input_end(&ctx);
- *     //
- *     // Window
- *     if (nk_begin_xxx(...) {
+ *     // ウィンドウ
+ *     if (nk_begin_xxx(...) ) {
  *         // Property
  *         nk_layout_row_dynamic(...);
  *         nk_property_int(ctx, "ID", INT_MIN, &value, INT_MAX, 1, 1);
  *     }
  *     nk_end(ctx);
- *     //
- *     // Draw
+ *     // 描画
  *     const struct nk_command *cmd = 0;
  *     nk_foreach(cmd, &ctx) {
- *     switch (cmd->type) {
- *     case NK_COMMAND_LINE:
- *         your_draw_line_function(...)
- *         break;
- *     case NK_COMMAND_RECT
- *         your_draw_rect_function(...)
- *         break;
- *     case ...:
- *         // [...]
+ *         switch (cmd->type) {
+ *         case NK_COMMAND_LINE:
+ *             your_draw_line_function(...);
+ *             break;
+ *         case NK_COMMAND_RECT:
+ *             your_draw_rect_function(...);
+ *             break;
+ *         case ...:
+ *             // [...]
+ *         }
  *     }
  *     nk_clear(&ctx);
  * }
  * nk_free(&ctx);
  * ```
  *
- * # Reference
+ * # 参照
  * Function            | Description
  * --------------------|-------------------------------------------
- * \ref nk_property_int     | Integer property directly modifying a passed in value
- * \ref nk_property_float   | Float property directly modifying a passed in value
- * \ref nk_property_double  | Double property directly modifying a passed in value
- * \ref nk_propertyi        | Integer property returning the modified int value
- * \ref nk_propertyf        | Float property returning the modified float value
- * \ref nk_propertyd        | Double property returning the modified double value
+ * \ref nk_property_int     | 渡された整数値を直接変更するプロパティ
+ * \ref nk_property_float   | 渡された浮動小数点値を直接変更するプロパティ
+ * \ref nk_property_double  | 渡された double 値を直接変更するプロパティ
+ * \ref nk_propertyi        | 変更後の整数値を返すプロパティ
+ * \ref nk_propertyf        | 変更後の浮動小数点値を返すプロパティ
+ * \ref nk_propertyd        | 変更後の double 値を返すプロパティ
  *
-
  * # # nk_property_int
- * Integer property directly modifying a passed in value
+ * 渡された整数値を直接変更するプロパティです。
  * !!! \warning
- *     To generate a unique property ID using the same label make sure to insert
- *     a `#` at the beginning. It will not be shown but guarantees correct behavior.
+ *     同じラベルを使って一意のプロパティ ID を生成するには、名前の先頭に `#` を付けてください。
+ *     `#` は表示されませんが、正しい動作を保証します。
  *
  * ```c
  * void nk_property_int(struct nk_context *ctx, const char *name, int min, int *val, int max, int step, float inc_per_pixel);
@@ -3570,22 +3324,21 @@ NK_API nk_bool nk_color_pick(struct nk_context*, struct nk_colorf*, enum nk_colo
  *
  * Parameter           | Description
  * --------------------|-----------------------------------------------------------
- * \param[in] ctx             | Must point to an previously initialized `nk_context` struct after calling a layouting function
- * \param[in] name            | String used both as a label as well as a unique identifier
- * \param[in] min             | Minimum value not allowed to be underflown
- * \param[in] val             | Integer pointer to be modified
- * \param[in] max             | Maximum value not allowed to be overflown
- * \param[in] step            | Increment added and subtracted on increment and decrement button
- * \param[in] inc_per_pixel   | Value per pixel added or subtracted on dragging
+ * \param[in] ctx             | レイアウト関数を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] name            | ラベル表示と一意識別子の両方に使われる文字列
+ * \param[in] min             | 許容される最小値（これより下にはできない）
+ * \param[in] val             | 変更対象の整数へのポインタ
+ * \param[in] max             | 許容される最大値（これより上にはできない）
+ * \param[in] step            | インクリメント/デクリメントボタンで加算/減算される量
+ * \param[in] inc_per_pixel   | ドラッグ操作でピクセルごとに加算/減算される値
  */
 NK_API void nk_property_int(struct nk_context*, const char *name, int min, int *val, int max, int step, float inc_per_pixel);
 
 /**
  * # # nk_property_float
- * Float property directly modifying a passed in value
+ * 渡された浮動小数点値を直接変更するプロパティです。
  * !!! \warning
- *     To generate a unique property ID using the same label make sure to insert
- *     a `#` at the beginning. It will not be shown but guarantees correct behavior.
+ *     同じラベルを使う場合は名前の先頭に `#` を付けて一意 ID を生成してください。
  *
  * ```c
  * void nk_property_float(struct nk_context *ctx, const char *name, float min, float *val, float max, float step, float inc_per_pixel);
@@ -3593,22 +3346,21 @@ NK_API void nk_property_int(struct nk_context*, const char *name, int min, int *
  *
  * Parameter           | Description
  * --------------------|-----------------------------------------------------------
- * \param[in] ctx             | Must point to an previously initialized `nk_context` struct after calling a layouting function
- * \param[in] name            | String used both as a label as well as a unique identifier
- * \param[in] min             | Minimum value not allowed to be underflown
- * \param[in] val             | Float pointer to be modified
- * \param[in] max             | Maximum value not allowed to be overflown
- * \param[in] step            | Increment added and subtracted on increment and decrement button
- * \param[in] inc_per_pixel   | Value per pixel added or subtracted on dragging
+ * \param[in] ctx             | レイアウト関数を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] name            | ラベル表示と一意識別子に使われる文字列
+ * \param[in] min             | 許容される最小値
+ * \param[in] val             | 変更対象の浮動小数点値へのポインタ
+ * \param[in] max             | 許容される最大値
+ * \param[in] step            | インクリメント/デクリメントで使われる増分
+ * \param[in] inc_per_pixel   | ドラッグ時のピクセルあたり増分
  */
 NK_API void nk_property_float(struct nk_context*, const char *name, float min, float *val, float max, float step, float inc_per_pixel);
 
 /**
  * # # nk_property_double
- * Double property directly modifying a passed in value
+ * 渡された double 値を直接変更するプロパティです。
  * !!! \warning
- *     To generate a unique property ID using the same label make sure to insert
- *     a `#` at the beginning. It will not be shown but guarantees correct behavior.
+ *     同じラベルを使う場合は名前の先頭に `#` を付けてください。
  *
  * ```c
  * void nk_property_double(struct nk_context *ctx, const char *name, double min, double *val, double max, double step, double inc_per_pixel);
@@ -3616,82 +3368,79 @@ NK_API void nk_property_float(struct nk_context*, const char *name, float min, f
  *
  * Parameter           | Description
  * --------------------|-----------------------------------------------------------
- * \param[in] ctx             | Must point to an previously initialized `nk_context` struct after calling a layouting function
- * \param[in] name            | String used both as a label as well as a unique identifier
- * \param[in] min             | Minimum value not allowed to be underflown
- * \param[in] val             | Double pointer to be modified
- * \param[in] max             | Maximum value not allowed to be overflown
- * \param[in] step            | Increment added and subtracted on increment and decrement button
- * \param[in] inc_per_pixel   | Value per pixel added or subtracted on dragging
+ * \param[in] ctx             | レイアウト関数を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] name            | ラベル表示と一意識別子に使われる文字列
+ * \param[in] min             | 許容される最小値
+ * \param[in] val             | 変更対象の double へのポインタ
+ * \param[in] max             | 許容される最大値
+ * \param[in] step            | インクリメント/デクリメントで使われる増分
+ * \param[in] inc_per_pixel   | ドラッグ時のピクセルあたり増分
  */
 NK_API void nk_property_double(struct nk_context*, const char *name, double min, double *val, double max, double step, float inc_per_pixel);
 
 /**
  * # # nk_propertyi
- * Integer property modifying a passed in value and returning the new value
+ * 渡された整数値を変更し、新しい値を返すプロパティです。
  * !!! \warning
- *     To generate a unique property ID using the same label make sure to insert
- *     a `#` at the beginning. It will not be shown but guarantees correct behavior.
+ *     同一ラベルで一意 ID を生成する場合は名前の先頭に `#` を追加してください。
  *
  * ```c
  * int nk_propertyi(struct nk_context *ctx, const char *name, int min, int val, int max, int step, float inc_per_pixel);
  * ```
  *
- * \param[in] ctx              Must point to an previously initialized `nk_context` struct after calling a layouting function
- * \param[in] name             String used both as a label as well as a unique identifier
- * \param[in] min              Minimum value not allowed to be underflown
- * \param[in] val              Current integer value to be modified and returned
- * \param[in] max              Maximum value not allowed to be overflown
- * \param[in] step             Increment added and subtracted on increment and decrement button
- * \param[in] inc_per_pixel    Value per pixel added or subtracted on dragging
+ * \param[in] ctx              | レイアウト関数を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] name             | ラベル表示と一意識別子に使われる文字列
+ * \param[in] min              | 許容される最小値
+ * \param[in] val              | 現在の整数値（変更されて返される）
+ * \param[in] max              | 許容される最大値
+ * \param[in] step             | インクリメント/デクリメントで使われる増分
+ * \param[in] inc_per_pixel    | ドラッグ時のピクセルあたり増分
  *
- * \returns the new modified integer value
+ * \returns 変更後の整数値
  */
 NK_API int nk_propertyi(struct nk_context*, const char *name, int min, int val, int max, int step, float inc_per_pixel);
 
 /**
  * # # nk_propertyf
- * Float property modifying a passed in value and returning the new value
+ * 渡された浮動小数点値を変更し、新しい値を返すプロパティです。
  * !!! \warning
- *     To generate a unique property ID using the same label make sure to insert
- *     a `#` at the beginning. It will not be shown but guarantees correct behavior.
+ *     同一ラベルでの一意 ID 生成には名前の先頭に `#` を付けてください。
  *
  * ```c
  * float nk_propertyf(struct nk_context *ctx, const char *name, float min, float val, float max, float step, float inc_per_pixel);
  * ```
  *
- * \param[in] ctx              Must point to an previously initialized `nk_context` struct after calling a layouting function
- * \param[in] name             String used both as a label as well as a unique identifier
- * \param[in] min              Minimum value not allowed to be underflown
- * \param[in] val              Current float value to be modified and returned
- * \param[in] max              Maximum value not allowed to be overflown
- * \param[in] step             Increment added and subtracted on increment and decrement button
- * \param[in] inc_per_pixel    Value per pixel added or subtracted on dragging
+ * \param[in] ctx              | レイアウト関数を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] name             | ラベル表示と一意識別子に使われる文字列
+ * \param[in] min              | 許容される最小値
+ * \param[in] val              | 現在の浮動小数点値（変更されて返される）
+ * \param[in] max              | 許容される最大値
+ * \param[in] step             | インクリメント/デクリメントで使われる増分
+ * \param[in] inc_per_pixel    | ドラッグ時のピクセルあたり増分
  *
- * \returns the new modified float value
+ * \returns 変更後の浮動小数点値
  */
 NK_API float nk_propertyf(struct nk_context*, const char *name, float min, float val, float max, float step, float inc_per_pixel);
 
 /**
  * # # nk_propertyd
- * Float property modifying a passed in value and returning the new value
+ * 渡された double 値を変更し、新しい値を返すプロパティです。
  * !!! \warning
- *     To generate a unique property ID using the same label make sure to insert
- *     a `#` at the beginning. It will not be shown but guarantees correct behavior.
+ *     同一ラベルでの一意 ID 生成には名前の先頭に `#` を付けてください。
  *
  * ```c
- * float nk_propertyd(struct nk_context *ctx, const char *name, double min, double val, double max, double step, double inc_per_pixel);
+ * double nk_propertyd(struct nk_context *ctx, const char *name, double min, double val, double max, double step, double inc_per_pixel);
  * ```
  *
- * \param[in] ctx              Must point to an previously initialized `nk_context` struct after calling a layouting function
- * \param[in] name             String used both as a label as well as a unique identifier
- * \param[in] min              Minimum value not allowed to be underflown
- * \param[in] val              Current double value to be modified and returned
- * \param[in] max              Maximum value not allowed to be overflown
- * \param[in] step             Increment added and subtracted on increment and decrement button
- * \param[in] inc_per_pixel    Value per pixel added or subtracted on dragging
+ * \param[in] ctx              | レイアウト関数を呼んだ後の、事前に初期化された `nk_context` へのポインタ
+ * \param[in] name             | ラベル表示と一意識別子に使われる文字列
+ * \param[in] min              | 許容される最小値
+ * \param[in] val              | 現在の double 値（変更されて返される）
+ * \param[in] max              | 許容される最大値
+ * \param[in] step             | インクリメント/デクリメントで使われる増分
+ * \param[in] inc_per_pixel    | ドラッグ時のピクセルあたり増分
  *
- * \returns the new modified double value
+ * \returns 変更後の double 値
  */
 NK_API double nk_propertyd(struct nk_context*, const char *name, double min, double val, double max, double step, float inc_per_pixel);
 
@@ -12249,9 +11998,9 @@ typedef struct
 
 /* //////////////////////////////////////////////////////////////////////////// */
 /*  */
-/*  TEXTURE BAKING API */
+/*  TEXTURE BAKING API（テクスチャベイク API） */
 /*  */
-/*  If you use this API, you only have to call two functions ever. */
+/*  この API を使う場合、基本的に呼ぶべき関数は2つだけです。 */
 /*  */
 
 typedef struct
@@ -12265,10 +12014,10 @@ STBTT_DEF int stbtt_BakeFontBitmap(const unsigned char *data, int offset,  /*  f
                                 unsigned char *pixels, int pw, int ph,  /*  bitmap to be filled in */
                                 int first_char, int num_chars,          /*  characters to bake */
                                 stbtt_bakedchar *chardata);             /*  you allocate this, it's num_chars long */
-/*  if return is positive, the first unused row of the bitmap */
-/*  if return is negative, returns the negative of the number of characters that fit */
-/*  if return is 0, no characters fit and no rows were used */
-/*  This uses a very crappy packing. */
+/*  戻り値が正なら、ビットマップで使われていない最初の行のインデックスを返します。 */
+/*  戻り値が負なら、収まった文字数の負数を返します。 */
+/*  戻り値が 0 の場合、文字は一つも収まらず行も使われません。 */
+/*  ここでは簡易的な（非最適）なパッキングを使用しています。 */
 
 typedef struct
 {
@@ -12281,15 +12030,14 @@ STBTT_DEF void stbtt_GetBakedQuad(const stbtt_bakedchar *chardata, int pw, int p
                                float *xpos, float *ypos,   /*  pointers to current position in screen pixel space */
                                stbtt_aligned_quad *q,      /*  output: quad to draw */
                                int opengl_fillrule);       /*  true if opengl fill rule; false if DX9 or earlier */
-/*  Call GetBakedQuad with char_index = 'character - first_char', and it */
-/*  creates the quad you need to draw and advances the current position. */
+/*  GetBakedQuad は char_index に '文字 - first_char' を渡して呼び出します。 */
+/*  描画に使う四角形（quad）を生成し、現在の描画位置を進めます。 */
 /*  */
-/*  The coordinate system used assumes y increases downwards. */
+/*  座標系は y が下向きに増加するものを前提としています。 */
 /*  */
-/*  Characters will extend both above and below the current position; */
-/*  see discussion of "BASELINE" above. */
+/*  文字は現在位置の上下に伸びる場合があります。BASELINE の説明を参照してください。 */
 /*  */
-/*  It's inefficient; you might want to c&p it and optimize it. */
+/*  実装は効率的とは言えません。必要ならコピーして最適化してください。 */
 
 STBTT_DEF void stbtt_GetScaledFontVMetrics(const unsigned char *fontdata, int index, float size, float *ascent, float *descent, float *lineGap);
 /*  Query the font vertical metrics without having to create a font first. */
@@ -12297,10 +12045,10 @@ STBTT_DEF void stbtt_GetScaledFontVMetrics(const unsigned char *fontdata, int in
 
 /* //////////////////////////////////////////////////////////////////////////// */
 /*  */
-/*  NEW TEXTURE BAKING API */
+/*  NEW TEXTURE BAKING API（新しいテクスチャベイク API） */
 /*  */
-/*  This provides options for packing multiple fonts into one atlas, not */
-/*  perfectly but better than nothing. */
+/*  複数のフォントを一つのアトラスにパッキングするオプションを提供します。 */
+/*  完璧ではありませんが、まったくないよりは改善されます。 */
 
 typedef struct
 {
@@ -12316,35 +12064,30 @@ typedef struct stbrp_rect stbrp_rect;
 #endif
 
 STBTT_DEF int  stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, int width, int height, int stride_in_bytes, int padding, void *alloc_context);
-/*  Initializes a packing context stored in the passed-in stbtt_pack_context. */
-/*  Future calls using this context will pack characters into the bitmap passed */
-/*  in here: a 1-channel bitmap that is width * height. stride_in_bytes is */
-/*  the distance from one row to the next (or 0 to mean they are packed tightly */
-/*  together). "padding" is the amount of padding to leave between each */
-/*  character (normally you want '1' for bitmaps you'll use as textures with */
-/*  bilinear filtering). */
+/*  渡された stbtt_pack_context にパッキングコンテキストを初期化します。 */
+/*  このコンテキストを使った将来の呼び出しは、ここで渡されたビットマップに */
+/*  文字をパックします：1 チャネルのビットマップ（幅 * 高さ）。 */
+/*  stride_in_bytes は行から次の行までのバイト距離（0 は詰めてあることを意味）です。 */
+/*  "padding" は各文字間に空けるパディング量です（通常はテクスチャでの */
+/*  バイリニアフィルタを使う場合に 1 を指定します）。 */
 /*  */
-/*  Returns 0 on failure, 1 on success. */
+/*  成功時は 1、失敗時は 0 を返します。 */
 
 STBTT_DEF void stbtt_PackEnd  (stbtt_pack_context *spc);
-/*  Cleans up the packing context and frees all memory. */
+/*  パッキングコンテキストをクリーンアップし、確保されたメモリを解放します。 */
 
 #define STBTT_POINT_SIZE(x)   (-(x))
 
 STBTT_DEF int  stbtt_PackFontRange(stbtt_pack_context *spc, const unsigned char *fontdata, int font_index, float font_size,
                                 int first_unicode_char_in_range, int num_chars_in_range, stbtt_packedchar *chardata_for_range);
-/*  Creates character bitmaps from the font_index'th font found in fontdata (use */
-/*  font_index=0 if you don't know what that is). It creates num_chars_in_range */
-/*  bitmaps for characters with unicode values starting at first_unicode_char_in_range */
-/*  and increasing. Data for how to render them is stored in chardata_for_range; */
-/*  pass these to stbtt_GetPackedQuad to get back renderable quads. */
+/*  fontdata に含まれる font_index 番目のフォントから文字ビットマップを作成します。 */
+/*  font_index が何か分からなければ 0 を使ってください。first_unicode_char_in_range から */
+/*  連続する num_chars_in_range 個のユニコードに対してビットマップを作成します。 */
+/*  どのように描画するかの情報は chardata_for_range に格納され、 */
+/*  stbtt_GetPackedQuad に渡して描画用のクワッドを得ます。 */
 /*  */
-/*  font_size is the full height of the character from ascender to descender, */
-/*  as computed by stbtt_ScaleForPixelHeight. To use a point size as computed */
-/*  by stbtt_ScaleForMappingEmToPixels, wrap the point size in STBTT_POINT_SIZE() */
-/*  and pass that result as 'font_size': */
-/*        ...,                  20 , ... // font max minus min y is 20 pixels tall */
-/*        ..., STBTT_POINT_SIZE(20), ... // 'M' is 20 pixels tall */
+/*  font_size は ascender から descender までの高さ（ピクセル）です（stbtt_ScaleForPixelHeight による） */
+/*  STBTT_POINT_SIZE() を使うと EM サイズをピクセルへマッピングした値を渡せます。 */
 
 typedef struct
 {
@@ -12357,32 +12100,26 @@ typedef struct
 } stbtt_pack_range;
 
 STBTT_DEF int  stbtt_PackFontRanges(stbtt_pack_context *spc, const unsigned char *fontdata, int font_index, stbtt_pack_range *ranges, int num_ranges);
-/*  Creates character bitmaps from multiple ranges of characters stored in */
-/*  ranges. This will usually create a better-packed bitmap than multiple */
-/*  calls to stbtt_PackFontRange. Note that you can call this multiple */
-/*  times within a single PackBegin/PackEnd. */
+/*  ranges に格納された複数の文字範囲からビットマップを作成します。 */
+/*  通常、個別に stbtt_PackFontRange を複数回呼ぶよりも効率的にパックされます。 */
+/*  同一の PackBegin/PackEnd の間に複数回呼ぶこともできます。 */
 
 STBTT_DEF void stbtt_PackSetOversampling(stbtt_pack_context *spc, unsigned int h_oversample, unsigned int v_oversample);
-/*  Oversampling a font increases the quality by allowing higher-quality subpixel */
-/*  positioning, and is especially valuable at smaller text sizes. */
+/*  フォントのオーバーサンプリングは、サブピクセル位置精度を向上させ、 */
+/*  特に小さなサイズで効果を発揮します。 */
 /*  */
-/*  This function sets the amount of oversampling for all following calls to */
-/*  stbtt_PackFontRange(s) or stbtt_PackFontRangesGatherRects for a given */
-/*  pack context. The default (no oversampling) is achieved by h_oversample=1 */
-/*  and v_oversample=1. The total number of pixels required is */
-/*  h_oversample*v_oversample larger than the default; for example, 2x2 */
-/*  oversampling requires 4x the storage of 1x1. For best results, render */
-/*  oversampled textures with bilinear filtering. Look at the readme in */
-/*  stb/tests/oversample for information about oversampled fonts */
+/*  この関数は、以降の stbtt_PackFontRange(s) や stbtt_PackFontRangesGatherRects で使う */
+/*  オーバーサンプリング量を設定します。デフォルト（オーバーサンプリングなし）は */
+/*  h_oversample=1, v_oversample=1 です。必要なピクセル数は h_oversample*v_oversample 倍に */
+/*  なる点に注意してください（例: 2x2 は 4 倍のストレージを要します）。 */
+/*  最良の結果を得るには、オーバーサンプリングしたテクスチャをバイリニアフィルタで描画してください。 */
 /*  */
-/*  To use with PackFontRangesGather etc., you must set it before calls */
-/*  call to PackFontRangesGatherRects. */
+/*  PackFontRangesGatherRects 等と併用する場合は、これらの呼び出しの前に設定してください。 */
 
 STBTT_DEF void stbtt_PackSetSkipMissingCodepoints(stbtt_pack_context *spc, int skip);
-/*  If skip != 0, this tells stb_truetype to skip any codepoints for which */
-/*  there is no corresponding glyph. If skip=0, which is the default, then */
-/*  codepoints without a glyph recived the font's "missing character" glyph, */
-/*  typically an empty box by convention. */
+/*  skip != 0 の場合、対応するグリフが無いコードポイントはスキップします。 */
+/*  デフォルトの skip = 0 の場合、グリフが無いコードポイントはフォントの "missing character" */
+/* （慣例的に空の四角）を割り当てます。 */
 
 STBTT_DEF void stbtt_GetPackedQuad(const stbtt_packedchar *chardata, int pw, int ph,  /*  same data as above */
                                int char_index,             /*  character to display */
@@ -12393,15 +12130,12 @@ STBTT_DEF void stbtt_GetPackedQuad(const stbtt_packedchar *chardata, int pw, int
 STBTT_DEF int  stbtt_PackFontRangesGatherRects(stbtt_pack_context *spc, const stbtt_fontinfo *info, stbtt_pack_range *ranges, int num_ranges, stbrp_rect *rects);
 STBTT_DEF void stbtt_PackFontRangesPackRects(stbtt_pack_context *spc, stbrp_rect *rects, int num_rects);
 STBTT_DEF int  stbtt_PackFontRangesRenderIntoRects(stbtt_pack_context *spc, const stbtt_fontinfo *info, stbtt_pack_range *ranges, int num_ranges, stbrp_rect *rects);
-/*  Calling these functions in sequence is roughly equivalent to calling */
-/*  stbtt_PackFontRanges(). If you more control over the packing of multiple */
-/*  fonts, or if you want to pack custom data into a font texture, take a look */
-/*  at the source to of stbtt_PackFontRanges() and create a custom version */
-/*  using these functions, e.g. call GatherRects multiple times, */
-/*  building up a single array of rects, then call PackRects once, */
-/*  then call RenderIntoRects repeatedly. This may result in a */
-/*  better packing than calling PackFontRanges multiple times */
-/*  (or it may not). */
+/*  これらの関数を順に呼ぶことは、概ね stbtt_PackFontRanges() を呼ぶことと同等です。 */
+/*  複数フォントのパッキングをより細かく制御したい場合や、 */
+/*  カスタムデータをフォントテクスチャに詰めたい場合は、stbtt_PackFontRanges() の */
+/*  実装を参照して独自の手順を作成してください。例: GatherRects を複数回呼び、 */
+/*  rect 配列を構築してから PackRects を一度呼び、RenderIntoRects を繰り返す等。 */
+/*  これにより PackFontRanges を複数回呼ぶより良いパッキングが得られる場合があります。 */
 
 /*  this is an opaque structure that you shouldn't mess with which holds */
 /*  all the context needed from PackBegin to PackEnd. */
@@ -12420,52 +12154,50 @@ struct stbtt_pack_context {
 
 /* //////////////////////////////////////////////////////////////////////////// */
 /*  */
-/*  FONT LOADING */
+/*  FONT LOADING（フォント読み込み） */
 /*  */
 /*  */
 
 STBTT_DEF int stbtt_GetNumberOfFonts(const unsigned char *data);
-/*  This function will determine the number of fonts in a font file.  TrueType */
-/*  collection (.ttc) files may contain multiple fonts, while TrueType font */
-/*  (.ttf) files only contain one font. The number of fonts can be used for */
-/*  indexing with the previous function where the index is between zero and one */
-/*  less than the total fonts. If an error occurs, -1 is returned. */
+/*  この関数はフォントファイル内のフォント数を判定します。 */
+/*  TrueType collection (.ttc) は複数のフォントを含むことがあり、 */
+/*  TrueType font (.ttf) は通常一つだけです。返された数は 0 から (数-1) の範囲で */
+/*  フォントをインデックスする際に使えます。エラー時は -1 を返します。 */
 
 STBTT_DEF int stbtt_GetFontOffsetForIndex(const unsigned char *data, int index);
-/*  Each .ttf/.ttc file may have more than one font. Each font has a sequential */
-/*  index number starting from 0. Call this function to get the font offset for */
-/*  a given index; it returns -1 if the index is out of range. A regular .ttf */
-/*  file will only define one font and it always be at offset 0, so it will */
-/*  return '0' for index 0, and -1 for all other indices. */
+/*  各 .ttf/.ttc ファイルは複数のフォントを持つ場合があります。各フォントは */
+/*  0 から始まる連番のインデックスを持ちます。この関数は指定したインデックスの */
+/*  フォントオフセットを取得します。範囲外なら -1 を返します。通常の .ttf は */
+/*  1 フォントだけでオフセット 0 に配置されるため、index=0 では 0 を返し、 */
+/*  それ以外は -1 になります。 */
 
-/*  The following structure is defined publicly so you can declare one on */
-/*  the stack or as a global or etc, but you should treat it as opaque. */
+/*  以下の構造体は公開定義されているためスタックやグローバルに置けますが、 */
+/*  内部は不透明（opaque）として扱ってください。 */
 struct stbtt_fontinfo
 {
    void           * userdata;
-   unsigned char  * data;              /*  pointer to .ttf file */
-   int              fontstart;         /*  offset of start of font */
+    unsigned char  * data;              /*  .ttf ファイルへのポインタ */
+    int              fontstart;         /*  フォント開始位置へのオフセット（ファイル先頭からのバイトオフセット） */
 
-   int numGlyphs;                     /*  number of glyphs, needed for range checking */
+    int numGlyphs;                     /*  グリフの総数（範囲チェックに使用） */
 
-   int loca,head,glyf,hhea,hmtx,kern,gpos,svg; /*  table locations as offset from start of .ttf */
-   int index_map;                     /*  a cmap mapping for our chosen character encoding */
-   int indexToLocFormat;              /*  format needed to map from glyph index to glyph */
+    int loca,head,glyf,hhea,hmtx,kern,gpos,svg; /*  各テーブルの位置（.ttf ファイル先頭からのオフセット） */
+    int index_map;                     /*  選択した文字エンコーディングに対応する cmap マッピング */
+    int indexToLocFormat;              /*  グリフインデックスからグリフ位置へ変換する際の形式 */
 
-   stbtt__buf cff;                    /*  cff font data */
-   stbtt__buf charstrings;            /*  the charstring index */
-   stbtt__buf gsubrs;                 /*  global charstring subroutines index */
-   stbtt__buf subrs;                  /*  private charstring subroutines index */
-   stbtt__buf fontdicts;              /*  array of font dicts */
-   stbtt__buf fdselect;               /*  map from glyph to fontdict */
+    stbtt__buf cff;                    /*  CFF フォントデータ */
+    stbtt__buf charstrings;            /*  charstring インデックス（字形定義） */
+    stbtt__buf gsubrs;                 /*  グローバルな charstring サブルーチンのインデックス */
+    stbtt__buf subrs;                  /*  プライベートな charstring サブルーチンのインデックス */
+    stbtt__buf fontdicts;              /*  フォントディクショナリの配列 */
+    stbtt__buf fdselect;               /*  グリフからフォントディクショナリへのマッピング */
 };
 
 STBTT_DEF int stbtt_InitFont(stbtt_fontinfo *info, const unsigned char *data, int offset);
-/*  Given an offset into the file that defines a font, this function builds */
-/*  the necessary cached info for the rest of the system. You must allocate */
-/*  the stbtt_fontinfo yourself, and stbtt_InitFont will fill it out. You don't */
-/*  need to do anything special to free it, because the contents are pure */
-/*  value data with no additional data structures. Returns 0 on failure. */
+/*  ファイル内のフォント定義オフセットを与えると、他の処理で必要なキャッシュ情報を構築します。 */
+/*  stbtt_fontinfo は呼び出し元が割り当てておき、stbtt_InitFont が中身を埋めます。 */
+/*  追加のデータ構造を持たない純粋な値データなので、解放に特別な処理は不要です。 */
+/*  失敗時は 0 を返します。 */
 
 
 /* //////////////////////////////////////////////////////////////////////////// */
@@ -12473,11 +12205,10 @@ STBTT_DEF int stbtt_InitFont(stbtt_fontinfo *info, const unsigned char *data, in
 /*  CHARACTER TO GLYPH-INDEX CONVERSIOn */
 
 STBTT_DEF int stbtt_FindGlyphIndex(const stbtt_fontinfo *info, int unicode_codepoint);
-/*  If you're going to perform multiple operations on the same character */
-/*  and you want a speed-up, call this function with the character you're */
-/*  going to process, then use glyph-based functions instead of the */
-/*  codepoint-based functions. */
-/*  Returns 0 if the character codepoint is not defined in the font. */
+/*  同じ文字に対して複数操作を行う場合や高速化したい場合は、 */
+/*  この関数で対象文字の glyph インデックスを取得してから、 */
+/*  codepoint ベースの関数ではなく glyph ベースの関数を使ってください。 */
+/*  指定コードポイントがフォントに定義されていない場合は 0 を返します。 */
 
 
 /* //////////////////////////////////////////////////////////////////////////// */
@@ -12486,45 +12217,40 @@ STBTT_DEF int stbtt_FindGlyphIndex(const stbtt_fontinfo *info, int unicode_codep
 /*  */
 
 STBTT_DEF float stbtt_ScaleForPixelHeight(const stbtt_fontinfo *info, float pixels);
-/*  computes a scale factor to produce a font whose "height" is 'pixels' tall. */
-/*  Height is measured as the distance from the highest ascender to the lowest */
-/*  descender; in other words, it's equivalent to calling stbtt_GetFontVMetrics */
-/*  and computing: */
+/*  フォントの "高さ" が pixels になるためのスケール係数を計算します。 */
+/*  高さは最大の ascender から最小の descender までの距離で測られます。 */
+/*  すなわち stbtt_GetFontVMetrics を呼んで次を計算するのと同等です： */
 /*        scale = pixels / (ascent - descent) */
-/*  so if you prefer to measure height by the ascent only, use a similar calculation. */
+/*  ascent のみで高さを測りたい場合は同様の計算を行ってください。 */
 
 STBTT_DEF float stbtt_ScaleForMappingEmToPixels(const stbtt_fontinfo *info, float pixels);
-/*  computes a scale factor to produce a font whose EM size is mapped to */
-/*  'pixels' tall. This is probably what traditional APIs compute, but */
-/*  I'm not positive. */
+/*  EM サイズを pixels にマップするためのスケール係数を計算します。 */
+/*  これは伝統的な API が計算するものに近いと思われますが、確実ではありません。 */
 
 STBTT_DEF void stbtt_GetFontVMetrics(const stbtt_fontinfo *info, int *ascent, int *descent, int *lineGap);
-/*  ascent is the coordinate above the baseline the font extends; descent */
-/*  is the coordinate below the baseline the font extends (i.e. it is typically negative) */
-/*  lineGap is the spacing between one row's descent and the next row's ascent... */
-/*  so you should advance the vertical position by "*ascent - *descent + *lineGap" */
-/*    these are expressed in unscaled coordinates, so you must multiply by */
-/*    the scale factor for a given size */
+/*  ascent はベースラインより上へフォントが伸びる座標、descent はベースラインより下へ */
+/*  伸びる座標（通常負の値）です。lineGap はある行の descent と次行の ascent の間の間隔です。 */
+/*  垂直方向の進め方は "*ascent - *descent + *lineGap" を使います。 */
+/*  これらはスケールされていない座標なので、実際のサイズではスケール係数を掛けてください。 */
 
 STBTT_DEF int  stbtt_GetFontVMetricsOS2(const stbtt_fontinfo *info, int *typoAscent, int *typoDescent, int *typoLineGap);
-/*  analogous to GetFontVMetrics, but returns the "typographic" values from the OS/2 */
-/*  table (specific to MS/Windows TTF files). */
-/*  */
-/*  Returns 1 on success (table present), 0 on failure. */
+/*  GetFontVMetrics と類似していますが、OS/2 テーブルからのタイポグラフィ値を返します（ */
+/*  MS/Windows 向け TTF ファイル固有）。 */
+/*  成功（テーブルが存在）で 1、失敗で 0 を返します。 */
 
 STBTT_DEF void stbtt_GetFontBoundingBox(const stbtt_fontinfo *info, int *x0, int *y0, int *x1, int *y1);
-/*  the bounding box around all possible characters */
+/*  フォントが表現しうるすべての文字を包含するバウンディングボックス */
 
 STBTT_DEF void stbtt_GetCodepointHMetrics(const stbtt_fontinfo *info, int codepoint, int *advanceWidth, int *leftSideBearing);
-/*  leftSideBearing is the offset from the current horizontal position to the left edge of the character */
-/*  advanceWidth is the offset from the current horizontal position to the next horizontal position */
-/*    these are expressed in unscaled coordinates */
+/*  leftSideBearing は現在の水平位置から文字の左端へのオフセット */
+/*  advanceWidth は現在の水平位置から次の水平位置へのオフセットです */
+/*  これらはスケールされていない座標で表されています。 */
 
 STBTT_DEF int  stbtt_GetCodepointKernAdvance(const stbtt_fontinfo *info, int ch1, int ch2);
-/*  an additional amount to add to the 'advance' value between ch1 and ch2 */
+/*  ch1 と ch2 の間の advance 値に追加するカーニング量 */
 
 STBTT_DEF int stbtt_GetCodepointBox(const stbtt_fontinfo *info, int codepoint, int *x0, int *y0, int *x1, int *y1);
-/*  Gets the bounding box of the visible part of the glyph, in unscaled coordinates */
+/*  グリフの可視部分のバウンディングボックスをスケールされていない座標で取得します */
 
 STBTT_DEF void stbtt_GetGlyphHMetrics(const stbtt_fontinfo *info, int glyph_index, int *advanceWidth, int *leftSideBearing);
 STBTT_DEF int  stbtt_GetGlyphKernAdvance(const stbtt_fontinfo *info, int glyph1, int glyph2);
@@ -30686,425 +30412,3 @@ nk_tooltipfv(struct nk_context *ctx, const char *fmt, va_list args)
 
 
 #endif /* NK_IMPLEMENTATION */
-
-/*
-/// ## License
-/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~none
-///    ------------------------------------------------------------------------------
-///    This software is available under 2 licenses -- choose whichever you prefer.
-///    ------------------------------------------------------------------------------
-///    ALTERNATIVE A - MIT License
-///    Copyright (c) 2016-2018 Micha Mettke
-///    Permission is hereby granted, free of charge, to any person obtaining a copy of
-///    this software and associated documentation files (the "Software"), to deal in
-///    the Software without restriction, including without limitation the rights to
-///    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-///    of the Software, and to permit persons to whom the Software is furnished to do
-///    so, subject to the following conditions:
-///    The above copyright notice and this permission notice shall be included in all
-///    copies or substantial portions of the Software.
-///    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-///    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-///    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-///    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-///    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-///    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-///    SOFTWARE.
-///    ------------------------------------------------------------------------------
-///    ALTERNATIVE B - Public Domain (www.unlicense.org)
-///    This is free and unencumbered software released into the public domain.
-///    Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
-///    software, either in source code form or as a compiled binary, for any purpose,
-///    commercial or non-commercial, and by any means.
-///    In jurisdictions that recognize copyright laws, the author or authors of this
-///    software dedicate any and all copyright interest in the software to the public
-///    domain. We make this dedication for the benefit of the public at large and to
-///    the detriment of our heirs and successors. We intend this dedication to be an
-///    overt act of relinquishment in perpetuity of all present and future rights to
-///    this software under copyright law.
-///    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-///    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-///    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-///    AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-///    ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-///    WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-///    ------------------------------------------------------------------------------
-/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-/// ## Changelog
-/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~none
-/// [date] ([x.y.z]) - [description]
-/// - [date]: date on which the change has been pushed
-/// - [x.y.z]: Version string, represented in Semantic Versioning format
-///   - [x]: Major version with API and library breaking changes
-///   - [y]: Minor version with non-breaking API and library changes
-///   - [z]: Patch version with no direct changes to the API
-///
-/// - 2025/04/06 (4.12.7) - Fix text input navigation and mouse scrolling
-/// - 2025/03/29 (4.12.6) - Fix unitialized data in nk_input_char
-/// - 2025/03/05 (4.12.5) - Fix scrolling knob also scrolling parent window, remove dead code
-/// - 2024/12/11 (4.12.4) - Fix array subscript [0, 0] is outside array bounds of ‘char[1]’
-/// - 2024/12/11 (4.12.3) - Fix border color for property widgets
-/// - 2024/11/20 (4.12.2) - Fix int/float type conversion warnings in `nk_roundf`
-/// - 2024/03/07 (4.12.1) - Fix bitwise operations warnings in C++20
-/// - 2023/11/26 (4.12.0) - Added an alignment option to checkboxes and radio buttons.
-/// - 2023/10/11 (4.11.0) - Added nk_widget_disable_begin() and nk_widget_disable_end()
-/// - 2022/12/23 (4.10.6) - Fix incorrect glyph index in nk_font_bake()
-/// - 2022/12/17 (4.10.5) - Fix nk_font_bake_pack() using TTC font offset incorrectly
-/// - 2022/10/24 (4.10.4) - Fix nk_str_{append,insert}_str_utf8 always returning 0
-/// - 2022/09/03 (4.10.3) - Renamed the `null` texture variable to `tex_null`
-/// - 2022/08/01 (4.10.2) - Fix Apple Silicon with incorrect NK_SITE_TYPE and NK_POINTER_TYPE
-/// - 2022/08/01 (4.10.1) - Fix cursor jumping back to beginning of text when typing more than
-///                         nk_edit_xxx limit
-/// - 2022/05/27 (4.10.0) - Add nk_input_has_mouse_click_in_button_rect() to fix window move bug
-/// - 2022/04/19 (4.9.8)  - Added nk_rule_horizontal() widget
-/// - 2022/04/18 (4.9.7)  - Change button behavior when NK_BUTTON_TRIGGER_ON_RELEASE is defined to
-///                         only trigger when the mouse position was inside the same button on down
-/// - 2022/02/03 (4.9.6)  - Allow overriding the NK_INV_SQRT function, similar to NK_SIN and NK_COS
-/// - 2021/12/22 (4.9.5)  - Revert layout bounds not accounting for padding due to regressions
-/// - 2021/12/22 (4.9.4)  - Fix checking hovering when window is minimized
-/// - 2021/12/22 (4.09.3) - Fix layout bounds not accounting for padding
-/// - 2021/12/19 (4.09.2) - Update to stb_rect_pack.h v1.01 and stb_truetype.h v1.26
-/// - 2021/12/16 (4.09.1) - Fix the majority of GCC warnings
-/// - 2021/10/16 (4.09.0) - Added nk_spacer() widget
-/// - 2021/09/22 (4.08.6) - Fix "may be used uninitialized" warnings in nk_widget
-/// - 2021/09/22 (4.08.5) - GCC __builtin_offsetof only exists in version 4 and later
-/// - 2021/09/15 (4.08.4) - Fix "'num_len' may be used uninitialized" in nk_do_property
-/// - 2021/09/15 (4.08.3) - Fix "Templates cannot be declared to have 'C' Linkage"
-/// - 2021/09/08 (4.08.2) - Fix warnings in C89 builds
-/// - 2021/09/08 (4.08.1) - Use compiler builtins for NK_OFFSETOF when possible
-/// - 2021/08/17 (4.08.0) - Implemented 9-slice scaling support for widget styles
-/// - 2021/08/16 (4.07.5) - Replace usage of memset in nk_font_atlas_bake with NK_MEMSET
-/// - 2021/08/15 (4.07.4) - Fix conversion and sign conversion warnings
-/// - 2021/08/08 (4.07.3) - Fix crash when baking merged fonts
-/// - 2021/08/08 (4.07.2) - Fix Multiline Edit wrong offset
-/// - 2021/03/17 (4.07.1) - Fix warning about unused parameter
-/// - 2021/03/17 (4.07.0) - Fix nk_property hover bug
-/// - 2021/03/15 (4.06.4) - Change nk_propertyi back to int
-/// - 2021/03/15 (4.06.3) - Update documentation for functions that now return nk_bool
-/// - 2020/12/19 (4.06.2) - Fix additional C++ style comments which are not allowed in ISO C90.
-/// - 2020/10/11 (4.06.1) - Fix C++ style comments which are not allowed in ISO C90.
-/// - 2020/10/07 (4.06.0) - Fix nk_combo return type wrongly changed to nk_bool
-/// - 2020/09/05 (4.05.0) - Use the nk_font_atlas allocator for stb_truetype memory management.
-/// - 2020/09/04 (4.04.1) - Replace every boolean int by nk_bool
-/// - 2020/09/04 (4.04.0) - Add nk_bool with NK_INCLUDE_STANDARD_BOOL
-/// - 2020/06/13 (4.03.1) - Fix nk_pool allocation sizes.
-/// - 2020/06/04 (4.03.0) - Made nk_combo header symbols optional.
-/// - 2020/05/27 (4.02.5) - Fix nk_do_edit: Keep scroll position when re-activating edit widget.
-/// - 2020/05/09 (4.02.4) - Fix nk_menubar height calculation bug
-/// - 2020/05/08 (4.02.3) - Fix missing stdarg.h with NK_INCLUDE_STANDARD_VARARGS
-/// - 2020/04/30 (4.02.2) - Fix nk_edit border drawing bug
-/// - 2020/04/09 (4.02.1) - Removed unused nk_sqrt function to fix compiler warnings
-///                       - Fixed compiler warnings if you bring your own methods for
-///                        nk_cos/nk_sin/nk_strtod/nk_memset/nk_memcopy/nk_dtoa
-/// - 2020/04/06 (4.01.10) - Fix bug: Do not use pool before checking for NULL
-/// - 2020/03/22 (4.01.9) - Fix bug where layout state wasn't restored correctly after
-///                        popping a tree.
-/// - 2020/03/11 (4.01.8) - Fix bug where padding is subtracted from widget
-/// - 2020/03/06 (4.01.7) - Fix bug where width padding was applied twice
-/// - 2020/02/06 (4.01.6) - Update stb_truetype.h and stb_rect_pack.h and separate them
-/// - 2019/12/10 (4.01.5) - Fix off-by-one error in NK_INTERSECT
-/// - 2019/10/09 (4.01.4) - Fix bug for autoscrolling in nk_do_edit
-/// - 2019/09/20 (4.01.3) - Fixed a bug wherein combobox cannot be closed by clicking the header
-///                        when NK_BUTTON_TRIGGER_ON_RELEASE is defined.
-/// - 2019/09/10 (4.01.2) - Fixed the nk_cos function, which deviated significantly.
-/// - 2019/09/08 (4.01.1) - Fixed a bug wherein re-baking of fonts caused a segmentation
-///                        fault due to dst_font->glyph_count not being zeroed on subsequent
-///                        bakes of the same set of fonts.
-/// - 2019/06/23 (4.01.0) - Added nk_***_get_scroll and nk_***_set_scroll for groups, windows, and popups.
-/// - 2019/06/12 (4.00.3) - Fix panel background drawing bug.
-/// - 2018/10/31 (4.00.2) - Added NK_KEYSTATE_BASED_INPUT to "fix" state based backends
-///                        like GLFW without breaking key repeat behavior on event based.
-/// - 2018/04/01 (4.00.1) - Fixed calling `nk_convert` multiple time per single frame.
-/// - 2018/04/01 (4.00.0) - BREAKING CHANGE: nk_draw_list_clear no longer tries to
-///                        clear provided buffers. So make sure to either free
-///                        or clear each passed buffer after calling nk_convert.
-/// - 2018/02/23 (3.00.6) - Fixed slider dragging behavior.
-/// - 2018/01/31 (3.00.5) - Fixed overcalculation of cursor data in font baking process.
-/// - 2018/01/31 (3.00.4) - Removed name collision with stb_truetype.
-/// - 2018/01/28 (3.00.3) - Fixed panel window border drawing bug.
-/// - 2018/01/12 (3.00.2) - Added `nk_group_begin_titled` for separated group identifier and title.
-/// - 2018/01/07 (3.00.1) - Started to change documentation style.
-/// - 2018/01/05 (3.00.0) - BREAKING CHANGE: The previous color picker API was broken
-///                        because of conversions between float and byte color representation.
-///                        Color pickers now use floating point values to represent
-///                        HSV values. To get back the old behavior I added some additional
-///                        color conversion functions to cast between nk_color and
-///                        nk_colorf.
-/// - 2017/12/23 (2.00.7) - Fixed small warning.
-/// - 2017/12/23 (2.00.7) - Fixed `nk_edit_buffer` behavior if activated to allow input.
-/// - 2017/12/23 (2.00.7) - Fixed modifyable progressbar dragging visuals and input behavior.
-/// - 2017/12/04 (2.00.6) - Added formatted string tooltip widget.
-/// - 2017/11/18 (2.00.5) - Fixed window becoming hidden with flag `NK_WINDOW_NO_INPUT`.
-/// - 2017/11/15 (2.00.4) - Fixed font merging.
-/// - 2017/11/07 (2.00.3) - Fixed window size and position modifier functions.
-/// - 2017/09/14 (2.00.2) - Fixed `nk_edit_buffer` and `nk_edit_focus` behavior.
-/// - 2017/09/14 (2.00.1) - Fixed window closing behavior.
-/// - 2017/09/14 (2.00.0) - BREAKING CHANGE: Modifying window position and size functions now
-///                        require the name of the window and must happen outside the window
-///                        building process (between function call nk_begin and nk_end).
-/// - 2017/09/11 (1.40.9) - Fixed window background flag if background window is declared last.
-/// - 2017/08/27 (1.40.8) - Fixed `nk_item_is_any_active` for hidden windows.
-/// - 2017/08/27 (1.40.7) - Fixed window background flag.
-/// - 2017/07/07 (1.40.6) - Fixed missing clipping rect check for hovering/clicked
-///                        query for widgets.
-/// - 2017/07/07 (1.40.5) - Fixed drawing bug for vertex output for lines and stroked
-///                        and filled rectangles.
-/// - 2017/07/07 (1.40.4) - Fixed bug in nk_convert trying to add windows that are in
-///                        process of being destroyed.
-/// - 2017/07/07 (1.40.3) - Fixed table internal bug caused by storing table size in
-///                        window instead of directly in table.
-/// - 2017/06/30 (1.40.2) - Removed unneeded semicolon in C++ NK_ALIGNOF macro.
-/// - 2017/06/30 (1.40.1) - Fixed drawing lines smaller or equal zero.
-/// - 2017/06/08 (1.40.0) - Removed the breaking part of last commit. Auto layout now only
-///                        comes in effect if you pass in zero was row height argument.
-/// - 2017/06/08 (1.40.0) - BREAKING CHANGE: while not directly API breaking it will change
-///                        how layouting works. From now there will be an internal minimum
-///                        row height derived from font height. If you need a row smaller than
-///                        that you can directly set it by `nk_layout_set_min_row_height` and
-///                        reset the value back by calling `nk_layout_reset_min_row_height.
-/// - 2017/06/08 (1.39.1) - Fixed property text edit handling bug caused by past `nk_widget` fix.
-/// - 2017/06/08 (1.39.0) - Added function to retrieve window space without calling a `nk_layout_xxx` function.
-/// - 2017/06/06 (1.38.5) - Fixed `nk_convert` return flag for command buffer.
-/// - 2017/05/23 (1.38.4) - Fixed activation behavior for widgets partially clipped.
-/// - 2017/05/10 (1.38.3) - Fixed wrong min window size mouse scaling over boundaries.
-/// - 2017/05/09 (1.38.2) - Fixed vertical scrollbar drawing with not enough space.
-/// - 2017/05/09 (1.38.1) - Fixed scaler dragging behavior if window size hits minimum size.
-/// - 2017/05/06 (1.38.0) - Added platform double-click support.
-/// - 2017/04/20 (1.37.1) - Fixed key repeat found inside glfw demo backends.
-/// - 2017/04/20 (1.37.0) - Extended properties with selection and clipboard support.
-/// - 2017/04/20 (1.36.2) - Fixed #405 overlapping rows with zero padding and spacing.
-/// - 2017/04/09 (1.36.1) - Fixed #403 with another widget float error.
-/// - 2017/04/09 (1.36.0) - Added window `NK_WINDOW_NO_INPUT` and `NK_WINDOW_NOT_INTERACTIVE` flags.
-/// - 2017/04/09 (1.35.3) - Fixed buffer heap corruption.
-/// - 2017/03/25 (1.35.2) - Fixed popup overlapping for `NK_WINDOW_BACKGROUND` windows.
-/// - 2017/03/25 (1.35.1) - Fixed windows closing behavior.
-/// - 2017/03/18 (1.35.0) - Added horizontal scroll requested in #377.
-/// - 2017/03/18 (1.34.3) - Fixed long window header titles.
-/// - 2017/03/04 (1.34.2) - Fixed text edit filtering.
-/// - 2017/03/04 (1.34.1) - Fixed group closable flag.
-/// - 2017/02/25 (1.34.0) - Added custom draw command for better language binding support.
-/// - 2017/01/24 (1.33.0) - Added programmatic way to remove edit focus.
-/// - 2017/01/24 (1.32.3) - Fixed wrong define for basic type definitions for windows.
-/// - 2017/01/21 (1.32.2) - Fixed input capture from hidden or closed windows.
-/// - 2017/01/21 (1.32.1) - Fixed slider behavior and drawing.
-/// - 2017/01/13 (1.32.0) - Added flag to put scaler into the bottom left corner.
-/// - 2017/01/13 (1.31.0) - Added additional row layouting method to combine both
-///                        dynamic and static widgets.
-/// - 2016/12/31 (1.30.0) - Extended scrollbar offset from 16-bit to 32-bit.
-/// - 2016/12/31 (1.29.2) - Fixed closing window bug of minimized windows.
-/// - 2016/12/03 (1.29.1) - Fixed wrapped text with no separator and C89 error.
-/// - 2016/12/03 (1.29.0) - Changed text wrapping to process words not characters.
-/// - 2016/11/22 (1.28.6) - Fixed window minimized closing bug.
-/// - 2016/11/19 (1.28.5) - Fixed abstract combo box closing behavior.
-/// - 2016/11/19 (1.28.4) - Fixed tooltip flickering.
-/// - 2016/11/19 (1.28.3) - Fixed memory leak caused by popup repeated closing.
-/// - 2016/11/18 (1.28.2) - Fixed memory leak caused by popup panel allocation.
-/// - 2016/11/10 (1.28.1) - Fixed some warnings and C++ error.
-/// - 2016/11/10 (1.28.0) - Added additional `nk_button` versions which allows to directly
-///                        pass in a style struct to change buttons visual.
-/// - 2016/11/10 (1.27.0) - Added additional `nk_tree` versions to support external state
-///                        storage. Just like last the `nk_group` commit the main
-///                        advantage is that you optionally can minimize nuklears runtime
-///                        memory consumption or handle hash collisions.
-/// - 2016/11/09 (1.26.0) - Added additional `nk_group` version to support external scrollbar
-///                        offset storage. Main advantage is that you can externalize
-///                        the memory management for the offset. It could also be helpful
-///                        if you have a hash collision in `nk_group_begin` but really
-///                        want the name. In addition I added `nk_list_view` which allows
-///                        to draw big lists inside a group without actually having to
-///                        commit the whole list to nuklear (issue #269).
-/// - 2016/10/30 (1.25.1) - Fixed clipping rectangle bug inside `nk_draw_list`.
-/// - 2016/10/29 (1.25.0) - Pulled `nk_panel` memory management into nuklear and out of
-///                        the hands of the user. From now on users don't have to care
-///                        about panels unless they care about some information. If you
-///                        still need the panel just call `nk_window_get_panel`.
-/// - 2016/10/21 (1.24.0) - Changed widget border drawing to stroked rectangle from filled
-///                        rectangle for less overdraw and widget background transparency.
-/// - 2016/10/18 (1.23.0) - Added `nk_edit_focus` for manually edit widget focus control.
-/// - 2016/09/29 (1.22.7) - Fixed deduction of basic type in non `<stdint.h>` compilation.
-/// - 2016/09/29 (1.22.6) - Fixed edit widget UTF-8 text cursor drawing bug.
-/// - 2016/09/28 (1.22.5) - Fixed edit widget UTF-8 text appending/inserting/removing.
-/// - 2016/09/28 (1.22.4) - Fixed drawing bug inside edit widgets which offset all text
-///                        text in every edit widget if one of them is scrolled.
-/// - 2016/09/28 (1.22.3) - Fixed small bug in edit widgets if not active. The wrong
-///                        text length is passed. It should have been in bytes but
-///                        was passed as glyphs.
-/// - 2016/09/20 (1.22.2) - Fixed color button size calculation.
-/// - 2016/09/20 (1.22.1) - Fixed some `nk_vsnprintf` behavior bugs and removed `<stdio.h>`
-///                        again from `NK_INCLUDE_STANDARD_VARARGS`.
-/// - 2016/09/18 (1.22.0) - C89 does not support vsnprintf only C99 and newer as well
-///                        as C++11 and newer. In addition to use vsnprintf you have
-///                        to include <stdio.h>. So just defining `NK_INCLUDE_STD_VAR_ARGS`
-///                        is not enough. That behavior is now fixed. By default if
-///                        both varargs as well as stdio is selected I try to use
-///                        vsnprintf if not possible I will revert to vsprintf. If
-///                        varargs but not stdio was defined I will use my own function.
-/// - 2016/09/15 (1.21.2) - Fixed panel `close` behavior for deeper panel levels.
-/// - 2016/09/15 (1.21.1) - Fixed C++ errors and wrong argument to `nk_panel_get_xxxx`.
-/// - 2016/09/13 (1.21.0) - !BREAKING! Fixed nonblocking popup behavior in menu, combo,
-///                        and contextual which prevented closing in y-direction if
-///                        popup did not reach max height.
-///                        In addition the height parameter was changed into vec2
-///                        for width and height to have more control over the popup size.
-/// - 2016/09/13 (1.20.3) - Cleaned up and extended type selection.
-/// - 2016/09/13 (1.20.2) - Fixed slider behavior hopefully for the last time. This time
-///                        all calculation are correct so no more hackery.
-/// - 2016/09/13 (1.20.1) - Internal change to divide window/panel flags into panel flags and types.
-///                        Suprisinly spend years in C and still happened to confuse types
-///                        with flags. Probably something to take note.
-/// - 2016/09/08 (1.20.0) - Added additional helper function to make it easier to just
-///                        take the produced buffers from `nk_convert` and unplug the
-///                        iteration process from `nk_context`. So now you can
-///                        just use the vertex,element and command buffer + two pointer
-///                        inside the command buffer retrieved by calls `nk__draw_begin`
-///                        and `nk__draw_end` and macro `nk_draw_foreach_bounded`.
-/// - 2016/09/08 (1.19.0) - Added additional asserts to make sure every `nk_xxx_begin` call
-///                        for windows, popups, combobox, menu and contextual is guarded by
-///                        `if` condition and does not produce false drawing output.
-/// - 2016/09/08 (1.18.0) - Changed confusing name for `NK_SYMBOL_RECT_FILLED`, `NK_SYMBOL_RECT`
-///                        to hopefully easier to understand `NK_SYMBOL_RECT_FILLED` and
-///                        `NK_SYMBOL_RECT_OUTLINE`.
-/// - 2016/09/08 (1.17.0) - Changed confusing name for `NK_SYMBOL_CIRLCE_FILLED`, `NK_SYMBOL_CIRCLE`
-///                        to hopefully easier to understand `NK_SYMBOL_CIRCLE_FILLED` and
-///                        `NK_SYMBOL_CIRCLE_OUTLINE`.
-/// - 2016/09/08 (1.16.0) - Added additional checks to select correct types if `NK_INCLUDE_FIXED_TYPES`
-///                        is not defined by supporting the biggest compiler GCC, clang and MSVC.
-/// - 2016/09/07 (1.15.3) - Fixed `NK_INCLUDE_COMMAND_USERDATA` define to not cause an error.
-/// - 2016/09/04 (1.15.2) - Fixed wrong combobox height calculation.
-/// - 2016/09/03 (1.15.1) - Fixed gaps inside combo boxes in OpenGL.
-/// - 2016/09/02 (1.15.0) - Changed nuklear to not have any default vertex layout and
-///                        instead made it user provided. The range of types to convert
-///                        to is quite limited at the moment, but I would be more than
-///                        happy to accept PRs to add additional.
-/// - 2016/08/30 (1.14.2) - Removed unused variables.
-/// - 2016/08/30 (1.14.1) - Fixed C++ build errors.
-/// - 2016/08/30 (1.14.0) - Removed mouse dragging from SDL demo since it does not work correctly.
-/// - 2016/08/30 (1.13.4) - Tweaked some default styling variables.
-/// - 2016/08/30 (1.13.3) - Hopefully fixed drawing bug in slider, in general I would
-///                        refrain from using slider with a big number of steps.
-/// - 2016/08/30 (1.13.2) - Fixed close and minimize button which would fire even if the
-///                        window was in Read Only Mode.
-/// - 2016/08/30 (1.13.1) - Fixed popup panel padding handling which was previously just
-///                        a hack for combo box and menu.
-/// - 2016/08/30 (1.13.0) - Removed `NK_WINDOW_DYNAMIC` flag from public API since
-///                        it is bugged and causes issues in window selection.
-/// - 2016/08/30 (1.12.0) - Removed scaler size. The size of the scaler is now
-///                        determined by the scrollbar size.
-/// - 2016/08/30 (1.11.2) - Fixed some drawing bugs caused by changes from 1.11.0.
-/// - 2016/08/30 (1.11.1) - Fixed overlapping minimized window selection.
-/// - 2016/08/30 (1.11.0) - Removed some internal complexity and overly complex code
-///                        handling panel padding and panel border.
-/// - 2016/08/29 (1.10.0) - Added additional height parameter to `nk_combobox_xxx`.
-/// - 2016/08/29 (1.10.0) - Fixed drawing bug in dynamic popups.
-/// - 2016/08/29 (1.10.0) - Added experimental mouse scrolling to popups, menus and comboboxes.
-/// - 2016/08/26 (1.10.0) - Added window name string prepresentation to account for
-///                        hash collisions. Currently limited to `NK_WINDOW_MAX_NAME`
-///                        which in term can be redefined if not big enough.
-/// - 2016/08/26 (1.10.0) - Added stacks for temporary style/UI changes in code.
-/// - 2016/08/25 (1.10.0) - Changed `nk_input_is_key_pressed` and 'nk_input_is_key_released'
-///                        to account for key press and release happening in one frame.
-/// - 2016/08/25 (1.10.0) - Added additional nk_edit flag to directly jump to the end on activate.
-/// - 2016/08/17 (1.09.6) - Removed invalid check for value zero in `nk_propertyx`.
-/// - 2016/08/16 (1.09.5) - Fixed ROM mode for deeper levels of popup windows parents.
-/// - 2016/08/15 (1.09.4) - Editbox are now still active if enter was pressed with flag
-///                        `NK_EDIT_SIG_ENTER`. Main reasoning is to be able to keep
-///                        typing after committing.
-/// - 2016/08/15 (1.09.4) - Removed redundant code.
-/// - 2016/08/15 (1.09.4) - Fixed negative numbers in `nk_strtoi` and remove unused variable.
-/// - 2016/08/15 (1.09.3) - Fixed `NK_WINDOW_BACKGROUND` flag behavior to select a background
-///                        window only as selected by hovering and not by clicking.
-/// - 2016/08/14 (1.09.2) - Fixed a bug in font atlas which caused wrong loading
-///                        of glyphs for font with multiple ranges.
-/// - 2016/08/12 (1.09.1) - Added additional function to check if window is currently
-///                        hidden and therefore not visible.
-/// - 2016/08/12 (1.09.1) - nk_window_is_closed now queries the correct flag `NK_WINDOW_CLOSED`
-///                        instead of the old flag `NK_WINDOW_HIDDEN`.
-/// - 2016/08/09 (1.09.0) - Added additional double version to nk_property and changed
-///                        the underlying implementation to not cast to float and instead
-///                        work directly on the given values.
-/// - 2016/08/09 (1.08.0) - Added additional define to overwrite library internal
-///                        floating pointer number to string conversion for additional
-///                        precision.
-/// - 2016/08/09 (1.08.0) - Added additional define to overwrite library internal
-///                        string to floating point number conversion for additional
-///                        precision.
-/// - 2016/08/08 (1.07.2) - Fixed compiling error without define `NK_INCLUDE_FIXED_TYPE`.
-/// - 2016/08/08 (1.07.1) - Fixed possible floating point error inside `nk_widget` leading
-///                        to wrong widget width calculation which results in widgets falsely
-///                        becoming tagged as not inside window and cannot be accessed.
-/// - 2016/08/08 (1.07.0) - Nuklear now differentiates between hiding a window (NK_WINDOW_HIDDEN) and
-///                        closing a window (NK_WINDOW_CLOSED). A window can be hidden/shown
-///                        by using `nk_window_show` and closed by either clicking the close
-///                        icon in a window or by calling `nk_window_close`. Only closed
-///                        windows get removed at the end of the frame while hidden windows
-///                        remain.
-/// - 2016/08/08 (1.06.0) - Added `nk_edit_string_zero_terminated` as a second option to
-///                        `nk_edit_string` which takes, edits and outputs a '\0' terminated string.
-/// - 2016/08/08 (1.05.4) - Fixed scrollbar auto hiding behavior.
-/// - 2016/08/08 (1.05.3) - Fixed wrong panel padding selection in `nk_layout_widget_space`.
-/// - 2016/08/07 (1.05.2) - Fixed old bug in dynamic immediate mode layout API, calculating
-///                        wrong item spacing and panel width.
-/// - 2016/08/07 (1.05.1) - Hopefully finally fixed combobox popup drawing bug.
-/// - 2016/08/07 (1.05.0) - Split varargs away from `NK_INCLUDE_STANDARD_IO` into own
-///                        define `NK_INCLUDE_STANDARD_VARARGS` to allow more fine
-///                        grained controlled over library includes.
-/// - 2016/08/06 (1.04.5) - Changed memset calls to `NK_MEMSET`.
-/// - 2016/08/04 (1.04.4) - Fixed fast window scaling behavior.
-/// - 2016/08/04 (1.04.3) - Fixed window scaling, movement bug which appears if you
-///                        move/scale a window and another window is behind it.
-///                        If you are fast enough then the window behind gets activated
-///                        and the operation is blocked. I now require activating
-///                        by hovering only if mouse is not pressed.
-/// - 2016/08/04 (1.04.2) - Fixed changing fonts.
-/// - 2016/08/03 (1.04.1) - Fixed `NK_WINDOW_BACKGROUND` behavior.
-/// - 2016/08/03 (1.04.0) - Added color parameter to `nk_draw_image`.
-/// - 2016/08/03 (1.04.0) - Added additional window padding style attributes for
-///                        sub windows (combo, menu, ...).
-/// - 2016/08/03 (1.04.0) - Added functions to show/hide software cursor.
-/// - 2016/08/03 (1.04.0) - Added `NK_WINDOW_BACKGROUND` flag to force a window
-///                        to be always in the background of the screen.
-/// - 2016/08/03 (1.03.2) - Removed invalid assert macro for NK_RGB color picker.
-/// - 2016/08/01 (1.03.1) - Added helper macros into header include guard.
-/// - 2016/07/29 (1.03.0) - Moved the window/table pool into the header part to
-///                        simplify memory management by removing the need to
-///                        allocate the pool.
-/// - 2016/07/29 (1.02.0) - Added auto scrollbar hiding window flag which if enabled
-///                        will hide the window scrollbar after NK_SCROLLBAR_HIDING_TIMEOUT
-///                        seconds without window interaction. To make it work
-///                        you have to also set a delta time inside the `nk_context`.
-/// - 2016/07/25 (1.01.1) - Fixed small panel and panel border drawing bugs.
-/// - 2016/07/15 (1.01.0) - Added software cursor to `nk_style` and `nk_context`.
-/// - 2016/07/15 (1.01.0) - Added const correctness to `nk_buffer_push' data argument.
-/// - 2016/07/15 (1.01.0) - Removed internal font baking API and simplified
-///                        font atlas memory management by converting pointer
-///                        arrays for fonts and font configurations to lists.
-/// - 2016/07/15 (1.00.0) - Changed button API to use context dependent button
-///                        behavior instead of passing it for every function call.
-/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/// ## Gallery
-/// ![Figure [blue]: Feature overview with blue color styling](https://cloud.githubusercontent.com/assets/8057201/13538240/acd96876-e249-11e5-9547-5ac0b19667a0.png)
-/// ![Figure [red]: Feature overview with red color styling](https://cloud.githubusercontent.com/assets/8057201/13538243/b04acd4c-e249-11e5-8fd2-ad7744a5b446.png)
-/// ![Figure [widgets]: Widget overview](https://cloud.githubusercontent.com/assets/8057201/11282359/3325e3c6-8eff-11e5-86cb-cf02b0596087.png)
-/// ![Figure [blackwhite]: Black and white](https://cloud.githubusercontent.com/assets/8057201/11033668/59ab5d04-86e5-11e5-8091-c56f16411565.png)
-/// ![Figure [filexp]: File explorer](https://cloud.githubusercontent.com/assets/8057201/10718115/02a9ba08-7b6b-11e5-950f-adacdd637739.png)
-/// ![Figure [opengl]: OpenGL Editor](https://cloud.githubusercontent.com/assets/8057201/12779619/2a20d72c-ca69-11e5-95fe-4edecf820d5c.png)
-/// ![Figure [nodedit]: Node Editor](https://cloud.githubusercontent.com/assets/8057201/9976995/e81ac04a-5ef7-11e5-872b-acd54fbeee03.gif)
-/// ![Figure [skinning]: Using skinning in Nuklear](https://cloud.githubusercontent.com/assets/8057201/15991632/76494854-30b8-11e6-9555-a69840d0d50b.png)
-/// ![Figure [bf]: Heavy modified version](https://cloud.githubusercontent.com/assets/8057201/14902576/339926a8-0d9c-11e6-9fee-a8b73af04473.png)
-///
-/// ## Credits
-/// Developed by Micha Mettke and every direct or indirect github contributor. <br /><br />
-///
-/// Embeds [stb_texedit](https://github.com/nothings/stb/blob/master/stb_textedit.h), [stb_truetype](https://github.com/nothings/stb/blob/master/stb_truetype.h) and [stb_rectpack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) by Sean Barret (public domain) <br />
-/// Uses [stddoc.c](https://github.com/r-lyeh/stddoc.c) from r-lyeh@github.com for documentation generation <br /><br />
-/// Embeds ProggyClean.ttf font by Tristan Grimmer (MIT license). <br />
-///
-/// Big thank you to Omar Cornut (ocornut@github) for his [imgui library](https://github.com/ocornut/imgui) and
-/// giving me the inspiration for this library, Casey Muratori for handmade hero
-/// and his original immediate mode graphical user interface idea and Sean
-/// Barret for his amazing single header libraries which restored my faith
-/// in libraries and brought me to create some of my own. Finally Apoorva Joshi
-/// for his single header file packer.
-*/
-
