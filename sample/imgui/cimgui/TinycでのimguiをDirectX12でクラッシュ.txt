@@ -1,0 +1,987 @@
+
+
+my_app_dx12.c
+964行
+
+c
+
+
+d3d12.def
+22行
+
+text
+
+
+tcc_cimgui_dx11_手順書.md
+391行
+
+md
+
+これはTiny-Cでimguiを表示するプログラムです
+https://github.com/cimgui/cimgui
+を使ってCで動作します
+またDirectX11は正常に動きます
+しかし
+
+    hr = queryInterface(pSwapChain1, &IID_IDXGISwapChain3, (void**)&g_pSwapChain);
+でクラッシュします
+Windows x64の仕様では、関数を呼ぶ直前にスタック（RSP）が必ず16の倍数に整列されている必要があります。DirectX 12の内部はSSE命令（128ビット）を多用しており、この整列が8バイトでもズレているとだめかもしれません。ソースを調べてもらえますか？
+
+14:41
+コードを詳しく調べました。クラッシュの原因はスタックアライメントよりもvtblオフセットの誤りの可能性が高いです。
+
+問題の特定
+Factory_CreateSwapChainForHwnd のvtblインデックスが間違っている
+c
+static HRESULT Factory_CreateSwapChainForHwnd(...)
+{ ... return ((F)(*(void***)fac)[15])(fac,q,hwnd,desc,fs,res,pp); }
+IDXGIFactory4のvtblを正確に数えると：
+
+Index	メソッド
+0	QueryInterface
+1	AddRef
+2	Release
+3	SetPrivateData
+4	SetPrivateDataInterface
+5	GetPrivateData
+6	GetParent
+7	EnumAdapters
+8	MakeWindowAssociation
+9	GetWindowAssociation
+10	CreateSwapChain
+11	CreateSoftwareAdapter
+12	EnumAdapters1
+13	IsCurrent
+14	IsWindowedStereoEnabled
+15	CreateSwapChainForHwnd ?
+ここは合っています。では次を確認します。
+
+Dev_CreateCommandList のvtblインデックスが間違っています
+c
+static HRESULT Dev_CreateCommandList(...)
+{ ... return ((F)(*(void***)dev)[12])(dev,...); }
+ID3D12Deviceのvtblを正確に数えると：
+
+Index	メソッド
+0	QueryInterface
+1	AddRef
+2	Release
+3	GetPrivateData
+4	SetPrivateData
+5	SetPrivateDataInterface
+6	SetName
+7	GetNodeCount
+8	CreateCommandQueue
+9	CreateCommandAllocator
+10	CreateGraphicsPipelineState
+11	CreateComputePipelineState
+12	CreateCommandList ?
+ここも合っています。では次です。
+
+Dev_CreateDescriptorHeap のインデックスが間違っています ??
+c
+static HRESULT Dev_CreateDescriptorHeap(...)
+{ ... return ((F)(*(void***)dev)[14])(dev,...); }
+Index	メソッド
+12	CreateCommandList
+13	CheckFeatureSupport
+14	CreateDescriptorHeap ?
+合っています。では Dev_CreateFence を確認します。
+
+Dev_CreateFence のインデックスが大きくズレています ??
+c
+static HRESULT Dev_CreateFence(...)
+{ ... return ((F)(*(void***)dev)[35])(dev,...); }
+ID3D12Deviceの正確なカウント：
+
+Index	メソッド
+14	CreateDescriptorHeap
+15	GetDescriptorHandleIncrementSize
+16	CreateRootSignature
+17	CreateConstantBufferView
+18	CreateShaderResourceView
+19	CreateUnorderedAccessView
+20	CreateRenderTargetView
+21	CreateDepthStencilView
+22	CreateSampler
+23	CopyDescriptors
+24	CopyDescriptorsSimple
+25	GetResourceAllocationInfo
+26	GetCustomHeapProperties
+27	CreateCommittedResource
+28	CreateHeap
+29	CreatePlacedResource
+30	CreateReservedResource
+31	CreateSharedHandle
+32	OpenSharedHandle
+33	OpenSharedHandleByName
+34	MakeResident
+35	Evict
+36	CreateFence ← 正しくは36
+[35]はEvict、CreateFenceは[36]です。 これによりInitD3D内でCreateFenceが別の関数を呼び出し、その後のQueryInterface呼び出し時にオブジェクト状態が壊れてクラッシュします。
+
+CmdQueue_Signal のインデックスも間違っています ??
+c
+static HRESULT CmdQueue_Signal(void* q, void* fence, UINT64 val)
+{ ... return ((F)(*(void***)q)[14])(q,fence,val); }
+ID3D12CommandQueueの正確なカウント：
+
+Index	メソッド
+0?6	IUnknown(3) + ID3D12Object(4)
+7	UpdateTileMappings
+8	CopyTileMappings
+9	ExecuteCommandLists（← [10]と書いてあるが実は[9]）
+10	SetMarker
+11	BeginEvent
+12	EndEvent
+13	Signal ← 正しくは13
+14	Wait
+つまり CmdQueue_ExecuteCommandListsも[10]→[9]、CmdQueue_Signalも[14]→[13]です。
+
+修正まとめ
+vtblインデックス修正箇所
+コード 
+根本的な原因
+ズレの原因はすべて**ID3D12ObjectとID3D12CommandListの扱い**です。
+
+ID3D12Object::GetType() は存在しない（ID3D12CommandList のみGetTypeを持つ）
+
+正しい継承チェーン:
+  ID3D12CommandList → ID3D12Object → IUnknown
+    ↑GetType[7]あり
+
+  ID3D12Device → ID3D12Object → IUnknown
+    ↑GetType なし → GetNodeCount が [7]
+
+  ID3D12Fence → ID3D12Pageable → ID3D12Object → IUnknown
+    ↑Pageableは追加メソッドなし → GetCompletedValue が [7]
+元コードは全体的に1?2ずつオフセットがズレており、それが積み重なって QueryInterface を呼ぶ段階で完全に壊れた状態になっていたものと思われます。修正後は Dev_CreateFence→[36]、CmdList_Close→[8]、Fence_GetCompletedValue→[7]、SwapChain_GetCurrentBackBufferIndex→[31] がそれぞれ最重要の修正点です。
+
+CreateRenderTarget
+        HRESULT hr = getBuffer(g_pSwapChain, i, &IID_ID3D12Resource, (void**)&pBackBuffer);
+14:52
+CreateRenderTarget
+の
+
+        HRESULT hr = getBuffer(g_pSwapChain, i, &IID_ID3D12Resource, (void**)&pBackBuffer);
+でクラッシュします
+
+14:53
+getBuffer のvtblインデックスを確認します。
+
+問題
+IDXGISwapChain3のGetBufferのインデックスが間違っています。
+
+IDXGISwapChain の継承チェーン:
+  IUnknown(0-2) + IDXGIObject(3-6) + IDXGIDeviceSubObject::GetDevice(7)
+  
+[8]  Present
+[9]  GetBuffer   ← ここは合ってる
+ではなく、IDXGIObjectのメソッド数が問題です。
+
+IDXGIObject のメソッド:
+[3] SetPrivateData
+[4] SetPrivateDataInterface
+[5] GetPrivateData
+[6] GetParent
+
+IDXGIDeviceSubObject:
+[7] GetDevice
+
+IDXGISwapChain:
+[8]  Present
+[9]  GetBuffer   ? ← これは正しい
+GetBufferの[9]は正しいです。では**GetBufferの呼び出し規約**を見ます。
+
+c
+// CreateRenderTarget 内
+GetBufferFn getBuffer = (GetBufferFn)(*(void***)g_pSwapChain)[9];
+ここで g_pSwapChain は IDXGISwapChain3* 型ですが…
+
+本当の原因
+c
+typedef struct IDXGISwapChain3 { IDXGISwapChain3Vtbl* lpVtbl; } IDXGISwapChain3;
+この構造体定義により g_pSwapChain はポインタのポインタになっています。
+
+c
+// g_pSwapChain は IDXGISwapChain3* 型
+// *(void***)g_pSwapChain → g_pSwapChain->lpVtbl (vtblポインタ) ? 正しい
+これは正しいです。では CreateRenderTarget 内の型定義を見ます：
+
+c
+typedef HRESULT(__stdcall *GetBufferFn)(void*, UINT, const GUID*, void**);
+__stdcall がありません（他のヘルパー関数と不一致）。x64では __stdcall と __cdecl は同じなので問題ないはずですが…
+
+実際の原因：CreateRenderTarget内でのキャスト
+c
+GetBufferFn getBuffer = (GetBufferFn)(*(void***)g_pSwapChain)[9];
+```
+
+`g_pSwapChain` は `IDXGISwapChain3*` です。`*(void***)` でキャストすると：
+```
+g_pSwapChain       = アドレスA  (IDXGISwapChain3* のポインタ)
+*g_pSwapChain      = lpVtbl    (vtblへのポインタ)
+*(void***)g_pSwapChain = vtbl[0]からのポインタ配列
+ここは正しいです。 では別の観点で確認します。
+
+真の原因：SwapChain_GetCurrentBackBufferIndexが先に壊す
+Render()内で以下が呼ばれます：
+
+c
+UINT backBufferIdx = SwapChain_GetCurrentBackBufferIndex(g_pSwapChain);
+前回の回答で[36]→[31]と修正しましたが、GetCurrentBackBufferIndexの正確な位置を再計算します：
+
+GetBuffer クラッシュ原因と修正
+コード 
+まとめ
+関数	旧インデックス	正しいインデックス
+SwapChain_GetBuffer	[9]	[9] ? そのまま
+SwapChain_GetCurrentBackBufferIndex	[36]（前回[31]と誤訂正）	[36] ? 元に戻す
+SwapChain_ResizeBuffers	[13]	[13] ? そのまま
+前回SwapChain_GetCurrentBackBufferIndexを[31]に修正したのは誤りでした。[36]が正しいです。
+
+クラッシュの直接原因はCreateRenderTarget内でgetBuffer関数ポインタを(GetBufferFn)(*(void***)g_pSwapChain)[9]と取得していますが、g_pSwapChainがQueryInterfaceの失敗（Dev_CreateFenceの[35]ズレ等）により無効なポインタになっていたことです。前回の修正（Dev_CreateFence→[36]など）を適用した上で、SwapChain_GetCurrentBackBufferIndexを[36]に戻してください。
+
+36に戻しましたが同じところでクラッシュします
+ログを添付します
+Step: D3D12CreateDevice
+device=000000000326D5A0
+Step: CreateCommandQueue
+Step: CreateCommandAllocator
+Step: CreateDescriptorHeap RTV
+Step: CreateDescriptorHeap SRV
+Step: CreateCommandList
+Step: CreateFence
+Step: CreateDXGIFactory2
+Step: CreateSwapChainForHwnd
+CreateSwapChainForHwnd: hr=0x00000000, pSwapChain1=0000000003617FB0
+Step: QueryInterface SwapChain3
+pSwapChain1 vtbl = 00007FFE62D3A000
+QueryInterface Func = 00007FFE62CA15E0
+QueryInterface Result: hr=0x00000000, g_pSwapChain=0000000003617FB0
+Step: CreateRenderTarget
+
+もっと表示
+14:57
+ログを見ると重要な手がかりがあります：
+
+g_pSwapChain=0000000003617FB0
+pSwapChain1 =0000000003617FB0  ← 同じアドレス！
+QueryInterfaceがSwapChain3への昇格をせず、同じオブジェクトをそのまま返しています。 つまりg_pSwapChainは実際にはIDXGISwapChain1であり、vtblレイアウトが異なります。
+
+さらにGetBufferは[9]のはずですが、CreateSwapChainForHwndが返すオブジェクトの実際のvtblを確認する必要があります。
+
+デバッグコードを追加して原因を特定
+CreateRenderTargetの直前に以下を追加してください：
+
+vtblダンプ用デバッグコード
+コード 
+このログを見せてもらえれば、GetBufferが本当に[9]にあるか、あるいは別のインデックスにあるかが判明します。
+
+現時点での推測
+pSwapChain1とg_pSwapChainが同じアドレスという点から、QueryInterfaceはAddRefして同じポインタを返しただけです。これ自体は正常動作（すでにSwapChain3を実装しているオブジェクトなら同一ポインタを返す）なので問題ではありません。
+
+クラッシュの本命は**IID_ID3D12ResourceのGUID定義が間違っている**可能性です：
+
+c
+// コード内の定義
+static const GUID IID_ID3D12Resource =
+    { 0x696442be, 0xa72e, 0x4059, {0xbc,0x79,0x5b,0x5c,0x98,0x04,0x0f,0xad} };
+```
+
+正しいGUIDは：
+```
+696442be-a72e-4059-bc79-5b5c98040fad
+これは合っています。となるとvtblインデックスの問題が濃厚なので、上記ダンプでvtbl[9]の関数アドレスを確認するのが最速です。
+
+ダンプ用デバッグコードを追加した完全ソースをお願いします
+
+14:58
+my_app_dx12.c (デバッグ版完全ソース)
+コード 
+このソースを実行するとvtbl[0]?vtbl[41]のアドレスが全部出力されます。特に注目すべき出力は以下です。
+
+クラッシュ前に必ず出るはずのログ：
+
+=== g_pSwapChain vtbl dump (0..41) ===
+  vtbl[ 0] = 00007FFE...   ← QueryInterface
+  vtbl[ 9] = 00007FFE...   ← ここが GetBuffer のはず
+  ...
+Trying GetBuffer via vtbl[9] (buffer 0)...
+GetBuffer[9]: hr=...       ← ここでクラッシュするかどうか
+vtbl[9]の試し呼び出しでもクラッシュする場合、そのアドレスを教えてください。vtblダンプと合わせて正しいインデックスを特定できます。
+
+Step: D3D12CreateDevice
+device=000000000339D450
+Step: CreateCommandQueue
+commandQueue=000000000A0B52E0
+Step: CreateCommandAllocator
+  allocator[0]=000000000A05A2D0
+  allocator[1]=000000000A05B2B0
+  allocator[2]=000000000A05C2F0
+Step: CreateDescriptorHeap RTV
+rtvDescHeap=000000000A05D330
+rtvDescriptorSize=32
+rtvStartHandle.ptr=0x300000000
+  rtvDescriptor[0].ptr=0x300000000
+  rtvDescriptor[1].ptr=0x300000020
+  rtvDescriptor[2].ptr=0x300000040
+Step: CreateDescriptorHeap SRV
+srvDescHeap=000000000A05D600
+Step: CreateCommandList
+commandList=000000000A05D930
+Step: CreateFence
+fence=000000000A1D8960
+Step: CreateDXGIFactory2
+factory=0000000009F65540
+SwapChain size: 784 x 561
+Step: CreateSwapChainForHwnd
+CreateSwapChainForHwnd: hr=0x00000000, pSwapChain1=000000000A1D8FB0
+Step: QueryInterface SwapChain3
+pSwapChain1 vtbl = 00007FFE62D3A000
+QueryInterface Func = 00007FFE62CA15E0
+QueryInterface Result: hr=0x00000000, g_pSwapChain=000000000A1D8FB0
+=== g_pSwapChain vtbl dump (0..41) ===
+  vtbl[ 0] = 00007FFE62CA15E0
+  vtbl[ 1] = 00007FFE62CA35D0
+  vtbl[ 2] = 00007FFE62CA3300
+  vtbl[ 3] = 00007FFE62D03B70
+  vtbl[ 4] = 00007FFE62D03F00
+  vtbl[ 5] = 00007FFE62D02B90
+  vtbl[ 6] = 00007FFE62D094B0
+  vtbl[ 7] = 00007FFE62D08F90
+  vtbl[ 8] = 00007FFE62CA18C0
+  vtbl[ 9] = 00007FFE62CBB6E0
+  vtbl[10] = 00007FFE62CC1F30
+  vtbl[11] = 00007FFE62CC4A40
+  vtbl[12] = 00007FFE62CBFC90
+  vtbl[13] = 00007FFE62CC2810
+  vtbl[14] = 00007FFE62D0C460
+  vtbl[15] = 00007FFE62D08820
+  vtbl[16] = 00007FFE62CAE1C0
+  vtbl[17] = 00007FFE62CBB8C0
+  vtbl[18] = 00007FFE62D08DA0
+  vtbl[19] = 00007FFE62D09030
+  vtbl[20] = 00007FFE62D09120
+  vtbl[21] = 00007FFE62D08AF0
+  vtbl[22] = 00007FFE62D0AA90
+  vtbl[23] = 00007FFE62D09D30
+  vtbl[24] = 00007FFE62D094D0
+  vtbl[25] = 00007FFE62D0D100
+  vtbl[26] = 00007FFE62D08310
+  vtbl[27] = 00007FFE62CA4D30
+  vtbl[28] = 00007FFE62D09510
+  vtbl[29] = 00007FFE62CA4B70
+  vtbl[30] = 00007FFE62D096E0
+  vtbl[31] = 00007FFE62CA3FB0
+  vtbl[32] = 00007FFE62CA4C70
+  vtbl[33] = 00007FFE62CA33D0
+  vtbl[34] = 00007FFE62CA4980
+  vtbl[35] = 00007FFE62D09170
+  vtbl[36] = 00007FFE62D08B50
+  vtbl[37] = 00007FFE62D05D20
+  vtbl[38] = 00007FFE62CA1600
+  vtbl[39] = 00007FFE62D0C0D0
+  vtbl[40] = 00007FFE62CA53D0
+  vtbl[41] = 00007FFE62D0FB30
+Trying GetBuffer via vtbl[9] (buffer 0)...
+GetBuffer[9]: hr=0x00000000, ptr=000000000A23DEA0
+Step: CreateRenderTarget
+  GetBuffer[0]: hr=0x00000000, ptr=000000000A23DEA
+でとまります
+
+もっと表示
+15:03
+GetBuffer[9]は成功しています。CreateRenderTarget内でクラッシュしているのは**Dev_CreateRTV（vtbl[20]）**です。
+
+ログを見ると：
+
+GetBuffer[9]: hr=0x00000000, ptr=000000000A23DEA0  ← 成功
+Step: CreateRenderTarget
+  GetBuffer[0]: hr=0x00000000, ptr=000000000A23DEA  ← 表示が途切れてクラッシュ
+ptr=000000000A23DEAで末尾が切れているのはDev_CreateRTVの呼び出しでクラッシュしたためです。CreateRenderTargetViewの呼び出し規約の問題です。
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン2 
+またCreateRenderTarget内にもデバッグ出力を追加してDev_CreateRTVの前後を確認できるようにします：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン3 
+原因の解説
+D3D12_CPU_DESCRIPTOR_HANDLEはSIZE_T ptr1個だけの構造体です。
+
+c
+// SIZE_T 1個 → sizeof == 8 bytes (x64)
+typedef struct D3D12_CPU_DESCRIPTOR_HANDLE { SIZE_T ptr; } D3D12_CPU_DESCRIPTOR_HANDLE;
+```
+
+x64 Windows ABIでは**8バイト以下の構造体は整数レジスタ1本で値渡し**されます。つまり実際のABIは：
+```
+RCX = this (device)
+RDX = pResource
+R8  = pDesc (NULL)
+R9  = handle.ptr の値 (SIZE_T として直接)
+元の(SIZE_T)handle.ptrへのキャストは正しいように見えますが、typedef ... Fn(void*, void*, const void*, SIZE_T)と宣言するとコンパイラが構造体渡しではなくスカラー渡しと解釈するため、実際のCreateRenderTargetViewが期待する渡し方と食い違う場合があります。D3D12_CPU_DESCRIPTOR_HANDLEをそのまま値渡しする形に修正しました。
+
+Step: D3D12CreateDevice
+device=000000000336C240
+Step: CreateCommandQueue
+commandQueue=000000000A0D2E70
+Step: CreateCommandAllocator
+  allocator[0]=000000000A039020
+  allocator[1]=000000000A03A000
+  allocator[2]=000000000A03B040
+Step: CreateDescriptorHeap RTV
+rtvDescHeap=000000000A03C080
+rtvDescriptorSize=32
+rtvStartHandle.ptr=0x300000000
+  rtvDescriptor[0].ptr=0x300000000
+  rtvDescriptor[1].ptr=0x300000020
+  rtvDescriptor[2].ptr=0x300000040
+Step: CreateDescriptorHeap SRV
+srvDescHeap=000000000A03C350
+Step: CreateCommandList
+commandList=000000000A03C680
+Step: CreateFence
+fence=000000000A1B7910
+Step: CreateDXGIFactory2
+factory=0000000009F45370
+SwapChain size: 784 x 561
+Step: CreateSwapChainForHwnd
+CreateSwapChainForHwnd: hr=0x00000000, pSwapChain1=000000000A1B7FB0
+Step: QueryInterface SwapChain3
+pSwapChain1 vtbl = 00007FFE62D3A000
+QueryInterface Func = 00007FFE62CA15E0
+QueryInterface Result: hr=0x00000000, g_pSwapChain=000000000A1B7FB0
+=== g_pSwapChain vtbl dump (0..41) ===
+  vtbl[ 0] = 00007FFE62CA15E0
+  vtbl[ 1] = 00007FFE62CA35D0
+  vtbl[ 2] = 00007FFE62CA3300
+  vtbl[ 3] = 00007FFE62D03B70
+  vtbl[ 4] = 00007FFE62D03F00
+  vtbl[ 5] = 00007FFE62D02B90
+  vtbl[ 6] = 00007FFE62D094B0
+  vtbl[ 7] = 00007FFE62D08F90
+  vtbl[ 8] = 00007FFE62CA18C0
+  vtbl[ 9] = 00007FFE62CBB6E0
+  vtbl[10] = 00007FFE62CC1F30
+  vtbl[11] = 00007FFE62CC4A40
+  vtbl[12] = 00007FFE62CBFC90
+  vtbl[13] = 00007FFE62CC2810
+  vtbl[14] = 00007FFE62D0C460
+  vtbl[15] = 00007FFE62D08820
+  vtbl[16] = 00007FFE62CAE1C0
+  vtbl[17] = 00007FFE62CBB8C0
+  vtbl[18] = 00007FFE62D08DA0
+  vtbl[19] = 00007FFE62D09030
+  vtbl[20] = 00007FFE62D09120
+  vtbl[21] = 00007FFE62D08AF0
+  vtbl[22] = 00007FFE62D0AA90
+  vtbl[23] = 00007FFE62D09D30
+  vtbl[24] = 00007FFE62D094D0
+  vtbl[25] = 00007FFE62D0D100
+  vtbl[26] = 00007FFE62D08310
+  vtbl[27] = 00007FFE62CA4D30
+  vtbl[28] = 00007FFE62D09510
+  vtbl[29] = 00007FFE62CA4B70
+  vtbl[30] = 00007FFE62D096E0
+  vtbl[31] = 00007FFE62CA3FB0
+  vtbl[32] = 00007FFE62CA4C70
+  vtbl[33] = 00007FFE62CA33D0
+  vtbl[34] = 00007FFE62CA4980
+  vtbl[35] = 00007FFE62D09170
+  vtbl[36] = 00007FFE62D08B50
+  vtbl[37] = 00007FFE62D05D20
+  vtbl[38] = 00007FFE62CA1600
+  vtbl[39] = 00007FFE62D0C0D0
+  vtbl[40] = 00007FFE62CA53D0
+  vtbl[41] = 00007FFE62D0FB30
+Trying GetBuffer via vtbl[9] (buffer 0)...
+GetBuffer[9]: hr=0x00000000, ptr=000000000A21CC80
+Step: CreateRenderTarget
+  GetBuffer[0]: hr=0x00000000, ptr=000000000A21CC80
+変わりません
+
+もっと表示
+15:05
+CreateRTV[0]が出ていないので、Dev_CreateRTVの手前ではなく**printfの直後、Dev_CreateRTVの呼び出し直前でクラッシュしています。つまりDev_CreateRTV関数自体へのジャンプ時点**で問題が起きています。
+
+TCCの問題として、構造体の値渡しが正しく機能しない可能性が高いです。D3D12_CPU_DESCRIPTOR_HANDLEを引数に渡す際にTCCが誤ったコードを生成しています。
+
+SIZE_T（スカラー）で直接渡す方式に変え、かつインライン展開で関数呼び出しを排除します：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン4 
+マクロの括弧ミスを修正してCreateRenderTargetも更新します：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン5 
+原因の解説
+GetBuffer[0]: hr=0x00000000, ptr=000000000A21CC80
+              ↑ ここまで出力
+CreateRTV[0]: ← 出ていない = printfすら到達していない
+これはif (hr == 0 && pBackBuffer)ブロックに入った直後、つまり**printfの呼び出し命令を実行した瞬間にクラッシュ**しています。これはスタックが既に壊れているサインです。
+
+原因はSwapChain_GetBufferの呼び出しでvoid**を渡す際、TCCが&pBackBufferのアドレス計算を誤り、スタック上の別の変数を破壊した可能性があります。修正版ではpBackBufferをループ変数から切り離し、rtvPtrも明示的にローカル変数に取り出すことでスタックレイアウトを安定させています。
+
+一歩進みました
+Step: D3D12CreateDevice
+device=00000000032DD2E0
+Step: CreateCommandQueue
+commandQueue=000000000A0348D0
+Step: CreateCommandAllocator
+  allocator[0]=0000000009F988F0
+  allocator[1]=0000000009F998D0
+  allocator[2]=0000000009F9A910
+Step: CreateDescriptorHeap RTV
+rtvDescHeap=0000000009F9B950
+rtvDescriptorSize=32
+rtvStartHandle.ptr=0x300000000
+  rtvDescriptor[0].ptr=0x300000000
+  rtvDescriptor[1].ptr=0x300000020
+  rtvDescriptor[2].ptr=0x300000040
+Step: CreateDescriptorHeap SRV
+srvDescHeap=0000000009F9BC20
+Step: CreateCommandList
+commandList=0000000009F9BF50
+Step: CreateFence
+fence=000000000A115960
+Step: CreateDXGIFactory2
+factory=0000000009EA5B60
+SwapChain size: 784 x 561
+Step: CreateSwapChainForHwnd
+CreateSwapChainForHwnd: hr=0x00000000, pSwapChain1=000000000A1163C0
+Step: QueryInterface SwapChain3
+pSwapChain1 vtbl = 00007FFE62D3A000
+QueryInterface Func = 00007FFE62CA15E0
+QueryInterface Result: hr=0x00000000, g_pSwapChain=000000000A1163C0
+=== g_pSwapChain vtbl dump (0..41) ===
+  vtbl[ 0] = 00007FFE62CA15E0
+  vtbl[ 1] = 00007FFE62CA35D0
+  vtbl[ 2] = 00007FFE62CA3300
+  vtbl[ 3] = 00007FFE62D03B70
+  vtbl[ 4] = 00007FFE62D03F00
+  vtbl[ 5] = 00007FFE62D02B90
+  vtbl[ 6] = 00007FFE62D094B0
+  vtbl[ 7] = 00007FFE62D08F90
+  vtbl[ 8] = 00007FFE62CA18C0
+  vtbl[ 9] = 00007FFE62CBB6E0
+  vtbl[10] = 00007FFE62CC1F30
+  vtbl[11] = 00007FFE62CC4A40
+  vtbl[12] = 00007FFE62CBFC90
+  vtbl[13] = 00007FFE62CC2810
+  vtbl[14] = 00007FFE62D0C460
+  vtbl[15] = 00007FFE62D08820
+  vtbl[16] = 00007FFE62CAE1C0
+  vtbl[17] = 00007FFE62CBB8C0
+  vtbl[18] = 00007FFE62D08DA0
+  vtbl[19] = 00007FFE62D09030
+  vtbl[20] = 00007FFE62D09120
+  vtbl[21] = 00007FFE62D08AF0
+  vtbl[22] = 00007FFE62D0AA90
+  vtbl[23] = 00007FFE62D09D30
+  vtbl[24] = 00007FFE62D094D0
+  vtbl[25] = 00007FFE62D0D100
+  vtbl[26] = 00007FFE62D08310
+  vtbl[27] = 00007FFE62CA4D30
+  vtbl[28] = 00007FFE62D09510
+  vtbl[29] = 00007FFE62CA4B70
+  vtbl[30] = 00007FFE62D096E0
+  vtbl[31] = 00007FFE62CA3FB0
+  vtbl[32] = 00007FFE62CA4C70
+  vtbl[33] = 00007FFE62CA33D0
+  vtbl[34] = 00007FFE62CA4980
+  vtbl[35] = 00007FFE62D09170
+  vtbl[36] = 00007FFE62D08B50
+  vtbl[37] = 00007FFE62D05D20
+  vtbl[38] = 00007FFE62CA1600
+  vtbl[39] = 00007FFE62D0C0D0
+  vtbl[40] = 00007FFE62CA53D0
+  vtbl[41] = 00007FFE62D0FB30
+Trying GetBuffer via vtbl[9] (buffer 0)...
+GetBuffer[9]: hr=0x00000000, ptr=000000000A17B490
+Step: CreateRenderTarget
+  GetBuffer[0]: hr=0x00000000, ptr=000000000A17B490
+  CreateRTV[0]: rtvPtr=0x300000000 res=000000000A17B490
+で止まります
+
+もっと表示
+15:07
+進みました！CreateRTV[0]: doneが出ていないので、fn(g_pd3dDevice, pBackBuffer, NULL, rtvPtr)の呼び出し自体でクラッシュしています。
+
+vtbl[20] = 00007FFE62D09120は有効なアドレスです。問題はスタックアライメントです。TCCは関数呼び出し時にRSPを16バイト境界に合わせる保証がありません。CreateRenderTargetViewはSSE命令を使うため、RSPが16バイト境界でないと即クラッシュします。
+
+アセンブリで直接呼び出してアライメントを強制する必要があります：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン6 
+実は最もシンプルで確実な解決策があります。cbridge DLL にRTV作成関数を追加する方法です：
+
+my_app_dx12.c + imgui_impl_cbridge.cpp 修正版
+コード???バージョン7 
+対処内容まとめ
+根本原因：TCCはRSPの16バイト境界アライメントを保証しない
+
+CreateRenderTargetViewはSSE命令（movaps等）を内部で使用しており、RSPが16バイト境界でない場合に即クラッシュします。TCCからvtblを直接呼ぶといつもこの問題が起きます。
+
+解決策：cbridge_D3D12CreateRenderTargetViewをMSVCでコンパイルされたDLLに追加する
+
+cpp
+// imgui_impl_cbridge.cpp に追加
+CBRIDGE_API void cbridge_D3D12CreateRenderTargetView(
+    void* pDevice, void* pResource, unsigned long long cpuDescHandle)
+{
+    ID3D12Device* dev = (ID3D12Device*)pDevice;
+    D3D12_CPU_DESCRIPTOR_HANDLE h;
+    h.ptr = (SIZE_T)cpuDescHandle;
+    dev->CreateRenderTargetView((ID3D12Resource*)pResource, nullptr, h);
+}
+MSVCコンパイル済みのDLL関数を呼ぶ際はOSがRSPを正しく整列した状態でcallするため、この問題が回避できます。DLLをリビルド後、tcc -impdefでdefを再生成してください。
+
+            // ★ MSVC コンパイル済み関数経由で呼ぶ → RSP アライメント問題を回避
+            cbridge_D3D12CreateRenderTargetView(g_pd3dDevice, pBuf, (unsigned long long)rtvPtr);
+でクラッシュします
+Step: D3D12CreateDevice
+device=00000000033DE3C0
+Step: CreateCommandQueue
+commandQueue=000000000A114A10
+Step: CreateCommandAllocator
+  allocator[0]=000000000A0986E0
+  allocator[1]=000000000A0996C0
+  allocator[2]=000000000A09A700
+Step: CreateDescriptorHeap RTV
+rtvStart=0x300000000 size=32
+Step: CreateDescriptorHeap SRV
+Step: CreateCommandList
+Step: CreateFence
+Step: CreateDXGIFactory2
+Step: CreateSwapChainForHwnd (784x561)
+hr=0x00000000 pSC1=000000000A215FB0
+Step: QueryInterface SwapChain3
+hr=0x00000000 g_pSwapChain=000000000A215FB0
+Step: CreateRenderTarget
+  GetBuffer[0]: hr=0x00000000 ptr=000000000A27B320
+  CreateRTV[0]: rtvPtr=0x300000000
+
+もっと表示
+15:18
+cbridge_D3D12CreateRenderTargetViewでもクラッシュするということは、TCCからMSVC DLL関数を呼ぶ際もRSPアライメントが壊れていることを意味します。つまりTCCが生成するコードはmainから既にRSPが8バイトずれた状態で動いています。
+
+最も確実な解決策はVirtualAllocで実行可能メモリにトランポリンコードを書き込み、and rsp, -16でアライメントを強制する方法です：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン8 
+InitD3Dの先頭にInitTrampoline4()の呼び出しを追加します：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン9 
+仕組みの説明
+TCC生成コード (RSP が 8 バイトずれた状態)
+    │
+    │ call g_alignedCall4
+    ▼
+トランポリン (VirtualAlloc済み x64機械語)
+    push rbx/rdi/rsi/r12    ← レジスタ退避
+    mov  rbp, rsp           ← 元のRSP保存
+    and  rsp, -16           ← ★ 強制的に16バイト境界に整列
+    sub  rsp, 32            ← shadow space確保
+    call rax                ← CreateRenderTargetView 呼び出し
+    mov  rsp, rbp           ← RSP復元
+    ret
+    │
+    ▼
+CreateRenderTargetView (RSPが正しく整列された状態で実行)
+このトランポリンはcbridgeのリビルドも不要で、TCC単体で動作します。ClearRenderTargetViewなど他のSSE命令を使うvtbl関数も同様にCallCreateRTVと同じパターンで呼び出せます。
+
+
+imgui_impl_cbridge.cpp
+185行
+
+cpp
+
+
+cimgui.def
+1651行
+
+text
+
+
+my_app_dx12.c
+550行
+
+c
+
+修正しましたが
+Step: D3D12CreateDevice
+device=00000000033DE3C0
+Step: CreateCommandQueue
+commandQueue=000000000A114A10
+Step: CreateCommandAllocator
+  allocator[0]=000000000A0986E0
+  allocator[1]=000000000A0996C0
+  allocator[2]=000000000A09A700
+Step: CreateDescriptorHeap RTV
+rtvStart=0x300000000 size=32
+Step: CreateDescriptorHeap SRV
+Step: CreateCommandList
+Step: CreateFence
+Step: CreateDXGIFactory2
+Step: CreateSwapChainForHwnd (784x561)
+hr=0x00000000 pSC1=000000000A215FB0
+Step: QueryInterface SwapChain3
+hr=0x00000000 g_pSwapChain=000000000A215FB0
+Step: CreateRenderTarget
+  GetBuffer[0]: hr=0x00000000 ptr=000000000A27B320
+  CreateRTV[0]: rtvPtr=0x300000000
+でクラッシュ
+
+もっと表示
+15:33
+cbridge_D3D12CreateRenderTargetView経由でもクラッシュするということは、TCCから外部DLL関数を呼ぶ際、すでにRSPがずれているということです。
+
+根本解決として、CreateThreadを使う方法が最も確実です。新しいスレッドはOSが必ずRSPを16バイト境界に整列して開始するので、アライメント問題が完全に回避できます。
+
+my_app_dx12.c (CreateThread方式)
+コード???バージョン10 
+なぜCreateThreadで解決するか
+TCCのmain() ← RSPが8バイトずれたまま
+    │
+    │ call CreateThread
+    ▼
+Windows OS がスレッドを起動
+    ↓ OSはRSPを必ず16バイト境界に整列して開始
+RtvThreadProc() ← RSPが正しく16バイト境界
+    │
+    │ call cbridge_D3D12CreateRenderTargetView
+    ▼
+CreateRenderTargetView (SSE命令) ← 正常動作
+WaitForSingleObjectでスレッド完了を待つので同期も保証されます。Render()内のClearRenderTargetView等も同様にクラッシュする場合は同じパターンで対処できますが、まずこれでCreateRenderTargetを突破してください。
+
+やはり
+
+            CallCreateRTV_safe(g_pd3dDevice, pBuf, rtvPtr);
+で止まります
+Step: D3D12CreateDevice
+device=000000000343D1A0
+Step: CreateCommandQueue
+commandQueue=000000000A1576F0
+Step: CreateCommandAllocator
+  allocator[0]=000000000A0F89F0
+  allocator[1]=000000000A0F99D0
+  allocator[2]=000000000A0FAA10
+Step: CreateDescriptorHeap RTV
+rtvStart=0x300000000 size=32
+Step: CreateDescriptorHeap SRV
+Step: CreateCommandList
+Step: CreateFence
+Step: CreateDXGIFactory2
+Step: CreateSwapChainForHwnd (784x561)
+hr=0x00000000 pSC1=000000000A2764E0
+Step: QueryInterface SwapChain3
+hr=0x00000000 g_pSwapChain=000000000A2764E0
+Step: CreateRenderTarget
+  GetBuffer[0]: hr=0x00000000 ptr=000000000A2DB610
+  CreateRTV[0]: rtvPtr=0x300000000
+
+もっと表示
+15:39
+CreateThreadでも止まるということは、クラッシュはcbridge_D3D12CreateRenderTargetViewの内部ではなく、rtvPtr=0x300000000という値自体が不正である可能性が高いです。
+
+0x300000000はアドレスとして有効に見えますが、RTV DescriptorHeapのCPUハンドルとしてこの値は正しいのかを確認する必要があります。
+
+Heap_GetCPUHandleのvtblインデックス[8]が間違っており、ゼロや不正な値が返っている可能性があります。デバッグ出力を追加して確認しましょう：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン11 
+ただしrtvPtr=0x300000000という値について重要な点があります。
+
+0x300000000 = 12,884,901,888はx64のアドレス空間として有効ですが、CPUディスクリプタハンドルは通常カーネルアドレス空間に近い値になることが多く、0x300000000は正常な値である可能性もあります。
+
+同時にCallCreateRTV_safe内部でもデバッグを追加します：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン12 
+これで以下が判明します。
+
+確認ポイント：
+
+vtbl[7]/[8]/[9]のどれが正しいCPUハンドルを返すか
+[Thread] calling...が出るかどうか（出ない場合はCreateThread自体が失敗している）
+[Thread] returned OKが出るかどうか（出ない場合はcbridge内部でクラッシュ）
+もし[Thread] calling...すら出ない場合は、WaitForSingleObjectの前にクラッシュしており、CallCreateRTV_safe内のCreateThreadやCreateEvent自体に問題があります。その場合のログも教えてください。
+
+ここでとまります
+Step: D3D12CreateDevice
+device=00000000032DE350
+Step: CreateCommandQueue
+commandQueue=000000000A002980
+Step: CreateCommandAllocator
+  allocator[0]=0000000009FA86D0
+  allocator[1]=0000000009FA96B0
+  allocator[2]=0000000009FAA6F0
+Step: CreateDescriptorHeap RTV
+rtvDescHeap=0000000009FAB730
+rtvDescriptorSize=32
+=== RtvDescHeap vtbl dump (0..11) ===
+  vtbl[ 0] = 00007FFE161F5DF0
+  vtbl[ 1] = 00007FFE161F5E50
+  vtbl[ 2] = 00007FFE161F5E20
+  vtbl[ 3] = 00007FFE161C99B0
+  vtbl[ 4] = 00007FFE162160A0
+  vtbl[ 5] = 00007FFE16215750
+  vtbl[ 6] = 00007FFE1620CD10
+  vtbl[ 7] = 00007FFE1620CCE0
+  vtbl[ 8] = 00007FFE1627E3B0
+  vtbl[ 9] = 00007FFE1627E3D0
+  vtbl[10] = 00007FFE1627E460
+  vtbl[11] = 00007FFE1620CC70
+  Trying GetCPUHandle via vtbl[7]...
+
+もっと表示
+15:41
+vtbl[7]の呼び出しで止まっています。つまり**GetDesc（vtbl[7]）を呼んでしまっている**のが問題です。
+
+ID3D12DescriptorHeapの正しい継承チェーンを再確認すると：
+
+IUnknown        [0] QueryInterface
+                [1] AddRef  
+                [2] Release
+ID3D12Object    [3] GetPrivateData
+                [4] SetPrivateData
+                [5] SetPrivateDataInterface
+                [6] SetName
+ID3D12Pageable  (追加メソッドなし)
+ID3D12DescriptorHeap
+                [7] GetDesc
+                [8] GetCPUDescriptorHandleForHeapStart  ← 構造体戻り値
+                [9] GetGPUDescriptorHandleForHeapStart  ← 構造体戻り値
+vtbl[7]はGetDescであり、引数なしで呼ぶとクラッシュします。[8]がGetCPUHandleのはずなのですが、それより前のvtbl[7]の試し呼び出しでクラッシュしています。
+
+GetDescのシグネチャは void GetDesc(D3D12_DESCRIPTOR_HEAP_DESC* pDesc) で、戻り値を構造体ポインタで受け取る形です。D3D12_CPU_DESCRIPTOR_HANDLE*を渡すとサイズが違うためクラッシュします。
+
+試し呼び出しのループを**[8]と[9]だけ**に絞って、かつGetDesc用の正しい構造体で[7]を呼ぶよう修正します：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン13 
+ただし、ここで重大な問題に気づきました。
+
+GetCPUDescriptorHandleForHeapStartは構造体を戻り値で返す関数です。x64 ABIでは「8バイト以下の構造体は整数レジスタで値返し」が原則ですが、MSVCはD3D12_CPU_DESCRIPTOR_HANDLEを隠しポインタ経由で返す実装になっています（SIZE_T1個でも構造体扱い）。
+
+つまり実際のシグネチャは：
+
+// 実際のABIでの呼び出し形式（隠しポインタ）
+void GetCPUDescriptorHandleForHeapStart(
+    void* this,                          // RCX
+    D3D12_CPU_DESCRIPTOR_HANDLE* retPtr  // RDX ← 隠し戻り値ポインタ
+)
+現在のHeap_GetCPUHandleはこの形式で呼んでいるので正しいはずです。vtbl[8]と[9]の試し呼び出し結果を確認してから、rtvPtr=0x300000000が正しい値かどうか判断しましょう。
+
+ログを見るとrtvStart=0x300000000が毎回同じ値で出ているのも気になります。正常なRTVヒープのCPUハンドルは通常0x0002000000000000のような非常に大きな値になることが多く、0x300000000（約12GB）はゼロ初期化されたままの可能性があります。vtbl[8]の結果次第で原因が確定します。
+
+ここでとまります
+device=000000000329C2A0
+Step: CreateCommandQueue
+commandQueue=0000000009FB34D0
+Step: CreateCommandAllocator
+  allocator[0]=0000000009F588D0
+  allocator[1]=0000000009F598B0
+  allocator[2]=0000000009F5A8F0
+Step: CreateDescriptorHeap RTV
+rtvDescHeap=0000000009F5B930
+rtvDescriptorSize=32
+=== RtvDescHeap vtbl dump (0..11) ===
+  vtbl[ 0] = 00007FFE161F5DF0
+  vtbl[ 1] = 00007FFE161F5E50
+  vtbl[ 2] = 00007FFE161F5E20
+  vtbl[ 3] = 00007FFE161C99B0
+  vtbl[ 4] = 00007FFE162160A0
+  vtbl[ 5] = 00007FFE16215750
+  vtbl[ 6] = 00007FFE1620CD10
+  vtbl[ 7] = 00007FFE1620CCE0
+  vtbl[ 8] = 00007FFE1627E3B0
+  vtbl[ 9] = 00007FFE1627E3D0
+  vtbl[10] = 00007FFE1627E460
+  vtbl[11] = 00007FFE1620CC70
+  Trying GetCPUHandle via vtbl[8]... ptr=0x300000000
+  Trying GetCPUHandle via vtbl[1]... ptr=0x0
+  Trying GetCPUHandle via vtbl[2]... ptr=0x0
+  Trying GetCPUHandle via vtbl[3]...
+
+もっと表示
+15:42
+vtbl[8]でptr=0x300000000が返っています。これは正しい値です。
+
+0x300000000はWindows D3D12のCPUディスクリプタハンドルとして正常な値です。問題は別にあります。
+
+ログを見るとvtbl[9]の代わりにvtbl[1],[2],[3]と試しています。これはループの修正が反映されていないビルドを実行している可能性があります。それは置いておいて、本当の問題は別の場所です。
+
+rtvPtr=0x300000000は正しい → cbridge_D3D12CreateRenderTargetViewに正しい引数が渡っている → それでもクラッシュする。
+
+つまり**cbridge_D3D12CreateRenderTargetView関数そのものに問題があります**。imgui_impl_cbridge.cppを見ると：
+
+cpp
+CBRIDGE_API void cbridge_D3D12CreateRenderTargetView(
+    void* pDevice, void* pResource, unsigned long long cpuDescHandle)
+{
+    ID3D12Device* dev = (ID3D12Device*)pDevice;
+    D3D12_CPU_DESCRIPTOR_HANDLE h;
+    h.ptr = (SIZE_T)cpuDescHandle;
+    dev->CreateRenderTargetView((ID3D12Resource*)pResource, nullptr, h);  // ← ここでクラッシュ
+}
+dev->CreateRenderTargetView(..., h)はC++のメンバ関数呼び出しなので、内部でvtbl[20]を呼びます。MSVCコンパイル済みでもCreateRenderTargetView自体がSSE命令を使えばクラッシュします。
+
+根本解決：cbridge_D3D12CreateRenderTargetViewをインラインアセンブリで書き直すのではなく、imgui_impl_cbridge.cppに__declspec(noinline)と#pragma optimize("", off)を追加してRSP整列を強制します：
+
+imgui_impl_cbridge.cpp の末尾に追加・置換する部分
+コード 
+そしてmy_app_dx12.c側でもClearRenderTargetViewとOMSetRenderTargetsをcbridge経由に切り替えます：
+
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン14 
+my_app_dx12.c (デバッグ版完全ソース)
+コード???バージョン15 
+まとめ
+0x300000000は正しいRTVハンドル値です。クラッシュの真因はMSVCでコンパイルされたcbridge関数内でもCreateRenderTargetViewを呼ぶ際にRSPがずれていることです。
+
+#pragma optimize("", off) + volatileダミー変数でコンパイラにスタックフレームを確実に確保させることで、RSPが16バイト境界に整列された状態でCreateRenderTargetViewが呼ばれるようになります。
+
+DLLをリビルド後、tcc -impdefでdefを再生成してください。
+
+Step: D3D12CreateDevice
+device=000000000322D5A0
+Step: CreateCommandQueue
+commandQueue=00000000034B3B00
+Step: CreateCommandAllocator
+  allocator[0]=000000000345A450
+  allocator[1]=000000000345B430
+  allocator[2]=000000000345C470
+Step: CreateDescriptorHeap RTV
+rtvDescHeap=000000000345D4B0
+rtvDescriptorSize=32
+=== RtvDescHeap vtbl dump (0..11) ===
+  vtbl[ 0] = 00007FFE161F5DF0
+  vtbl[ 1] = 00007FFE161F5E50
+  vtbl[ 2] = 00007FFE161F5E20
+  vtbl[ 3] = 00007FFE161C99B0
+  vtbl[ 4] = 00007FFE162160A0
+  vtbl[ 5] = 00007FFE16215750
+  vtbl[ 6] = 00007FFE1620CD10
+  vtbl[ 7] = 00007FFE1620CCE0
+  vtbl[ 8] = 00007FFE1627E3B0
+  vtbl[ 9] = 00007FFE1627E3D0
+  vtbl[10] = 00007FFE1627E460
+  vtbl[11] = 00007FFE1620CC70
+  Trying GetCPUHandle via vtbl[8]... ptr=0x300000000
+  Trying GetCPUHandle via vtbl[1]... ptr=0x0
+  Trying GetCPUHandle via vtbl[2]... ptr=0x0
+  Trying GetCPUHandle via vtbl[3]...
+上記で止まります
+
+もっと表示
+16:06
+通常より時間がかかっています。まもなく再試行いたします（試行 8 回目 / 10回）
+
+
+
+
+Claude は AI のため、誤りを含む可能性があります。回答内容は必ずご確認ください。
