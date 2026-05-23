@@ -1227,6 +1227,13 @@ fc clang_output.txt tcc_output.txt
 
 ## 参考資料
 
+- **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** ⭐ **必読**
+  - libcunit.a 改造ポイント（具体的コード例）
+  - TCC ビルドスクリプト完全版（make_lib_cpp_*.bat）
+  - ABI 別 `this` レジスタ配置のコード例
+  - テスト出力ログテンプレート
+  - メンバポインタ移行条件チェックリスト
+
 - **TCC_CPP.md**：設計仕様書（6 ステージ、メンバポインタ段階計画）
 - **.vscode/skills/tcc_cpp_skill/SKILL.md**：ワークフロー定義
 - **tcctok.h**：トークン定義テーブル
