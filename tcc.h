@@ -512,8 +512,12 @@ struct SymAttr {
     dllimport   : 1,
     addrtaken   : 1,
     nodebug     : 1,
-    xxxx        : 2; /* not used */
+    access      : 2; /* class member access: public/protected/private */
 };
+
+#define ACCESS_PUBLIC    0
+#define ACCESS_PROTECTED 1
+#define ACCESS_PRIVATE   2
 
 /* function attributes or temporary attributes for parsing */
 struct FuncAttr {
