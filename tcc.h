@@ -319,7 +319,11 @@ extern long double strtold (const char *__nptr, char **__endptr);
 
 /* (target specific) libtcc1.a */
 #ifndef TCC_LIBTCC1
-# define TCC_LIBTCC1 "libtcc1.a"
+# ifdef TCC_TARGET_X86_64
+#  define TCC_LIBTCC1 "libtcc1-64.a"
+# else
+#  define TCC_LIBTCC1 "libtcc1.a"
+# endif
 #endif
 
 /* library to use with CONFIG_USE_LIBGCC instead of libtcc1.a */
