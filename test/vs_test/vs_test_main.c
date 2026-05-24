@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 /*
- * Win32 コンソール/Windowsアプリケーション両対応サンプル
+ * Win32 console/Windows application sample
  */
 void sample_main(void);
 
@@ -32,7 +32,7 @@ void sample_main(void)
         dwBuild = (DWORD)(HIWORD(dwVersion));
     }
 
-    sprintf(buf, "Windows バージョン: %d.%d (Build %d)\n",
+        sprintf(buf, "Windows version: %d.%d (Build %d)\n",
             dwWindowsMajorVersion, dwWindowsMinorVersion, dwBuild);
 
 #ifdef _CONSOLE
@@ -40,9 +40,9 @@ void sample_main(void)
     SetConsoleTitle("console");
     hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-    printf("\n現在の日時:\n");
+    printf("\nCurrent date/time:\n");
 #else
-    MessageBox(NULL, buf, "Win32 サンプル（_WINDOWS）", MB_OK | MB_ICONINFORMATION);
+    MessageBox(NULL, buf, "Win32 Sample (_WINDOWS)", MB_OK | MB_ICONINFORMATION);
 #endif
 
     GetLocalTime(&st);
@@ -53,7 +53,7 @@ void sample_main(void)
             st.wHour, st.wMinute, st.wSecond);
 
     drives = GetLogicalDrives();
-    printf("\n利用可能なドライブ:\n");
+    printf("\nAvailable drives:\n");
 
     for (i = 0; i < 26; i++)
     {
@@ -65,13 +65,13 @@ void sample_main(void)
         }
     }
 
-    printf("\nキーを押して終了してください...");
+    printf("\nPress any key to exit...");
     getchar();
 #else
     sprintf(dt, "%04d/%02d/%02d %02d:%02d:%02d",
             st.wYear, st.wMonth, st.wDay,
             st.wHour, st.wMinute, st.wSecond);
-    MessageBox(NULL, dt, "現在の日時", MB_OK);
+    MessageBox(NULL, dt, "Current date/time", MB_OK);
 #endif
 }
 

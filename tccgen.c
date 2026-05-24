@@ -3,57 +3,57 @@
  *
  *  Copyright (c) 2001-2004 Fabrice Bellard
  *
- * ï¿½ï¿½ï¿½Ìƒï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Íƒtï¿½ï¿½ï¿½[ï¿½\ï¿½tï¿½gï¿½Eï¿½Fï¿½Aï¿½Å‚ï¿½ï¿½Bï¿½Ä”Ğ•zï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½Ü‚ï¿½ï¿½ï¿½
- * ï¿½Cï¿½ï¿½ï¿½ÍAFree Software Foundation ï¿½É‚ï¿½ï¿½ï¿½ÄŒï¿½ï¿½Jï¿½ï¿½ï¿½ê‚½ GNU Lesser
- * General Public License ï¿½Ìï¿½ï¿½ï¿½ï¿½iï¿½oï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½2 ï¿½Ü‚ï¿½ï¿½Íiï¿½Iï¿½ï¿½ï¿½É‚ï¿½ï¿½jï¿½ï¿½ï¿½ï¿½È~ï¿½j
- * ï¿½É]ï¿½ï¿½ï¿½Äsï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½B
+ * ‚±‚Ìƒ‰ƒCƒuƒ‰ƒŠ‚ÍƒtƒŠ[ƒ\ƒtƒgƒEƒFƒA‚Å‚·BÄ”Ğ•z‚¨‚æ‚Ñ/‚Ü‚½‚Í
+ * C³‚ÍAFree Software Foundation ‚É‚æ‚Á‚ÄŒöŠJ‚³‚ê‚½ GNU Lesser
+ * General Public License ‚Ìğ€iƒo[ƒWƒ‡ƒ“2 ‚Ü‚½‚Íi‘I‘ğ‚É‚æ‚èj‚»‚êˆÈ~j
+ * ‚É]‚Á‚Äs‚¤‚±‚Æ‚ª‚Å‚«‚Ü‚·B
  *
- * ï¿½ï¿½ï¿½Ìƒï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Í—Lï¿½pï¿½Å‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½Ú“Iï¿½Æ‚ï¿½ï¿½Ä”zï¿½zï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½ï¿½A
- * ï¿½ï¿½ï¿½iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì–Ú“Iï¿½Ö‚Ì“Kï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚Ş–ï¿½ï¿½ï¿½ï¿½Iï¿½Ü‚ï¿½ï¿½Í–Ùï¿½ï¿½Iï¿½È•ÛØ‚Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½B
- * ï¿½Ú×‚ï¿½ GNU Lesser General Public License ï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
+ * ‚±‚Ìƒ‰ƒCƒuƒ‰ƒŠ‚Í—L—p‚Å‚ ‚é‚±‚Æ‚ğ–Ú“I‚Æ‚µ‚Ä”z•z‚³‚ê‚Ü‚·‚ªA
+ * ¤•i«‚â“Á’è‚Ì–Ú“I‚Ö‚Ì“K‡«‚ğŠÜ‚Ş–¾¦“I‚Ü‚½‚Í–Ù¦“I‚È•ÛØ‚Í‚ ‚è‚Ü‚¹‚ñB
+ * Ú×‚Í GNU Lesser General Public License ‚ğQÆ‚µ‚Ä‚­‚¾‚³‚¢B
  *
- * ï¿½{ï¿½ï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Æ‚Æ‚ï¿½ï¿½ï¿½ GNU Lesser General Public License ï¿½ÌÊ‚ï¿½ï¿½ï¿½
- * ï¿½zï¿½zï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Í‚ï¿½ï¿½Å‚ï¿½ï¿½Bï¿½zï¿½zï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½ê‡ï¿½ÍAFree Software
+ * –{ƒ‰ƒCƒuƒ‰ƒŠ‚Æ‚Æ‚à‚É GNU Lesser General Public License ‚ÌÊ‚µ‚ª
+ * ”z•z‚³‚ê‚Ä‚¢‚é‚Í‚¸‚Å‚·B”z•z‚³‚ê‚Ä‚¢‚È‚¢ê‡‚ÍAFree Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- * ï¿½Ü‚Å‚ï¿½ï¿½â‚¢ï¿½ï¿½ï¿½í‚¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
+ * ‚Ü‚Å‚¨–â‚¢‡‚í‚¹‚­‚¾‚³‚¢B
  */
 
 #define USING_GLOBALS
 #include "tcc.h"
 
-/********************************************************/
-/* ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½Ïï¿½ */
+ /********************************************************/
+ /* ƒOƒ[ƒoƒ‹•Ï” */
 
-/* loc : ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ÌƒCï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½X
-    ind : ï¿½oï¿½ÍƒRï¿½[ï¿½hï¿½ÌƒCï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½X
-    rsym: ï¿½ß‚ï¿½lï¿½pï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½
-    anon_sym: ï¿½ï¿½ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ÌƒCï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½X
-*/
+ /* loc : ƒ[ƒJƒ‹•Ï”‚ÌƒCƒ“ƒfƒbƒNƒX
+     ind : o—ÍƒR[ƒh‚ÌƒCƒ“ƒfƒbƒNƒX
+     rsym: –ß‚è’l—pƒVƒ“ƒ{ƒ‹
+     anon_sym: “½–¼ƒVƒ“ƒ{ƒ‹‚ÌƒCƒ“ƒfƒbƒNƒX
+ */
 ST_DATA int rsym, anon_sym, ind, loc;
 
-ST_DATA Sym *global_stack;
-ST_DATA Sym *local_stack;
-ST_DATA Sym *define_stack;
-ST_DATA Sym *global_label_stack;
-ST_DATA Sym *local_label_stack;
+ST_DATA Sym* global_stack;
+ST_DATA Sym* local_stack;
+ST_DATA Sym* define_stack;
+ST_DATA Sym* global_label_stack;
+ST_DATA Sym* local_label_stack;
 
-static Sym *sym_free_first;
-static void **sym_pools;
+static Sym* sym_free_first;
+static void** sym_pools;
 static int nb_sym_pools;
 
-static Sym *all_cleanups, *pending_gotos;
+static Sym* all_cleanups, * pending_gotos;
 static int local_scope;
 ST_DATA char debug_modes;
 
-ST_DATA SValue *vtop;
+ST_DATA SValue* vtop;
 static SValue _vstack[1 + VSTACK_SIZE];
 #define vstack (_vstack + 1)
 
-ST_DATA int nocode_wanted; /* ï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
-#define NODATA_WANTED (nocode_wanted > 0) /* ï¿½Ã“Iï¿½fï¿½[ï¿½^ï¿½oï¿½Í‚ï¿½ï¿½sï¿½vï¿½Å‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½Ó–ï¿½ï¿½ï¿½ï¿½ï¿½ */
-#define DATA_ONLY_WANTED 0x80000000 /* ï¿½Öï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ÑÃ“Iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½ï¿½ONï¿½É‚È‚ï¿½ */
+ST_DATA int nocode_wanted; /* ƒR[ƒh¶¬‚ğ—}§‚·‚éƒtƒ‰ƒO */
+#define NODATA_WANTED (nocode_wanted > 0) /* Ã“Iƒf[ƒ^o—Í‚à•s—v‚Å‚ ‚é‚±‚Æ‚ğˆÓ–¡‚·‚é */
+#define DATA_ONLY_WANTED 0x80000000 /* ŠÖ”ŠO‚¨‚æ‚ÑÃ“I‰Šú‰»q‚ÅON‚É‚È‚é */
 
-/* if (0) ï¿½Ì‚æ‚¤ï¿½È–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ÌŒï¿½ÍƒRï¿½[ï¿½hï¿½oï¿½Í‚ï¿½ï¿½sï¿½ï¿½È‚ï¿½ */
+/* if (0) ‚Ì‚æ‚¤‚È–³ğŒƒWƒƒƒ“ƒv‚ÌŒã‚ÍƒR[ƒho—Í‚ğs‚í‚È‚¢ */
 #define CODE_OFF_BIT 0x20000000
 #define CODE_OFF() if(!nocode_wanted)(nocode_wanted |= CODE_OFF_BIT)
 #define CODE_ON() (nocode_wanted &= ~CODE_OFF_BIT)
@@ -61,7 +61,7 @@ ST_DATA int nocode_wanted; /* ï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½t
 #define NOEVAL_MASK 0x0000FFFF
 #define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
 
-/* sizeof()/typeof() ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Ô‚ÍƒRï¿½[ï¿½hï¿½oï¿½Í‚ï¿½ï¿½sï¿½ï¿½È‚ï¿½ï¿½inocode_wanted++/-- ï¿½ï¿½ï¿½gï¿½pï¿½j */
+/* sizeof()/typeof() “™‚ğ‰ğÍ‚µ‚Ä‚¢‚éŠÔ‚ÍƒR[ƒho—Í‚ğs‚í‚È‚¢inocode_wanted++/-- ‚ğg—pj */
 #define NOEVAL_MASK 0x0000FFFF
 #define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
 
@@ -69,17 +69,17 @@ ST_DATA int nocode_wanted; /* ï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½t
 #define CONST_WANTED_MASK 0x0FFF0000
 #define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
 
-/* ï¿½è”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Ô‚ÍƒRï¿½[ï¿½hï¿½oï¿½Í‚ï¿½ï¿½sï¿½ï¿½È‚ï¿½ */
+/* ’è”®‚ğ‰ğÍ‚µ‚Ä‚¢‚éŠÔ‚ÍƒR[ƒho—Í‚ğs‚í‚È‚¢ */
 #define CONST_WANTED_BIT  0x00010000
 #define CONST_WANTED_MASK 0x0FFF0000
 #define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
 
-ST_DATA int global_expr;  /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½eï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½ÉŠï¿½ï¿½è“–ï¿½Ä‚ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½É^ï¿½iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½ï¿½Íï¿½ï¿½Égï¿½pï¿½j */
-ST_DATA CType func_vt; /* ï¿½ï¿½ï¿½İ‚ÌŠÖï¿½ï¿½Ì–ß‚ï¿½lï¿½^ï¿½ireturn ï¿½ï¿½ï¿½ß‚Ågï¿½pï¿½j */
-ST_DATA int func_var; /* ï¿½ï¿½ï¿½İ‚ÌŠÖï¿½ï¿½ï¿½ï¿½Â•Ï’ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ireturn ï¿½ï¿½ï¿½ß‚Ågï¿½pï¿½j */
+ST_DATA int global_expr;  /* •¡‡ƒŠƒeƒ‰ƒ‹‚ğƒOƒ[ƒoƒ‹‚ÉŠ„‚è“–‚Ä‚é•K—v‚ª‚ ‚éê‡‚É^i‰Šú‰»q‰ğÍ‚Ég—pj */
+ST_DATA CType func_vt; /* Œ»İ‚ÌŠÖ”‚Ì–ß‚è’lŒ^ireturn –½—ß‚Åg—pj */
+ST_DATA int func_var; /* Œ»İ‚ÌŠÖ”‚ª‰Â•Ï’·ˆø”‚©‚Ç‚¤‚©ireturn –½—ß‚Åg—pj */
 ST_DATA int func_vc;
 ST_DATA int func_ind;
-ST_DATA const char *funcname;
+ST_DATA const char* funcname;
 ST_DATA CType int_type, func_old_type, char_type, char_pointer_type;
 static CString initstr;
 
@@ -98,36 +98,36 @@ static struct switch_t {
     struct case_t {
         int64_t v1, v2;
         int ind, line;
-    } **p; int n; /* case ï¿½ÍˆÍ‚Ìƒï¿½ï¿½Xï¿½g */
-    int def_sym; /* ï¿½fï¿½tï¿½Hï¿½ï¿½ï¿½gï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ */
+    } **p; int n; /* case ”ÍˆÍ‚ÌƒŠƒXƒg */
+    int def_sym; /* ƒfƒtƒHƒ‹ƒg‚ÌƒVƒ“ƒ{ƒ‹ */
     int nocode_wanted;
-    int *bsym;
-    struct scope *scope;
-    struct switch_t *prev;
+    int* bsym;
+    struct scope* scope;
+    struct switch_t* prev;
     SValue sv;
-} *cur_switch; /* ï¿½ï¿½ï¿½İ‚ï¿½ switch ï¿½\ï¿½ï¿½ï¿½ï¿½ */
+} *cur_switch; /* Œ»İ‚Ì switch \‘¢‘Ì */
 
 #define MAX_TEMP_LOCAL_VARIABLE_NUMBER 8
-/* ï¿½ï¿½ï¿½İ‚ÌŠÖï¿½ï¿½Å‚ÌƒXï¿½^ï¿½bï¿½Nï¿½ï¿½Ìˆêï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½Ìˆê—— */
+/* Œ»İ‚ÌŠÖ”‚Å‚ÌƒXƒ^ƒbƒNã‚Ìˆêƒ[ƒJƒ‹•Ï”‚Ìˆê—— */
 static struct temp_local_variable {
-    int location; // ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÌƒIï¿½tï¿½Zï¿½bï¿½gï¿½BSValue.c.i
-	short size;
-	short align;
+    int location; // ƒXƒ^ƒbƒNã‚ÌƒIƒtƒZƒbƒgBSValue.c.i
+    short size;
+    short align;
 } arr_temp_local_vars[MAX_TEMP_LOCAL_VARIABLE_NUMBER];
 static int nb_temp_local_vars;
 
 static struct scope {
-    struct scope *prev;
+    struct scope* prev;
     struct { int loc, locorig, num; } vla;
-    struct { Sym *s; int n; } cl;
-    int *bsym, *csym;
-    Sym *lstk, *llstk;
-} *cur_scope, *loop_scope, *root_scope;
+    struct { Sym* s; int n; } cl;
+    int* bsym, * csym;
+    Sym* lstk, * llstk;
+} *cur_scope, * loop_scope, * root_scope;
 
 typedef struct {
-    Section *sec;
+    Section* sec;
     int local_offset;
-    Sym *flex_array_ref;
+    Sym* flex_array_ref;
 } init_params;
 
 #if 1
@@ -139,71 +139,71 @@ static void block(int flags);
 #define STMT_EXPR 1
 #define STMT_COMPOUND 2
 
-static void gen_cast(CType *type);
+static void gen_cast(CType* type);
 static void gen_cast_s(int t);
-static inline CType *pointed_type(CType *type);
-static int is_compatible_types(CType *type1, CType *type2);
-static int parse_btype(CType *type, AttributeDef *ad, int ignore_label);
-static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
-static void parse_expr_type(CType *type);
-static void init_putv(init_params *p, CType *type, unsigned long c);
-static void decl_initializer(init_params *p, CType *type, unsigned long c, int flags);
-static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, int has_init, int v, int scope);
+static inline CType* pointed_type(CType* type);
+static int is_compatible_types(CType* type1, CType* type2);
+static int parse_btype(CType* type, AttributeDef* ad, int ignore_label);
+static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td);
+static void parse_expr_type(CType* type);
+static void init_putv(init_params* p, CType* type, unsigned long c);
+static void decl_initializer(init_params* p, CType* type, unsigned long c, int flags);
+static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r, int has_init, int v, int scope);
 static int decl(int l);
 static void expr_eq(void);
-static void vpush_type_size(CType *type, int *a);
-static int is_compatible_unqualified_types(CType *type1, CType *type2);
+static void vpush_type_size(CType* type, int* a);
+static int is_compatible_unqualified_types(CType* type1, CType* type2);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
-static void vpush(CType *type);
+static void vpush(CType* type);
 static int gvtst(int inv, int t);
-static void gen_inline_functions(TCCState *s);
-static void free_inline_functions(TCCState *s);
-static void skip_or_save_block(TokenString **str);
+static void gen_inline_functions(TCCState* s);
+static void free_inline_functions(TCCState* s);
+static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
-static int get_temp_local_var(int size,int align,int *r2);
-static void cast_error(CType *st, CType *dt);
+static int get_temp_local_var(int size, int align, int* r2);
+static void cast_error(CType* st, CType* dt);
 static void end_switch(void);
 static void do_Static_assert(void);
 
 /* ------------------------------------------------------------------------- */
-/* ï¿½ï¿½ï¿½ï¿½ï¿½Iï¿½ÈƒRï¿½[ï¿½hï¿½}ï¿½ï¿½ */
+/* ©“®“I‚ÈƒR[ƒh—}§ */
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½Ågï¿½pï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½ê‡ï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½ï¿½ */
+/* ‡•ûŒüƒ‰ƒxƒ‹‚Åg—p‚³‚ê‚Ä‚¢‚½ê‡‚É 'nocode_wanted' ‚ğƒNƒŠƒA‚·‚é */
 ST_FUNC void gsym(int t)
 {
-  if (t) {
-    gsym_addr(t, ind);
-    CODE_ON();
-  }
+    if (t) {
+        gsym_addr(t, ind);
+        CODE_ON();
+    }
 }
 
-/* ï¿½ï¿½ï¿½İ‚Ìƒvï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½Jï¿½Eï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½Å‚ï¿½ï¿½ï¿½ê‡ï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½ï¿½ */
+/* Œ»İ‚ÌƒvƒƒOƒ‰ƒ€ƒJƒEƒ“ƒ^‚ªƒ‰ƒxƒ‹‚Å‚ ‚éê‡‚É 'nocode_wanted' ‚ğƒNƒŠƒA‚·‚é */
 static int gind()
 {
-  int t = ind;
-  CODE_ON();
-  if (debug_modes)
-    tcc_tcov_block_begin(tcc_state);
-  return t;
+    int t = ind;
+    CODE_ON();
+    if (debug_modes)
+        tcc_tcov_block_begin(tcc_state);
+    return t;
 }
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½ï¿½ï¿½ï¿½jï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ÌŒï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½İ’è‚·ï¿½ï¿½ */
+/* –³ğŒiŒã•ûjƒWƒƒƒ“ƒv‚ÌŒã‚É 'nocode_wanted' ‚ğİ’è‚·‚é */
 static void gjmp_addr_acs(int t)
 {
-  gjmp_addr(t);
-  CODE_OFF();
+    gjmp_addr(t);
+    CODE_OFF();
 }
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½Oï¿½ï¿½ï¿½jï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ÌŒï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½İ’è‚·ï¿½ï¿½ */
+/* –³ğŒi‘O•ûjƒWƒƒƒ“ƒv‚ÌŒã‚É 'nocode_wanted' ‚ğİ’è‚·‚é */
 static int gjmp_acs(int t)
 {
-  t = gjmp(t);
-  CODE_OFF();
-  return t;
+    t = gjmp(t);
+    CODE_OFF();
+    return t;
 }
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½Íƒtï¿½@ï¿½Cï¿½ï¿½ï¿½ÌÅŒï¿½ï¿½ #undef ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ */
+/* ‚±‚ê‚ç‚Íƒtƒ@ƒCƒ‹‚ÌÅŒã‚Å #undef ‚³‚ê‚Ü‚· */
 #define gjmp_addr gjmp_addr_acs
 #define gjmp gjmp_acs
 /* ------------------------------------------------------------------------- */
@@ -235,7 +235,7 @@ static int btype_size(int bt)
         bt == VT_PTR ? PTR_SIZE : 0;
 }
 
-/* ï¿½^ï¿½É‰ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½Ô‚ï¿½ */
+/* Œ^‚É‰‚¶‚½ŠÖ”–ß‚èƒŒƒWƒXƒ^‚ğ•Ô‚· */
 static int R_RET(int t)
 {
     if (!is_float(t))
@@ -250,7 +250,7 @@ static int R_RET(int t)
     return REG_FRET;
 }
 
-/* 2ï¿½Ô–Ú‚ÌŠÖï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½Ô‚ï¿½ï¿½iï¿½ï¿½ï¿½İ‚ï¿½ï¿½ï¿½ê‡ï¿½j */
+/* 2”Ô–Ú‚ÌŠÖ”–ß‚èƒŒƒWƒXƒ^‚ğ•Ô‚·i‘¶İ‚·‚éê‡j */
 static int R2_RET(int t)
 {
     t &= VT_BTYPE;
@@ -268,25 +268,25 @@ static int R2_RET(int t)
 #endif
     return VT_CONST;
 }
-/* 2ï¿½ï¿½ï¿½[ï¿½hï¿½^ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ï¿½Ô‚ï¿½ */
+/* 2ƒ[ƒhŒ^‚©‚Ç‚¤‚©‚ğ•Ô‚· */
 #define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
 
-/* 2ï¿½ï¿½ï¿½[ï¿½hï¿½^ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ğ”»’è‚·ï¿½ï¿½ */
+/* 2ƒ[ƒhŒ^‚©‚Ç‚¤‚©‚ğ”»’è‚·‚é */
 #define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
 
-/* ï¿½Öï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½lï¿½Éİ’è‚·ï¿½ï¿½ */
-static void PUT_R_RET(SValue *sv, int t)
+/* ŠÖ”–ß‚èƒŒƒWƒXƒ^‚ğƒXƒ^ƒbƒN’l‚Éİ’è‚·‚é */
+static void PUT_R_RET(SValue* sv, int t)
 {
     sv->r = R_RET(t), sv->r2 = R2_RET(t);
 }
 
-/* ï¿½^tï¿½É‘Î‚ï¿½ï¿½ï¿½Öï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½Ô‚ï¿½ */
+/* Œ^t‚É‘Î‚·‚éŠÖ”–ß‚èƒŒƒWƒXƒ^‚ÌƒŒƒWƒXƒ^ƒNƒ‰ƒX‚ğ•Ô‚· */
 static int RC_RET(int t)
 {
     return reg_classes[R_RET(t)] & ~(RC_FLOAT | RC_INT);
 }
 
-/* ï¿½^tï¿½É‘Î‚ï¿½ï¿½ï¿½ï¿½Ê“Iï¿½Èƒï¿½ï¿½Wï¿½Xï¿½^ï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½Ô‚ï¿½ */
+/* Œ^t‚É‘Î‚·‚éˆê”Ê“I‚ÈƒŒƒWƒXƒ^ƒNƒ‰ƒX‚ğ•Ô‚· */
 static int RC_TYPE(int t)
 {
     if (!is_float(t))
@@ -303,7 +303,7 @@ static int RC_TYPE(int t)
     return RC_FLOAT;
 }
 
-/* tï¿½ï¿½rcï¿½É‘Î‰ï¿½ï¿½ï¿½ï¿½ï¿½2ï¿½Ô–Ú‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½Ô‚ï¿½ */
+/* t‚Ærc‚É‘Î‰‚·‚é2”Ô–Ú‚ÌƒŒƒWƒXƒ^ƒNƒ‰ƒX‚ğ•Ô‚· */
 static int RC2_TYPE(int t, int rc)
 {
     if (!USING_TWO_WORDS(t))
@@ -321,8 +321,8 @@ static int RC2_TYPE(int t, int rc)
     return RC_INT;
 }
 
-/* ï¿½ï¿½Wï¿½ï¿½ï¿½Ìï¿½ï¿½wï¿½ï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Å‚Ì–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ß“Æï¿½ï¿½ï¿½ 'finite' ï¿½Öï¿½ï¿½ï¿½ï¿½gï¿½p */
-/* XXX: ï¿½Gï¿½ï¿½ï¿½fï¿½Bï¿½Aï¿½ï¿½ï¿½Ë‘ï¿½ */
+/* ”ñ•W€‚Ì”Šwƒ‰ƒCƒuƒ‰ƒŠ‚Å‚Ì–â‘è‚ğ”ğ‚¯‚é‚½‚ß“Æ©‚Ì 'finite' ŠÖ”‚ğg—p */
+/* XXX: ƒGƒ“ƒfƒBƒAƒ“ˆË‘¶ */
 ST_FUNC int ieee_finite(double d)
 {
     int p[4];
@@ -330,7 +330,7 @@ ST_FUNC int ieee_finite(double d)
     return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
 }
 
-/* Intelï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ long double ï¿½ï¿½ï¿½lï¿½Cï¿½eï¿½Bï¿½uï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½İ’ï¿½ */
+/* IntelŒü‚¯‚É long double ‚ğƒlƒCƒeƒBƒu‚Éˆ—‚·‚éİ’è */
 #if (defined __i386__ || defined __x86_64__) \
     && (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64)
 # define TCC_IS_NATIVE_387
@@ -345,17 +345,17 @@ ST_FUNC void test_lvalue(void)
 ST_FUNC void check_vstack(void)
 {
     if (vtop != vstack - 1)
-        tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½[: vstack ï¿½Ìƒï¿½ï¿½[ï¿½N (%d)",
-                  (int)(vtop - vstack + 1));
+        tcc_error("“à•”ƒRƒ“ƒpƒCƒ‰ƒGƒ‰[: vstack ‚ÌƒŠ[ƒN (%d)",
+            (int)(vtop - vstack + 1));
 }
 
-/* vstack ï¿½Ìƒfï¿½oï¿½bï¿½Oï¿½â• */
+/* vstack ‚ÌƒfƒoƒbƒO•â• */
 #if 0
-void pv (const char *lbl, int a, int b)
+void pv(const char* lbl, int a, int b)
 {
     int i;
     for (i = a; i < a + b; ++i) {
-        SValue *p = &vtop[-i];
+        SValue* p = &vtop[-i];
         printf("%s vtop[-%d] : type.t:%04x  r:%04x  r2:%04x  c.i:%d\n",
             lbl, i, p->type.t, p->r, p->r2, (int)p->c.i);
     }
@@ -363,13 +363,13 @@ void pv (const char *lbl, int a, int b)
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* vstack ï¿½ÆŒ^ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Btcc -Eï¿½iï¿½vï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Zï¿½Xï¿½Ì‚İjï¿½Å‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
-ST_FUNC void tccgen_init(TCCState *s1)
+/* vstack ‚ÆŒ^‚Ì‰Šú‰»Btcc -EiƒvƒŠƒvƒƒZƒX‚Ì‚İj‚Å‚à‚±‚ê‚ğs‚¤•K—v‚ª‚ ‚é */
+ST_FUNC void tccgen_init(TCCState* s1)
 {
     vtop = vstack - 1;
-    memset(vtop, 0, sizeof *vtop);
+    memset(vtop, 0, sizeof * vtop);
 
-    /* ï¿½æ‚­ï¿½gï¿½ï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½` */
+    /* ‚æ‚­g‚í‚ê‚éŒ^‚ğ’è‹` */
     int_type.t = VT_INT;
 
     char_type.t = VT_BYTE;
@@ -388,16 +388,16 @@ ST_FUNC void tccgen_init(TCCState *s1)
     cstr_new(&initstr);
 }
 
-ST_FUNC int tccgen_compile(TCCState *s1)
+ST_FUNC int tccgen_compile(TCCState* s1)
 {
     funcname = "";
     func_ind = -1;
     anon_sym = SYM_FIRST_ANOM;
-    nocode_wanted = DATA_ONLY_WANTED; /* ï¿½Öï¿½ï¿½Oï¿½Å‚ÍƒRï¿½[ï¿½hï¿½ğ¶ï¿½ï¿½ï¿½ï¿½È‚ï¿½ */
+    nocode_wanted = DATA_ONLY_WANTED; /* ŠÖ”ŠO‚Å‚ÍƒR[ƒh‚ğ¶¬‚µ‚È‚¢ */
     debug_modes = (s1->do_debug ? 1 : 0) | s1->test_coverage << 1;
 
     tcc_debug_start(s1);
-    tcc_tcov_start (s1);
+    tcc_tcov_start(s1);
 #ifdef TCC_TARGET_ARM
     arm_init(s1);
 #endif
@@ -409,7 +409,7 @@ ST_FUNC int tccgen_compile(TCCState *s1)
     decl(VT_CONST);
     gen_inline_functions(s1);
     check_vstack();
-    /* ï¿½|ï¿½ï¿½Pï¿½Ê‚Ìï¿½ï¿½ÌIï¿½ï¿½ï¿½ */
+    /* –|–ó’PˆÊ‚Ìî•ñ‚ÌI‚í‚è */
 #if TCC_EH_FRAME
     tcc_eh_frame_end(s1);
 #endif
@@ -418,15 +418,15 @@ ST_FUNC int tccgen_compile(TCCState *s1)
     return 0;
 }
 
-ST_FUNC void tccgen_finish(TCCState *s1)
+ST_FUNC void tccgen_finish(TCCState* s1)
 {
-    tcc_debug_end(s1); /* ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É”ï¿½ï¿½ï¿½ï¿½Äƒï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    tcc_debug_end(s1); /* ƒGƒ‰[”­¶‚É”õ‚¦‚Äƒƒ‚ƒŠ‚ğ‰ğ•ú */
     free_inline_functions(s1);
     sym_pop(&global_stack, NULL, 0);
     sym_pop(&local_stack, NULL, 0);
-    /* ï¿½vï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Zï¿½bï¿½Tï¿½Ìƒ}ï¿½Nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* ƒvƒŠƒvƒƒZƒbƒT‚Ìƒ}ƒNƒ‚ğ‰ğ•ú */
     free_defines(NULL);
-    /* sym_pools ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* sym_pools ‚ğ‰ğ•ú */
     dynarray_reset(&sym_pools, &nb_sym_pools);
     cstr_free(&initstr);
     dynarray_reset(&stk_data, &nb_stk_data);
@@ -444,17 +444,17 @@ ST_FUNC void tccgen_finish(TCCState *s1)
 }
 
 /* ------------------------------------------------------------------------- */
-ST_FUNC ElfSym *elfsym(Sym *s)
+ST_FUNC ElfSym* elfsym(Sym* s)
 {
-  if (!s || !s->c)
-    return NULL;
-  return &((ElfSym *)symtab_section->data)[s->c];
+    if (!s || !s->c)
+        return NULL;
+    return &((ElfSym*)symtab_section->data)[s->c];
 }
 
-/* ELF ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ÉƒXï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½p */
-ST_FUNC void update_storage(Sym *sym)
+/* ELF ƒVƒ“ƒ{ƒ‹‚ÉƒXƒgƒŒ[ƒW‘®«‚ğ“K—p */
+ST_FUNC void update_storage(Sym* sym)
 {
-    ElfSym *esym;
+    ElfSym* esym;
     int sym_bind, old_sym_bind;
 
     esym = elfsym(sym);
@@ -463,7 +463,7 @@ ST_FUNC void update_storage(Sym *sym)
 
     if (sym->a.visibility)
         esym->st_other = (esym->st_other & ~ELFW(ST_VISIBILITY)(-1))
-            | sym->a.visibility;
+        | sym->a.visibility;
 
     if (sym->type.t & (VT_STATIC | VT_INLINE))
         sym_bind = STB_LOCAL;
@@ -490,20 +490,20 @@ ST_FUNC void update_storage(Sym *sym)
         sym->a.visibility,
         sym->a.dllexport,
         sym->a.dllimport
-        );
+    );
 #endif
 }
 
 /* ------------------------------------------------------------------------- */
-/* sym->c ï¿½ï¿½ï¿½Xï¿½Vï¿½ï¿½ï¿½A'section' ï¿½Zï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌŠOï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½iï¿½l valueï¿½jï¿½ï¿½ï¿½wï¿½ï¿½ï¿½æ‚¤ï¿½É‚ï¿½ï¿½ï¿½ */
+/* sym->c ‚ğXV‚µA'section' ƒZƒNƒVƒ‡ƒ““à‚ÌŠO•”ƒVƒ“ƒ{ƒ‹i’l valuej‚ğw‚·‚æ‚¤‚É‚·‚é */
 
-ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
-                            addr_t value, unsigned long size,
-                            int can_add_underscore)
+ST_FUNC void put_extern_sym2(Sym* sym, int sh_num,
+    addr_t value, unsigned long size,
+    int can_add_underscore)
 {
     int sym_type, sym_bind, info, other, t;
-    ElfSym *esym;
-    const char *name;
+    ElfSym* esym;
+    const char* name;
     char buf1[256];
 
     if (!sym->c) {
@@ -511,11 +511,13 @@ ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
         t = sym->type.t;
         if ((t & VT_BTYPE) == VT_FUNC) {
             sym_type = STT_FUNC;
-        } else if ((t & VT_BTYPE) == VT_VOID) {
+        }
+        else if ((t & VT_BTYPE) == VT_VOID) {
             sym_type = STT_NOTYPE;
-            if ((t & (VT_BTYPE|VT_ASM_FUNC)) == VT_ASM_FUNC)
+            if ((t & (VT_BTYPE | VT_ASM_FUNC)) == VT_ASM_FUNC)
                 sym_type = STT_FUNC;
-        } else {
+        }
+        else {
             sym_type = STT_OBJECT;
         }
         if (t & (VT_STATIC | VT_INLINE))
@@ -526,7 +528,7 @@ ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
 
 #ifdef TCC_TARGET_PE
         if (sym_type == STT_FUNC && sym->type.ref) {
-            Sym *ref = sym->type.ref;
+            Sym* ref = sym->type.ref;
             if (ref->a.nodecorate) {
                 can_add_underscore = 0;
             }
@@ -556,7 +558,8 @@ ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
         if (debug_modes)
             tcc_debug_extern_sym(tcc_state, sym, sh_num, sym_bind, sym_type);
 
-    } else {
+    }
+    else {
         esym = elfsym(sym);
         esym->st_value = value;
         esym->st_size = size;
@@ -565,16 +568,16 @@ ST_FUNC void put_extern_sym2(Sym *sym, int sh_num,
     update_storage(sym);
 }
 
-ST_FUNC void put_extern_sym(Sym *sym, Section *s, addr_t value, unsigned long size)
+ST_FUNC void put_extern_sym(Sym* sym, Section* s, addr_t value, unsigned long size)
 {
     if (nocode_wanted && (NODATA_WANTED || (s && s == cur_text_section)))
         return;
     put_extern_sym2(sym, s ? s->sh_num : SHN_UNDEF, value, size, 1);
 }
 
-/* ï¿½Zï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ s ï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ sym ï¿½ÉVï¿½ï¿½ï¿½ï¿½ï¿½Ä”zï¿½uï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ */
-ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type,
-                     addr_t addend)
+/* ƒZƒNƒVƒ‡ƒ“ s ‚ÌƒVƒ“ƒ{ƒ‹ sym ‚ÉV‚µ‚¢Ä”z’uƒGƒ“ƒgƒŠ‚ğ’Ç‰Á */
+ST_FUNC void greloca(Section* s, Sym* sym, unsigned long offset, int type,
+    addr_t addend)
 {
     int c = 0;
 
@@ -587,22 +590,22 @@ ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type,
         c = sym->c;
     }
 
-    /* ï¿½ï¿½ï¿½ï¿½ï¿½ ELF ï¿½Ä”zï¿½uï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½Å‚ï¿½ï¿½ï¿½ */
+    /* ‚±‚ê‚Å ELF Ä”z’uî•ñ‚ğ’Ç‰Á‚Å‚«‚é */
     put_elf_reloca(symtab_section, s, offset, type, c, addend);
 }
 
 #if PTR_SIZE == 4
-ST_FUNC void greloc(Section *s, Sym *sym, unsigned long offset, int type)
+ST_FUNC void greloc(Section* s, Sym* sym, unsigned long offset, int type)
 {
     greloca(s, sym, offset, type, 0);
 }
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Pï¿½[ï¿½^ */
-static Sym *__sym_malloc(void)
+/* ƒVƒ“ƒ{ƒ‹ƒAƒƒP[ƒ^ */
+static Sym* __sym_malloc(void)
 {
-    Sym *sym_pool, *sym, *last_sym;
+    Sym* sym_pool, * sym, * last_sym;
     int i;
 
     sym_pool = tcc_malloc(SYM_POOL_NB * sizeof(Sym));
@@ -610,7 +613,7 @@ static Sym *__sym_malloc(void)
 
     last_sym = sym_free_first;
     sym = sym_pool;
-    for(i = 0; i < SYM_POOL_NB; i++) {
+    for (i = 0; i < SYM_POOL_NB; i++) {
         sym->next = last_sym;
         last_sym = sym;
         sym++;
@@ -619,9 +622,9 @@ static Sym *__sym_malloc(void)
     return last_sym;
 }
 
-static inline Sym *sym_malloc(void)
+static inline Sym* sym_malloc(void)
 {
-    Sym *sym;
+    Sym* sym;
 #ifndef SYM_DEBUG
     sym = sym_free_first;
     if (!sym)
@@ -634,7 +637,7 @@ static inline Sym *sym_malloc(void)
 #endif
 }
 
-ST_INLN void sym_free(Sym *sym)
+ST_INLN void sym_free(Sym* sym)
 {
 #ifndef SYM_DEBUG
     sym->next = sym_free_first;
@@ -644,13 +647,13 @@ ST_INLN void sym_free(Sym *sym)
 #endif
 }
 
-/* ï¿½nï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½gï¿½í‚¸ï¿½Éƒvï¿½bï¿½Vï¿½ï¿½ */
-ST_FUNC Sym *sym_push2(Sym **ps, int v, int t, int c)
+/* ƒnƒbƒVƒ…‚ğg‚í‚¸‚ÉƒvƒbƒVƒ… */
+ST_FUNC Sym* sym_push2(Sym** ps, int v, int t, int c)
 {
-    Sym *s;
+    Sym* s;
 
     s = sym_malloc();
-    memset(s, 0, sizeof *s);
+    memset(s, 0, sizeof * s);
     s->v = v;
     s->type.t = t;
     s->c = c;
@@ -660,8 +663,8 @@ ST_FUNC Sym *sym_push2(Sym **ps, int v, int t, int c)
     return s;
 }
 
-/* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î‰ï¿½ï¿½ï¿½ï¿½ï¿½\ï¿½ï¿½ï¿½Ì‚ï¿½Ô‚ï¿½ï¿½B's' ï¿½ÍƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìƒgï¿½bï¿½v */
-ST_FUNC Sym *sym_find2(Sym *s, int v)
+/* ƒVƒ“ƒ{ƒ‹‚ğŒŸõ‚µ‘Î‰‚·‚é\‘¢‘Ì‚ğ•Ô‚·B's' ‚ÍƒVƒ“ƒ{ƒ‹ƒXƒ^ƒbƒN‚Ìƒgƒbƒv */
+ST_FUNC Sym* sym_find2(Sym* s, int v)
 {
     while (s) {
         if (s->v == v)
@@ -671,8 +674,8 @@ ST_FUNC Sym *sym_find2(Sym *s, int v)
     return NULL;
 }
 
-/* ï¿½\ï¿½ï¿½ï¿½Ì‚ÌŒï¿½ï¿½ï¿½ */
-ST_INLN Sym *struct_find(int v)
+/* \‘¢‘Ì‚ÌŒŸõ */
+ST_INLN Sym* struct_find(int v)
 {
     v -= TOK_IDENT;
     if ((unsigned)v >= (unsigned)(tok_ident - TOK_IDENT))
@@ -680,8 +683,8 @@ ST_INLN Sym *struct_find(int v)
     return table_ident[v]->sym_struct;
 }
 
-/* ï¿½ï¿½ï¿½Êqï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
-ST_INLN Sym *sym_find(int v)
+/* ¯•Êq‚ğŒŸõ */
+ST_INLN Sym* sym_find(int v)
 {
     v -= TOK_IDENT;
     if ((unsigned)v >= (unsigned)(tok_ident - TOK_IDENT))
@@ -689,19 +692,19 @@ ST_INLN Sym *sym_find(int v)
     return table_ident[v]->sym_identifier;
 }
 
-static int sym_scope(Sym *s)
+static int sym_scope(Sym* s)
 {
-  if (IS_ENUM_VAL (s->type.t))
-    return s->type.ref->sym_scope;
-  else
-    return s->sym_scope;
+    if (IS_ENUM_VAL(s->type.t))
+        return s->type.ref->sym_scope;
+    else
+        return s->sym_scope;
 }
 
-/* ï¿½wï¿½è‚³ï¿½ê‚½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Éƒvï¿½bï¿½Vï¿½ï¿½ */
-ST_FUNC Sym *sym_push(int v, CType *type, int r, int c)
+/* w’è‚³‚ê‚½ƒVƒ“ƒ{ƒ‹‚ğƒVƒ“ƒ{ƒ‹ƒXƒ^ƒbƒN‚ÉƒvƒbƒVƒ… */
+ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
 {
-    Sym *s, **ps;
-    TokenSym *ts;
+    Sym* s, ** ps;
+    TokenSym* ts;
 
     if (local_stack)
         ps = &local_stack;
@@ -710,10 +713,10 @@ ST_FUNC Sym *sym_push(int v, CType *type, int r, int c)
     s = sym_push2(ps, v, type->t, c);
     s->type.ref = type->ref;
     s->r = r;
-    /* ï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½â“½ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Í‹Lï¿½^ï¿½ï¿½ï¿½È‚ï¿½ */
+    /* ƒtƒB[ƒ‹ƒh‚â“½–¼ƒVƒ“ƒ{ƒ‹‚Í‹L˜^‚µ‚È‚¢ */
     /* XXX: simplify */
     if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-    /* ï¿½gï¿½[ï¿½Nï¿½ï¿½ï¿½zï¿½ï¿½ÉƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½Lï¿½^ */
+        /* ƒg[ƒNƒ“”z—ñ‚ÉƒVƒ“ƒ{ƒ‹‚ğ‹L˜^ */
         ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
         if (v & SYM_STRUCT)
             ps = &ts->sym_struct;
@@ -723,24 +726,24 @@ ST_FUNC Sym *sym_push(int v, CType *type, int r, int c)
         *ps = s;
         s->sym_scope = local_scope;
         if (s->prev_tok && sym_scope(s->prev_tok) == s->sym_scope)
-            tcc_error("ï¿½Ä’ï¿½`: '%s'",
+            tcc_error("Ä’è‹`: '%s'",
                 get_tok_str(v & ~SYM_STRUCT, NULL));
     }
     return s;
 }
 
-/* ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½ï¿½ï¿½Êqï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
-ST_FUNC Sym *global_identifier_push(int v, int t, int c)
+/* ƒOƒ[ƒoƒ‹¯•Êq‚ğƒvƒbƒVƒ… */
+ST_FUNC Sym* global_identifier_push(int v, int t, int c)
 {
-    Sym *s, **ps;
+    Sym* s, ** ps;
     s = sym_push2(&global_stack, v, t, c);
     s->r = VT_CONST | VT_SYM;
     /* don't record anonymous symbol */
     if (v < SYM_FIRST_ANOM) {
         ps = &table_ident[v - TOK_IDENT]->sym_identifier;
-    /* ï¿½gï¿½bï¿½vï¿½Ìƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½ï¿½ï¿½Êqï¿½ï¿½ÏXï¿½ï¿½ï¿½Aï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ê‚½ï¿½Æ‚ï¿½ï¿½ï¿½
-       sym_identifier ï¿½ï¿½ 's' ï¿½ï¿½ï¿½wï¿½ï¿½ï¿½æ‚¤ï¿½É‚ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ÍƒCï¿½ï¿½ï¿½ï¿½ï¿½Cï¿½ï¿½ asm ï¿½ï¿½ï¿½ï¿½
-       ï¿½Ä‚Ñoï¿½ï¿½ï¿½ê‚½ï¿½Æ‚ï¿½ï¿½É”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+        /* ƒgƒbƒv‚Ìƒ[ƒJƒ‹¯•Êq‚ğ•ÏX‚µAƒ|ƒbƒv‚³‚ê‚½‚Æ‚«‚É
+           sym_identifier ‚ª 's' ‚ğw‚·‚æ‚¤‚É‚·‚éG‚±‚Ìˆ—‚ÍƒCƒ“ƒ‰ƒCƒ“ asm ‚©‚ç
+           ŒÄ‚Ño‚³‚ê‚½‚Æ‚«‚É”­¶‚·‚é */
         while (*ps != NULL && (*ps)->sym_scope)
             ps = &(*ps)->prev_tok;
         s->prev_tok = *ps;
@@ -749,16 +752,16 @@ ST_FUNC Sym *global_identifier_push(int v, int t, int c)
     return s;
 }
 
-/* ï¿½gï¿½bï¿½vï¿½ï¿½ 'b' ï¿½É“ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½Ü‚ÅƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½BKEEP ï¿½ï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Ìê‡ï¿½ï¿½
-    ï¿½ï¿½ï¿½Û‚É‚Íƒï¿½ï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½gï¿½[ï¿½Nï¿½ï¿½ï¿½zï¿½ñ‚©‚ï¿½Ì‚İíœï¿½ï¿½ï¿½ï¿½ */
-ST_FUNC void sym_pop(Sym **ptop, Sym *b, int keep)
+/* ƒgƒbƒv‚ª 'b' ‚É“’B‚·‚é‚Ü‚ÅƒVƒ“ƒ{ƒ‹‚ğƒ|ƒbƒv‚·‚éBKEEP ‚ª”ñƒ[ƒ‚Ìê‡‚Í
+    ÀÛ‚É‚ÍƒŠƒXƒg‚©‚çæ‚èœ‚©‚¸Aƒg[ƒNƒ“”z—ñ‚©‚ç‚Ì‚İíœ‚·‚é */
+ST_FUNC void sym_pop(Sym** ptop, Sym* b, int keep)
 {
-    Sym *s, *ss, **ps;
-    TokenSym *ts;
+    Sym* s, * ss, ** ps;
+    TokenSym* ts;
     int v;
 
     s = *ptop;
-    while(s != b) {
+    while (s != b) {
         ss = s->prev;
         v = s->v;
         /* remove symbol in token array */
@@ -771,16 +774,16 @@ ST_FUNC void sym_pop(Sym **ptop, Sym *b, int keep)
                 ps = &ts->sym_identifier;
             *ps = s->prev_tok;
         }
-	if (!keep)
-	    sym_free(s);
+        if (!keep)
+            sym_free(s);
         s = ss;
     }
     if (!keep)
-	*ptop = b;
+        *ptop = b;
 }
 
-/* ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½ÌŒï¿½ï¿½ï¿½ */
-ST_FUNC Sym *label_find(int v)
+/* ƒ‰ƒxƒ‹‚ÌŒŸõ */
+ST_FUNC Sym* label_find(int v)
 {
     v -= TOK_IDENT;
     if ((unsigned)v >= (unsigned)(tok_ident - TOK_IDENT))
@@ -788,9 +791,9 @@ ST_FUNC Sym *label_find(int v)
     return table_ident[v]->sym_label;
 }
 
-ST_FUNC Sym *label_push(Sym **ptop, int v, int flags)
+ST_FUNC Sym* label_push(Sym** ptop, int v, int flags)
 {
-    Sym *s, **ps;
+    Sym* s, ** ps;
     s = sym_push2(ptop, v, VT_STATIC, 0);
     s->r = flags;
     ps = &table_ident[v - TOK_IDENT]->sym_label;
@@ -805,19 +808,21 @@ ST_FUNC Sym *label_push(Sym **ptop, int v, int flags)
     return s;
 }
 
-/* ï¿½ÅŒï¿½Ì—vï¿½fï¿½É’Bï¿½ï¿½ï¿½ï¿½Ü‚Åƒï¿½ï¿½xï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½`ï¿½Ìƒï¿½ï¿½xï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½mï¿½Fï¿½ï¿½ï¿½ï¿½B
-    '&&label' ï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ÎƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½`ï¿½ï¿½ï¿½ï¿½ */
-ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep)
+/* ÅŒã‚Ì—v‘f‚É’B‚·‚é‚Ü‚Åƒ‰ƒxƒ‹‚ğƒ|ƒbƒv‚·‚éB–¢’è‹`‚Ìƒ‰ƒxƒ‹‚ª‚È‚¢‚©Šm”F‚·‚éB
+    '&&label' ‚ªg‚í‚ê‚Ä‚¢‚ê‚ÎƒVƒ“ƒ{ƒ‹‚ğ’è‹`‚·‚é */
+ST_FUNC void label_pop(Sym** ptop, Sym* slast, int keep)
 {
-    Sym *s, *s1;
-    for(s = *ptop; s != slast; s = s1) {
+    Sym* s, * s1;
+    for (s = *ptop; s != slast; s = s1) {
         s1 = s->prev;
         if (s->r == LABEL_DECLARED) {
-            tcc_warning_c(warn_all)("ï¿½ï¿½ï¿½xï¿½ï¿½ '%s' ï¿½ÍéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", get_tok_str(s->v, NULL));
-    } else if (s->r == LABEL_FORWARD) {
-        tcc_error("ï¿½ï¿½ï¿½xï¿½ï¿½ '%s' ï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½ï¿½ï¿½`ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
-              get_tok_str(s->v, NULL));
-        } else {
+            tcc_warning_c(warn_all)("ƒ‰ƒxƒ‹ '%s' ‚ÍéŒ¾‚³‚ê‚Ä‚¢‚Ü‚·‚ªg—p‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ", get_tok_str(s->v, NULL));
+        }
+        else if (s->r == LABEL_FORWARD) {
+            tcc_error("ƒ‰ƒxƒ‹ '%s' ‚ªg—p‚³‚ê‚Ä‚¢‚Ü‚·‚ª’è‹`‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ",
+                get_tok_str(s->v, NULL));
+        }
+        else {
             if (s->c) {
                 /* define corresponding symbol. A size of
                    1 is put. */
@@ -839,27 +844,27 @@ ST_FUNC void label_pop(Sym **ptop, Sym *slast, int keep)
 /* ------------------------------------------------------------------------- */
 static void vcheck_cmp(void)
 {
-    /* ï¿½ï¿½ï¿½Ì–ï¿½ï¿½ß‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½É‚ï¿½ CPU ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½cï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Bï¿½Ü‚ï¿½
-       VT_JMP ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìæ“ªï¿½ÈŠOï¿½Écï¿½ï¿½ï¿½ÆƒRï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½í‚ªï¿½ï¿½ï¿½Gï¿½É‚È‚é‚½ï¿½ß”ï¿½ï¿½ï¿½ï¿½ï¿½B
+    /* ‘¼‚Ì–½—ß‚ª¶¬‚³‚ê‚éê‡‚É‚Í CPU ƒtƒ‰ƒO‚ğc‚µ‚Ä‚¨‚¯‚È‚¢B‚Ü‚½
+       VT_JMP ‚ğƒXƒ^ƒbƒN‚Ìæ“ªˆÈŠO‚Éc‚·‚ÆƒR[ƒh¶¬Ší‚ª•¡G‚É‚È‚é‚½‚ß”ğ‚¯‚éB
 
-       nocode_wanted ï¿½Ì‚Æ‚ï¿½ï¿½Í‚ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Ä‚Í‚ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Bvtop ï¿½ï¿½
-       !nocode_wanted ï¿½Ì—Ìˆæ‚©ï¿½ç—ˆï¿½ï¿½ê‡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½i88_codeopt.c ï¿½ï¿½ï¿½Qï¿½Æjï¿½A
-       ï¿½ï¿½ï¿½Û‚ÉƒRï¿½[ï¿½hï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ÆAï¿½lï¿½ï¿½ï¿½ï¿½ï¿½Û‚Égï¿½pï¿½ï¿½ï¿½ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ‚È‚ï¿½B
-       nocode_wanted ï¿½ï¿½ï¿½Åƒvï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ê‚½ï¿½Sï¿½Ä‚Ì’lï¿½ÍÅIï¿½Iï¿½Éƒ|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½,
-       ï¿½Rï¿½[ï¿½hï¿½}ï¿½~ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‚½ï¿½Æ‚ï¿½ï¿½ï¿½ VT_CMP/VT_JMP ï¿½Ì’lï¿½ï¿½ vtop ï¿½É–ß‚ï¿½B */
+       nocode_wanted ‚Ì‚Æ‚«‚Í‚±‚ê‚ğs‚Á‚Ä‚Í‚¢‚¯‚È‚¢Bvtop ‚Í
+       !nocode_wanted ‚Ì—Ìˆæ‚©‚ç—ˆ‚éê‡‚ª‚ ‚èi88_codeopt.c ‚ğQÆjA
+       ÀÛ‚ÉƒR[ƒh‚ğ¶¬‚¹‚¸ƒŒƒWƒXƒ^‚É•ÏŠ·‚·‚é‚ÆA’l‚ªÀÛ‚Ég—p‚³‚ê‚é‰Â”\«‚ª‚ ‚èŒë‚è‚Æ‚È‚éB
+       nocode_wanted ‰º‚ÅƒvƒbƒVƒ…‚³‚ê‚½‘S‚Ä‚Ì’l‚ÍÅI“I‚Éƒ|ƒbƒv‚³‚ê,
+       ƒR[ƒh—}~‚ª‰ğœ‚³‚ê‚½‚Æ‚«‚É VT_CMP/VT_JMP ‚Ì’l‚ª vtop ‚É–ß‚éB */
 
-    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ACODE_OFF/ON() ï¿½É‚ï¿½é©ï¿½ï¿½ï¿½}ï¿½~ï¿½ï¿½ï¿½ï¿½ï¿½Ìê‡ï¿½ÍAï¿½ï¿½ï¿½Ì‚Ü‚Ü“ï¿½ï¿½ï¿½ï¿½Wï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½B
-       nocode_wanted ï¿½ï¿½ï¿½Å‚Ç‚Ì‚æ‚¤ï¿½É‹@ï¿½\ï¿½ï¿½ï¿½ï¿½Ì‚ï¿½ï¿½Hgv() ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h/VT_JMP ï¿½É‚ï¿½ï¿½ï¿½ï¿½ï¿½ gsym() ï¿½ï¿½
-       ï¿½ï¿½ï¿½Û‚ÉƒNï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½é‚½ï¿½ß‚Å‚ï¿½ï¿½ï¿½iï¿½Wï¿½Fï¿½lï¿½ï¿½ï¿½[ï¿½^ï¿½Ìƒoï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½hï¿½Qï¿½Æjï¿½B */
+       /* ‚½‚¾‚µACODE_OFF/ON() ‚É‚æ‚é©“®—}~‚¾‚¯‚Ìê‡‚ÍA‚»‚Ì‚Ü‚Ü“®ì‚ğ–W‚°‚È‚¢•û‚ª—Ç‚¢B
+          nocode_wanted ‰º‚Å‚Ç‚Ì‚æ‚¤‚É‹@”\‚·‚é‚Ì‚©Hgv() ‚ªƒ[ƒh/VT_JMP ‚É‚¨‚¯‚é gsym() ‚Å
+          ÀÛ‚ÉƒNƒŠƒA‚·‚é‚½‚ß‚Å‚ ‚éiƒWƒFƒlƒŒ[ƒ^‚ÌƒoƒbƒNƒGƒ“ƒhQÆjB */
 
     if (vtop->r == VT_CMP && 0 == (nocode_wanted & ~CODE_OFF_BIT))
         gv(RC_INT);
 }
 
-static void vsetc(CType *type, int r, CValue *vc)
+static void vsetc(CType* type, int r, CValue* vc)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ (vstack)");
+        tcc_error("ƒƒ‚ƒŠ•s‘« (vstack)");
     vcheck_cmp();
     vtop++;
     vtop->type = *type;
@@ -879,32 +884,33 @@ ST_FUNC void vswap(void)
     vtop[-1] = tmp;
 }
 
-/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½lï¿½ï¿½ï¿½|ï¿½bï¿½v */
+/* ƒXƒ^ƒbƒN’l‚ğƒ|ƒbƒv */
 ST_FUNC void vpop(void)
 {
     int v;
     v = vtop->r & VT_VALMASK;
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-    /* x86 ï¿½Å‚ï¿½ FPU ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* x86 ‚Å‚Í FPU ƒXƒ^ƒbƒN‚ğƒ|ƒbƒv‚·‚é•K—v‚ª‚ ‚é */
     if (v == TREG_ST0) {
         o(0xd8dd); /* fstp %st(0) */
-    } else
-#endif
-    if (v == VT_CMP) {
-        /* && ï¿½ï¿½ || ï¿½Ìƒeï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Ìê‡ï¿½Aï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
-        gsym(vtop->jtrue);
-        gsym(vtop->jfalse);
     }
+    else
+#endif
+        if (v == VT_CMP) {
+            /* && ‚â || ‚ÌƒeƒXƒg–³‚µ‚Ìê‡A³‚µ‚¢ƒWƒƒƒ“ƒv‚ğ¶¬‚·‚é */
+            gsym(vtop->jtrue);
+            gsym(vtop->jfalse);
+        }
     vtop--;
 }
 
-/* ï¿½^ 'type' ï¿½Ì’è”ï¿½iï¿½_ï¿½~ï¿½[ï¿½lï¿½jï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
-static void vpush(CType *type)
+/* Œ^ 'type' ‚Ì’è”iƒ_ƒ~[’lj‚ğƒvƒbƒVƒ… */
+static void vpush(CType* type)
 {
     vset(type, VT_CONST, 0);
 }
 
-/* ï¿½Cï¿½Ó‚ï¿½ 64bit ï¿½è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
+/* ”CˆÓ‚Ì 64bit ’è”‚ğƒvƒbƒVƒ… */
 static void vpush64(int ty, unsigned long long v)
 {
     CValue cval;
@@ -915,25 +921,25 @@ static void vpush64(int ty, unsigned long long v)
     vsetc(&ctype, VT_CONST, &cval);
 }
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
+/* ®”’è”‚ğƒvƒbƒVƒ… */
 ST_FUNC void vpushi(int v)
 {
     vpush64(VT_INT, v);
 }
 
-/* ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Tï¿½Cï¿½Yï¿½Ì’è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
+/* ƒ|ƒCƒ“ƒ^ƒTƒCƒY‚Ì’è”‚ğƒvƒbƒVƒ… */
 static void vpushs(addr_t v)
 {
     vpush64(VT_SIZE_T, v);
 }
 
-/* long long ï¿½^ï¿½Ì’è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
+/* long long Œ^‚Ì’è”‚ğƒvƒbƒVƒ… */
 static inline void vpushll(long long v)
 {
     vpush64(VT_LLONG, v);
 }
 
-ST_FUNC void vset(CType *type, int r, int v)
+ST_FUNC void vset(CType* type, int r, int v)
 {
     CValue cval;
     cval.i = v;
@@ -948,10 +954,10 @@ static void vseti(int r, int v)
     vset(&type, r, v);
 }
 
-ST_FUNC void vpushv(SValue *v)
+ST_FUNC void vpushv(SValue* v)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ (vstack)");
+        tcc_error("ƒƒ‚ƒŠ•s‘« (vstack)");
     vtop++;
     *vtop = *v;
 }
@@ -961,7 +967,7 @@ static void vdup(void)
     vpushv(vtop);
 }
 
-/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½ÌˆÊ’u n-1 ï¿½Ì—vï¿½fï¿½ï¿½ï¿½gï¿½bï¿½vï¿½Ö‰ï¿½] */
+/* ƒXƒ^ƒbƒN‚ÌˆÊ’u n-1 ‚Ì—v‘f‚ğƒgƒbƒv‚Ö‰ñ“] */
 ST_FUNC void vrotb(int n)
 {
     SValue tmp;
@@ -969,11 +975,11 @@ ST_FUNC void vrotb(int n)
         return;
     vcheck_cmp();
     tmp = vtop[-n];
-    memmove(vtop - n, vtop - n + 1, sizeof *vtop * n);
+    memmove(vtop - n, vtop - n + 1, sizeof * vtop * n);
     vtop[0] = tmp;
 }
 
-/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìƒgï¿½bï¿½vï¿½vï¿½fï¿½ï¿½ï¿½Ê’u n-1 ï¿½É‰ï¿½] */
+/* ƒXƒ^ƒbƒN‚Ìƒgƒbƒv—v‘f‚ğˆÊ’u n-1 ‚É‰ñ“] */
 ST_FUNC void vrott(int n)
 {
     SValue tmp;
@@ -981,11 +987,11 @@ ST_FUNC void vrott(int n)
         return;
     vcheck_cmp();
     tmp = vtop[0];
-    memmove(vtop - n + 1, vtop - n, sizeof *vtop * n);
+    memmove(vtop - n + 1, vtop - n, sizeof * vtop * n);
     vtop[-n] = tmp;
 }
 
-/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìæ“ª n ï¿½vï¿½fï¿½Ìï¿½ï¿½ï¿½ï¿½ğ”½“] */
+/* ƒXƒ^ƒbƒN‚Ìæ“ª n —v‘f‚Ì‡˜‚ğ”½“] */
 ST_FUNC void vrev(int n)
 {
     int i;
@@ -996,9 +1002,9 @@ ST_FUNC void vrev(int n)
 }
 
 /* ------------------------------------------------------------------------- */
-/* vtop->r = VT_CMP ï¿½Í”ï¿½rï¿½ï¿½eï¿½Xï¿½gï¿½É‚ï¿½ï¿½ CPU ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½İ’è‚³ï¿½ï¿½Ä‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½Ó–ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* vtop->r = VT_CMP ‚Í”äŠr‚âƒeƒXƒg‚É‚æ‚è CPU ƒtƒ‰ƒO‚ªİ’è‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğˆÓ–¡‚·‚é */
 
-/* ï¿½Wï¿½Fï¿½lï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ï¿½ï¿½Ä‚Î‚ï¿½Aï¿½ÖŒWï¿½ï¿½ï¿½Zï¿½ÌŒï¿½ï¿½Ê‚ï¿½İ’è‚·ï¿½ï¿½ */
+/* ƒWƒFƒlƒŒ[ƒ^‚©‚çŒÄ‚Î‚êAŠÖŒW‰‰Z‚ÌŒ‹‰Ê‚ğİ’è‚·‚é */
 ST_FUNC void vset_VT_CMP(int op)
 {
     vtop->r = VT_CMP;
@@ -1007,29 +1013,30 @@ ST_FUNC void vset_VT_CMP(int op)
     vtop->jtrue = 0;
 }
 
-/* ï¿½Wï¿½Fï¿½lï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ VT_CMP ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½Öƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½Éˆï¿½xï¿½Ä‚Î‚ï¿½ï¿½ */
+/* ƒWƒFƒlƒŒ[ƒ^‚É VT_CMP ‚ğƒŒƒWƒXƒ^‚Öƒ[ƒh‚³‚¹‚é‘O‚Éˆê“xŒÄ‚Î‚ê‚é */
 static void vset_VT_JMP(void)
 {
     int op = vtop->cmp_op;
 
     if (vtop->jtrue || vtop->jfalse) {
         int origt = vtop->type.t;
-    /* 'mov $0,%R' ï¿½Ü‚ï¿½ï¿½ï¿½ 'mov $1,%R' ï¿½ÖƒWï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+        /* 'mov $0,%R' ‚Ü‚½‚Í 'mov $1,%R' ‚ÖƒWƒƒƒ“ƒv‚·‚é•K—v‚ª‚ ‚é */
         int inv = op & (op < 2); /* small optimization */
-        vseti(VT_JMP+inv, gvtst(inv, 0));
+        vseti(VT_JMP + inv, gvtst(inv, 0));
         vtop->type.t |= origt & (VT_UNSIGNED | VT_DEFSIGN);
-    } else {
-    /* ï¿½ï¿½ï¿½ï¿½ÈŠOï¿½Ìê‡ï¿½Íƒtï¿½ï¿½ï¿½Oï¿½i0/1ï¿½jï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ */
+    }
+    else {
+        /* ‚»‚êˆÈŠO‚Ìê‡‚Íƒtƒ‰ƒOi0/1j‚ğƒŒƒWƒXƒ^‚É•ÏŠ·‚·‚é */
         vtop->c.i = op;
         if (op < 2) /* doesn't seem to happen */
             vtop->r = VT_CONST;
     }
 }
 
-/* CPU ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½İ’è‚·ï¿½ï¿½iï¿½Ü‚ï¿½ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½Ísï¿½ï¿½È‚ï¿½ï¿½j */
+/* CPU ƒtƒ‰ƒO‚ğİ’è‚·‚éi‚Ü‚¾ƒWƒƒƒ“ƒv‚Ís‚í‚È‚¢j */
 static void gvtst_set(int inv, int t)
 {
-    int *p;
+    int* p;
 
     if (vtop->r != VT_CMP) {
         vpushi(0);
@@ -1042,9 +1049,9 @@ static void gvtst_set(int inv, int t)
     *p = gjmp_append(*p, t);
 }
 
-/* ï¿½lï¿½eï¿½Xï¿½gï¿½Ìï¿½ï¿½ï¿½
+/* ’lƒeƒXƒg‚Ì¶¬
  *
- * ï¿½Cï¿½Ó‚Ì’lï¿½É‘Î‚ï¿½ï¿½ï¿½eï¿½Xï¿½gï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½Aï¿½ï¿½rï¿½Aï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚Şj */
+ * ”CˆÓ‚Ì’l‚É‘Î‚·‚éƒeƒXƒg‚ğ¶¬‚·‚éiƒWƒƒƒ“ƒvA”äŠrA®”‚ğŠÜ‚Şj */
 static int gvtst(int inv, int t)
 {
     int op, x, u;
@@ -1067,7 +1074,7 @@ static int gvtst(int inv, int t)
     return t;
 }
 
-/* ï¿½[ï¿½ï¿½/ï¿½ï¿½[ï¿½ï¿½ï¿½Ìƒeï¿½Xï¿½gï¿½ğ¶ï¿½ */
+/* ƒ[ƒ/”ñƒ[ƒ‚ÌƒeƒXƒg‚ğ¶¬ */
 static void gen_test_zero(int op)
 {
     if (vtop->r == VT_CMP) {
@@ -1078,15 +1085,16 @@ static void gen_test_zero(int op)
             vtop->jtrue = j;
             vtop->cmp_op ^= 1;
         }
-    } else {
+    }
+    else {
         vpushi(0);
         gen_op(op);
     }
 }
 
 /* ------------------------------------------------------------------------- */
-/* ï¿½wï¿½ï¿½^ï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½lï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
-ST_FUNC void vpushsym(CType *type, Sym *sym)
+/* w’èŒ^‚ÌƒVƒ“ƒ{ƒ‹’l‚ğƒvƒbƒVƒ… */
+ST_FUNC void vpushsym(CType* type, Sym* sym)
 {
     CValue cval;
     cval.i = 0;
@@ -1094,11 +1102,11 @@ ST_FUNC void vpushsym(CType *type, Sym *sym)
     vtop->sym = sym;
 }
 
-/* ï¿½Zï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½wï¿½ï¿½ï¿½Ã“Iï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½Ô‚ï¿½ */
-ST_FUNC Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
+/* ƒZƒNƒVƒ‡ƒ“‚ğw‚·Ã“IƒVƒ“ƒ{ƒ‹‚ğ•Ô‚· */
+ST_FUNC Sym* get_sym_ref(CType* type, Section* sec, unsigned long offset, unsigned long size)
 {
     int v;
-    Sym *sym;
+    Sym* sym;
 
     v = anon_sym++;
     sym = sym_push(v, type, VT_CONST | VT_SYM, 0);
@@ -1107,23 +1115,24 @@ ST_FUNC Sym *get_sym_ref(CType *type, Section *sec, unsigned long offset, unsign
     return sym;
 }
 
-/* ï¿½_ï¿½~ï¿½[ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ÄƒZï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½Ö‚ÌQï¿½Æ‚ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
-static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
+/* ƒ_ƒ~[ƒVƒ“ƒ{ƒ‹‚ğ’Ç‰Á‚µ‚ÄƒZƒNƒVƒ‡ƒ“‚Ö‚ÌQÆ‚ğƒvƒbƒVƒ… */
+static void vpush_ref(CType* type, Section* sec, unsigned long offset, unsigned long size)
 {
-    vpushsym(type, get_sym_ref(type, sec, offset, size));  
+    vpushsym(type, get_sym_ref(type, sec, offset, size));
 }
 
-/* ï¿½^ 'u' ï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ 'v' ï¿½Ö‚ÌVï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½` */
-ST_FUNC Sym *external_global_sym(int v, CType *type)
+/* Œ^ 'u' ‚ÌƒVƒ“ƒ{ƒ‹ 'v' ‚Ö‚ÌV‚µ‚¢ŠO•”QÆ‚ğ’è‹` */
+ST_FUNC Sym* external_global_sym(int v, CType* type)
 {
-    Sym *s;
+    Sym* s;
 
     s = sym_find(v);
     if (!s) {
         /* push forward reference */
         s = global_identifier_push(v, type->t | VT_EXTERN, 0);
         s->type.ref = type->ref;
-    } else if (IS_ASM_SYM(s)) {
+    }
+    else if (IS_ASM_SYM(s)) {
         s->type.t = type->t | (s->type.t & VT_EXTERN);
         s->type.ref = type->ref;
         update_storage(s);
@@ -1131,79 +1140,79 @@ ST_FUNC Sym *external_global_sym(int v, CType *type)
     return s;
 }
 
-/* asm ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½Éï¿½ï¿½ï¿½ï¿½^ï¿½wï¿½ï¿½Ì‚È‚ï¿½ï¿½Oï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½ì¬ï¿½ï¿½ï¿½ï¿½B
-    ï¿½ï¿½ï¿½ï¿½É‚ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ C ï¿½ï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ä‚ï¿½ï¿½^ï¿½ÌÕ“Ë‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
-ST_FUNC Sym *external_helper_sym(int v)
+/* asm ƒ‰ƒxƒ‹‚É—‚½Œ^w’è‚Ì‚È‚¢ŠO•”QÆ‚ğì¬‚·‚éB
+    ‚±‚ê‚É‚æ‚èƒVƒ“ƒ{ƒ‹‚ª C ‚©‚çg‚í‚ê‚Ä‚àŒ^‚ÌÕ“Ë‚ğ”ğ‚¯‚ç‚ê‚é */
+ST_FUNC Sym* external_helper_sym(int v)
 {
     CType ct = { VT_ASM_FUNC, NULL };
     return external_global_sym(v, &ct);
 }
 
-/* ï¿½wï¿½ï¿½ï¿½pï¿½Öï¿½ï¿½iï¿½ï¿½: memmoveï¿½jï¿½Ö‚ÌQï¿½Æ‚ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
+/* ƒwƒ‹ƒpŠÖ”i—á: memmovej‚Ö‚ÌQÆ‚ğƒvƒbƒVƒ… */
 ST_FUNC void vpush_helper_func(int v)
 {
     vpushsym(&func_old_type, external_helper_sym(v));
 }
 
-/* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
-static void merge_symattr(struct SymAttr *sa, struct SymAttr *sa1)
+/* ƒVƒ“ƒ{ƒ‹‘®«‚ğƒ}[ƒW‚·‚é */
+static void merge_symattr(struct SymAttr* sa, struct SymAttr* sa1)
 {
     if (sa1->aligned && !sa->aligned)
-      sa->aligned = sa1->aligned;
+        sa->aligned = sa1->aligned;
     sa->packed |= sa1->packed;
     sa->weak |= sa1->weak;
     sa->nodebug |= sa1->nodebug;
     if (sa1->visibility != STV_DEFAULT) {
-	int vis = sa->visibility;
-	if (vis == STV_DEFAULT
-	    || vis > sa1->visibility)
-	  vis = sa1->visibility;
-	sa->visibility = vis;
+        int vis = sa->visibility;
+        if (vis == STV_DEFAULT
+            || vis > sa1->visibility)
+            vis = sa1->visibility;
+        sa->visibility = vis;
     }
     sa->dllexport |= sa1->dllexport;
     sa->nodecorate |= sa1->nodecorate;
     sa->dllimport |= sa1->dllimport;
 }
 
-/* ï¿½Öï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
-static void merge_funcattr(struct FuncAttr *fa, struct FuncAttr *fa1)
+/* ŠÖ”‘®«‚ğƒ}[ƒW‚·‚é */
+static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
 {
     if (fa1->func_call && !fa->func_call)
-      fa->func_call = fa1->func_call;
+        fa->func_call = fa1->func_call;
     if (fa1->func_type && !fa->func_type)
-      fa->func_type = fa1->func_type;
+        fa->func_type = fa1->func_type;
     if (fa1->func_args && !fa->func_args)
-      fa->func_args = fa1->func_args;
+        fa->func_args = fa1->func_args;
     if (fa1->func_noreturn)
-      fa->func_noreturn = 1;
+        fa->func_noreturn = 1;
     if (fa1->func_ctor)
-      fa->func_ctor = 1;
+        fa->func_ctor = 1;
     if (fa1->func_dtor)
-      fa->func_dtor = 1;
+        fa->func_dtor = 1;
 }
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
-static void merge_attr(AttributeDef *ad, AttributeDef *ad1)
+/* ‘®«‚ğƒ}[ƒW‚·‚é */
+static void merge_attr(AttributeDef* ad, AttributeDef* ad1)
 {
     merge_symattr(&ad->a, &ad1->a);
     merge_funcattr(&ad->f, &ad1->f);
 
     if (ad1->section)
-      ad->section = ad1->section;
+        ad->section = ad1->section;
     if (ad1->alias_target)
-      ad->alias_target = ad1->alias_target;
+        ad->alias_target = ad1->alias_target;
     if (ad1->asm_label)
-      ad->asm_label = ad1->asm_label;
+        ad->asm_label = ad1->asm_label;
     if (ad1->attr_mode)
-      ad->attr_mode = ad1->attr_mode;
+        ad->attr_mode = ad1->attr_mode;
 }
 
-/* ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½Ìˆê•”ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
-static void patch_type(Sym *sym, CType *type)
+/* Œ^‘®«‚Ìˆê•”‚ğƒ}[ƒW‚·‚é */
+static void patch_type(Sym* sym, CType* type)
 {
     if (!(type->t & VT_EXTERN) || IS_ENUM_VAL(sym->type.t)) {
         if (!(sym->type.t & VT_EXTERN))
-            tcc_error("ï¿½Ä’ï¿½`: '%s'", get_tok_str(sym->v, NULL));
+            tcc_error("Ä’è‹`: '%s'", get_tok_str(sym->v, NULL));
         sym->type.t &= ~VT_EXTERN;
     }
 
@@ -1216,62 +1225,65 @@ static void patch_type(Sym *sym, CType *type)
     }
 
     if (!is_compatible_types(&sym->type, type)) {
-        tcc_error("ï¿½Ä’ï¿½`ï¿½ÌŒ^ï¿½ï¿½ï¿½İŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½: '%s'",
-                  get_tok_str(sym->v, NULL));
+        tcc_error("Ä’è‹`‚ÌŒ^‚ªŒİŠ·«‚ª‚ ‚è‚Ü‚¹‚ñ: '%s'",
+            get_tok_str(sym->v, NULL));
 
-    } else if ((sym->type.t & VT_BTYPE) == VT_FUNC) {
+    }
+    else if ((sym->type.t & VT_BTYPE) == VT_FUNC) {
         int static_proto = sym->type.t & VT_STATIC;
         /* warn if static follows non-static function declaration */
-            if ((type->t & VT_STATIC) && !static_proto
+        if ((type->t & VT_STATIC) && !static_proto
             /* XXX this test for inline shouldn't be here.  Until we
                implement gnu-inline mode again it silences a warning for
                mingw caused by our workarounds.  */
             && !((type->t | sym->type.t) & VT_INLINE))
-            tcc_warning("ï¿½Ä’ï¿½`: '%s' ï¿½ï¿½ static ï¿½wï¿½ï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½",
+            tcc_warning("Ä’è‹`: '%s' ‚Å static w’è‚Í–³‹‚³‚ê‚Ü‚·",
                 get_tok_str(sym->v, NULL));
 
         /* set 'inline' if both agree or if one has static */
         if ((type->t | sym->type.t) & VT_INLINE) {
             if (!((type->t ^ sym->type.t) & VT_INLINE)
-             || ((type->t | sym->type.t) & VT_STATIC))
+                || ((type->t | sym->type.t) & VT_STATIC))
                 static_proto |= VT_INLINE;
         }
 
         if (0 == (type->t & VT_EXTERN)) {
             struct FuncAttr f = sym->type.ref->f;
             /* put complete type, use static from prototype */
-            sym->type.t = (type->t & ~(VT_STATIC|VT_INLINE)) | static_proto;
+            sym->type.t = (type->t & ~(VT_STATIC | VT_INLINE)) | static_proto;
             sym->type.ref = type->ref;
             merge_funcattr(&sym->type.ref->f, &f);
-        } else {
+        }
+        else {
             sym->type.t &= ~VT_INLINE | static_proto;
         }
 
         if (sym->type.ref->f.func_type == FUNC_OLD
-             && type->ref->f.func_type != FUNC_OLD) {
+            && type->ref->f.func_type != FUNC_OLD) {
             sym->type.ref = type->ref;
         }
 
-    } else {
+    }
+    else {
         if ((sym->type.t & VT_ARRAY) && type->ref->c >= 0) {
             /* set array size if it was omitted in extern declaration */
             sym->type.ref->c = type->ref->c;
         }
         if ((type->t ^ sym->type.t) & VT_STATIC)
-            tcc_warning("ï¿½Ä’ï¿½`: '%s' ï¿½ÌƒXï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½wï¿½è‚ªï¿½sï¿½ï¿½vï¿½Å‚ï¿½",
+            tcc_warning("Ä’è‹`: '%s' ‚ÌƒXƒgƒŒ[ƒWw’è‚ª•sˆê’v‚Å‚·",
                 get_tok_str(sym->v, NULL));
     }
 }
 
-/* ï¿½Xï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½Ìˆê•”ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
-static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
+/* ƒXƒgƒŒ[ƒW‘®«‚Ìˆê•”‚ğƒ}[ƒW‚·‚é */
+static void patch_storage(Sym* sym, AttributeDef* ad, CType* type)
 {
     if (type)
         patch_type(sym, type);
 
 #ifdef TCC_TARGET_PE
     if (sym->a.dllimport != ad->a.dllimport)
-        tcc_error("ï¿½Ä’ï¿½` '%s' ï¿½ï¿½ DLL ï¿½ï¿½ï¿½ï¿½ï¿½Pï¿½[ï¿½Wï¿½ï¿½ï¿½İŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
+        tcc_error("Ä’è‹` '%s' ‚Ì DLL ƒŠƒ“ƒP[ƒW‚ªŒİŠ·«‚ª‚ ‚è‚Ü‚¹‚ñ",
             get_tok_str(sym->v, NULL));
 #endif
     merge_symattr(&sym->a, &ad->a);
@@ -1280,45 +1292,45 @@ static void patch_storage(Sym *sym, AttributeDef *ad, CType *type)
     update_storage(sym);
 }
 
-/* sym ï¿½ï¿½Ê‚ÌƒXï¿½^ï¿½bï¿½Nï¿½ÖƒRï¿½sï¿½[ */
-static Sym *sym_copy(Sym *s0, Sym **ps)
+/* sym ‚ğ•Ê‚ÌƒXƒ^ƒbƒN‚ÖƒRƒs[ */
+static Sym* sym_copy(Sym* s0, Sym** ps)
 {
-    Sym *s;
-    s = sym_malloc(), *s = *s0;
-    s->prev = *ps, *ps = s;
+    Sym* s;
+    s = sym_malloc(), * s = *s0;
+    s->prev = *ps, * ps = s;
     if (s->v < SYM_FIRST_ANOM) {
         ps = &table_ident[s->v - TOK_IDENT]->sym_identifier;
-        s->prev_tok = *ps, *ps = s;
+        s->prev_tok = *ps, * ps = s;
     }
     return s;
 }
 
-/* VT_FUNC ï¿½ï¿½ VT_PTR ï¿½Ì‚ï¿½ï¿½ß‚ï¿½ s->type.ref ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½N 'ps' ï¿½ÉƒRï¿½sï¿½[ */
-static void sym_copy_ref(Sym *s, Sym **ps)
+/* VT_FUNC ‚Æ VT_PTR ‚Ì‚½‚ß‚É s->type.ref ‚ğƒXƒ^ƒbƒN 'ps' ‚ÉƒRƒs[ */
+static void sym_copy_ref(Sym* s, Sym** ps)
 {
     int bt = s->type.t & VT_BTYPE;
     if (bt == VT_FUNC || bt == VT_PTR || (bt == VT_STRUCT && s->sym_scope)) {
-        Sym **sp = &s->type.ref;
+        Sym** sp = &s->type.ref;
         for (s = *sp, *sp = NULL; s; s = s->next) {
-            Sym *s2 = sym_copy(s, ps);
+            Sym* s2 = sym_copy(s, ps);
             sp = &(*sp = s2)->next;
             sym_copy_ref(s2, ps);
         }
     }
 }
 
-/* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ 'v' ï¿½Ö‚ÌVï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½` */
-static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
+/* ƒVƒ“ƒ{ƒ‹ 'v' ‚Ö‚ÌV‚µ‚¢ŠO•”QÆ‚ğ’è‹` */
+static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
 {
-    Sym *s;
+    Sym* s;
 
-    /* ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½Tï¿½ï¿½ */
+    /* ƒOƒ[ƒoƒ‹ƒVƒ“ƒ{ƒ‹‚ğ’T‚· */
     s = sym_find(v);
     while (s && s->sym_scope)
         s = s->prev_tok;
 
     if (!s) {
-        /* ï¿½ï¿½sï¿½Qï¿½Æ‚ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+        /* æsQÆ‚ğƒvƒbƒVƒ…‚·‚é */
         s = global_identifier_push(v, type->t, 0);
         s->r |= r;
         s->a = ad->a;
@@ -1327,44 +1339,45 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad)
         /* copy type to the global stack */
         if (local_stack)
             sym_copy_ref(s, &global_stack);
-    } else {
+    }
+    else {
         patch_storage(s, ad, type);
     }
-    /* ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Ïï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îƒvï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* ƒ[ƒJƒ‹ƒXƒ^ƒbƒN‚É•Ï”‚ª‚ ‚ê‚ÎƒvƒbƒVƒ…‚·‚é */
     if (local_stack && (s->type.t & VT_BTYPE) != VT_FUNC)
         s = sym_copy(s, &local_stack);
     return s;
 }
 
-/* (vtop - n) ï¿½ÌƒXï¿½^ï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ü‚Å‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Û‘ï¿½ */
+/* (vtop - n) ‚ÌƒXƒ^ƒbƒNƒGƒ“ƒgƒŠ‚Ü‚Å‚ÌƒŒƒWƒXƒ^‚ğ•Û‘¶ */
 ST_FUNC void save_regs(int n)
 {
-    SValue *p, *p1;
-    for(p = vstack, p1 = vtop - n; p <= p1; p++)
+    SValue* p, * p1;
+    for (p = vstack, p1 = vtop - n; p <= p1; p++)
         save_reg(p->r);
 }
 
-/* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ r ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½Aï¿½ó‚«‚Æ‚ï¿½ï¿½Äƒ}ï¿½[ï¿½Nï¿½ï¿½ï¿½ï¿½ */
+/* ƒŒƒWƒXƒ^ r ‚ğƒƒ‚ƒŠƒXƒ^ƒbƒN‚É•Û‘¶‚µA‹ó‚«‚Æ‚µ‚Äƒ}[ƒN‚·‚é */
 ST_FUNC void save_reg(int r)
 {
     save_reg_upstack(r, 0);
 }
 
-/* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ r ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½A(vtop - n) ï¿½Ü‚Å‚ÉŒï¿½ï¿½Â‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½ï¿½
-    ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä‹ó‚«‚Æ‚ï¿½ï¿½Äƒ}ï¿½[ï¿½Nï¿½ï¿½ï¿½ï¿½ */
+/* ƒŒƒWƒXƒ^ r ‚ğƒƒ‚ƒŠƒXƒ^ƒbƒN‚É•Û‘¶‚µA(vtop - n) ‚Ü‚Å‚ÉŒ©‚Â‚©‚Á‚½ê‡‚Í
+    ƒXƒ^ƒbƒNã‚É•Û‘¶‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğ¦‚µ‚Ä‹ó‚«‚Æ‚µ‚Äƒ}[ƒN‚·‚é */
 ST_FUNC void save_reg_upstack(int r, int n)
 {
     int l, size, align, bt, r2;
-    SValue *p, *p1, sv;
+    SValue* p, * p1, sv;
 
     if ((r &= VT_VALMASK) >= VT_CONST)
         return;
     if (nocode_wanted)
         return;
     l = r2 = 0;
-    for(p = vstack, p1 = vtop - n; p <= p1; p++) {
+    for (p = vstack, p1 = vtop - n; p <= p1; p++) {
         if ((p->r & VT_VALMASK) == r || p->r2 == r) {
-            /* ï¿½Ü‚ï¿½ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½ê‡ï¿½Í’lï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+            /* ‚Ü‚¾•Û‘¶‚³‚ê‚Ä‚¢‚È‚¢ê‡‚Í’l‚ğƒXƒ^ƒbƒN‚É•Û‘¶‚·‚é•K—v‚ª‚ ‚é */
             if (!l) {
                 bt = p->type.t & VT_BTYPE;
                 if (bt == VT_VOID)
@@ -1378,24 +1391,25 @@ ST_FUNC void save_reg_upstack(int r, int n)
                 sv.c.i = l;
                 store(p->r & VT_VALMASK, &sv);
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-                /* x86 ï¿½Å—L: ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ê‡ï¿½ï¿½ FP ï¿½ï¿½ï¿½Wï¿½Xï¿½^ ST0 ï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+                /* x86 ŒÅ—L: •Û‘¶‚³‚ê‚Ä‚¢‚éê‡‚Í FP ƒŒƒWƒXƒ^ ST0 ‚ğƒ|ƒbƒv‚·‚é•K—v‚ª‚ ‚é */
                 if (r == TREG_ST0) {
                     o(0xd8dd); /* fstp %st(0) */
                 }
 #endif
-                /* long long ï¿½Ì“ï¿½ï¿½ï¿½Pï¿½[ï¿½X */
+                /* long long ‚Ì“ÁêƒP[ƒX */
                 if (p->r2 < VT_CONST && USING_TWO_WORDS(bt)) {
                     sv.c.i += PTR_SIZE;
                     store(p->r2, &sv);
                 }
             }
-            /* ï¿½ï¿½ï¿½ÌƒXï¿½^ï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½ê‚½ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
+            /* ‚»‚ÌƒXƒ^ƒbƒNƒGƒ“ƒgƒŠ‚ªƒXƒ^ƒbƒNã‚É•Û‘¶‚³‚ê‚½‚±‚Æ‚ğ¦‚· */
             if (p->r & VT_LVAL) {
                 /* also clear the bounded flag because the
                    relocation address of the function was stored in
                    p->c.i */
                 p->r = (p->r & ~(VT_VALMASK | VT_BOUNDED)) | VT_LLOCAL;
-            } else {
+            }
+            else {
                 p->r = VT_LVAL | VT_LOCAL;
                 p->type.t &= ~VT_ARRAY; /* cannot combine VT_LVAL with VT_ARRAY */
             }
@@ -1407,18 +1421,18 @@ ST_FUNC void save_reg_upstack(int r, int n)
 }
 
 #ifdef TCC_TARGET_ARM
-/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÅÅ‘ï¿½1ï¿½Â‚ï¿½ï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½Nï¿½ï¿½ï¿½X 'rc2' ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Tï¿½ï¿½ï¿½B
- * ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ get_reg(rc) ï¿½ï¿½ï¿½Ä‚ï¿½ */
+/* ƒXƒ^ƒbƒNã‚ÅÅ‘å1‚Â‚µ‚©QÆ‚³‚ê‚Ä‚¢‚È‚¢ƒNƒ‰ƒX 'rc2' ‚ÌƒŒƒWƒXƒ^‚ğ’T‚·B
+ * Œ©‚Â‚©‚ç‚È‚¯‚ê‚Î get_reg(rc) ‚ğŒÄ‚Ô */
 ST_FUNC int get_reg_ex(int rc, int rc2)
 {
     int r;
-    SValue *p;
-    
-    for(r=0;r<NB_REGS;r++) {
+    SValue* p;
+
+    for (r = 0; r < NB_REGS; r++) {
         if (reg_classes[r] & rc2) {
             int n;
-            n=0;
-            for(p = vstack; p <= vtop; p++) {
+            n = 0;
+            for (p = vstack; p <= vtop; p++) {
                 if ((p->r & VT_VALMASK) == r ||
                     p->r2 == r)
                     n++;
@@ -1431,31 +1445,31 @@ ST_FUNC int get_reg_ex(int rc, int rc2)
 }
 #endif
 
-/* ï¿½Nï¿½ï¿½ï¿½X 'rc' ï¿½Ì‹ó‚«ƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Tï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½1ï¿½Â•Û‘ï¿½ï¿½ï¿½ï¿½ÄŠmï¿½Û‚ï¿½ï¿½ï¿½ */
+/* ƒNƒ‰ƒX 'rc' ‚Ì‹ó‚«ƒŒƒWƒXƒ^‚ğ’T‚·B–³‚¯‚ê‚Î1‚Â•Û‘¶‚µ‚ÄŠm•Û‚·‚é */
 ST_FUNC int get_reg(int rc)
 {
     int r;
-    SValue *p;
+    SValue* p;
 
-    /* ï¿½ó‚«ƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Tï¿½ï¿½ */
-    for(r=0;r<NB_REGS;r++) {
+    /* ‹ó‚«ƒŒƒWƒXƒ^‚ğ’T‚· */
+    for (r = 0; r < NB_REGS; r++) {
         if (reg_classes[r] & rc) {
             if (nocode_wanted)
                 return r;
-            for(p=vstack;p<=vtop;p++) {
+            for (p = vstack; p <= vtop; p++) {
                 if ((p->r & VT_VALMASK) == r ||
                     p->r2 == r)
                     goto notfound;
             }
             return r;
         }
-    notfound: ;
+    notfound:;
     }
-    
-    /* ï¿½ó‚«ƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½È‚ï¿½: ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÌÅï¿½ï¿½Ì‚ï¿½ï¿½Ì‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-       ï¿½igen_opi() ï¿½Ågï¿½ï¿½ï¿½éƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½Ú‚ï¿½ï¿½È‚ï¿½ï¿½æ‚¤ï¿½Aï¿½ï¿½ï¿½iï¿½{ï¿½gï¿½ï¿½ï¿½jï¿½ï¿½ï¿½ï¿½
-       ï¿½Jï¿½nï¿½ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½Édï¿½vï¿½j */
-    for(p=vstack;p<=vtop;p++) {
+
+    /* ‹ó‚«ƒŒƒWƒXƒ^‚ª‚È‚¢: ƒXƒ^ƒbƒNã‚ÌÅ‰‚Ì‚à‚Ì‚ğ‰ğ•ú‚·‚é
+       igen_opi() ‚Åg‚í‚ê‚éƒŒƒWƒXƒ^‚ğ‚±‚Ú‚³‚È‚¢‚æ‚¤A‰ºiƒ{ƒgƒ€j‚©‚ç
+       ŠJn‚·‚é‚±‚Æ‚ª”ñí‚Éd—vj */
+    for (p = vstack; p <= vtop; p++) {
         /* look at second register (if long long) */
         r = p->r2;
         if (r < VT_CONST && (reg_classes[r] & rc))
@@ -1471,49 +1485,49 @@ ST_FUNC int get_reg(int rc)
     return -1;
 }
 
-/* ï¿½Tï¿½Cï¿½Yï¿½ÆƒAï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½Éï¿½ï¿½ï¿½ï¿½êï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ï¿½Tï¿½ï¿½ï¿½iï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÌƒIï¿½tï¿½Zï¿½bï¿½gï¿½ï¿½Ô‚ï¿½ï¿½jï¿½B
-    ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ÎVï¿½ï¿½ï¿½ï¿½ï¿½êï¿½Ïï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½ */
-static int get_temp_local_var(int size,int align, int *r2)
+/* ƒTƒCƒY‚ÆƒAƒ‰ƒCƒ“‚É‡‚¤ˆêƒ[ƒJƒ‹•Ï”‚ğ’T‚·iƒXƒ^ƒbƒNã‚ÌƒIƒtƒZƒbƒg‚ğ•Ô‚·jB
+    Œ©‚Â‚©‚ç‚È‚¯‚ê‚ÎV‚µ‚¢ˆê•Ï”‚ğ’Ç‰Á‚·‚é */
+static int get_temp_local_var(int size, int align, int* r2)
 {
     int i;
-    struct temp_local_variable *temp_var;
-    SValue *p;
+    struct temp_local_variable* temp_var;
+    SValue* p;
     int r;
     unsigned used = 0;
 
     /* mark locations that are still in use */
     for (p = vstack; p <= vtop; p++) {
-	r = p->r & VT_VALMASK;
-	if (r == VT_LOCAL || r == VT_LLOCAL) {
-	    r = p->r2 - (VT_CONST + 1);
-	    if (r >= 0 && r < MAX_TEMP_LOCAL_VARIABLE_NUMBER)
-	        used |= 1<<r;
-	}
+        r = p->r & VT_VALMASK;
+        if (r == VT_LOCAL || r == VT_LLOCAL) {
+            r = p->r2 - (VT_CONST + 1);
+            if (r >= 0 && r < MAX_TEMP_LOCAL_VARIABLE_NUMBER)
+                used |= 1 << r;
+        }
     }
-    for (i=0;i<nb_temp_local_vars;i++) {
-	temp_var=&arr_temp_local_vars[i];
-	if(!(used & 1<<i)
-	 && temp_var->size>=size
-	 && temp_var->align>=align) {
-ret_tmp:
-	    *r2 = (VT_CONST + 1) + i;
-	    return temp_var->location;
-	}
+    for (i = 0; i < nb_temp_local_vars; i++) {
+        temp_var = &arr_temp_local_vars[i];
+        if (!(used & 1 << i)
+            && temp_var->size >= size
+            && temp_var->align >= align) {
+        ret_tmp:
+            *r2 = (VT_CONST + 1) + i;
+            return temp_var->location;
+        }
     }
     loc = (loc - size) & -align;
-    if (nb_temp_local_vars<MAX_TEMP_LOCAL_VARIABLE_NUMBER) {
-	temp_var=&arr_temp_local_vars[i];
-	temp_var->location=loc;
-	temp_var->size=size;
-	temp_var->align=align;
-	nb_temp_local_vars++;
-	goto ret_tmp;
+    if (nb_temp_local_vars < MAX_TEMP_LOCAL_VARIABLE_NUMBER) {
+        temp_var = &arr_temp_local_vars[i];
+        temp_var->location = loc;
+        temp_var->size = size;
+        temp_var->align = align;
+        nb_temp_local_vars++;
+        goto ret_tmp;
     }
     *r2 = VT_CONST;
     return loc;
 }
 
-/* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ 's'ï¿½iï¿½^ tï¿½jï¿½ï¿½ 'r' ï¿½ÉˆÚ“ï¿½ï¿½ï¿½ï¿½Aï¿½Kï¿½vï¿½È‚ï¿½ï¿½ r ï¿½ÌˆÈ‘Oï¿½Ì’lï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½ï¿½ï¿½oï¿½ï¿½ */
+/* ƒŒƒWƒXƒ^ 's'iŒ^ tj‚ğ 'r' ‚ÉˆÚ“®‚µA•K—v‚È‚ç‚Î r ‚ÌˆÈ‘O‚Ì’l‚ğƒƒ‚ƒŠ‚Ö‘‚«o‚· */
 static void move_reg(int r, int s, int t)
 {
     SValue sv;
@@ -1528,50 +1542,50 @@ static void move_reg(int r, int s, int t)
     }
 }
 
-/* vtop ï¿½ÌƒAï¿½hï¿½ï¿½ï¿½Xï¿½ğ“¾‚ï¿½ (vtop ï¿½ï¿½ lvalue ï¿½Å‚ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½) */
+/* vtop ‚ÌƒAƒhƒŒƒX‚ğ“¾‚é (vtop ‚Í lvalue ‚Å‚ ‚é•K—v‚ª‚ ‚é) */
 ST_FUNC void gaddrof(void)
 {
     vtop->r &= ~VT_LVAL;
-    /* ï¿½gï¿½ï¿½ï¿½bï¿½Lï¿½[: ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ê‚½ lvalue ï¿½Ìê‡ï¿½ÍÄ‚ï¿½ lvalue ï¿½É–ß‚ï¿½ï¿½ï¿½ */
+    /* ƒgƒŠƒbƒL[: •Û‘¶‚³‚ê‚½ lvalue ‚Ìê‡‚ÍÄ‚Ñ lvalue ‚É–ß‚¹‚é */
     if ((vtop->r & VT_VALMASK) == VT_LLOCAL)
         vtop->r = (vtop->r & ~VT_VALMASK) | VT_LOCAL | VT_LVAL;
 }
 
 #ifdef CONFIG_TCC_BCHECK
-/* ï¿½ï¿½ï¿½Eï¿½tï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ì‰ï¿½ï¿½Zï¿½Rï¿½[ï¿½hï¿½ğ¶ï¿½ */
+/* ‹«ŠE•t‚«ƒ|ƒCƒ“ƒ^‚Ì‰ÁZƒR[ƒh‚ğ¶¬ */
 static void gen_bounded_ptr_add(void)
 {
     int save = (vtop[-1].r & VT_VALMASK) == VT_LOCAL;
     if (save) {
-      vpushv(&vtop[-1]);
-      vrott(3);
+        vpushv(&vtop[-1]);
+        vrott(3);
     }
     vpush_helper_func(TOK___bound_ptr_add);
     vrott(3);
     gfunc_call(2);
     vtop -= save;
     vpushi(0);
-    /* ï¿½ß‚ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ REG_IRET ï¿½É“ï¿½ï¿½ï¿½ */
+    /* –ß‚èƒ|ƒCƒ“ƒ^‚Í REG_IRET ‚É“ü‚é */
     vtop->r = REG_IRET | VT_BOUNDED;
     if (nocode_wanted)
         return;
-    /* ï¿½ï¿½ï¿½Eï¿½`ï¿½Fï¿½bï¿½Nï¿½Öï¿½ï¿½Ä‚Ñoï¿½ï¿½ï¿½nï¿½_ï¿½ÌÄ”zï¿½uï¿½Iï¿½tï¿½Zï¿½bï¿½g */
+    /* ‹«ŠEƒ`ƒFƒbƒNŠÖ”ŒÄ‚Ño‚µ’n“_‚ÌÄ”z’uƒIƒtƒZƒbƒg */
     vtop->c.i = (cur_text_section->reloc->data_offset - sizeof(ElfW_Rel));
 }
 
-/* vtop ï¿½Ìƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Äƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½Qï¿½Æ‚ï¿½ï¿½eï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ */
+/* vtop ‚Ìƒ|ƒCƒ“ƒ^‰ÁZ‚ğC³‚µ‚Äƒ|ƒCƒ“ƒ^QÆ‚àƒeƒXƒg‚·‚é */
 static void gen_bounded_ptr_deref(void)
 {
     addr_t func;
     int size, align;
-    ElfW_Rel *rel;
-    Sym *sym;
+    ElfW_Rel* rel;
+    Sym* sym;
 
     if (nocode_wanted)
         return;
 
     size = type_size(&vtop->type, &align);
-    switch(size) {
+    switch (size) {
     case  1: func = TOK___bound_ptr_indir1; break;
     case  2: func = TOK___bound_ptr_indir2; break;
     case  4: func = TOK___bound_ptr_indir4; break;
@@ -1579,29 +1593,29 @@ static void gen_bounded_ptr_deref(void)
     case 12: func = TOK___bound_ptr_indir12; break;
     case 16: func = TOK___bound_ptr_indir16; break;
     default:
-        /* ï¿½\ï¿½ï¿½ï¿½Ìƒï¿½ï¿½ï¿½ï¿½oï¿½Aï¿½Nï¿½Zï¿½Xï¿½Å”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
+        /* \‘¢‘Ìƒƒ“ƒoƒAƒNƒZƒX‚Å”­¶‚·‚é‚±‚Æ‚ª‚ ‚é */
         return;
     }
     sym = external_helper_sym(func);
     if (!sym->c)
         put_extern_sym(sym, NULL, 0, 0);
-    /* ï¿½Ä”zï¿½uï¿½ï¿½ï¿½Cï¿½ï¿½ */
-    /* XXX: ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½H */
-    rel = (ElfW_Rel *)(cur_text_section->reloc->data + vtop->c.i);
+    /* Ä”z’u‚ğC³ */
+    /* XXX: ‚æ‚è—Ç‚¢‰ğŒˆô‚ğŒ©‚Â‚¯‚éH */
+    rel = (ElfW_Rel*)(cur_text_section->reloc->data + vtop->c.i);
     rel->r_info = ELFW(R_INFO)(sym->c, ELFW(R_TYPE)(rel->r_info));
 }
 
-/* lvalue ï¿½Ì‹ï¿½ï¿½Eï¿½`ï¿½Fï¿½bï¿½Nï¿½Rï¿½[ï¿½hï¿½ğ¶ï¿½ */
+/* lvalue ‚Ì‹«ŠEƒ`ƒFƒbƒNƒR[ƒh‚ğ¶¬ */
 static void gbound(void)
 {
     CType type1;
 
     vtop->r &= ~VT_MUSTBOUND;
-    /* lvalue ï¿½Ìê‡ï¿½Aï¿½Qï¿½Æ‰ï¿½ï¿½ï¿½ï¿½iï¿½fï¿½ï¿½ï¿½tï¿½@ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½jï¿½ï¿½ï¿½ï¿½Oï¿½Éƒ`ï¿½Fï¿½bï¿½Nï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½gï¿½ï¿½ */
+    /* lvalue ‚Ìê‡AQÆ‰ğœiƒfƒŠƒtƒ@ƒŒƒ“ƒXj‚·‚é‘O‚Éƒ`ƒFƒbƒNƒR[ƒh‚ğg‚¤ */
     if (vtop->r & VT_LVAL) {
-        /* VT_BOUNDED ï¿½Å‚È‚ï¿½ï¿½lï¿½È‚ï¿½Aï¿½ï¿½ï¿½Eï¿½tï¿½ï¿½ï¿½lï¿½ï¿½ï¿½ì¬ï¿½ï¿½ï¿½ï¿½ */
+        /* VT_BOUNDED ‚Å‚È‚¢’l‚È‚çA‹«ŠE•t‚«’l‚ğì¬‚·‚é */
         if (!(vtop->r & VT_BOUNDED)) {
-            /* ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ğ“¾‚é‚½ï¿½ß‚ÉŒ^ï¿½ï¿½ int ï¿½Éİ’è‚·ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì‚ÅAï¿½ï¿½ï¿½ÌŒ^ï¿½ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½ */
+            /* ƒ|ƒCƒ“ƒ^‚ğ“¾‚é‚½‚ß‚ÉŒ^‚ğ int ‚Éİ’è‚·‚é•K—v‚ª‚ ‚é‚Ì‚ÅAŒ³‚ÌŒ^‚ğ•Û‘¶‚·‚é */
             type1 = vtop->type;
             vtop->type.t = VT_PTR;
             gaddrof();
@@ -1610,16 +1624,16 @@ static void gbound(void)
             vtop->r |= VT_LVAL;
             vtop->type = type1;
         }
-        /* ï¿½ï¿½ï¿½ï¿½ï¿½Äƒfï¿½ï¿½ï¿½tï¿½@ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½Ìƒ`ï¿½Fï¿½bï¿½Nï¿½ï¿½ï¿½sï¿½ï¿½ */
+        /* ‘±‚¢‚ÄƒfƒŠƒtƒ@ƒŒƒ“ƒX‚Ìƒ`ƒFƒbƒN‚ğs‚¤ */
         gen_bounded_ptr_deref();
     }
 }
 
-/* ï¿½Öï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½Éƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½nï¿½ß‚ï¿½Oï¿½ï¿½ __bound_ptr_add ï¿½ï¿½ï¿½Ä‚Ô•Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* ŠÖ”ˆø”‚ğƒŒƒWƒXƒ^‚Éƒ[ƒh‚µn‚ß‚é‘O‚É __bound_ptr_add ‚ğŒÄ‚Ô•K—v‚ª‚ ‚é */
 ST_FUNC void gbound_args(int nb_args)
 {
     int i, v;
-    SValue *sv;
+    SValue* sv;
 
     for (i = 1; i <= nb_args; ++i)
         if (vtop[1 - i].r & VT_MUSTBOUND) {
@@ -1632,12 +1646,12 @@ ST_FUNC void gbound_args(int nb_args)
     if (sv->r & VT_SYM) {
         v = sv->sym->v;
         if (v == TOK_setjmp
-          || v == TOK__setjmp
+            || v == TOK__setjmp
 #ifndef TCC_TARGET_PE
-          || v == TOK_sigsetjmp
-          || v == TOK___sigsetjmp
+            || v == TOK_sigsetjmp
+            || v == TOK___sigsetjmp
 #endif
-          ) {
+            ) {
             vpush_helper_func(TOK___bound_setjmp);
             vpushv(sv + 1);
             gfunc_call(1);
@@ -1648,26 +1662,26 @@ ST_FUNC void gbound_args(int nb_args)
             func_bound_add_epilog = 1;
 #endif
 #if TARGETOS_NetBSD
-        if (v == TOK_longjmp) /* __longjmp14 ï¿½Ö‚Ì–ï¿½ï¿½Oï¿½ÏXï¿½ï¿½ï¿½ï¿½ï¿½É–ß‚ï¿½ */
+        if (v == TOK_longjmp) /* __longjmp14 ‚Ö‚Ì–¼‘O•ÏX‚ğŒ³‚É–ß‚· */
             sv->sym->asm_label = TOK___bound_longjmp;
 #endif
     }
 }
 
-/* S ï¿½ï¿½ï¿½ï¿½ E ï¿½Ü‚Å‚Ìƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½É‘Î‚ï¿½ï¿½Ä‹ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½i->prev ï¿½ï¿½Hï¿½ï¿½j */
-static void add_local_bounds(Sym *s, Sym *e)
+/* S ‚©‚ç E ‚Ü‚Å‚Ìƒ[ƒJƒ‹ƒVƒ“ƒ{ƒ‹‚É‘Î‚µ‚Ä‹«ŠEî•ñ‚ğ’Ç‰Á‚·‚éi->prev ‚ğ’H‚éj */
+static void add_local_bounds(Sym* s, Sym* e)
 {
     for (; s != e; s = s->prev) {
         if (!s->v || (s->r & VT_VALMASK) != VT_LOCAL)
-          continue;
-        /* ï¿½zï¿½ï¿½Eï¿½\ï¿½ï¿½ï¿½ÌEï¿½ï¿½ï¿½pï¿½Ì‚Íï¿½ÉƒAï¿½hï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½ï¿½é‚½ï¿½ß’Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½ */
+            continue;
+        /* ”z—ñE\‘¢‘ÌE‹¤—p‘Ì‚Íí‚ÉƒAƒhƒŒƒX‚ğæ‚é‚½‚ß’Ç‰Á‚·‚é */
         if ((s->type.t & VT_ARRAY)
             || (s->type.t & VT_BTYPE) == VT_STRUCT
             || s->a.addrtaken) {
-            /* ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ì‹ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ */
+            /* ƒ[ƒJƒ‹‚Ì‹«ŠEî•ñ‚ğ’Ç‰Á */
             int align, size = type_size(&s->type, &align);
-            addr_t *bounds_ptr = section_ptr_add(lbounds_section,
-                                                 2 * sizeof(addr_t));
+            addr_t* bounds_ptr = section_ptr_add(lbounds_section,
+                2 * sizeof(addr_t));
             bounds_ptr[0] = s->c;
             bounds_ptr[1] = size;
         }
@@ -1675,24 +1689,24 @@ static void add_local_bounds(Sym *s, Sym *e)
 }
 #endif
 
-/* sym_pop ï¿½Ìƒï¿½ï¿½bï¿½pï¿½[ï¿½Bï¿½Kï¿½vï¿½É‰ï¿½ï¿½ï¿½ï¿½Äƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ì‹ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½ï¿½oï¿½^ï¿½ï¿½ï¿½ï¿½ */
-static void pop_local_syms(Sym *b, int keep)
+/* sym_pop ‚Ìƒ‰ƒbƒp[B•K—v‚É‰‚¶‚Äƒ[ƒJƒ‹‚Ì‹«ŠEî•ñ‚à“o˜^‚·‚é */
+static void pop_local_syms(Sym* b, int keep)
 {
 #ifdef CONFIG_TCC_BCHECK
     if (tcc_state->do_bounds_check && !keep && (local_scope || !func_var))
         add_local_bounds(local_stack, b);
 #endif
     if (debug_modes)
-        tcc_add_debug_info (tcc_state, !local_scope, local_stack, b);
+        tcc_add_debug_info(tcc_state, !local_scope, local_stack, b);
     sym_pop(&local_stack, b, keep);
 }
 
-/* lvalue ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ÌƒIï¿½tï¿½Zï¿½bï¿½gï¿½ğ‘‚â‚·ï¿½iï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½j */
+/* lvalue ƒ|ƒCƒ“ƒ^‚ÌƒIƒtƒZƒbƒg‚ğ‘‚â‚·iƒ|ƒCƒ“ƒ^‚ğƒCƒ“ƒNƒŠƒƒ“ƒgj */
 static void incr_offset(int offset)
 {
     int t = vtop->type.t;
-    gaddrof(); /* VT_LVAL ï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ */
-    vtop->type.t = VT_PTRDIFF_T; /* ï¿½Xï¿½Jï¿½ï¿½ï¿½[ï¿½^ï¿½Éİ’ï¿½ */
+    gaddrof(); /* VT_LVAL ‚ğæ‚èœ‚­ */
+    vtop->type.t = VT_PTRDIFF_T; /* ƒXƒJƒ‰[Œ^‚Éİ’è */
     vpushs(offset);
     gen_op('+');
     vtop->r |= VT_LVAL;
@@ -1705,8 +1719,8 @@ static void incr_bf_adr(int o)
     incr_offset(o);
 }
 
-/* ï¿½pï¿½bï¿½Nï¿½ï¿½ï¿½ê‚½ï¿½Aï¿½Ü‚ï¿½ï¿½Íï¿½ï¿½ñ‚³‚ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½Ì‚ï¿½ï¿½ß‚Ìƒoï¿½Cï¿½gï¿½Pï¿½Êƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½[ï¿½h */
-static void load_packed_bf(CType *type, int bit_pos, int bit_size)
+/* ƒpƒbƒN‚³‚ê‚½A‚Ü‚½‚Í®—ñ‚³‚ê‚Ä‚¢‚È‚¢ƒrƒbƒgƒtƒB[ƒ‹ƒh‚Ì‚½‚ß‚ÌƒoƒCƒg’PˆÊƒ[ƒhƒ‚[ƒh */
+static void load_packed_bf(CType* type, int bit_pos, int bit_size)
 {
     int n, o, bits;
     save_reg_upstack(vtop->r, 1);
@@ -1738,7 +1752,7 @@ static void load_packed_bf(CType *type, int bit_pos, int bit_size)
     }
 }
 
-/* ï¿½pï¿½bï¿½Nï¿½ï¿½ï¿½ê‚½ï¿½Aï¿½Ü‚ï¿½ï¿½Íï¿½ï¿½ñ‚³‚ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½Ì‚ï¿½ï¿½ß‚Ìƒoï¿½Cï¿½gï¿½Pï¿½ÊƒXï¿½gï¿½Aï¿½ï¿½ï¿½[ï¿½h */
+/* ƒpƒbƒN‚³‚ê‚½A‚Ü‚½‚Í®—ñ‚³‚ê‚Ä‚¢‚È‚¢ƒrƒbƒgƒtƒB[ƒ‹ƒh‚Ì‚½‚ß‚ÌƒoƒCƒg’PˆÊƒXƒgƒAƒ‚[ƒh */
 static void store_packed_bf(int bit_pos, int bit_size)
 {
     int bits, n, o, m, c;
@@ -1761,7 +1775,7 @@ static void store_packed_bf(int bit_pos, int bit_size)
         if (n < 8) {
             m = ((1 << n) - 1) << bit_pos;
             vpushi(m), gen_op('&'); // X B V1
-            vpushv(vtop-1); // X B V1 B
+            vpushv(vtop - 1); // X B V1 B
             vpushi(m & 0x80 ? ~m & 0x7f : ~m);
             gen_op('&'); // X B V1 B1
             gen_op('|'); // X B V2
@@ -1773,7 +1787,7 @@ static void store_packed_bf(int bit_pos, int bit_size)
     vpop(), vpop();
 }
 
-static int adjust_bf(SValue *sv, int bit_pos, int bit_size)
+static int adjust_bf(SValue* sv, int bit_pos, int bit_size)
 {
     int t;
     if (0 == sv->type.ref)
@@ -1786,20 +1800,20 @@ static int adjust_bf(SValue *sv, int bit_pos, int bit_size)
     return t;
 }
 
-/* vtop ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½X 'rc' ï¿½É‘ï¿½ï¿½ï¿½ï¿½éƒŒï¿½Wï¿½Xï¿½^ï¿½ÉŠiï¿½[ï¿½ï¿½ï¿½ï¿½Blvalue ï¿½Í’lï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
-   ï¿½\ï¿½ï¿½ï¿½Ì‚Ì‚æ‚¤ï¿½Éƒï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½É•ÏŠï¿½ï¿½Å‚ï¿½ï¿½È‚ï¿½ï¿½ê‡ï¿½Ígï¿½ï¿½ï¿½È‚ï¿½ï¿½B */
+/* vtop ‚ğƒNƒ‰ƒX 'rc' ‚É‘®‚·‚éƒŒƒWƒXƒ^‚ÉŠi”[‚·‚éBlvalue ‚Í’l‚É•ÏŠ·‚³‚ê‚éB
+   \‘¢‘Ì‚Ì‚æ‚¤‚ÉƒŒƒWƒXƒ^’l‚É•ÏŠ·‚Å‚«‚È‚¢ê‡‚Íg‚¦‚È‚¢B */
 ST_FUNC int gv(int rc)
 {
     int r, r2, r_ok, r2_ok, rc2, bt;
     int bit_pos, bit_size, size, align;
 
-    /* ï¿½ï¿½ï¿½ï¿½: get_reg ï¿½ï¿½ vstack[] ï¿½ï¿½ÏXï¿½ï¿½ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* ’ˆÓ: get_reg ‚Í vstack[] ‚ğ•ÏX‚·‚é‰Â”\«‚ª‚ ‚é */
     if (vtop->type.t & VT_BITFIELD) {
         CType type;
 
         bit_pos = BIT_POS(vtop->type.t);
         bit_size = BIT_SIZE(vtop->type.t);
-        /* ï¿½ï¿½ï¿½[ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ßƒrï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ */
+        /* ƒ‹[ƒv‚ğ”ğ‚¯‚é‚½‚ßƒrƒbƒgƒtƒB[ƒ‹ƒhî•ñ‚ğæ‚èœ‚­ */
         vtop->type.t &= ~VT_STRUCT_MASK;
 
         type.ref = NULL;
@@ -1816,22 +1830,24 @@ ST_FUNC int gv(int rc)
 
         if (r == VT_STRUCT) {
             load_packed_bf(&type, bit_pos, bit_size);
-        } else {
+        }
+        else {
             int bits = (type.t & VT_BTYPE) == VT_LLONG ? 64 : 32;
-            /* ï¿½ã‘±ï¿½Ì‰ï¿½ï¿½Zï¿½Å•ï¿½ï¿½ï¿½ï¿½ï¿½`ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ß‚ï¿½ int ï¿½ÉƒLï¿½ï¿½ï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ */
+            /* Œã‘±‚Ì‰‰Z‚Å•„†‚ğ“`”d‚³‚¹‚é‚½‚ß‚É int ‚ÉƒLƒƒƒXƒg‚·‚é */
             gen_cast(&type);
-            /* ï¿½Vï¿½tï¿½gï¿½ğ¶ï¿½ */
+            /* ƒVƒtƒg‚ğ¶¬ */
             vpushi(bits - (bit_pos + bit_size));
             gen_op(TOK_SHL);
             vpushi(bits - bit_size);
-            /* ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ìê‡ï¿½ï¿½ SHR ï¿½Ö•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+            /* ’ˆÓ: •„†–³‚µ‚Ìê‡‚Í SHR ‚Ö•ÏŠ·‚³‚ê‚é */
             gen_op(TOK_SAR);
         }
         r = gv(rc);
-    } else {
-        if (is_float(vtop->type.t) && 
+    }
+    else {
+        if (is_float(vtop->type.t) &&
             (vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-            /* CPU ï¿½Í’Êí•‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½_ï¿½è”ï¿½ğ’¼Úˆï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ßAï¿½fï¿½[ï¿½^ï¿½Zï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½gï¿½ÉŠiï¿½[ï¿½ï¿½ï¿½ï¿½ */
+            /* CPU ‚Í’Êí•‚“®¬”“_’è”‚ğ’¼Úˆµ‚¦‚È‚¢‚½‚ßAƒf[ƒ^ƒZƒOƒƒ“ƒg‚ÉŠi”[‚·‚é */
             init_params p = { rodata_section };
             unsigned long offset;
             size = type_size(&vtop->type, &align);
@@ -1839,28 +1855,28 @@ ST_FUNC int gv(int rc)
                 size = 0, align = 1;
             offset = section_add(p.sec, size, align);
             vpush_ref(&vtop->type, p.sec, offset, size);
-        vswap();
-        init_putv(&p, &vtop->type, offset);
-        vtop->r |= VT_LVAL;
+            vswap();
+            init_putv(&p, &vtop->type, offset);
+            vtop->r |= VT_LVAL;
         }
 #ifdef CONFIG_TCC_BCHECK
-        if (vtop->r & VT_MUSTBOUND) 
+        if (vtop->r & VT_MUSTBOUND)
             gbound();
 #endif
 
         bt = vtop->type.t & VT_BTYPE;
 
 #ifdef TCC_TARGET_RISCV64
-        /* XXX: ï¿½å‚«ï¿½Èƒnï¿½bï¿½N */
+        /* XXX: ‘å‚«‚ÈƒnƒbƒN */
         if (bt == VT_LDOUBLE && rc == RC_FLOAT)
-          rc = RC_INT;
+            rc = RC_INT;
 #endif
         rc2 = RC2_TYPE(bt, rc);
 
-        /* ï¿½Äƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½Kï¿½vï¿½Èê‡:
-           - ï¿½è”
-           - lvalueï¿½iï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½Qï¿½Æ‰ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½j
-           - ï¿½ï¿½ï¿½Å‚Éƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É‚ï¿½ï¿½é‚ªï¿½Kï¿½Ø‚ÈƒNï¿½ï¿½ï¿½Xï¿½Å‚È‚ï¿½ */
+        /* Äƒ[ƒh‚ª•K—v‚Èê‡:
+           - ’è”
+           - lvalueiƒ|ƒCƒ“ƒ^‚ğQÆ‰ğœ‚·‚é•K—v‚ª‚ ‚éj
+           - ‚·‚Å‚ÉƒŒƒWƒXƒ^‚É‚ ‚é‚ª“KØ‚ÈƒNƒ‰ƒX‚Å‚È‚¢ */
         r = vtop->r & VT_VALMASK;
         r_ok = !(vtop->r & VT_LVAL) && (r < VT_CONST) && (reg_classes[r] & rc);
         r2_ok = !rc2 || ((vtop->r2 < VT_CONST) && (reg_classes[vtop->r2] & rc2));
@@ -1868,7 +1884,7 @@ ST_FUNC int gv(int rc)
         if (!r_ok || !r2_ok) {
 
             if (!r_ok) {
-                if (1 /* ï¿½Pï¿½[ï¿½Xï¿½É‚ï¿½ï¿½ï¿½Ä‚ï¿½ 'mov (r),r' ï¿½ï¿½ï¿½Â”\ */
+                if (1 /* ƒP[ƒX‚É‚æ‚Á‚Ä‚Í 'mov (r),r' ‚ª‰Â”\ */
                     && r < VT_CONST
                     && (reg_classes[r] & rc)
                     && !rc2
@@ -1882,82 +1898,86 @@ ST_FUNC int gv(int rc)
                 int load_type = (bt == VT_QFLOAT) ? VT_DOUBLE : VT_PTRDIFF_T;
                 int original_type = vtop->type.t;
 
-                /* 2 ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½^ï¿½Ìƒï¿½ï¿½[ï¿½h: ï¿½êï¿½Iï¿½ï¿½ 2 ï¿½ï¿½ï¿½[ï¿½hï¿½ÉŠgï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+                /* 2 ƒŒƒWƒXƒ^Œ^‚Ìƒ[ƒh: ˆê“I‚É 2 ƒ[ƒh‚ÉŠg’£‚·‚é */
                 if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-                    /* ï¿½è”ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h */
+                    /* ’è”‚ğƒ[ƒh */
                     unsigned long long ll = vtop->c.i;
-                    vtop->c.i = ll; /* ï¿½Åï¿½ï¿½Ìƒï¿½ï¿½[ï¿½h */
+                    vtop->c.i = ll; /* Å‰‚Ìƒ[ƒh */
                     load(r, vtop);
-                    vtop->r = r; /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½ï¿½Û‘ï¿½ */
-                    vpushi(ll >> 32); /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½[ï¿½h */
-                } else if (vtop->r & VT_LVAL) {
-                    /* long long ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å•ÏXï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ßA
-                       ï¿½ï¿½ï¿½ÌƒCï¿½ï¿½ï¿½Xï¿½^ï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ö‘Ş”ï¿½ï¿½ï¿½ï¿½ï¿½ */
+                    vtop->r = r; /* ƒŒƒWƒXƒ^’l‚ğ•Û‘¶ */
+                    vpushi(ll >> 32); /* 2 ”Ô–Ú‚Ìƒ[ƒh */
+                }
+                else if (vtop->r & VT_LVAL) {
+                    /* long long ƒ|ƒCƒ“ƒ^‚ğ‚±‚±‚Å•ÏX‚µ‚½‚­‚È‚¢‚½‚ßA
+                       ‘¼‚ÌƒCƒ“ƒXƒ^ƒ“ƒX‚ğƒXƒ^ƒbƒN‚Ö‘Ş”ğ‚·‚é */
                     save_reg_upstack(vtop->r, 1);
-                    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½çƒï¿½[ï¿½h */
+                    /* ƒƒ‚ƒŠ‚©‚çƒ[ƒh */
                     vtop->type.t = load_type;
                     load(r, vtop);
                     vdup();
-                    vtop[-1].r = r; /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½ï¿½Û‘ï¿½ */
-                    /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½[ï¿½hï¿½ğ“¾‚é‚½ï¿½ß‚Éƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½ğ‘‚â‚· */
+                    vtop[-1].r = r; /* ƒŒƒWƒXƒ^’l‚ğ•Û‘¶ */
+                    /* 2 ”Ô–Ú‚Ìƒ[ƒh‚ğ“¾‚é‚½‚ß‚Éƒ|ƒCƒ“ƒ^‚ğ‘‚â‚· */
                     incr_offset(PTR_SIZE);
-                } else {
-                    /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½Ô‚ÌˆÚ“ï¿½ */
+                }
+                else {
+                    /* ƒŒƒWƒXƒ^ŠÔ‚ÌˆÚ“® */
                     if (!r_ok)
                         load(r, vtop);
                     if (r2_ok && vtop->r2 < VT_CONST)
                         goto done;
                     vdup();
-                    vtop[-1].r = r; /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½ï¿½Û‘ï¿½ */
+                    vtop[-1].r = r; /* ƒŒƒWƒXƒ^’l‚ğ•Û‘¶ */
                     vtop->r = vtop[-1].r2;
                 }
-                /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½mï¿½ÛBget_reg() ï¿½ï¿½ï¿½Ü‚ï¿½ SValue ï¿½ï¿½ r2 ï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½ï¿½ï¿½æ‚¤ï¿½Æ‚ï¿½ï¿½ï¿½_ï¿½ÉˆË‘ï¿½ï¿½ï¿½ï¿½ï¿½ */
+                /* 2 ”Ô–Ú‚ÌƒŒƒWƒXƒ^‚ğŠm•ÛBget_reg() ‚ª‚Ü‚¸ SValue ‚Ì r2 ‚ğŠJ•ú‚µ‚æ‚¤‚Æ‚·‚é“_‚ÉˆË‘¶‚·‚é */
                 r2 = get_reg(rc2);
                 load(r2, vtop);
                 vpop();
-                /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+                /* 2 ”Ô–Ú‚ÌƒŒƒWƒXƒ^‚ğ‘‚«‚Ş */
                 vtop->r2 = r2;
             done:
                 vtop->type.t = original_type;
-            } else {
+            }
+            else {
                 if (vtop->r == VT_CMP)
                     vset_VT_JMP();
-                /* 1 ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½^ï¿½Ìƒï¿½ï¿½[ï¿½h */
+                /* 1 ƒŒƒWƒXƒ^Œ^‚Ìƒ[ƒh */
                 load(r, vtop);
             }
         }
         vtop->r = r;
 #ifdef TCC_TARGET_C67
-        /* double ï¿½Íƒï¿½ï¿½Wï¿½Xï¿½^ï¿½yï¿½Aï¿½ï¿½ï¿½gï¿½p */
+        /* double ‚ÍƒŒƒWƒXƒ^ƒyƒA‚ğg—p */
         if (bt == VT_DOUBLE)
-            vtop->r2 = r+1;
+            vtop->r2 = r + 1;
 #endif
     }
     return r;
 }
 
-/* vtop[-1] ï¿½ï¿½ vtop[0] ï¿½ï¿½ï¿½ï¿½ï¿½ê‚¼ï¿½ï¿½ rc1 ï¿½ï¿½ rc2 ï¿½ÌƒNï¿½ï¿½ï¿½Xï¿½Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* vtop[-1] ‚Æ vtop[0] ‚ğ‚»‚ê‚¼‚ê rc1 ‚Æ rc2 ‚ÌƒNƒ‰ƒX‚Å¶¬‚·‚é */
 ST_FUNC void gv2(int rc1, int rc2)
 {
-    /* ï¿½Ä—pï¿½Iï¿½Èƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ VT_JMP ï¿½ï¿½ VT_CMP ï¿½Ì’lï¿½ï¿½
-       ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½hï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ßï¿½Éï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* ”Ä—p“I‚ÈƒŒƒWƒXƒ^‚ğæ‚É¶¬‚·‚éB‚µ‚©‚µ VT_JMP ‚â VT_CMP ‚Ì’l‚Í
+       ƒŠƒ[ƒhƒGƒ‰[‚ğ”ğ‚¯‚é‚½‚ßí‚Éæ‚É¶¬‚·‚é•K—v‚ª‚ ‚é */
     if (vtop->r != VT_CMP && rc1 <= rc2) {
         vswap();
         gv(rc1);
         vswap();
         gv(rc2);
-        /* ï¿½Åï¿½ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É‘Î‚ï¿½ï¿½ÄÄƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½eï¿½Xï¿½g */
+        /* Å‰‚ÌƒŒƒWƒXƒ^‚É‘Î‚µ‚ÄÄƒ[ƒh‚ª•K—v‚©‚ğƒeƒXƒg */
         if ((vtop[-1].r & VT_VALMASK) >= VT_CONST) {
             vswap();
             gv(rc1);
             vswap();
         }
-    } else {
+    }
+    else {
         gv(rc2);
         vswap();
         gv(rc1);
         vswap();
-        /* ï¿½Åï¿½ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É‘Î‚ï¿½ï¿½ÄÄƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½eï¿½Xï¿½g */
+        /* Å‰‚ÌƒŒƒWƒXƒ^‚É‘Î‚µ‚ÄÄƒ[ƒh‚ª•K—v‚©‚ğƒeƒXƒg */
         if ((vtop[0].r & VT_VALMASK) >= VT_CONST) {
             gv(rc2);
         }
@@ -1965,7 +1985,7 @@ ST_FUNC void gv2(int rc1, int rc2)
 }
 
 #if PTR_SIZE == 4
-/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ï¿½ 64bit ï¿½lï¿½ï¿½ 2 ï¿½Â‚ï¿½ int ï¿½É“Wï¿½Jï¿½ï¿½ï¿½ï¿½ */
+/* ƒXƒ^ƒbƒNã‚Ì 64bit ’l‚ğ 2 ‚Â‚Ì int ‚É“WŠJ‚·‚é */
 ST_FUNC void lexpand(void)
 {
     int u, v;
@@ -1974,10 +1994,12 @@ ST_FUNC void lexpand(void)
     if (v == VT_CONST) {
         vdup();
         vtop[0].c.i >>= 32;
-    } else if (v == (VT_LVAL|VT_CONST) || v == (VT_LVAL|VT_LOCAL)) {
+    }
+    else if (v == (VT_LVAL | VT_CONST) || v == (VT_LVAL | VT_LOCAL)) {
         vdup();
         vtop[0].c.i += 4;
-    } else {
+    }
+    else {
         gv(RC_INT);
         vdup();
         vtop[0].r = vtop[-1].r2;
@@ -1988,7 +2010,7 @@ ST_FUNC void lexpand(void)
 #endif
 
 #if PTR_SIZE == 4
-/* 2 ï¿½Â‚ï¿½ int ï¿½ï¿½ï¿½ï¿½ long long ï¿½ï¿½ï¿½\ï¿½zï¿½ï¿½ï¿½ï¿½ */
+/* 2 ‚Â‚Ì int ‚©‚ç long long ‚ğ\’z‚·‚é */
 static void lbuild(int t)
 {
     gv2(RC_INT, RC_INT);
@@ -1998,7 +2020,7 @@ static void lbuild(int t)
 }
 #endif
 
-/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Ì’lï¿½ï¿½Ê‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* ƒXƒ^ƒbƒNƒGƒ“ƒgƒŠ‚ğƒŒƒWƒXƒ^‚É•ÏŠ·‚µA‚»‚Ì’l‚ğ•Ê‚ÌƒŒƒWƒXƒ^‚É•¡»‚·‚é */
 static void gv_dup(void)
 {
     int t, rc, r;
@@ -2026,7 +2048,7 @@ static void gv_dup(void)
         return;
     }
 #endif
-    /* ï¿½lï¿½ğ•¡ï¿½ */
+    /* ’l‚ğ•¡» */
     rc = RC_TYPE(t);
     gv(rc);
     r = get_reg(rc);
@@ -2036,7 +2058,7 @@ static void gv_dup(void)
 }
 
 #if PTR_SIZE == 4
-/* CPU ï¿½ï¿½Ë‘ï¿½ï¿½Ìiï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½jlong long ï¿½ï¿½ï¿½Zï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* CPU ”ñˆË‘¶‚Ìi•„†–³‚µjlong long ‰‰Z‚ğ¶¬‚·‚é */
 static void gen_opl(int op)
 {
     int t, a, b, op1, c, i;
@@ -2045,7 +2067,7 @@ static void gen_opl(int op)
     unsigned short reg_lret = REG_IRE2;
     SValue tmp;
 
-    switch(op) {
+    switch (op) {
     case '/':
     case TOK_PDIV:
         func = TOK___divdi3;
@@ -2064,7 +2086,7 @@ static void gen_opl(int op)
         reg_lret = TREG_R3;
 #endif
     gen_func:
-        /* ï¿½Ä—pï¿½ï¿½ long long ï¿½Öï¿½ï¿½ï¿½ï¿½Ä‚Ñoï¿½ï¿½ */
+        /* ”Ä—p‚Ì long long ŠÖ”‚ğŒÄ‚Ño‚· */
         vpush_helper_func(func);
         vrott(3);
         gfunc_call(2);
@@ -2100,7 +2122,7 @@ static void gen_opl(int op)
             gen_op(TOK_UMULL);
             lexpand();
             /* stack: H1 H2 L1 L2 ML MH */
-            for(i=0;i<4;i++)
+            for (i = 0; i < 4; i++)
                 vrotb(6);
             /* stack: ML MH H1 H2 L1 L2 */
             tmp = vtop[0];
@@ -2114,8 +2136,9 @@ static void gen_opl(int op)
             /* stack: ML MH M1 M2 */
             gen_op('+');
             gen_op('+');
-        } else if (op == '+' || op == '-') {
-            /* XXX: ï¿½Lï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½È‚ï¿½ï¿½Ì•ï¿½ï¿½@ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½iMIPS ï¿½ï¿½ alpha ï¿½pï¿½j */
+        }
+        else if (op == '+' || op == '-') {
+            /* XXX: ƒLƒƒƒŠ[‚È‚µ‚Ì•û–@‚à’Ç‰Á‚·‚éiMIPS ‚â alpha —pj */
             if (op == '+')
                 op1 = TOK_ADDC1;
             else
@@ -2125,7 +2148,8 @@ static void gen_opl(int op)
             vrotb(3);
             vrotb(3);
             gen_op(op1 + 1); /* TOK_xxxC2 */
-        } else {
+        }
+        else {
             gen_op(op);
             /* stack: H1 H2 (L1 op L2) */
             vrotb(3);
@@ -2147,8 +2171,8 @@ static void gen_opl(int op)
             vrotb(3);
             /* stack: L H shift */
             c = (int)vtop->c.i;
-            /* ï¿½è”ï¿½Ìê‡: ï¿½ï¿½ï¿½Pï¿½ï¿½ */
-            /* ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½×‚Ä‚ÌƒRï¿½ï¿½ï¿½ï¿½ï¿½gï¿½ï¿½ SHL ï¿½pï¿½Bï¿½ï¿½ï¿½Ì‘ï¿½ï¿½Íƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½Ö‚ï¿½ï¿½é‚±ï¿½Æ‚Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+            /* ’è”‚Ìê‡: ‚æ‚è’Pƒ */
+            /* ’ˆÓ: ‚·‚×‚Ä‚ÌƒRƒƒ“ƒg‚Í SHL —pB‚»‚Ì‘¼‚Íƒ[ƒh‚ğ“ü‚ê‘Ö‚¦‚é‚±‚Æ‚Åˆ—‚³‚ê‚é */
             vpop();
             if (op != TOK_SHL)
                 vswap();
@@ -2161,13 +2185,15 @@ static void gen_opl(int op)
                 }
                 if (op != TOK_SAR) {
                     vpushi(0);
-                } else {
+                }
+                else {
                     gv_dup();
                     vpushi(31);
                     gen_op(TOK_SAR);
                 }
                 vswap();
-            } else {
+            }
+            else {
                 vswap();
                 gv_dup();
                 /* stack: H L L */
@@ -2191,9 +2217,10 @@ static void gen_opl(int op)
             if (op != TOK_SHL)
                 vswap();
             lbuild(t);
-        } else {
-            /* XXX: x86 ï¿½pï¿½Ìï¿½ï¿½ï¿½ï¿½Èƒtï¿½Hï¿½[ï¿½ï¿½ï¿½oï¿½bï¿½Nï¿½ï¿½pï¿½Ó‚ï¿½ï¿½×‚ï¿½ï¿½ï¿½ï¿½H */
-            switch(op) {
+        }
+        else {
+            /* XXX: x86 —p‚Ì‚‘¬‚ÈƒtƒH[ƒ‹ƒoƒbƒN‚ğ—pˆÓ‚·‚×‚«‚©H */
+            switch (op) {
             case TOK_SAR:
                 func = TOK___ashrdi3;
                 goto gen_func;
@@ -2207,7 +2234,7 @@ static void gen_opl(int op)
         }
         break;
     default:
-        /* ï¿½ï¿½rï¿½ï¿½ï¿½Z */
+        /* ”äŠr‰‰Z */
         t = vtop->type.t;
         vswap();
         lexpand();
@@ -2219,13 +2246,13 @@ static void gen_opl(int op)
         vtop[-2] = tmp;
         /* stack: L1 L2 H1 H2 */
         if (!cur_switch || cur_switch->bsym) {
-            /* ï¿½ï¿½ï¿½ï¿½ÅˆÙ‚È‚éƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
-               switch ï¿½ï¿½ case ï¿½ï¿½rï¿½Å‚Í•sï¿½v */
+            /* •ªŠò‚ÅˆÙ‚È‚éƒŒƒWƒXƒ^‚ª•Û‘¶‚³‚ê‚é‚Ì‚ğ”ğ‚¯‚éB
+               switch ‚Ì case ”äŠr‚Å‚Í•s—v */
             save_regs(4);
         }
-        /* ï¿½ï¿½Êƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½r */
+        /* ãˆÊƒ[ƒh‚ğ”äŠr */
         op1 = op;
-        /* ï¿½lï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½Aï¿½ï¿½ï¿½Êƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½rï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Bï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½]ï¿½ï¿½ï¿½é‚½ï¿½ßAï¿½eï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ï¿½]ï¿½ï¿½ï¿½ï¿½ */
+        /* ’l‚ª“™‚µ‚¢ê‡A‰ºˆÊƒ[ƒh‚ğ”äŠr‚·‚é•K—v‚ª‚ ‚éBƒWƒƒƒ“ƒv‚ª”½“]‚·‚é‚½‚ßAƒeƒXƒg‚à”½“]‚·‚é */
         if (op1 == TOK_LT)
             op1 = TOK_LE;
         else if (op1 == TOK_GT)
@@ -2239,16 +2266,17 @@ static void gen_opl(int op)
         gen_op(op1);
         if (op == TOK_NE) {
             b = gvtst(0, 0);
-        } else {
+        }
+        else {
             a = gvtst(1, 0);
             if (op != TOK_EQ) {
-                /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½eï¿½Xï¿½gï¿½ğ¶ï¿½ */
+                /* “™‚µ‚­‚È‚¢ƒeƒXƒg‚ğ¶¬ */
                 vpushi(0);
                 vset_VT_CMP(TOK_NE);
                 b = gvtst(0, 0);
             }
         }
-        /* ï¿½ï¿½ï¿½Êƒï¿½ï¿½[ï¿½hï¿½Ì”ï¿½rï¿½Bï¿½ï¿½É•ï¿½ï¿½ï¿½ï¿½È‚ï¿½ */
+        /* ‰ºˆÊƒ[ƒh‚Ì”äŠrBí‚É•„†‚È‚µ */
         op1 = op;
         if (op1 == TOK_LT)
             op1 = TOK_ULT;
@@ -2270,7 +2298,7 @@ static void gen_opl(int op)
 }
 #endif
 
-/* ï¿½lï¿½ğ³‹Kï¿½ï¿½ */
+/* ’l‚ğ³‹K‰» */
 static uint64_t value64(uint64_t l1, int t)
 {
     if ((t & VT_BTYPE) == VT_LLONG
@@ -2293,11 +2321,11 @@ static int gen_opic_lt(uint64_t a, uint64_t b)
     return (a ^ (uint64_t)1 << 63) < (b ^ (uint64_t)1 << 63);
 }
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½è”ï¿½ÌÅ“Kï¿½ï¿½ï¿½ÆŠeï¿½ï¿½@ï¿½Bï¿½ï¿½Ë‘ï¿½ï¿½ÌÅ“Kï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* ®”’è”‚ÌÅ“K‰»‚ÆŠeí‹@ŠB”ñˆË‘¶‚ÌÅ“K‰»‚ğˆµ‚¤ */
 static void gen_opic(int op)
 {
-    SValue *v1 = vtop - 1;
-    SValue *v2 = vtop;
+    SValue* v1 = vtop - 1;
+    SValue* v2 = vtop;
     int t1 = v1->type.t & VT_BTYPE;
     int t2 = v2->type.t & VT_BTYPE;
     int c1 = (v1->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
@@ -2308,7 +2336,7 @@ static void gen_opic(int op)
     int r;
 
     if (c1 && c2) {
-        switch(op) {
+        switch (op) {
         case '+': l1 += l2; break;
         case '-': l1 -= l2; break;
         case '&': l1 &= l2; break;
@@ -2321,13 +2349,13 @@ static void gen_opic(int op)
         case '%':
         case TOK_UDIV:
         case TOK_UMOD:
-            /* 0 ï¿½Åï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½ê‡ï¿½ÍAï¿½ï¿½ï¿½ï¿½ï¿½Iï¿½Èï¿½ï¿½Zï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
+            /* 0 ‚ÅœZ‚·‚éê‡‚ÍA–¾¦“I‚ÈœZ‚ğ¶¬‚·‚é */
             if (l2 == 0) {
                 if (CONST_WANTED && !NOEVAL_WANTED)
-                    tcc_error("ï¿½è”ï¿½ï¿½ï¿½Å‚Ìƒ[ï¿½ï¿½ï¿½É‚ï¿½éœï¿½Z");
+                    tcc_error("’è”®‚Å‚Ìƒ[ƒ‚É‚æ‚éœZ");
                 goto general_case;
             }
-            switch(op) {
+            switch (op) {
             default: l1 = gen_opic_sdiv(l1, l2); break;
             case '%': l1 = l1 - l2 * gen_opic_sdiv(l1, l2); break;
             case TOK_UDIV: l1 = l1 / l2; break;
@@ -2359,40 +2387,44 @@ static void gen_opic(int op)
         v1->c.i = value64(l1, v1->type.t);
         v1->r |= v2->r & VT_NONCONST;
         vtop--;
-    } else {
+    }
+    else {
         /* if commutative ops, put c2 as constant */
-        if (c1 && (op == '+' || op == '&' || op == '^' || 
-                   op == '|' || op == '*' || op == TOK_EQ || op == TOK_NE)) {
+        if (c1 && (op == '+' || op == '&' || op == '^' ||
+            op == '|' || op == '*' || op == TOK_EQ || op == TOK_NE)) {
             vswap();
             c2 = c1; //c = c1, c1 = c2, c2 = c;
             l2 = l1; //l = l1, l1 = l2, l2 = l;
         }
         if (c1 && ((l1 == 0 &&
-                    (op == TOK_SHL || op == TOK_SHR || op == TOK_SAR)) ||
-                   (l1 == -1 && op == TOK_SAR))) {
-            /* (0 << x), (0 >> x) ï¿½ï¿½ï¿½ï¿½ï¿½ (-1 >> x) ï¿½ï¿½è”ï¿½Æ‚ï¿½ï¿½Äˆï¿½ï¿½ï¿½ */
+            (op == TOK_SHL || op == TOK_SHR || op == TOK_SAR)) ||
+            (l1 == -1 && op == TOK_SAR))) {
+            /* (0 << x), (0 >> x) ‚¨‚æ‚Ñ (-1 >> x) ‚ğ’è”‚Æ‚µ‚Äˆµ‚¤ */
             vpop();
-        } else if (c2 && ((l2 == 0 && (op == '&' || op == '*')) ||
-                          (op == '|' &&
-                            (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))) ||
-                          (l2 == 1 && (op == '%' || op == TOK_UMOD)))) {
-            /* (x & 0), (x * 0), (x | -1) ï¿½ï¿½ï¿½ï¿½ï¿½ (x % 1) ï¿½ï¿½è”ï¿½Æ‚ï¿½ï¿½Äˆï¿½ï¿½ï¿½ */
+        }
+        else if (c2 && ((l2 == 0 && (op == '&' || op == '*')) ||
+            (op == '|' &&
+                (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))) ||
+            (l2 == 1 && (op == '%' || op == TOK_UMOD)))) {
+            /* (x & 0), (x * 0), (x | -1) ‚¨‚æ‚Ñ (x % 1) ‚ğ’è”‚Æ‚µ‚Äˆµ‚¤ */
             if (l2 == 1)
                 vtop->c.i = 0;
             vswap();
             vtop--;
-        } else if (c2 && (((op == '*' || op == '/' || op == TOK_UDIV ||
-                          op == TOK_PDIV) &&
-                           l2 == 1) ||
-                          ((op == '+' || op == '-' || op == '|' || op == '^' ||
-                            op == TOK_SHL || op == TOK_SHR || op == TOK_SAR) &&
-                           l2 == 0) ||
-                          (op == '&' &&
-                            (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))))) {
-            /* x*1, x-0, x&-1 ï¿½Ì‚æ‚¤ï¿½ï¿½ NOP ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+        }
+        else if (c2 && (((op == '*' || op == '/' || op == TOK_UDIV ||
+            op == TOK_PDIV) &&
+            l2 == 1) ||
+            ((op == '+' || op == '-' || op == '|' || op == '^' ||
+                op == TOK_SHL || op == TOK_SHR || op == TOK_SAR) &&
+                l2 == 0) ||
+            (op == '&' &&
+                (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))))) {
+            /* x*1, x-0, x&-1 ‚Ì‚æ‚¤‚È NOP ‰‰Z‚ğœ‹‚·‚é */
             vtop--;
-        } else if (c2 && (op == '*' || op == TOK_PDIV || op == TOK_UDIV || op == TOK_UMOD)) {
-            /* ï¿½ï¿½Zï¿½âœï¿½Zï¿½Ì‘ï¿½ï¿½ï¿½ÉƒVï¿½tï¿½gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½é‚©ï¿½ï¿½ï¿½ï¿½ */
+        }
+        else if (c2 && (op == '*' || op == TOK_PDIV || op == TOK_UDIV || op == TOK_UMOD)) {
+            /* æZ‚âœZ‚Ì‘ã‚í‚è‚ÉƒVƒtƒg‚ğg‚¦‚é‚©‚· */
             if (l2 > 0 && (l2 & (l2 - 1)) == 0) {
                 int n = -1;
                 if (op == TOK_UMOD) {
@@ -2413,26 +2445,28 @@ static void gen_opic(int op)
                     op = TOK_SHR;
             }
             goto general_case;
-        } else if (c2 && (op == '+' || op == '-') &&
-                   (r = vtop[-1].r & (VT_VALMASK | VT_LVAL | VT_SYM),
-                    r == (VT_CONST | VT_SYM) || r == VT_LOCAL)) {
-            /* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ + ï¿½è” ï¿½ÌƒPï¿½[ï¿½X */
+        }
+        else if (c2 && (op == '+' || op == '-') &&
+            (r = vtop[-1].r & (VT_VALMASK | VT_LVAL | VT_SYM),
+                r == (VT_CONST | VT_SYM) || r == VT_LOCAL)) {
+            /* ƒVƒ“ƒ{ƒ‹ + ’è” ‚ÌƒP[ƒX */
             if (op == '-')
                 l2 = -l2;
-	    l2 += vtop[-1].c.i;
-            /* ï¿½oï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½hï¿½ÍƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½É‘Î‚ï¿½ï¿½ï¿½ +-1<<31 ï¿½ğ’´‚ï¿½ï¿½ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½Éˆï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ÍŒï¿½ï¿½ï¿½È‚ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½lï¿½Íï¿½ï¿½È‚ï¿½ */
-	    if ((int)l2 != l2)
-	        goto general_case;
+            l2 += vtop[-1].c.i;
+            /* ƒoƒbƒNƒGƒ“ƒh‚ÍƒVƒ“ƒ{ƒ‹‚É‘Î‚µ‚Ä +-1<<31 ‚ğ’´‚¦‚é‰ÁZ‚ğí‚Éˆµ‚¦‚é‚Æ‚ÍŒÀ‚ç‚È‚¢B‚»‚¤‚µ‚½’l‚Íì‚ç‚È‚¢ */
+            if ((int)l2 != l2)
+                goto general_case;
             vtop--;
             vtop->c.i = l2;
-        } else {
+        }
+        else {
         general_case:
-                /* call low level op generator */
-                if (t1 == VT_LLONG || t2 == VT_LLONG ||
-                    (PTR_SIZE == 8 && (t1 == VT_PTR || t2 == VT_PTR)))
-                    gen_opl(op);
-                else
-                    gen_opi(op);
+            /* call low level op generator */
+            if (t1 == VT_LLONG || t2 == VT_LLONG ||
+                (PTR_SIZE == 8 && (t1 == VT_PTR || t2 == VT_PTR)))
+                gen_opl(op);
+            else
+                gen_opi(op);
         }
         if (vtop->r == VT_CONST)
             vtop->r |= VT_NONCONST; /* is const, but only by optimization */
@@ -2472,16 +2506,16 @@ void gen_negf(int op)
 }
 #endif
 
-/* ï¿½è”ï¿½`ï¿½ï¿½ï¿½ğ”º‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½_ï¿½ï¿½ï¿½Zï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* ’è”“`”À‚ğ”º‚¤•‚“®¬”“_‰‰Z‚ğ¶¬‚·‚é */
 static void gen_opif(int op)
 {
     int c1, c2, i, bt;
-    SValue *v1, *v2;
+    SValue* v1, * v2;
 #if defined _MSC_VER && defined __x86_64__
-    /* f1:-0.0, f2:0.0 ï¿½Ìê‡ï¿½ï¿½ f1 -= f2 ï¿½Ìˆï¿½ï¿½ï¿½ï¿½Å“Kï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* f1:-0.0, f2:0.0 ‚Ìê‡‚É f1 -= f2 ‚Ìˆ«‚¢Å“K‰»‚ğ”ğ‚¯‚é */
     volatile
 #endif
-    long double f1, f2;
+        long double f1, f2;
 
     v1 = vtop - 1;
     v2 = vtop;
@@ -2496,28 +2530,30 @@ static void gen_opif(int op)
         if (bt == VT_FLOAT) {
             f1 = v1->c.f;
             f2 = v2->c.f;
-        } else if (bt == VT_DOUBLE) {
+        }
+        else if (bt == VT_DOUBLE) {
             f1 = v1->c.d;
             f2 = v2->c.d;
-        } else {
+        }
+        else {
             f1 = v1->c.ld;
             f2 = v2->c.ld;
         }
-    /* ï¿½ï¿½ï¿½ï¿½: ï¿½è”ï¿½`ï¿½ï¿½ï¿½Í—Lï¿½ï¿½ï¿½Èï¿½ï¿½iNaN ï¿½â–³ï¿½ï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½jï¿½É‘Î‚ï¿½ï¿½Ä‚Ì‚İsï¿½ï¿½ï¿½iANSI ï¿½Kï¿½iï¿½j */
+        /* ’ˆÓ: ’è”“`”À‚Í—LŒÀ‚È”iNaN ‚â–³ŒÀ‘å‚Å‚È‚¢j‚É‘Î‚µ‚Ä‚Ì‚İs‚¤iANSI ‹KŠij */
         if (!(ieee_finite(f1) || !ieee_finite(f2)) && !CONST_WANTED)
             goto general_case;
-        switch(op) {
+        switch (op) {
         case '+': f1 += f2; break;
         case '-': f1 -= f2; break;
         case '*': f1 *= f2; break;
-        case '/': 
+        case '/':
             if (f2 == 0.0) {
                 union { float f; unsigned u; } x1, x2, y;
-        /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½ê‡ï¿½Íï¿½ï¿½sï¿½ï¿½ï¿½É•ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½_ï¿½ï¿½Oï¿½ğ”­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ßA
-           ï¿½ï¿½ï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½ï¿½Î’è”ï¿½ï¿½İï¿½ï¿½İ‚ï¿½ï¿½sï¿½ï¿½ */
+                /* ‰Šú‰»q“à‚Å‚È‚¢ê‡‚ÍÀs‚É•‚“®¬”“_—áŠO‚ğ”­¶‚³‚¹‚é•K—v‚ª‚ ‚é‰Â”\«‚ª‚ ‚é‚½‚ßA
+                   ‚»‚¤‚Å‚È‚¯‚ê‚Î’è”ô‚İ‚İ‚ğs‚¤ */
                 if (!CONST_WANTED)
                     goto general_case;
-                /* x87 ï¿½ï¿½Å‚ï¿½ 0.0/0.0 ï¿½Ìï¿½ï¿½sï¿½ï¿½ï¿½ï¿½ï¿½Ê‚ï¿½ -nan ï¿½Æ‚È‚ï¿½iï¿½ï¿½ï¿½ÌƒRï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½Å‚ï¿½ï¿½ï¿½ï¿½lï¿½j */
+                /* x87 ã‚Å‚Ì 0.0/0.0 ‚ÌÀsŒ‹‰Ê‚Í -nan ‚Æ‚È‚éi‘¼‚ÌƒRƒ“ƒpƒCƒ‰‚Å‚à“¯—lj */
                 x1.f = f1, x2.f = f2;
                 if (f1 == 0.0)
                     y.u = 0x7fc00000; /* nan */
@@ -2534,25 +2570,25 @@ static void gen_opif(int op)
             goto unary_result;
         case TOK_EQ:
             i = f1 == f2;
-	make_int:
+        make_int:
             vtop -= 2;
             vpushi(i);
             return;
         case TOK_NE:
             i = f1 != f2;
-	    goto make_int;
+            goto make_int;
         case TOK_LT:
             i = f1 < f2;
-	    goto make_int;
+            goto make_int;
         case TOK_GE:
             i = f1 >= f2;
-	    goto make_int;
+            goto make_int;
         case TOK_LE:
             i = f1 <= f2;
-	    goto make_int;
+            goto make_int;
         case TOK_GT:
             i = f1 > f2;
-	    goto make_int;
+            goto make_int;
         default:
             goto general_case;
         }
@@ -2561,31 +2597,35 @@ static void gen_opif(int op)
         /* XXX: overflow test ? */
         if (bt == VT_FLOAT) {
             v1->c.f = f1;
-        } else if (bt == VT_DOUBLE) {
+        }
+        else if (bt == VT_DOUBLE) {
             v1->c.d = f1;
-        } else {
+        }
+        else {
             v1->c.ld = f1;
         }
-    } else {
+    }
+    else {
     general_case:
         if (op == TOK_NEG) {
             gen_negf(op);
-        } else {
+        }
+        else {
             gen_opf(op);
         }
     }
 }
 
-/* ï¿½^ï¿½ï¿½ï¿½oï¿½Í‚ï¿½ï¿½ï¿½B'varstr' ï¿½ï¿½ NULL ï¿½Å‚È‚ï¿½ï¿½ê‡ï¿½Í•Ïï¿½ï¿½ï¿½ï¿½ï¿½ï¿½^ï¿½É•\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
-/* XXX: ï¿½ï¿½ï¿½pï¿½ï¿½ (union) */
-/* XXX: ï¿½zï¿½ñ‚¨‚ï¿½ÑŠÖï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ì•\ï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½ */
-static void type_to_str(char *buf, int buf_size,
-                 CType *type, const char *varstr)
+/* Œ^‚ğo—Í‚·‚éB'varstr' ‚ª NULL ‚Å‚È‚¢ê‡‚Í•Ï”–¼‚àŒ^‚É•\¦‚·‚é */
+/* XXX: ‹¤—p‘Ì (union) */
+/* XXX: ”z—ñ‚¨‚æ‚ÑŠÖ”ƒ|ƒCƒ“ƒ^‚Ì•\¦‚ğ’Ç‰Á‚·‚é */
+static void type_to_str(char* buf, int buf_size,
+    CType* type, const char* varstr)
 {
     int bt, v, t;
-    Sym *s, *sa;
+    Sym* s, * sa;
     char buf1[256];
-    const char *tstr;
+    const char* tstr;
 
     t = type->t;
     bt = t & VT_BTYPE;
@@ -2615,7 +2655,7 @@ static void type_to_str(char *buf, int buf_size,
     buf_size -= strlen(buf);
     buf += strlen(buf);
 
-    switch(bt) {
+    switch (bt) {
     case VT_VOID:
         tstr = "void";
         goto add_tstr;
@@ -2666,7 +2706,7 @@ static void type_to_str(char *buf, int buf_size,
         break;
     case VT_FUNC:
         s = type->ref;
-        buf1[0]=0;
+        buf1[0] = 0;
         if (varstr && '*' == *varstr) {
             pstrcat(buf1, sizeof(buf1), "(");
             pstrcat(buf1, sizeof(buf1), varstr);
@@ -2689,7 +2729,7 @@ static void type_to_str(char *buf, int buf_size,
         goto no_var;
     case VT_PTR:
         s = type->ref;
-        if (t & (VT_ARRAY|VT_VLA)) {
+        if (t & (VT_ARRAY | VT_VLA)) {
             if (varstr && '*' == *varstr)
                 snprintf(buf1, sizeof(buf1), "(%s)[%d]", varstr, s->c);
             else
@@ -2711,7 +2751,7 @@ static void type_to_str(char *buf, int buf_size,
         pstrcat(buf, buf_size, " ");
         pstrcat(buf, buf_size, varstr);
     }
- no_var: ;
+no_var:;
 }
 
 static void type_incompatibility_error(CType* st, CType* dt, const char* fmt)
@@ -2730,29 +2770,29 @@ static void type_incompatibility_warning(CType* st, CType* dt, const char* fmt)
     tcc_warning(fmt, buf1, buf2);
 }
 
-static int pointed_size(CType *type)
+static int pointed_size(CType* type)
 {
     int align;
     return type_size(pointed_type(type), &align);
 }
 
-static inline int is_null_pointer(SValue *p)
+static inline int is_null_pointer(SValue* p)
 {
     if ((p->r & (VT_VALMASK | VT_LVAL | VT_SYM | VT_NONCONST)) != VT_CONST)
         return 0;
     return ((p->type.t & VT_BTYPE) == VT_INT && (uint32_t)p->c.i == 0) ||
         ((p->type.t & VT_BTYPE) == VT_LLONG && p->c.i == 0) ||
         ((p->type.t & VT_BTYPE) == VT_PTR &&
-         (PTR_SIZE == 4 ? (uint32_t)p->c.i == 0 : p->c.i == 0) &&
-         ((pointed_type(&p->type)->t & VT_BTYPE) == VT_VOID) &&
-         0 == (pointed_type(&p->type)->t & (VT_CONSTANT | VT_VOLATILE))
-         );
+            (PTR_SIZE == 4 ? (uint32_t)p->c.i == 0 : p->c.i == 0) &&
+            ((pointed_type(&p->type)->t & VT_BTYPE) == VT_VOID) &&
+            0 == (pointed_type(&p->type)->t & (VT_CONSTANT | VT_VOLATILE))
+            );
 }
 
-/* ï¿½Öï¿½ï¿½^ï¿½ï¿½ï¿½rï¿½ï¿½ï¿½ï¿½BOLDï¿½iï¿½Ã‚ï¿½ï¿½jï¿½Öï¿½ï¿½Í”Cï¿½Ó‚ÌVï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½Éƒ}ï¿½bï¿½`ï¿½ï¿½ï¿½ï¿½ */
-static int is_compatible_func(CType *type1, CType *type2)
+/* ŠÖ”Œ^‚ğ”äŠr‚·‚éBOLDiŒÃ‚¢jŠÖ”‚Í”CˆÓ‚ÌV‚µ‚¢ŠÖ”‚Éƒ}ƒbƒ`‚·‚é */
+static int is_compatible_func(CType* type1, CType* type2)
 {
-    Sym *s1, *s2;
+    Sym* s1, * s2;
 
     s1 = type1->ref;
     s2 = type2->ref;
@@ -2765,7 +2805,7 @@ static int is_compatible_func(CType *type1, CType *type2)
     for (;;) {
         if (!is_compatible_unqualified_types(&s1->type, &s2->type))
             return 0;
-        if (s1->f.func_type == FUNC_OLD || s2->f.func_type == FUNC_OLD )
+        if (s1->f.func_type == FUNC_OLD || s2->f.func_type == FUNC_OLD)
             return 1;
         s1 = s1->next;
         s2 = s2->next;
@@ -2776,8 +2816,8 @@ static int is_compatible_func(CType *type1, CType *type2)
     }
 }
 
-/* type1 ï¿½ï¿½ type2 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½^ï¿½ï¿½Ô‚ï¿½ï¿½Bunqualified ï¿½ï¿½ï¿½^ï¿½È‚ï¿½Aï¿½^ï¿½ÌCï¿½ï¿½ï¿½qï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B */
-static int compare_types(CType *type1, CType *type2, int unqualified)
+/* type1 ‚Æ type2 ‚ª“¯‚¶‚È‚ç^‚ğ•Ô‚·Bunqualified ‚ª^‚È‚çAŒ^‚ÌCüq‚Í–³‹‚³‚ê‚éB */
+static int compare_types(CType* type1, CType* type2, int unqualified)
 {
     int bt1, t1, t2;
 
@@ -2785,7 +2825,8 @@ static int compare_types(CType *type1, CType *type2, int unqualified)
         if (IS_ENUM(type2->t))
             return type1->ref == type2->ref;
         type1 = &type1->ref->type;
-    } else if (IS_ENUM(type2->t))
+    }
+    else if (IS_ENUM(type2->t))
         type2 = &type2->ref->type;
 
     t1 = type1->t & VT_TYPE;
@@ -2807,9 +2848,9 @@ static int compare_types(CType *type1, CType *type2, int unqualified)
 
     if ((t1 & VT_ARRAY)
         && !(type1->ref->c < 0
-          || type2->ref->c < 0
-          || type1->ref->c == type2->ref->c))
-            return 0;
+            || type2->ref->c < 0
+            || type1->ref->c == type2->ref->c))
+        return 0;
 
     /* test more complicated cases */
     bt1 = t1 & VT_BTYPE;
@@ -2817,11 +2858,14 @@ static int compare_types(CType *type1, CType *type2, int unqualified)
         type1 = pointed_type(type1);
         type2 = pointed_type(type2);
         return is_compatible_types(type1, type2);
-    } else if (bt1 == VT_STRUCT) {
+    }
+    else if (bt1 == VT_STRUCT) {
         return (type1->ref == type2->ref);
-    } else if (bt1 == VT_FUNC) {
+    }
+    else if (bt1 == VT_FUNC) {
         return is_compatible_func(type1, type2);
-    } else {
+    }
+    else {
         return 1;
     }
 }
@@ -2829,18 +2873,18 @@ static int compare_types(CType *type1, CType *type2, int unqualified)
 #define CMP_OP 'C'
 #define SHIFT_OP 'S'
 
-/* OP1 ï¿½ï¿½ OP2 ï¿½ï¿½ï¿½ï¿½ï¿½Z OP ï¿½ï¿½ "ï¿½ï¿½ï¿½ï¿½" ï¿½Å‚ï¿½ï¿½é‚©ï¿½ï¿½ï¿½`ï¿½Fï¿½bï¿½Nï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½^ï¿½ï¿½ DEST ï¿½ÉŠiï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ì‰ï¿½ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½jï¿½B */
+/* OP1 ‚Æ OP2 ‚ª‰‰Z OP ‚Å "Œ‹‡" ‚Å‚«‚é‚©‚ğƒ`ƒFƒbƒN‚·‚éBŒ‹‡Œ^‚Í DEST ‚ÉŠi”[‚³‚ê‚éiƒ|ƒCƒ“ƒ^‚Ì‰ÁŒ¸Z‚ğœ‚­jB */
     /* for shifts, 'combine' only left operand */
-    /* ï¿½Vï¿½tï¿½gï¿½Ìê‡ï¿½A'combine' ï¿½Íï¿½ï¿½Iï¿½yï¿½ï¿½ï¿½ï¿½ï¿½hï¿½Ì‚İ‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* ƒVƒtƒg‚Ìê‡A'combine' ‚Í¶ƒIƒyƒ‰ƒ“ƒh‚Ì‚İ‚ğˆµ‚¤ */
     /* strip qualifiers before comparing */
-    /* ï¿½ï¿½rï¿½Oï¿½ÉCï¿½ï¿½ï¿½qï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ */
+    /* ”äŠr‘O‚ÉCüq‚ğæ‚èœ‚­ */
     /* Default Vs explicit signedness only matters for char */
-    /* ï¿½fï¿½tï¿½Hï¿½ï¿½ï¿½gï¿½Æ–ï¿½ï¿½ï¿½ï¿½Iï¿½È•ï¿½ï¿½ï¿½ï¿½wï¿½ï¿½Ìˆá‚¢ï¿½ï¿½ char ï¿½Ìê‡ï¿½É‚Ì‚İ–ï¿½ï¿½Æ‚È‚ï¿½ */
+    /* ƒfƒtƒHƒ‹ƒg‚Æ–¾¦“I‚È•„†w’è‚Ìˆá‚¢‚Í char ‚Ìê‡‚É‚Ì‚İ–â‘è‚Æ‚È‚é */
     /* XXX: bitfields ? */
-    /* XXX: ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h ? */
-static int combine_types(CType *dest, SValue *op1, SValue *op2, int op)
+    /* XXX: ƒrƒbƒgƒtƒB[ƒ‹ƒh ? */
+static int combine_types(CType* dest, SValue* op1, SValue* op2, int op)
 {
-    CType *type1, *type2, type;
+    CType* type1, * type2, type;
     int t1, t2, bt1, bt2;
     int ret = 1;
 
@@ -2859,40 +2903,42 @@ static int combine_types(CType *dest, SValue *op1, SValue *op2, int op)
         ret = op == '?' ? 1 : 0;
         /* NOTE: as an extension, we accept void on only one side */
         type.t = VT_VOID;
-    } else if (bt1 == VT_PTR || bt2 == VT_PTR) {
+    }
+    else if (bt1 == VT_PTR || bt2 == VT_PTR) {
         if (op == '+') {
-          if (!is_integer_btype(bt1 == VT_PTR ? bt2 : bt1))
-            ret = 0;
+            if (!is_integer_btype(bt1 == VT_PTR ? bt2 : bt1))
+                ret = 0;
         }
         /* http://port70.net/~nsz/c/c99/n1256.html#6.5.15p6 */
         /* If one is a null ptr constant the result type is the other.  */
-        else if (is_null_pointer (op2)) type = *type1;
-        else if (is_null_pointer (op1)) type = *type2;
+        else if (is_null_pointer(op2)) type = *type1;
+        else if (is_null_pointer(op1)) type = *type2;
         else if (bt1 != bt2) {
             /* accept comparison or cond-expr between pointer and integer
                with a warning */
             if ((op == '?' || op == CMP_OP)
                 && (is_integer_btype(bt1) || is_integer_btype(bt2)))
-              tcc_warning("ï¿½|ï¿½Cï¿½ï¿½ï¿½^/ï¿½ï¿½ï¿½ï¿½ï¿½Ì•sï¿½ï¿½v: %s",
-                          op == '?' ? "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Zï¿½q" : "ï¿½ï¿½r");
+                tcc_warning("ƒ|ƒCƒ“ƒ^/®”‚Ì•sˆê’v: %s",
+                    op == '?' ? "ğŒ‰‰Zq" : "”äŠr");
             else if (op != '-' || !is_integer_btype(bt2))
-              ret = 0;
+                ret = 0;
             type = *(bt1 == VT_PTR ? type1 : type2);
-        } else {
-            CType *pt1 = pointed_type(type1);
-            CType *pt2 = pointed_type(type2);
+        }
+        else {
+            CType* pt1 = pointed_type(type1);
+            CType* pt2 = pointed_type(type2);
             int pbt1 = pt1->t & VT_BTYPE;
             int pbt2 = pt2->t & VT_BTYPE;
             int newquals, copied = 0;
             if (pbt1 != VT_VOID && pbt2 != VT_VOID
                 && !compare_types(pt1, pt2, 1/*unqualif*/)) {
                 if (op != '?' && op != CMP_OP)
-                  ret = 0;
+                    ret = 0;
                 else
-                  type_incompatibility_warning(type1, type2,
-                    op == '?'
-                     ? "pointer type mismatch in conditional expression ('%s' and '%s')"
-                     : "pointer type mismatch in comparison('%s' and '%s')");
+                    type_incompatibility_warning(type1, type2,
+                        op == '?'
+                        ? "pointer type mismatch in conditional expression ('%s' and '%s')"
+                        : "pointer type mismatch in comparison('%s' and '%s')");
             }
             if (op == '?') {
                 /* pointers to void get preferred, otherwise the
@@ -2902,66 +2948,72 @@ static int combine_types(CType *dest, SValue *op1, SValue *op2, int op)
                 newquals = ((pt1->t | pt2->t) & (VT_CONSTANT | VT_VOLATILE));
                 if ((~pointed_type(&type)->t & (VT_CONSTANT | VT_VOLATILE))
                     & newquals)
-                  {
+                {
                     /* copy the pointer target symbol */
                     type.ref = sym_push(SYM_FIELD, &type.ref->type,
-                                        0, type.ref->c);
+                        0, type.ref->c);
                     copied = 1;
                     pointed_type(&type)->t |= newquals;
-                  }
+                }
                 /* pointers to incomplete arrays get converted to
                    pointers to completed ones if possible */
                 if (pt1->t & VT_ARRAY
                     && pt2->t & VT_ARRAY
                     && pointed_type(&type)->ref->c < 0
                     && (pt1->ref->c > 0 || pt2->ref->c > 0))
-                  {
+                {
                     if (!copied)
-                      type.ref = sym_push(SYM_FIELD, &type.ref->type,
-                                          0, type.ref->c);
+                        type.ref = sym_push(SYM_FIELD, &type.ref->type,
+                            0, type.ref->c);
                     pointed_type(&type)->ref =
                         sym_push(SYM_FIELD, &pointed_type(&type)->ref->type,
-                                 0, pointed_type(&type)->ref->c);
+                            0, pointed_type(&type)->ref->c);
                     pointed_type(&type)->ref->c =
                         0 < pt1->ref->c ? pt1->ref->c : pt2->ref->c;
-                  }
+                }
             }
         }
         if (op == CMP_OP)
-          type.t = VT_SIZE_T;
-    } else if (bt1 == VT_STRUCT || bt2 == VT_STRUCT) {
+            type.t = VT_SIZE_T;
+    }
+    else if (bt1 == VT_STRUCT || bt2 == VT_STRUCT) {
         if (op != '?' || !compare_types(type1, type2, 1))
-          ret = 0;
+            ret = 0;
         type = *type1;
-    } else if (is_float(bt1) || is_float(bt2)) {
+    }
+    else if (is_float(bt1) || is_float(bt2)) {
         if (bt1 == VT_LDOUBLE || bt2 == VT_LDOUBLE) {
             type.t = VT_LDOUBLE;
-        } else if (bt1 == VT_DOUBLE || bt2 == VT_DOUBLE) {
+        }
+        else if (bt1 == VT_DOUBLE || bt2 == VT_DOUBLE) {
             type.t = VT_DOUBLE;
-        } else {
+        }
+        else {
             type.t = VT_FLOAT;
         }
-    } else if (bt1 == VT_LLONG || bt2 == VT_LLONG) {
+    }
+    else if (bt1 == VT_LLONG || bt2 == VT_LLONG) {
         /* cast to biggest op */
         type.t = VT_LLONG | VT_LONG;
         if (bt1 == VT_LLONG)
-          type.t &= t1;
+            type.t &= t1;
         if (bt2 == VT_LLONG)
-          type.t &= t2;
+            type.t &= t2;
         /* convert to unsigned if it does not fit in a long long */
         if ((t1 & (VT_BTYPE | VT_UNSIGNED | VT_BITFIELD)) == (VT_LLONG | VT_UNSIGNED) ||
             (t2 & (VT_BTYPE | VT_UNSIGNED | VT_BITFIELD)) == (VT_LLONG | VT_UNSIGNED))
-          type.t |= VT_UNSIGNED;
-    } else {
+            type.t |= VT_UNSIGNED;
+    }
+    else {
         /* integer operations */
         type.t = VT_INT | (VT_LONG & (t1 | t2));
         /* convert to unsigned if it does not fit in an integer */
         if ((t1 & (VT_BTYPE | VT_UNSIGNED | VT_BITFIELD)) == (VT_INT | VT_UNSIGNED) ||
             (t2 & (VT_BTYPE | VT_UNSIGNED | VT_BITFIELD)) == (VT_INT | VT_UNSIGNED))
-          type.t |= VT_UNSIGNED;
+            type.t |= VT_UNSIGNED;
     }
     if (dest)
-      *dest = type;
+        *dest = type;
     return ret;
 }
 
@@ -2982,23 +3034,25 @@ redo:
     t2 = vtop[0].type.t;
     bt1 = t1 & VT_BTYPE;
     bt2 = t2 & VT_BTYPE;
-        
+
     if (bt1 == VT_FUNC || bt2 == VT_FUNC) {
-	if (bt2 == VT_FUNC) {
-	    mk_pointer(&vtop->type);
-	    gaddrof();
-	}
-	if (bt1 == VT_FUNC) {
-	    vswap();
-	    mk_pointer(&vtop->type);
-	    gaddrof();
-	    vswap();
-	}
-	goto redo;
-    } else if (!combine_types(&combtype, vtop - 1, vtop, op_class)) {
-op_err:
-    tcc_error("ï¿½ñ€‰ï¿½ï¿½Zï¿½ÌƒIï¿½yï¿½ï¿½ï¿½ï¿½ï¿½hï¿½^ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Å‚ï¿½");
-    } else if (bt1 == VT_PTR || bt2 == VT_PTR) {
+        if (bt2 == VT_FUNC) {
+            mk_pointer(&vtop->type);
+            gaddrof();
+        }
+        if (bt1 == VT_FUNC) {
+            vswap();
+            mk_pointer(&vtop->type);
+            gaddrof();
+            vswap();
+        }
+        goto redo;
+    }
+    else if (!combine_types(&combtype, vtop - 1, vtop, op_class)) {
+    op_err:
+        tcc_error("“ñ€‰‰Z‚ÌƒIƒyƒ‰ƒ“ƒhŒ^‚ª•s³‚Å‚·");
+    }
+    else if (bt1 == VT_PTR || bt2 == VT_PTR) {
         /* at least one operand is a pointer */
         /* relational op: must be both pointers */
         int align;
@@ -3015,7 +3069,8 @@ op_err:
             vtop->type.t = VT_PTRDIFF_T;
             vswap();
             gen_op(TOK_PDIV);
-        } else {
+        }
+        else {
             /* exactly one pointer : must be '+' or '-'. */
             if (op != '-' && op != '+')
                 goto op_err;
@@ -3027,7 +3082,7 @@ op_err:
             }
 #if PTR_SIZE == 4
             if (bt2 == VT_LLONG)
-                /* XXX: ï¿½ï¿½ï¿½ï¿½ï¿½ÅØ‚ï¿½Ì‚Ä‚ï¿½Bgen_opl ï¿½ï¿½ ptr + long long ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
+                /* XXX: ‚±‚±‚ÅØ‚èÌ‚Ä‚éBgen_opl ‚Í ptr + long long ‚ğˆµ‚¦‚È‚¢‚½‚ß */
                 gen_cast_s(VT_INT);
 #endif
             type1 = vtop[-1].type;
@@ -3035,23 +3090,25 @@ op_err:
             gen_op('*');
 #ifdef CONFIG_TCC_BCHECK
             if (tcc_state->do_bounds_check && !CONST_WANTED) {
-                /* ï¿½ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ìê‡ï¿½Aï¿½ï¿½ï¿½Eï¿½ï¿½ï¿½eï¿½Xï¿½gï¿½ï¿½ï¿½é‚½ï¿½ß‚Ì“ï¿½ï¿½Ê‚ÈƒRï¿½[ï¿½hï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
+                /* ‹«ŠEŒŸ¸•t‚«ƒ|ƒCƒ“ƒ^‚Ìê‡A‹«ŠE‚ğƒeƒXƒg‚·‚é‚½‚ß‚Ì“Á•Ê‚ÈƒR[ƒh‚ğ¶¬‚·‚é */
                 if (op == '-') {
                     vpushi(0);
                     vswap();
                     gen_op('-');
                 }
                 gen_bounded_ptr_add();
-            } else
+            }
+            else
 #endif
             {
                 gen_opic(op);
             }
-            type1.t &= ~(VT_ARRAY|VT_VLA);
+            type1.t &= ~(VT_ARRAY | VT_VLA);
             /* put again type if gen_opic() swaped operands */
             vtop->type = type1;
         }
-    } else {
+    }
+    else {
         /* floats can only be used for a few operations */
         if (is_float(combtype.t)
             && op != '+' && op != '-' && op != '*' && op != '/'
@@ -3060,10 +3117,10 @@ op_err:
         }
     std_op:
         t = t2 = combtype.t;
-    /* ï¿½Vï¿½tï¿½gï¿½ï¿½ long long ï¿½Ì“ï¿½ï¿½ï¿½Pï¿½[ï¿½X: ï¿½Vï¿½tï¿½gï¿½Íï¿½ï¿½ï¿½ï¿½Ì‚Ü‚Ü‚É‚ï¿½ï¿½ï¿½ */
+        /* ƒVƒtƒg‚Æ long long ‚Ì“ÁêƒP[ƒX: ƒVƒtƒg‚Í®”‚Ì‚Ü‚Ü‚É‚·‚é */
         if (op_class == SHIFT_OP)
             t2 = VT_INT;
-    /* XXX: ï¿½ï¿½ï¿½ï¿½Aï¿½ê•”ï¿½Ì•ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½Zï¿½Í–ï¿½ï¿½ï¿½ï¿½Iï¿½È‚Ì‚ÅAï¿½ï¿½ï¿½ï¿½ï¿½Å•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ */
+        /* XXX: Œ»óAˆê•”‚Ì•„†‚È‚µ‰‰Z‚Í–¾¦“I‚È‚Ì‚ÅA‚±‚±‚Å•ÏŠ·‚·‚é */
         if (t & VT_UNSIGNED) {
             if (op == TOK_SAR)
                 op = TOK_SHR;
@@ -3089,9 +3146,10 @@ op_err:
         else
             gen_opic(op);
         if (op_class == CMP_OP) {
-            /* ï¿½ÖŒWï¿½ï¿½ï¿½Zï¿½q: ï¿½ï¿½ï¿½Ê‚ï¿½ int */
+            /* ŠÖŒW‰‰Zq: Œ‹‰Ê‚Í int */
             vtop->type.t = VT_INT;
-        } else {
+        }
+        else {
             vtop->type.t = t;
         }
     }
@@ -3106,7 +3164,7 @@ op_err:
 /* generic itof for unsigned long long case */
 static void gen_cvt_itof1(int t)
 {
-    if ((vtop->type.t & (VT_BTYPE | VT_UNSIGNED)) == 
+    if ((vtop->type.t & (VT_BTYPE | VT_UNSIGNED)) ==
         (VT_LLONG | VT_UNSIGNED)) {
 
         if (t == VT_FLOAT)
@@ -3121,7 +3179,8 @@ static void gen_cvt_itof1(int t)
         gfunc_call(1);
         vpushi(0);
         PUT_R_RET(vtop, t);
-    } else {
+    }
+    else {
         gen_cvt_itof(t);
     }
 }
@@ -3149,7 +3208,8 @@ static void gen_cvt_ftoi1(int t)
         gfunc_call(1);
         vpushi(0);
         PUT_R_RET(vtop, t);
-    } else {
+    }
+    else {
         gen_cvt_ftoi(t);
     }
 }
@@ -3162,7 +3222,7 @@ static void force_charshort_cast(void)
     int dbt = vtop->type.t;
     vtop->r &= ~VT_MUSTCAST;
     vtop->type.t = sbt;
-    gen_cast_s(dbt == VT_BOOL ? VT_BYTE|VT_UNSIGNED : dbt);
+    gen_cast_s(dbt == VT_BOOL ? VT_BYTE | VT_UNSIGNED : dbt);
     vtop->type.t = dbt;
 }
 
@@ -3175,7 +3235,7 @@ static void gen_cast_s(int t)
 }
 
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
-static void gen_cast(CType *type)
+static void gen_cast(CType* type)
 {
     int sbt, dbt, sf, df, c;
     int dbt_bt, sbt_bt, ds, ss, bits, trunc;
@@ -3189,7 +3249,7 @@ static void gen_cast(CType *type)
         gv(RC_INT);
 
     if (IS_ENUM(type->t) && type->ref->c < 0)
-        tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ï¿½Ö‚ÌƒLï¿½ï¿½ï¿½Xï¿½g");
+        tcc_error("•sŠ®‘SŒ^‚Ö‚ÌƒLƒƒƒXƒg");
 
     dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
     sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
@@ -3205,7 +3265,7 @@ again:
         if (dbt_bt == VT_VOID)
             goto done;
         if (sbt_bt == VT_VOID) {
-error:
+        error:
             cast_error(&vtop->type, type);
         }
 
@@ -3230,7 +3290,8 @@ error:
                         vtop->c.ld = vtop->c.i;
                     else
                         vtop->c.ld = -(long double)-vtop->c.i;
-                } else if(!sf) {
+                }
+                else if (!sf) {
                     if ((sbt & VT_UNSIGNED) || !(vtop->c.i >> 31))
                         vtop->c.ld = (uint32_t)vtop->c.i;
                     else
@@ -3241,10 +3302,12 @@ error:
                     vtop->c.f = (float)vtop->c.ld;
                 else if (dbt == VT_DOUBLE)
                     vtop->c.d = (double)vtop->c.ld;
-            } else if (sf && dbt == VT_BOOL) {
+            }
+            else if (sf && dbt == VT_BOOL) {
                 vtop->c.i = (vtop->c.ld != 0);
-            } else {
-                if(sf) {
+            }
+            else {
+                if (sf) {
                     if (dbt & VT_UNSIGNED)
                         vtop->c.i = (uint64_t)vtop->c.ld;
                     else
@@ -3263,8 +3326,8 @@ error:
                     vtop->c.i = (vtop->c.i != 0);
                 else {
                     uint32_t m = dbt_bt == VT_BYTE ? 0xff :
-                                 dbt_bt == VT_SHORT ? 0xffff :
-                                  0xffffffff;
+                        dbt_bt == VT_SHORT ? 0xffff :
+                        0xffffffff;
                     vtop->c.i &= m;
                     if (!(dbt & VT_UNSIGNED))
                         vtop->c.i |= -(vtop->c.i & ((m >> 1) + 1));
@@ -3272,9 +3335,10 @@ error:
             }
             goto done;
 
-        } else if (dbt == VT_BOOL
+        }
+        else if (dbt == VT_BOOL
             && (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM))
-                == (VT_CONST | VT_SYM)) {
+            == (VT_CONST | VT_SYM)) {
             /* addresses are considered non-zero (see tcctest.c:sinit23) */
             vtop->r = VT_CONST;
             vtop->c.i = 1;
@@ -3295,10 +3359,12 @@ error:
             if (sf && df) {
                 /* convert from fp to fp */
                 gen_cvt_ftof(dbt);
-            } else if (df) {
+            }
+            else if (df) {
                 /* convert int to fp */
                 gen_cvt_itof1(dbt);
-            } else {
+            }
+            else {
                 /* convert fp to int */
                 sbt = dbt;
                 if (dbt_bt != VT_LLONG && dbt_bt != VT_INT)
@@ -3318,7 +3384,7 @@ error:
         if (ds == ss && ds >= 4)
             goto done;
         if (dbt_bt == VT_PTR || sbt_bt == VT_PTR) {
-            tcc_warning("ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Æï¿½ï¿½ï¿½ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½ï¿½Ù‚È‚ï¿½Ô‚ÌƒLï¿½ï¿½ï¿½Xï¿½gï¿½Å‚ï¿½");
+            tcc_warning("ƒ|ƒCƒ“ƒ^‚Æ®”‚ÌƒTƒCƒY‚ªˆÙ‚È‚éŠÔ‚ÌƒLƒƒƒXƒg‚Å‚·");
             if (sbt_bt == VT_PTR) {
                 /* put integer type to allow logical operations below */
                 vtop->type.t = (PTR_SIZE == 8 ? VT_LLONG : VT_INT);
@@ -3328,7 +3394,7 @@ error:
         /* processor allows { int a = 0, b = *(char*)&a; }
            That means that if we cast to less width, we can just
            change the type and read it still later. */
-        #define ALLOW_SUBTYPE_ACCESS 1
+#define ALLOW_SUBTYPE_ACCESS 1
 
         if (ALLOW_SUBTYPE_ACCESS && (vtop->r & VT_LVAL)) {
             /* value still in memory */
@@ -3349,13 +3415,15 @@ error:
             if (sbt & VT_UNSIGNED) {
                 vpushi(0);
                 gv(RC_INT);
-            } else {
+            }
+            else {
                 gv_dup();
                 vpushi(31);
                 gen_op(TOK_SAR);
             }
             lbuild(dbt);
-        } else if (ss == 8) {
+        }
+        else if (ss == 8) {
             /* from long long: just take low order word */
             lexpand();
             vpop();
@@ -3373,19 +3441,22 @@ error:
 #else
                 goto done;
 #endif
-            } else {
+            }
+            else {
                 gen_cvt_sxtw();
                 goto done;
             }
             ss = ds, ds = 4, dbt = sbt;
-        } else if (ss == 8) {
+        }
+        else if (ss == 8) {
             /* RISC-V keeps 32bit vals in registers sign-extended.
                So here we need a sign-extension for signed types and
                zero-extension. for unsigned types. */
 #if !defined(TCC_TARGET_RISCV64)
             trunc = 32; /* zero upper 32 bits for non RISC-V targets */
 #endif
-        } else {
+        }
+        else {
             ss = 4;
         }
 #endif
@@ -3410,13 +3481,13 @@ error:
     }
 done:
     vtop->type = *type;
-    vtop->type.t &= ~ ( VT_CONSTANT | VT_VOLATILE | VT_ARRAY );
+    vtop->type.t &= ~(VT_CONSTANT | VT_VOLATILE | VT_ARRAY);
 }
 
 /* return type size as known at compile time. Put alignment at 'a' */
-ST_FUNC int type_size(CType *type, int *a)
+ST_FUNC int type_size(CType* type, int* a)
 {
-    Sym *s;
+    Sym* s;
     int bt;
 
     bt = type->t & VT_BTYPE;
@@ -3425,7 +3496,8 @@ ST_FUNC int type_size(CType *type, int *a)
         s = type->ref;
         *a = s->r;
         return s->c;
-    } else if (bt == VT_PTR) {
+    }
+    else if (bt == VT_PTR) {
         if (type->t & VT_ARRAY) {
             int ts;
             s = type->ref;
@@ -3433,34 +3505,42 @@ ST_FUNC int type_size(CType *type, int *a)
             if (ts < 0 && s->c < 0)
                 ts = -ts;
             return ts * s->c;
-        } else {
+        }
+        else {
             *a = PTR_SIZE;
             return PTR_SIZE;
         }
-    } else if (IS_ENUM(type->t) && type->ref->c < 0) {
+    }
+    else if (IS_ENUM(type->t) && type->ref->c < 0) {
         *a = 0;
         return -1; /* incomplete enum */
-    } else if (bt == VT_LDOUBLE) {
+    }
+    else if (bt == VT_LDOUBLE) {
         *a = LDOUBLE_ALIGN;
         return LDOUBLE_SIZE;
-    } else if (bt == VT_DOUBLE || bt == VT_LLONG) {
+    }
+    else if (bt == VT_DOUBLE || bt == VT_LLONG) {
 #if (defined TCC_TARGET_I386 && !defined TCC_TARGET_PE) \
  || (defined TCC_TARGET_ARM && !defined TCC_ARM_EABI)
-        *a = 4;
+        * a = 4;
 #else
-        *a = 8;
+        * a = 8;
 #endif
         return 8;
-    } else if (bt == VT_INT || bt == VT_FLOAT) {
+    }
+    else if (bt == VT_INT || bt == VT_FLOAT) {
         *a = 4;
         return 4;
-    } else if (bt == VT_SHORT) {
+    }
+    else if (bt == VT_SHORT) {
         *a = 2;
         return 2;
-    } else if (bt == VT_QLONG || bt == VT_QFLOAT) {
+    }
+    else if (bt == VT_QLONG || bt == VT_QFLOAT) {
         *a = 8;
         return 16;
-    } else {
+    }
+    else {
         /* char, void, function, _Bool */
         *a = 1;
         return 1;
@@ -3469,69 +3549,70 @@ ST_FUNC int type_size(CType *type, int *a)
 
 /* push type size as known at runtime time on top of value stack. Put
    alignment at 'a' */
-static void vpush_type_size(CType *type, int *a)
+static void vpush_type_size(CType* type, int* a)
 {
     if (type->t & VT_VLA) {
         type_size(&type->ref->type, a);
-        vset(&int_type, VT_LOCAL|VT_LVAL, type->ref->c);
-    } else {
+        vset(&int_type, VT_LOCAL | VT_LVAL, type->ref->c);
+    }
+    else {
         int size = type_size(type, a);
         if (size < 0)
-            tcc_error("ï¿½sï¿½ï¿½ï¿½ÈŒ^ï¿½Tï¿½Cï¿½Yï¿½Å‚ï¿½");
+            tcc_error("•s–¾‚ÈŒ^ƒTƒCƒY‚Å‚·");
         vpushs(size);
     }
 }
 
 /* return the pointed type of t */
-static inline CType *pointed_type(CType *type)
+static inline CType* pointed_type(CType* type)
 {
     return &type->ref->type;
 }
 
 /* modify type so that its it is a pointer to type. */
-ST_FUNC void mk_pointer(CType *type)
+ST_FUNC void mk_pointer(CType* type)
 {
-    Sym *s;
+    Sym* s;
     s = sym_push(SYM_FIELD, type, 0, -1);
     type->t = VT_PTR | (type->t & VT_STORAGE);
     type->ref = s;
 }
 
 /* return true if type1 and type2 are exactly the same (including
-   qualifiers). 
+   qualifiers).
 */
-static int is_compatible_types(CType *type1, CType *type2)
+static int is_compatible_types(CType* type1, CType* type2)
 {
-    return compare_types(type1,type2,0);
+    return compare_types(type1, type2, 0);
 }
 
 /* return true if type1 and type2 are the same (ignoring qualifiers).
 */
-static int is_compatible_unqualified_types(CType *type1, CType *type2)
+static int is_compatible_unqualified_types(CType* type1, CType* type2)
 {
-    return compare_types(type1,type2,1);
+    return compare_types(type1, type2, 1);
 }
 
-static void cast_error(CType *st, CType *dt)
+static void cast_error(CType* st, CType* dt)
 {
-    type_incompatibility_error(st, dt, "'%s' ï¿½ï¿½ '%s' ï¿½É•ÏŠï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+    type_incompatibility_error(st, dt, "'%s' ‚ğ '%s' ‚É•ÏŠ·‚Å‚«‚Ü‚¹‚ñ");
 }
 
 /* verify type compatibility to store vtop in 'dt' type */
-static void verify_assign_cast(CType *dt)
+static void verify_assign_cast(CType* dt)
 {
-    CType *st, *type1, *type2;
+    CType* st, * type1, * type2;
     int dbt, sbt, qualwarn, lvl;
 
     st = &vtop->type; /* source type */
     dbt = dt->t & VT_BTYPE;
     sbt = st->t & VT_BTYPE;
     if (dt->t & VT_CONSTANT)
-        tcc_warning("ï¿½Ç‚İï¿½ï¿½ï¿½pï¿½ÌêŠï¿½Ö‚Ì‘ï¿½ï¿½ï¿½Å‚ï¿½");
-    switch(dbt) {
+        tcc_warning("“Ç‚İæ‚èê—p‚ÌêŠ‚Ö‚Ì‘ã“ü‚Å‚·");
+    switch (dbt) {
     case VT_VOID:
         if (sbt != dbt)
-            tcc_error("void ï¿½^ï¿½Ö‚Ì‘ï¿½ï¿½");
+            tcc_error("void Œ^‚Ö‚Ì‘ã“ü");
         break;
     case VT_PTR:
         /* special cases for pointers */
@@ -3540,7 +3621,7 @@ static void verify_assign_cast(CType *dt)
             break;
         /* accept implicit pointer to integer cast with warning */
         if (is_integer_btype(sbt)) {
-            tcc_warning("ï¿½Lï¿½ï¿½ï¿½Xï¿½gï¿½È‚ï¿½ï¿½Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
+            tcc_warning("ƒLƒƒƒXƒg‚È‚µ‚Å®”‚©‚çƒ|ƒCƒ“ƒ^‚ªì‚ç‚ê‚Ü‚·");
             break;
         }
         type1 = pointed_type(dt);
@@ -3556,8 +3637,8 @@ static void verify_assign_cast(CType *dt)
             if (((type2->t & VT_CONSTANT) && !(type1->t & VT_CONSTANT)) ||
                 ((type2->t & VT_VOLATILE) && !(type1->t & VT_VOLATILE)))
                 qualwarn = 1;
-            dbt = type1->t & (VT_BTYPE|VT_LONG);
-            sbt = type2->t & (VT_BTYPE|VT_LONG);
+            dbt = type1->t & (VT_BTYPE | VT_LONG);
+            sbt = type2->t & (VT_BTYPE | VT_LONG);
             if (dbt != VT_PTR || sbt != VT_PTR)
                 break;
             type1 = pointed_type(type1);
@@ -3566,16 +3647,18 @@ static void verify_assign_cast(CType *dt)
         if (!is_compatible_unqualified_types(type1, type2)) {
             if ((dbt == VT_VOID || sbt == VT_VOID) && lvl == 0) {
                 /* void * can match anything */
-            } else if (dbt == sbt
+            }
+            else if (dbt == sbt
                 && is_integer_btype(sbt & VT_BTYPE)
                 && IS_ENUM(type1->t) + IS_ENUM(type2->t)
-                    + !!((type1->t ^ type2->t) & VT_UNSIGNED) < 2) {
-		/* Like GCC don't warn by default for merely changes
-		   in pointer target signedness.  Do warn for different
-		   base types, though, in particular for unsigned enums
-		   and signed int targets.  */
-            } else {
-                tcc_warning("ï¿½İŠï¿½ï¿½ï¿½ï¿½Ì‚È‚ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½^ï¿½ï¿½ï¿½ï¿½Ì‘ï¿½ï¿½ï¿½Å‚ï¿½");
+                + !!((type1->t ^ type2->t) & VT_UNSIGNED) < 2) {
+                /* Like GCC don't warn by default for merely changes
+                   in pointer target signedness.  Do warn for different
+                   base types, though, in particular for unsigned enums
+                   and signed int targets.  */
+            }
+            else {
+                tcc_warning("ŒİŠ·«‚Ì‚È‚¢ƒ|ƒCƒ“ƒ^Œ^‚©‚ç‚Ì‘ã“ü‚Å‚·");
                 break;
             }
         }
@@ -3587,8 +3670,9 @@ static void verify_assign_cast(CType *dt)
     case VT_INT:
     case VT_LLONG:
         if (sbt == VT_PTR || sbt == VT_FUNC) {
-            tcc_warning("ï¿½Lï¿½ï¿½ï¿½Xï¿½gï¿½È‚ï¿½ï¿½Åƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ç®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
-        } else if (sbt == VT_STRUCT) {
+            tcc_warning("ƒLƒƒƒXƒg‚È‚µ‚Åƒ|ƒCƒ“ƒ^‚©‚ç®”‚ªì‚ç‚ê‚Ü‚·");
+        }
+        else if (sbt == VT_STRUCT) {
             goto case_VT_STRUCT;
         }
         /* XXX: more tests */
@@ -3596,14 +3680,14 @@ static void verify_assign_cast(CType *dt)
     case VT_STRUCT:
     case_VT_STRUCT:
         if (!is_compatible_unqualified_types(dt, st)) {
-    error:
+        error:
             cast_error(st, dt);
         }
         break;
     }
 }
 
-static void gen_assign_cast(CType *dt)
+static void gen_assign_cast(CType* dt)
 {
     verify_assign_cast(dt);
     gen_cast(dt);
@@ -3647,25 +3731,27 @@ ST_FUNC void vstore(void)
 #endif
             ) {
             gen_struct_copy(size);
-        } else
+        }
+        else
 #endif
         {
             /* type size */
             vpushi(size);
             /* Use memmove, rather than memcpy, as dest and src may be same: */
 #ifdef TCC_ARM_EABI
-            if(!(align & 7))
+            if (!(align & 7))
                 vpush_helper_func(TOK_memmove8);
-            else if(!(align & 3))
+            else if (!(align & 3))
                 vpush_helper_func(TOK_memmove4);
             else
 #endif
-            vpush_helper_func(TOK_memmove);
+                vpush_helper_func(TOK_memmove);
             vrott(4);
             gfunc_call(3);
         }
 
-    } else if (ft & VT_BITFIELD) {
+    }
+    else if (ft & VT_BITFIELD) {
         /* bitfield store handling */
 
         /* save lvalue as expression result (example: s.b = s.a = n;) */
@@ -3687,7 +3773,8 @@ ST_FUNC void vstore(void)
         }
         if (r == VT_STRUCT) {
             store_packed_bf(bit_pos, bit_size);
-        } else {
+        }
+        else {
             unsigned long long mask = (1ULL << bit_size) - 1;
             if (dbt != VT_BOOL) {
                 /* mask source */
@@ -3716,66 +3803,70 @@ ST_FUNC void vstore(void)
             /* ... and discard */
             vpop();
         }
-    } else if (dbt == VT_VOID) {
+    }
+    else if (dbt == VT_VOID) {
         --vtop;
-    } else {
-            /* optimize char/short casts */
-            delayed_cast = 0;
-            if ((dbt == VT_BYTE || dbt == VT_SHORT)
-                && is_integer_btype(sbt)
-                ) {
-                if ((vtop->r & VT_MUSTCAST)
-                    && btype_size(dbt) > btype_size(sbt)
-                    )
-                    force_charshort_cast();
-                delayed_cast = 1;
-            } else {
-                gen_cast(&vtop[-1].type);
-            }
+    }
+    else {
+        /* optimize char/short casts */
+        delayed_cast = 0;
+        if ((dbt == VT_BYTE || dbt == VT_SHORT)
+            && is_integer_btype(sbt)
+            ) {
+            if ((vtop->r & VT_MUSTCAST)
+                && btype_size(dbt) > btype_size(sbt)
+                )
+                force_charshort_cast();
+            delayed_cast = 1;
+        }
+        else {
+            gen_cast(&vtop[-1].type);
+        }
 
 #ifdef CONFIG_TCC_BCHECK
-            /* bound check case */
-            if (vtop[-1].r & VT_MUSTBOUND) {
-                vswap();
-                gbound();
-                vswap();
-            }
+        /* bound check case */
+        if (vtop[-1].r & VT_MUSTBOUND) {
+            vswap();
+            gbound();
+            vswap();
+        }
 #endif
-            gv(RC_TYPE(dbt)); /* generate value */
+        gv(RC_TYPE(dbt)); /* generate value */
 
-            if (delayed_cast) {
-                vtop->r |= BFVAL(VT_MUSTCAST, (sbt == VT_LLONG) + 1);
-                //tcc_warning("deley cast %x -> %x", sbt, dbt);
-                vtop->type.t = ft & VT_TYPE;
-            }
+        if (delayed_cast) {
+            vtop->r |= BFVAL(VT_MUSTCAST, (sbt == VT_LLONG) + 1);
+            //tcc_warning("deley cast %x -> %x", sbt, dbt);
+            vtop->type.t = ft & VT_TYPE;
+        }
 
-            /* if lvalue was saved on stack, must read it */
-            if ((vtop[-1].r & VT_VALMASK) == VT_LLOCAL) {
-                SValue sv;
-                r = get_reg(RC_INT);
-                sv.type.t = VT_PTRDIFF_T;
-                sv.r = VT_LOCAL | VT_LVAL;
-                sv.c.i = vtop[-1].c.i;
-                load(r, &sv);
-                vtop[-1].r = r | VT_LVAL;
-            }
+        /* if lvalue was saved on stack, must read it */
+        if ((vtop[-1].r & VT_VALMASK) == VT_LLOCAL) {
+            SValue sv;
+            r = get_reg(RC_INT);
+            sv.type.t = VT_PTRDIFF_T;
+            sv.r = VT_LOCAL | VT_LVAL;
+            sv.c.i = vtop[-1].c.i;
+            load(r, &sv);
+            vtop[-1].r = r | VT_LVAL;
+        }
 
-            r = vtop->r & VT_VALMASK;
-            /* two word case handling :
-               store second register at word + 4 (or +8 for x86-64)  */
-            if (USING_TWO_WORDS(dbt)) {
-                int load_type = (dbt == VT_QFLOAT) ? VT_DOUBLE : VT_PTRDIFF_T;
-                vtop[-1].type.t = load_type;
-                store(r, vtop - 1);
-                vswap();
-                incr_offset(PTR_SIZE);
-                vswap();
-                /* XXX: it works because r2 is spilled last ! */
-                store(vtop->r2, vtop - 1);
-            } else {
-                /* single word */
-                store(r, vtop - 1);
-            }
+        r = vtop->r & VT_VALMASK;
+        /* two word case handling :
+           store second register at word + 4 (or +8 for x86-64)  */
+        if (USING_TWO_WORDS(dbt)) {
+            int load_type = (dbt == VT_QFLOAT) ? VT_DOUBLE : VT_PTRDIFF_T;
+            vtop[-1].type.t = load_type;
+            store(r, vtop - 1);
+            vswap();
+            incr_offset(PTR_SIZE);
+            vswap();
+            /* XXX: it works because r2 is spilled last ! */
+            store(vtop->r2, vtop - 1);
+        }
+        else {
+            /* single word */
+            store(r, vtop - 1);
+        }
         vswap();
         vtop--; /* NOT vpop() because on x86 it would flush the fp stack */
     }
@@ -3792,14 +3883,14 @@ ST_FUNC void inc(int post, int c)
         vrotb(3);
     }
     /* add constant */
-    vpushi(c - TOK_MID); 
+    vpushi(c - TOK_MID);
     gen_op('+');
     vstore(); /* store value */
     if (post)
         vpop(); /* if post op, return saved value */
 }
 
-ST_FUNC CString* parse_mult_str (const char *msg)
+ST_FUNC CString* parse_mult_str(const char* msg)
 {
     /* read the string */
     if (tok != TOK_STR)
@@ -3818,26 +3909,26 @@ ST_FUNC CString* parse_mult_str (const char *msg)
    If I is 0 returns 0.  */
 ST_FUNC int exact_log2p1(int i)
 {
-  int ret;
-  if (!i)
-    return 0;
-  for (ret = 1; i >= 1 << 8; ret += 8)
-    i >>= 8;
-  if (i >= 1 << 4)
-    ret += 4, i >>= 4;
-  if (i >= 1 << 2)
-    ret += 2, i >>= 2;
-  if (i >= 1 << 1)
-    ret++;
-  return ret;
+    int ret;
+    if (!i)
+        return 0;
+    for (ret = 1; i >= 1 << 8; ret += 8)
+        i >>= 8;
+    if (i >= 1 << 4)
+        ret += 4, i >>= 4;
+    if (i >= 1 << 2)
+        ret += 2, i >>= 2;
+    if (i >= 1 << 1)
+        ret++;
+    return ret;
 }
 
 /* Parse __attribute__((...)) GNUC extension. */
-static void parse_attribute(AttributeDef *ad)
+static void parse_attribute(AttributeDef* ad)
 {
     int t, n;
-    char *astr;
-    
+    char* astr;
+
 redo:
     if (tok != TOK_ATTRIBUTE1 && tok != TOK_ATTRIBUTE2)
         return;
@@ -3849,25 +3940,26 @@ redo:
             expect("attribute name");
         t = tok;
         next();
-        switch(t) {
-	case TOK_CLEANUP1:
-	case TOK_CLEANUP2:
-	{
-	    Sym *s;
+        switch (t) {
+        case TOK_CLEANUP1:
+        case TOK_CLEANUP2:
+        {
+            Sym* s;
 
-	    skip('(');
-	    s = sym_find(tok);
-	    if (!s) {
-	        tcc_warning_c(warn_implicit_function_declaration)(
+            skip('(');
+            s = sym_find(tok);
+            if (!s) {
+                tcc_warning_c(warn_implicit_function_declaration)(
                     "implicit declaration of function '%s'", get_tok_str(tok, &tokc));
-	        s = external_global_sym(tok, &func_old_type);
-            } else if ((s->type.t & VT_BTYPE) != VT_FUNC)
-                            tcc_error("'%s' ï¿½ÍŠÖï¿½ï¿½Æ‚ï¿½ï¿½ÄéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", get_tok_str(tok, &tokc));
-	    ad->cleanup_func = s;
-	    next();
+                s = external_global_sym(tok, &func_old_type);
+            }
+            else if ((s->type.t & VT_BTYPE) != VT_FUNC)
+                tcc_error("'%s' ‚ÍŠÖ”‚Æ‚µ‚ÄéŒ¾‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ", get_tok_str(tok, &tokc));
+            ad->cleanup_func = s;
+            next();
             skip(')');
-	    break;
-	}
+            break;
+        }
         case TOK_CONSTRUCTOR1:
         case TOK_CONSTRUCTOR2:
             ad->f.func_ctor = 1;
@@ -3883,31 +3975,31 @@ redo:
         case TOK_SECTION1:
         case TOK_SECTION2:
             skip('(');
-	    astr = parse_mult_str("section name")->data;
+            astr = parse_mult_str("section name")->data;
             ad->section = find_section(tcc_state, astr);
             skip(')');
             break;
         case TOK_ALIAS1:
         case TOK_ALIAS2:
             skip('(');
-	    astr = parse_mult_str("alias(\"target\")")->data;
+            astr = parse_mult_str("alias(\"target\")")->data;
             /* save string as token, for later */
             ad->alias_target = tok_alloc_const(astr);
             skip(')');
             break;
-	case TOK_VISIBILITY1:
-	case TOK_VISIBILITY2:
+        case TOK_VISIBILITY1:
+        case TOK_VISIBILITY2:
             skip('(');
-	    astr = parse_mult_str("visibility(\"default|hidden|internal|protected\")")->data;
-	    if (!strcmp (astr, "default"))
-	        ad->a.visibility = STV_DEFAULT;
-	    else if (!strcmp (astr, "hidden"))
-	        ad->a.visibility = STV_HIDDEN;
-	    else if (!strcmp (astr, "internal"))
-	        ad->a.visibility = STV_INTERNAL;
-	    else if (!strcmp (astr, "protected"))
-	        ad->a.visibility = STV_PROTECTED;
-	    else
+            astr = parse_mult_str("visibility(\"default|hidden|internal|protected\")")->data;
+            if (!strcmp(astr, "default"))
+                ad->a.visibility = STV_DEFAULT;
+            else if (!strcmp(astr, "hidden"))
+                ad->a.visibility = STV_HIDDEN;
+            else if (!strcmp(astr, "internal"))
+                ad->a.visibility = STV_INTERNAL;
+            else if (!strcmp(astr, "protected"))
+                ad->a.visibility = STV_PROTECTED;
+            else
                 expect("visibility(\"default|hidden|internal|protected\")");
             skip(')');
             break;
@@ -3916,15 +4008,16 @@ redo:
             if (tok == '(') {
                 next();
                 n = expr_const();
-                if (n <= 0 || (n & (n - 1)) != 0) 
-                    tcc_error("ï¿½Aï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½Íï¿½ï¿½ï¿½2ï¿½Ì™pï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
+                if (n <= 0 || (n & (n - 1)) != 0)
+                    tcc_error("ƒAƒ‰ƒCƒ“ƒƒ“ƒg‚Í³‚Ì2‚Ì™p‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
                 skip(')');
-            } else {
+            }
+            else {
                 n = MAX_ALIGN;
             }
             ad->a.aligned = exact_log2p1(n);
-	    if (n != 1 << (ad->a.aligned - 1))
-        tcc_error("ï¿½Aï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½g %d ï¿½Íï¿½ï¿½ï¿½ï¿½ï¿½ï¿½å‚«ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½", n);
+            if (n != 1 << (ad->a.aligned - 1))
+                tcc_error("ƒAƒ‰ƒCƒ“ƒƒ“ƒg %d ‚ÍÀ‘•‚æ‚è‘å‚«‚·‚¬‚Ü‚·", n);
             break;
         case TOK_PACKED1:
         case TOK_PACKED2:
@@ -3962,7 +4055,7 @@ redo:
         case TOK_REGPARM2:
             skip('(');
             n = expr_const();
-            if (n > 3) 
+            if (n > 3)
                 n = 3;
             else if (n < 0)
                 n = 0;
@@ -3983,23 +4076,23 @@ redo:
 #endif
         case TOK_MODE:
             skip('(');
-            switch(tok) {
-                case TOK_MODE_DI:
-                    ad->attr_mode = VT_LLONG + 1;
-                    break;
-                case TOK_MODE_QI:
-                    ad->attr_mode = VT_BYTE + 1;
-                    break;
-                case TOK_MODE_HI:
-                    ad->attr_mode = VT_SHORT + 1;
-                    break;
-                case TOK_MODE_SI:
-                case TOK_MODE_word:
-                    ad->attr_mode = VT_INT + 1;
-                    break;
-                default:
-                    tcc_warning("__mode__(%s) ï¿½ÍƒTï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½\n", get_tok_str(tok, NULL));
-                    break;
+            switch (tok) {
+            case TOK_MODE_DI:
+                ad->attr_mode = VT_LLONG + 1;
+                break;
+            case TOK_MODE_QI:
+                ad->attr_mode = VT_BYTE + 1;
+                break;
+            case TOK_MODE_HI:
+                ad->attr_mode = VT_SHORT + 1;
+                break;
+            case TOK_MODE_SI:
+            case TOK_MODE_word:
+                ad->attr_mode = VT_INT + 1;
+                break;
+            default:
+                tcc_warning("__mode__(%s) ‚ÍƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ\n", get_tok_str(tok, NULL));
+                break;
             }
             next();
             skip(')');
@@ -4014,14 +4107,14 @@ redo:
             ad->a.dllimport = 1;
             break;
         default:
-            tcc_warning_c(warn_unsupported)("ï¿½ï¿½ï¿½ï¿½ '%s' ï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½", get_tok_str(t, NULL));
+            tcc_warning_c(warn_unsupported)("‘®« '%s' ‚Í–³‹‚³‚ê‚Ü‚·", get_tok_str(t, NULL));
             /* skip parameters */
             if (tok == '(') {
                 int parenthesis = 0;
                 do {
-                    if (tok == '(') 
+                    if (tok == '(')
                         parenthesis++;
-                    else if (tok == ')') 
+                    else if (tok == ')')
                         parenthesis--;
                     next();
                 } while (parenthesis && tok != -1);
@@ -4037,9 +4130,9 @@ redo:
     goto redo;
 }
 
-static Sym * find_field (CType *type, int v, int *cumofs)
+static Sym* find_field(CType* type, int v, int* cumofs)
 {
-    Sym *s = type->ref;
+    Sym* s = type->ref;
     int v1 = v | SYM_FIELD;
     if (!(v & SYM_FIELD)) { /* top-level call */
         if ((type->t & VT_BTYPE) != VT_STRUCT)
@@ -4047,7 +4140,7 @@ static Sym * find_field (CType *type, int v, int *cumofs)
         if (v < TOK_UIDENT)
             expect("field name");
         if (s->c < 0)
-            tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ '%s' ï¿½ÌQï¿½Æ‰ï¿½ï¿½ï¿½",
+            tcc_error("•sŠ®‘SŒ^ '%s' ‚ÌQÆ‰ğœ",
                 get_tok_str(s->v & ~SYM_STRUCT, 0));
     }
     while ((s = s->next) != NULL) {
@@ -4056,9 +4149,9 @@ static Sym * find_field (CType *type, int v, int *cumofs)
             return s;
         }
         if ((s->type.t & VT_BTYPE) == VT_STRUCT
-          && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
+            && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
             /* try to find field in anonymous sub-struct/union */
-            Sym *ret = find_field (&s->type, v1, cumofs);
+            Sym* ret = find_field(&s->type, v1, cumofs);
             if (ret) {
                 *cumofs += s->c;
                 return ret;
@@ -4066,33 +4159,34 @@ static Sym * find_field (CType *type, int v, int *cumofs)
         }
     }
     if (!(v & SYM_FIELD))
-        tcc_error("ï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½: %s", get_tok_str(v, NULL));
+        tcc_error("ƒtƒB[ƒ‹ƒh‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: %s", get_tok_str(v, NULL));
     return s;
 }
 
-static void check_fields (CType *type, int check)
+static void check_fields(CType* type, int check)
 {
-    Sym *s = type->ref;
+    Sym* s = type->ref;
 
     while ((s = s->next) != NULL) {
         int v = s->v & ~SYM_FIELD;
         if (v < SYM_FIRST_ANOM) {
-            TokenSym *ts = table_ident[v - TOK_IDENT];
+            TokenSym* ts = table_ident[v - TOK_IDENT];
             if (check && (ts->tok & SYM_FIELD))
-                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½o '%s' ï¿½ï¿½ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½", get_tok_str(v, NULL));
+                tcc_error("ƒƒ“ƒo '%s' ‚ªd•¡‚µ‚Ä‚¢‚Ü‚·", get_tok_str(v, NULL));
             ts->tok ^= SYM_FIELD;
-        } else if ((s->type.t & VT_BTYPE) == VT_STRUCT)
-            check_fields (&s->type, check);
+        }
+        else if ((s->type.t & VT_BTYPE) == VT_STRUCT)
+            check_fields(&s->type, check);
     }
 }
 
-static void struct_layout(CType *type, AttributeDef *ad)
+static void struct_layout(CType* type, AttributeDef* ad)
 {
     int size, align, maxalign, offset, c, bit_pos, bit_size;
     int packed, a, bt, prevbt, prev_bit_size;
     int pcc = !tcc_state->ms_bitfields;
     int pragma_pack = *tcc_state->pack_stack_ptr;
-    Sym *f;
+    Sym* f;
 
     maxalign = 1;
     offset = 0;
@@ -4101,11 +4195,9 @@ static void struct_layout(CType *type, AttributeDef *ad)
     prevbt = VT_STRUCT; /* make it never match */
     prev_bit_size = 0;
 
-//#define BF_DEBUG
+    //#define BF_DEBUG
 
     for (f = type->ref->next; f; f = f->next) {
-        if ((f->type.t & VT_BTYPE) == VT_FUNC || (f->type.t & VT_STORAGE) == VT_STATIC)
-            continue;
         if (f->type.t & VT_BITFIELD)
             bit_size = BIT_SIZE(f->type.t);
         else
@@ -4117,7 +4209,8 @@ static void struct_layout(CType *type, AttributeDef *ad)
         if (pcc && bit_size == 0) {
             /* in pcc mode, packing does not affect zero-width bitfields */
 
-        } else {
+        }
+        else {
             /* in pcc mode, attribute packed overrides if set. */
             if (pcc && (f->a.packed || ad->a.packed))
                 align = packed = 1;
@@ -4137,42 +4230,46 @@ static void struct_layout(CType *type, AttributeDef *ad)
             align = a;
 
         if (type->ref->type.t == VT_UNION) {
-	    if (pcc && bit_size >= 0)
-	        size = (bit_size + 7) >> 3;
-	    offset = 0;
-	    if (size > c)
-	        c = size;
+            if (pcc && bit_size >= 0)
+                size = (bit_size + 7) >> 3;
+            offset = 0;
+            if (size > c)
+                c = size;
 
-	} else if (bit_size < 0) {
+        }
+        else if (bit_size < 0) {
             if (pcc)
                 c += (bit_pos + 7) >> 3;
-	    c = (c + align - 1) & -align;
-	    offset = c;
-	    if (size > 0)
-	        c += size;
-	    bit_pos = 0;
-	    prevbt = VT_STRUCT;
-	    prev_bit_size = 0;
+            c = (c + align - 1) & -align;
+            offset = c;
+            if (size > 0)
+                c += size;
+            bit_pos = 0;
+            prevbt = VT_STRUCT;
+            prev_bit_size = 0;
 
-	} else {
-	    /* A bit-field.  Layout is more complicated.  There are two
-	       options: PCC (GCC) compatible and MS compatible */
+        }
+        else {
+            /* A bit-field.  Layout is more complicated.  There are two
+               options: PCC (GCC) compatible and MS compatible */
             if (pcc) {
-		/* In PCC layout a bit-field is placed adjacent to the
-                   preceding bit-fields, except if:
-                   - it has zero-width
-                   - an individual alignment was given
-                   - it would overflow its base type container and
-                     there is no packing */
+                /* In PCC layout a bit-field is placed adjacent to the
+                           preceding bit-fields, except if:
+                           - it has zero-width
+                           - an individual alignment was given
+                           - it would overflow its base type container and
+                             there is no packing */
                 if (bit_size == 0) {
-            new_field:
-		    c = (c + ((bit_pos + 7) >> 3) + align - 1) & -align;
-		    bit_pos = 0;
-                } else if (f->a.aligned) {
+                new_field:
+                    c = (c + ((bit_pos + 7) >> 3) + align - 1) & -align;
+                    bit_pos = 0;
+                }
+                else if (f->a.aligned) {
                     goto new_field;
-                } else if (!packed) {
+                }
+                else if (!packed) {
                     int a8 = align * 8;
-	            int ofs = ((c * 8 + bit_pos) % a8 + bit_size + a8 - 1) / a8;
+                    int ofs = ((c * 8 + bit_pos) % a8 + bit_size + a8 - 1) / a8;
                     if (ofs > size / align)
                         goto new_field;
                 }
@@ -4185,60 +4282,61 @@ static void struct_layout(CType *type, AttributeDef *ad)
                     c += align, bit_pos -= align * 8;
                 offset = c;
 
-		/* In PCC layout named bit-fields influence the alignment
-		   of the containing struct using the base types alignment,
-		   except for packed fields (which here have correct align).  */
-		if (f->v & SYM_FIRST_ANOM
+                /* In PCC layout named bit-fields influence the alignment
+                   of the containing struct using the base types alignment,
+                   except for packed fields (which here have correct align).  */
+                if (f->v & SYM_FIRST_ANOM
                     // && bit_size // ??? gcc on ARM/rpi does that
                     )
-		    align = 1;
+                    align = 1;
 
-	    } else {
-		bt = f->type.t & VT_BTYPE;
-		if ((bit_pos + bit_size > size * 8)
+            }
+            else {
+                bt = f->type.t & VT_BTYPE;
+                if ((bit_pos + bit_size > size * 8)
                     || (bit_size > 0) == (bt != prevbt)
                     ) {
-		    c = (c + align - 1) & -align;
-		    offset = c;
-		    bit_pos = 0;
-		    /* In MS bitfield mode a bit-field run always uses
-		       at least as many bits as the underlying type.
-		       To start a new run it's also required that this
-		       or the last bit-field had non-zero width.  */
-		    if (bit_size || prev_bit_size)
-		        c += size;
-		}
-		/* In MS layout the records alignment is normally
-		   influenced by the field, except for a zero-width
-		   field at the start of a run (but by further zero-width
-		   fields it is again).  */
-		if (bit_size == 0 && prevbt != bt)
-		    align = 1;
-		prevbt = bt;
+                    c = (c + align - 1) & -align;
+                    offset = c;
+                    bit_pos = 0;
+                    /* In MS bitfield mode a bit-field run always uses
+                       at least as many bits as the underlying type.
+                       To start a new run it's also required that this
+                       or the last bit-field had non-zero width.  */
+                    if (bit_size || prev_bit_size)
+                        c += size;
+                }
+                /* In MS layout the records alignment is normally
+                   influenced by the field, except for a zero-width
+                   field at the start of a run (but by further zero-width
+                   fields it is again).  */
+                if (bit_size == 0 && prevbt != bt)
+                    align = 1;
+                prevbt = bt;
                 prev_bit_size = bit_size;
-	    }
+            }
 
-	    f->type.t = (f->type.t & ~(0x3f << VT_STRUCT_SHIFT))
-		        | (bit_pos << VT_STRUCT_SHIFT);
-	    bit_pos += bit_size;
-	}
-	if (align > maxalign)
-	    maxalign = align;
+            f->type.t = (f->type.t & ~(0x3f << VT_STRUCT_SHIFT))
+                | (bit_pos << VT_STRUCT_SHIFT);
+            bit_pos += bit_size;
+        }
+        if (align > maxalign)
+            maxalign = align;
 
 #ifdef BF_DEBUG
-	printf("set field %s offset %-2d size %-2d align %-2d",
-	       get_tok_str(f->v & ~SYM_FIELD, NULL), offset, size, align);
-	if (f->type.t & VT_BITFIELD) {
-	    printf(" pos %-2d bits %-2d",
-                    BIT_POS(f->type.t),
-                    BIT_SIZE(f->type.t)
-                    );
-	}
-	printf("\n");
+        printf("set field %s offset %-2d size %-2d align %-2d",
+            get_tok_str(f->v & ~SYM_FIELD, NULL), offset, size, align);
+        if (f->type.t & VT_BITFIELD) {
+            printf(" pos %-2d bits %-2d",
+                BIT_POS(f->type.t),
+                BIT_SIZE(f->type.t)
+            );
+        }
+        printf("\n");
 #endif
 
         f->c = offset;
-	f->r = 0;
+        f->r = 0;
     }
 
     if (pcc)
@@ -4297,11 +4395,14 @@ static void struct_layout(CType *type, AttributeDef *ad)
             s = (px + bit_size + 7) >> 3;
             if (s > 4) {
                 t.t = VT_LLONG;
-            } else if (s > 2) {
+            }
+            else if (s > 2) {
                 t.t = VT_INT;
-            } else if (s > 1) {
+            }
+            else if (s > 1) {
                 t.t = VT_SHORT;
-            } else {
+            }
+            else {
                 t.t = VT_BYTE;
             }
             s = type_size(&t, &align);
@@ -4316,8 +4417,8 @@ static void struct_layout(CType *type, AttributeDef *ad)
             /* update offset and bit position */
             f->c = cx;
             bit_pos = px;
-	    f->type.t = (f->type.t & ~(0x3f << VT_STRUCT_SHIFT))
-		        | (bit_pos << VT_STRUCT_SHIFT);
+            f->type.t = (f->type.t & ~(0x3f << VT_STRUCT_SHIFT))
+                | (bit_pos << VT_STRUCT_SHIFT);
             if (s != size)
                 f->auxtype = t.t;
 #ifdef BF_DEBUG
@@ -4326,42 +4427,24 @@ static void struct_layout(CType *type, AttributeDef *ad)
                 get_tok_str(f->v & ~SYM_FIELD, NULL),
                 cx, s, align, px, bit_size);
 #endif
-        } else {
+        }
+        else {
             /* fall back to load/store single-byte wise */
             f->auxtype = VT_STRUCT;
 #ifdef BF_DEBUG
             printf("FIX field %s : load byte-wise\n",
-                 get_tok_str(f->v & ~SYM_FIELD, NULL));
+                get_tok_str(f->v & ~SYM_FIELD, NULL));
 #endif
         }
     }
 }
 
 /* enum/struct/union declaration. u is VT_ENUM/VT_STRUCT/VT_UNION */
-static void class_method_add_this(CType *type, CType *class_type)
-{
-    CType this_type;
-    Sym *this_sym;
-
-    this_type = *class_type;
-    mk_pointer(&this_type);
-    this_sym = sym_malloc();
-    memset(this_sym, 0, sizeof *this_sym);
-    this_sym->v = SYM_FIELD;
-    this_sym->type.t = this_type.t;
-    this_sym->type.ref = this_type.ref;
-    this_sym->r = 0;
-    this_sym->next = type->ref->next;
-    type->ref->next = this_sym;
-    type->ref->f.func_args += 1;
-}
-
-static void struct_decl(CType *type, int u, int is_class)
+static void struct_decl(CType* type, int u)
 {
     int v, c, size, align, flexible;
     int bit_size, bsize, bt, ut;
-    int member_access;
-    Sym *s, *ss, **ps;
+    Sym* s, * ss, ** ps;
     AttributeDef ad, ad1;
     CType type1, btype;
 
@@ -4379,9 +4462,9 @@ static void struct_decl(CType *type, int u, int is_class)
         if (tok == ':') { /* C2x enum : <type> ... */
             next();
             if (!parse_btype(&btype, &ad1, 0)
-             || !is_integer_btype(btype.t & VT_BTYPE))
+                || !is_integer_btype(btype.t & VT_BTYPE))
                 expect("enum type");
-            bt = ut = btype.t & (VT_BTYPE|VT_LONG|VT_UNSIGNED|VT_DEFSIGN);
+            bt = ut = btype.t & (VT_BTYPE | VT_LONG | VT_UNSIGNED | VT_DEFSIGN);
         }
     }
 
@@ -4393,9 +4476,10 @@ static void struct_decl(CType *type, int u, int is_class)
                 goto do_decl;
             if (u == VT_ENUM && IS_ENUM(s->type.t)) /* XXX: check integral types */
                 goto do_decl;
-            tcc_error("ï¿½Ä’ï¿½`: '%s'", get_tok_str(v, NULL));
+            tcc_error("Ä’è‹`: '%s'", get_tok_str(v, NULL));
         }
-    } else {
+    }
+    else {
         if (tok != '{')
             expect("struct/union/enum name");
         v = anon_sym++;
@@ -4414,31 +4498,31 @@ do_decl:
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
-            tcc_error("struct/union/enum ï¿½ÍŠï¿½ï¿½É’ï¿½`ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
+            tcc_error("struct/union/enum ‚ÍŠù‚É’è‹`‚³‚ê‚Ä‚¢‚Ü‚·");
         s->c = -2;
         /* cannot be empty */
         /* non empty enums are not allowed */
         ps = &s->next;
         if (u == VT_ENUM) {
             long long ll = 0, pl = 0, nl = 0;
-	    CType t;
+            CType t;
             t.ref = s;
             /* enum symbols have static storage */
-            t.t = VT_INT|VT_STATIC|VT_ENUM_VAL;
+            t.t = VT_INT | VT_STATIC | VT_ENUM_VAL;
             if (bt)
-                t.t = bt|VT_STATIC|VT_ENUM_VAL;
-            for(;;) {
+                t.t = bt | VT_STATIC | VT_ENUM_VAL;
+            for (;;) {
                 v = tok;
                 if (v < TOK_UIDENT)
                     expect("identifier");
                 ss = sym_find(v);
                 if (ss && !local_stack)
-                    tcc_error("ï¿½ñ‹“q '%s' ï¿½ÌÄ’ï¿½`",
-                              get_tok_str(v, NULL));
+                    tcc_error("—ñ‹“q '%s' ‚ÌÄ’è‹`",
+                        get_tok_str(v, NULL));
                 next();
                 if (tok == '=') {
                     next();
-		    ll = expr_const64();
+                    ll = expr_const64();
                 }
                 ss = sym_push(v, &t, VT_CONST, 0);
                 ss->enum_val = ll;
@@ -4467,10 +4551,11 @@ do_decl:
             t.t = VT_INT;
             if (nl >= 0) {
                 if (pl != (unsigned)pl)
-                    t.t = (LONG_SIZE==8 ? VT_LLONG|VT_LONG : VT_LLONG);
+                    t.t = (LONG_SIZE == 8 ? VT_LLONG | VT_LONG : VT_LLONG);
                 t.t |= VT_UNSIGNED;
-            } else if (pl != (int)pl || nl != (int)nl)
-                t.t = (LONG_SIZE==8 ? VT_LLONG|VT_LONG : VT_LLONG);
+            }
+            else if (pl != (int)pl || nl != (int)nl)
+                t.t = (LONG_SIZE == 8 ? VT_LLONG | VT_LONG : VT_LLONG);
 
             /* set type for enum members */
             for (ss = s->next; ss; ss = ss->next) {
@@ -4483,129 +4568,94 @@ do_decl:
                         continue;
                 }
                 ss->type.t = (ss->type.t & ~VT_BTYPE)
-                    | (LONG_SIZE==8 ? VT_LLONG|VT_LONG : VT_LLONG);
+                    | (LONG_SIZE == 8 ? VT_LLONG | VT_LONG : VT_LLONG);
             }
             s->c = 1;
         enum_done:
             s->type.t = type->t = t.t | VT_ENUM;
 
-        } else {
+        }
+        else {
             c = 0;
             flexible = 0;
-            member_access = is_class ? ACCESS_PRIVATE : ACCESS_PUBLIC;
             while (tok != '}') {
-                if (tok == TOK_PUBLIC || tok == TOK_PROTECTED || tok == TOK_PRIVATE) {
-                    if (tok == TOK_PUBLIC)
-                        member_access = ACCESS_PUBLIC;
-                    else if (tok == TOK_PROTECTED)
-                        member_access = ACCESS_PROTECTED;
-                    else
-                        member_access = ACCESS_PRIVATE;
-                    next();
-                    skip(':');
-                    continue;
-                }
                 if (!parse_btype(&btype, &ad1, 0)) {
                     if (tok == TOK_STATIC_ASSERT) {
                         do_Static_assert();
                         continue;
                     }
-		    skip(';');
-		    continue;
-		}
+                    skip(';');
+                    continue;
+                }
                 while (1) {
-		    if (flexible)
-                tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ñƒƒï¿½ï¿½o '%s' ï¿½ï¿½ï¿½\ï¿½ï¿½ï¿½Ì‚Ì–ï¿½ï¿½ï¿½ï¿½É‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
-                              get_tok_str(v, NULL));
-                    int is_method = 0;
+                    if (flexible)
+                        tcc_error("‰Â•Ï’·”z—ñƒƒ“ƒo '%s' ‚ª\‘¢‘Ì‚Ì––”ö‚É‚ ‚è‚Ü‚¹‚ñ",
+                            get_tok_str(v, NULL));
                     bit_size = -1;
                     v = 0;
                     type1 = btype;
                     if (tok != ':') {
-			if (tok != ';')
+                        if (tok != ';')
                             type_decl(&type1, &ad1, &v, TYPE_DIRECT);
-                        is_method = (type1.t & VT_BTYPE) == VT_FUNC;
                         if (v == 0) {
-                    	    if ((type1.t & VT_BTYPE) != VT_STRUCT)
-                        	expect("identifier");
-                    	    else {
-				int v = btype.ref->v;
-				if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-				    if (tcc_state->ms_extensions == 0)
-                        		expect("identifier");
-				}
-                    	    }
-                        }
-                        if (!is_method && type_size(&type1, &align) < 0) {
-			    if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
-			        flexible = 1;
-			    else
-                    tcc_error("ï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h '%s' ï¿½Í•sï¿½ï¿½ï¿½Sï¿½^ï¿½Å‚ï¿½",
-                                      get_tok_str(v, NULL));
-                        }
-                        if (is_method) {
-                            if (!is_class)
-                                tcc_error("'%s' ï¿½É‘Î‚ï¿½ï¿½é–³ï¿½ï¿½ï¿½ÈŒ^",
-                                          get_tok_str(v, NULL));
-                            if (!(type1.t & VT_STATIC)) {
-#ifdef TCC_TARGET_I386
-                                if (type1.ref && type1.ref->f.func_call == FUNC_CDECL)
-                                    type1.ref->f.func_call = FUNC_THISCALL;
-#endif
-                                class_method_add_this(&type1, type);
+                            if ((type1.t & VT_BTYPE) != VT_STRUCT)
+                                expect("identifier");
+                            else {
+                                int v = btype.ref->v;
+                                if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
+                                    if (tcc_state->ms_extensions == 0)
+                                        expect("identifier");
+                                }
                             }
-                            if (tok == '{') {
-                                tcc_warning("ï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½ï¿½ï¿½\ï¿½bï¿½hï¿½ï¿½`ï¿½Í‚Ü‚ï¿½ï¿½Tï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
-                                skip_or_save_block(NULL);
-                                next();
-                            }
-                        } else {
-                            if (type_size(&type1, &align) < 0) {
-                                if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
-                                    flexible = 1;
-                                else
-                                    tcc_error("ï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h '%s' ï¿½Í•sï¿½ï¿½ï¿½Sï¿½^ï¿½Å‚ï¿½",
-                                              get_tok_str(v, NULL));
-                            }
-                            if ((type1.t & VT_BTYPE) == VT_FUNC ||
-                                (type1.t & VT_BTYPE) == VT_VOID ||
-                                ((type1.t & VT_STORAGE) && !(is_class && (type1.t & VT_STATIC))))
-                                tcc_error("'%s' ï¿½É‘Î‚ï¿½ï¿½é–³ï¿½ï¿½ï¿½ÈŒ^",
-                                          get_tok_str(v, NULL));
                         }
+                        if (type_size(&type1, &align) < 0) {
+                            if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
+                                flexible = 1;
+                            else
+                                tcc_error("ƒtƒB[ƒ‹ƒh '%s' ‚Í•sŠ®‘SŒ^‚Å‚·",
+                                    get_tok_str(v, NULL));
+                        }
+                        if ((type1.t & VT_BTYPE) == VT_FUNC ||
+                            (type1.t & VT_BTYPE) == VT_VOID ||
+                            (type1.t & VT_STORAGE))
+                            tcc_error("'%s' ‚É‘Î‚·‚é–³Œø‚ÈŒ^",
+                                get_tok_str(v, NULL));
                     }
                     if (tok == ':') {
                         next();
                         bit_size = expr_const();
                         /* XXX: handle v = 0 case for messages */
                         if (bit_size < 0)
-                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h '%s' ï¿½Ì•ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½", 
-                                  get_tok_str(v, NULL));
+                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh '%s' ‚Ì•‚ª•‰‚Å‚·",
+                                get_tok_str(v, NULL));
                         if (v && bit_size == 0)
-                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h '%s' ï¿½Ì•ï¿½ï¿½ï¿½0ï¿½Å‚ï¿½", 
-                                  get_tok_str(v, NULL));
-			parse_attribute(&ad1);
+                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh '%s' ‚Ì•‚ª0‚Å‚·",
+                                get_tok_str(v, NULL));
+                        parse_attribute(&ad1);
                     }
                     size = type_size(&type1, &align);
                     if (bit_size >= 0) {
                         bt = type1.t & VT_BTYPE;
-                        if (bt != VT_INT && 
-                            bt != VT_BYTE && 
+                        if (bt != VT_INT &&
+                            bt != VT_BYTE &&
                             bt != VT_SHORT &&
                             bt != VT_BOOL &&
                             bt != VT_LLONG)
-                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ÍƒXï¿½Jï¿½ï¿½ï¿½[ï¿½^ï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
+                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh‚ÍƒXƒJƒ‰[Œ^‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
                         bsize = size * 8;
                         if (bit_size > bsize) {
-                            tcc_error("'%s' ï¿½Ì•ï¿½ï¿½ï¿½ï¿½^ï¿½Ì‹ï¿½ï¿½eï¿½ÍˆÍ‚ğ’´‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½",
-                                  get_tok_str(v, NULL));
-                        } else if (bit_size == bsize
-                                    && !ad.a.packed && !ad1.a.packed) {
+                            tcc_error("'%s' ‚Ì•‚ªŒ^‚Ì‹–—e”ÍˆÍ‚ğ’´‚¦‚Ä‚¢‚Ü‚·",
+                                get_tok_str(v, NULL));
+                        }
+                        else if (bit_size == bsize
+                            && !ad.a.packed && !ad1.a.packed) {
                             /* no need for bit fields */
                             ;
-                        } else if (bit_size == 64) {
-                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ï¿½64ï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
-                        } else {
+                        }
+                        else if (bit_size == 64) {
+                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh•64‚Í–¢À‘•‚Å‚·");
+                        }
+                        else {
                             type1.t = (type1.t & ~VT_STRUCT_MASK)
                                 | VT_BITFIELD
                                 | (bit_size << (VT_STRUCT_SHIFT + 6));
@@ -4613,45 +4663,43 @@ do_decl:
                     }
                     if (v != 0 || (type1.t & VT_BTYPE) == VT_STRUCT) {
                         /* Remember we've seen a real field to check
-			   for placement of flexible array member. */
-			c = 1;
+               for placement of flexible array member. */
+                        c = 1;
                     }
-		    /* If member is a struct or bit-field, enforce
-		       placing into the struct (as anonymous).  */
+                    /* If member is a struct or bit-field, enforce
+                       placing into the struct (as anonymous).  */
                     if (v == 0 &&
-			((type1.t & VT_BTYPE) == VT_STRUCT ||
-			 bit_size >= 0)) {
-		        v = anon_sym++;
-		    }
+                        ((type1.t & VT_BTYPE) == VT_STRUCT ||
+                            bit_size >= 0)) {
+                        v = anon_sym++;
+                    }
                     if (v) {
                         ss = sym_push(v | SYM_FIELD, &type1, 0, 0);
                         ss->a = ad1.a;
-                        ss->a.access = member_access;
                         *ps = ss;
                         ps = &ss->next;
                     }
-                    if (tok == ';' || tok == TOK_EOF || method_body)
+                    if (tok == ';' || tok == TOK_EOF)
                         break;
                     skip(',');
                 }
-                if (!method_body)
-                    skip(';');
+                skip(';');
             }
             skip('}');
-	    parse_attribute(&ad);
+            parse_attribute(&ad);
             if (ad.cleanup_func) {
-                tcc_warning("ï¿½ï¿½ï¿½ï¿½ '__cleanup__' ï¿½ÍŒ^ï¿½É‘Î‚ï¿½ï¿½Ä–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
+                tcc_warning("‘®« '__cleanup__' ‚ÍŒ^‚É‘Î‚µ‚Ä–³‹‚³‚ê‚Ü‚·");
             }
-	    check_fields(type, 1);
-	    check_fields(type, 0);
+            check_fields(type, 1);
+            check_fields(type, 0);
             struct_layout(type, &ad);
-	    if (debug_modes)
-		tcc_debug_fix_anon(tcc_state, type);
+            if (debug_modes)
+                tcc_debug_fix_anon(tcc_state, type);
         }
     }
 }
 
-static void sym_to_attr(AttributeDef *ad, Sym *s)
+static void sym_to_attr(AttributeDef* ad, Sym* s)
 {
     merge_symattr(&ad->a, &s->a);
     merge_funcattr(&ad->f, &s->f);
@@ -4659,7 +4707,7 @@ static void sym_to_attr(AttributeDef *ad, Sym *s)
 
 /* Add type qualifiers to a type. If the type is an array then the qualifiers
    are added to the element type, copied because it could be a typedef. */
-static void parse_btype_qualify(CType *type, int qualifiers)
+static void parse_btype_qualify(CType* type, int qualifiers)
 {
     while (type->t & VT_ARRAY) {
         type->ref = sym_push(SYM_FIELD, &type->ref->type, 0, type->ref->c);
@@ -4669,12 +4717,12 @@ static void parse_btype_qualify(CType *type, int qualifiers)
 }
 
 /* return 0 if no type declaration. otherwise, return the basic type
-   and skip it. 
+   and skip it.
  */
-static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
+static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
 {
     int t, u, bt, st, type_found, typespec_found, g, n;
-    Sym *s;
+    Sym* s;
     CType type1;
 
     memset(ad, 0, sizeof(AttributeDef));
@@ -4684,8 +4732,8 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
     bt = st = -1;
     type->ref = NULL;
 
-    while(1) {
-        switch(tok) {
+    while (1) {
+        switch (tok) {
         case TOK_EXTENSION:
             /* currently, we really ignore extension */
             next();
@@ -4699,15 +4747,16 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
         basic_type1:
             if (u == VT_SHORT || u == VT_LONG) {
                 if (st != -1 || (bt != -1 && bt != VT_INT))
-                    tmbt: tcc_error("ï¿½ï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
+                    tmbt: tcc_error("Šî–{Œ^‚ª‘½‚·‚¬‚Ü‚·");
                 st = u;
-            } else {
+            }
+            else {
                 if (bt != -1 || (st != -1 && u != VT_INT))
                     goto tmbt;
                 bt = u;
             }
             if (u != VT_INT)
-                t = (t & ~(VT_BTYPE|VT_LONG)) | u;
+                t = (t & ~(VT_BTYPE | VT_LONG)) | u;
             typespec_found = 1;
             break;
         case TOK_VOID:
@@ -4720,32 +4769,36 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             u = VT_INT;
             goto basic_type;
         case TOK_ALIGNAS:
-            { int n;
-              AttributeDef ad1;
-              next();
-              skip('(');
-              memset(&ad1, 0, sizeof(AttributeDef));
-              if (parse_btype(&type1, &ad1, 0)) {
-                  type_decl(&type1, &ad1, &n, TYPE_ABSTRACT);
-                  if (ad1.a.aligned)
+        {
+            int n;
+            AttributeDef ad1;
+            next();
+            skip('(');
+            memset(&ad1, 0, sizeof(AttributeDef));
+            if (parse_btype(&type1, &ad1, 0)) {
+                type_decl(&type1, &ad1, &n, TYPE_ABSTRACT);
+                if (ad1.a.aligned)
                     n = 1 << (ad1.a.aligned - 1);
-                  else
+                else
                     type_size(&type1, &n);
-              } else {
-                  n = expr_const();
-                  if (n < 0 || (n & (n - 1)) != 0)
-                    tcc_error("ï¿½Aï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½Íï¿½ï¿½ï¿½2ï¿½Ì™pï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
-              }
-              skip(')');
-              ad->a.aligned = exact_log2p1(n);
             }
-            continue;
+            else {
+                n = expr_const();
+                if (n < 0 || (n & (n - 1)) != 0)
+                    tcc_error("ƒAƒ‰ƒCƒ“ƒƒ“ƒg‚Í³‚Ì2‚Ì™p‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
+            }
+            skip(')');
+            ad->a.aligned = exact_log2p1(n);
+        }
+        continue;
         case TOK_LONG:
             if ((t & VT_BTYPE) == VT_DOUBLE) {
-                t = (t & ~(VT_BTYPE|VT_LONG)) | VT_LDOUBLE;
-            } else if ((t & (VT_BTYPE|VT_LONG)) == VT_LONG) {
-                t = (t & ~(VT_BTYPE|VT_LONG)) | VT_LLONG;
-            } else {
+                t = (t & ~(VT_BTYPE | VT_LONG)) | VT_LDOUBLE;
+            }
+            else if ((t & (VT_BTYPE | VT_LONG)) == VT_LONG) {
+                t = (t & ~(VT_BTYPE | VT_LONG)) | VT_LLONG;
+            }
+            else {
                 u = VT_LONG;
                 goto basic_type;
             }
@@ -4755,33 +4808,31 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             u = VT_BOOL;
             goto basic_type;
         case TOK_COMPLEX:
-            tcc_error("_Complex ï¿½Í‚Ü‚ï¿½ï¿½Tï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            tcc_error("_Complex ‚Í‚Ü‚¾ƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
         case TOK_FLOAT:
             u = VT_FLOAT;
             goto basic_type;
         case TOK_DOUBLE:
-            if ((t & (VT_BTYPE|VT_LONG)) == VT_LONG) {
-                t = (t & ~(VT_BTYPE|VT_LONG)) | VT_LDOUBLE;
-            } else {
+            if ((t & (VT_BTYPE | VT_LONG)) == VT_LONG) {
+                t = (t & ~(VT_BTYPE | VT_LONG)) | VT_LDOUBLE;
+            }
+            else {
                 u = VT_DOUBLE;
                 goto basic_type;
             }
             next();
             break;
         case TOK_ENUM:
-            struct_decl(&type1, VT_ENUM, 0);
+            struct_decl(&type1, VT_ENUM);
         basic_type2:
             u = type1.t;
             type->ref = type1.ref;
             goto basic_type1;
         case TOK_STRUCT:
-            struct_decl(&type1, VT_STRUCT, 0);
-            goto basic_type2;
-        case TOK_CLASS:
-            struct_decl(&type1, VT_STRUCT, 1);
+            struct_decl(&type1, VT_STRUCT);
             goto basic_type2;
         case TOK_UNION:
-            struct_decl(&type1, VT_UNION, 0);
+            struct_decl(&type1, VT_UNION);
             goto basic_type2;
 
             /* type modifiers */
@@ -4793,7 +4844,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             if (tok == '(') {
                 parse_expr_type(&type1);
                 /* remove all storage modifiers except typedef */
-                type1.t &= ~(VT_STORAGE&~VT_TYPEDEF);
+                type1.t &= ~(VT_STORAGE & ~VT_TYPEDEF);
                 if (type1.ref)
                     sym_to_attr(ad, type1.ref);
                 goto basic_type2;
@@ -4818,8 +4869,8 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
         case TOK_SIGNED1:
         case TOK_SIGNED2:
         case TOK_SIGNED3:
-            if ((t & (VT_DEFSIGN|VT_UNSIGNED)) == (VT_DEFSIGN|VT_UNSIGNED))
-                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½Æ–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌCï¿½ï¿½ï¿½qï¿½ï¿½ï¿½ï¿½ï¿½İ‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
+            if ((t & (VT_DEFSIGN | VT_UNSIGNED)) == (VT_DEFSIGN | VT_UNSIGNED))
+                tcc_error("•„†•t‚«‚Æ–³•„†‚ÌCüq‚ª¬İ‚µ‚Ä‚¢‚Ü‚·");
             t |= VT_DEFSIGN;
             next();
             typespec_found = 1;
@@ -4832,8 +4883,8 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             next();
             break;
         case TOK_UNSIGNED:
-            if ((t & (VT_DEFSIGN|VT_UNSIGNED)) == VT_DEFSIGN)
-                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½Æ–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌCï¿½ï¿½ï¿½qï¿½ï¿½ï¿½ï¿½ï¿½İ‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
+            if ((t & (VT_DEFSIGN | VT_UNSIGNED)) == VT_DEFSIGN)
+                tcc_error("•„†•t‚«‚Æ–³•„†‚ÌCüq‚ª¬İ‚µ‚Ä‚¢‚Ü‚·");
             t |= VT_DEFSIGN | VT_UNSIGNED;
             next();
             typespec_found = 1;
@@ -4849,9 +4900,9 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
         case TOK_TYPEDEF:
             g = VT_TYPEDEF;
             goto storage;
-       storage:
-            if (t & (VT_EXTERN|VT_STATIC|VT_TYPEDEF) & ~g)
-                tcc_error("ï¿½Xï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½wï¿½è‚³ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
+        storage:
+            if (t & (VT_EXTERN | VT_STATIC | VT_TYPEDEF) & ~g)
+                tcc_error("ƒXƒgƒŒ[ƒWƒNƒ‰ƒX‚ª•¡”w’è‚³‚ê‚Ä‚¢‚Ü‚·");
             t |= g;
             next();
             break;
@@ -4870,8 +4921,8 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
         case TOK_ATTRIBUTE2:
             parse_attribute(ad);
             if (ad->attr_mode) {
-                u = ad->attr_mode -1;
-                t = (t & ~(VT_BTYPE|VT_LONG)) | u;
+                u = ad->attr_mode - 1;
+                t = (t & ~(VT_BTYPE | VT_LONG)) | u;
             }
             continue;
             /* GNUC typeof */
@@ -4881,12 +4932,12 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
             next();
             parse_expr_type(&type1);
             /* remove all storage modifiers except typedef */
-            type1.t &= ~(VT_STORAGE&~VT_TYPEDEF);
-	    if (type1.ref)
+            type1.t &= ~(VT_STORAGE & ~VT_TYPEDEF);
+            if (type1.ref)
                 sym_to_attr(ad, type1.ref);
             goto basic_type2;
         case TOK_THREAD_LOCAL:
-            tcc_error("_Thread_local ï¿½Íï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            tcc_error("_Thread_local ‚ÍÀ‘•‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
         default:
             if (typespec_found)
                 goto the_end;
@@ -4901,7 +4952,7 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
                 goto the_end;
             }
 
-            t &= ~(VT_BTYPE|VT_LONG);
+            t &= ~(VT_BTYPE | VT_LONG);
             u = t & ~(VT_CONSTANT | VT_VOLATILE), t ^= u;
             type->t = (s->type.t & ~VT_TYPEDEF) | u;
             type->ref = s->type.ref;
@@ -4918,16 +4969,16 @@ static int parse_btype(CType *type, AttributeDef *ad, int ignore_label)
     }
 the_end:
     if (tcc_state->char_is_unsigned) {
-        if ((t & (VT_DEFSIGN|VT_BTYPE)) == VT_BYTE)
+        if ((t & (VT_DEFSIGN | VT_BTYPE)) == VT_BYTE)
             t |= VT_UNSIGNED;
     }
     /* VT_LONG is used just as a modifier for VT_INT / VT_LLONG */
-    bt = t & (VT_BTYPE|VT_LONG);
+    bt = t & (VT_BTYPE | VT_LONG);
     if (bt == VT_LONG)
         t |= LONG_SIZE == 8 ? VT_LLONG : VT_INT;
 #ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
     if (bt == VT_LDOUBLE)
-        t = (t & ~(VT_BTYPE|VT_LONG)) | (VT_DOUBLE|VT_LONG);
+        t = (t & ~(VT_BTYPE | VT_LONG)) | (VT_DOUBLE | VT_LONG);
 #endif
     type->t = t;
     return type_found;
@@ -4935,7 +4986,7 @@ the_end:
 
 /* convert a function parameter type (array to pointer and function to
    function pointer) */
-static inline void convert_parameter_type(CType *pt)
+static inline void convert_parameter_type(CType* pt)
 {
     /* remove const and volatile qualifiers (XXX: const could be used
        to indicate a const function parameter */
@@ -4957,7 +5008,7 @@ ST_FUNC CString* parse_asm_str(void)
 static int asm_label_instr(void)
 {
     int v;
-    char *astr;
+    char* astr;
 
     next();
     astr = parse_asm_str()->data;
@@ -4969,46 +5020,48 @@ static int asm_label_instr(void)
     return v;
 }
 
-static int post_type(CType *type, AttributeDef *ad, int storage, int td)
+static int post_type(CType* type, AttributeDef* ad, int storage, int td)
 {
     int n, l, t1, arg_size, align;
-    Sym **plast, *s, *first;
+    Sym** plast, * s, * first;
     AttributeDef ad1;
     CType pt;
-    TokenString *vla_array_tok = NULL;
-    int *vla_array_str = NULL;
+    TokenString* vla_array_tok = NULL;
+    int* vla_array_str = NULL;
 
     if (tok == '(') {
         /* function type, or recursive declarator (return if so) */
         next();
-	if (TYPE_DIRECT == (td & (TYPE_DIRECT|TYPE_ABSTRACT)))
-	  return 0;
-	if (tok == ')')
-	  l = 0;
-	else if (parse_btype(&pt, &ad1, 0))
-	  l = FUNC_NEW;
-	else if (td & (TYPE_DIRECT|TYPE_ABSTRACT)) {
-	    merge_attr (ad, &ad1);
-	    return 0;
-	} else
-	  l = FUNC_OLD;
+        if (TYPE_DIRECT == (td & (TYPE_DIRECT | TYPE_ABSTRACT)))
+            return 0;
+        if (tok == ')')
+            l = 0;
+        else if (parse_btype(&pt, &ad1, 0))
+            l = FUNC_NEW;
+        else if (td & (TYPE_DIRECT | TYPE_ABSTRACT)) {
+            merge_attr(ad, &ad1);
+            return 0;
+        }
+        else
+            l = FUNC_OLD;
 
         first = NULL;
         plast = &first;
         arg_size = 0;
         ++local_scope;
         if (l) {
-            for(;;) {
+            for (;;) {
                 /* read param name and compute offset */
                 if (l != FUNC_OLD) {
                     if ((pt.t & VT_BTYPE) == VT_VOID && tok == ')')
                         break;
                     type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT | TYPE_PARAM);
                     if ((pt.t & VT_BTYPE) == VT_VOID)
-                        tcc_error("ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ void ï¿½Æ‚ï¿½ï¿½ÄéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
+                        tcc_error("ƒpƒ‰ƒ[ƒ^‚ª void ‚Æ‚µ‚ÄéŒ¾‚³‚ê‚Ä‚¢‚Ü‚·");
                     if (n == 0)
                         n = SYM_FIELD;
-                } else {
+                }
+                else {
                     n = tok;
                     pt.t = VT_VOID; /* invalid type */
                     pt.ref = NULL;
@@ -5021,7 +5074,7 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
                 /* these symbols may be evaluated for VLArrays (see below, under
                    nocode_wanted) which is why we push them here as normal symbols
                    temporarily.  Example: int func(int a, int b[++a]); */
-                s = sym_push(n, &pt, VT_LOCAL|VT_LVAL, 0);
+                s = sym_push(n, &pt, VT_LOCAL | VT_LVAL, 0);
                 *plast = s;
                 plast = &s->next;
                 if (tok == ')')
@@ -5032,10 +5085,11 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
                     next();
                     break;
                 }
-		if (l == FUNC_NEW && !parse_btype(&pt, &ad1, 0))
-            tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ÈŒ^");
+                if (l == FUNC_NEW && !parse_btype(&pt, &ad1, 0))
+                    tcc_error("–³Œø‚ÈŒ^");
             }
-        } else
+        }
+        else
             /* if no parameters, then old type prototype */
             l = FUNC_OLD;
         skip(')');
@@ -5048,9 +5102,9 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         --local_scope;
         /* NOTE: const is ignored in returned type as it has a special
            meaning in gcc / C++ */
-        type->t &= ~VT_CONSTANT; 
+        type->t &= ~VT_CONSTANT;
         /* some ancient pre-K&R C allows a function to return an array
-           and the array brackets to be put after the arguments, such 
+           and the array brackets to be put after the arguments, such
            that "int c()[]" means something like "int[] c()" */
         if (tok == '[') {
             next();
@@ -5066,99 +5120,102 @@ static int post_type(CType *type, AttributeDef *ad, int storage, int td)
         s->next = first;
         type->t = VT_FUNC;
         type->ref = s;
-    } else if (tok == '[') {
-	int saved_nocode_wanted = nocode_wanted;
+    }
+    else if (tok == '[') {
+        int saved_nocode_wanted = nocode_wanted;
         /* array definition */
         next();
         n = -1;
         t1 = 0;
         if (td & TYPE_PARAM) while (1) {
-	    /* XXX The optional type-quals and static should only be accepted
-	       in parameter decls.  The '*' as well, and then even only
-	       in prototypes (not function defs).  */
-	    switch (tok) {
-	    case TOK_RESTRICT1: case TOK_RESTRICT2: case TOK_RESTRICT3:
-	    case TOK_CONST1:
-	    case TOK_VOLATILE1:
-	    case TOK_STATIC:
-	    case '*':
-		next();
-		continue;
-	    default:
-		break;
-	    }
+            /* XXX The optional type-quals and static should only be accepted
+               in parameter decls.  The '*' as well, and then even only
+               in prototypes (not function defs).  */
+            switch (tok) {
+            case TOK_RESTRICT1: case TOK_RESTRICT2: case TOK_RESTRICT3:
+            case TOK_CONST1:
+            case TOK_VOLATILE1:
+            case TOK_STATIC:
+            case '*':
+                next();
+                continue;
+            default:
+                break;
+            }
             if (tok != ']') {
-		/* Code generation is not done now but has to be done
-		   at start of function. Save code here for later use. */
-	        nocode_wanted = 1;
-		skip_or_save_block(&vla_array_tok);
-		unget_tok(0);
-		vla_array_str = vla_array_tok->str;
-		begin_macro(vla_array_tok, 2);
-		next();
-	        gexpr();
-		end_macro();
-		next();
-		goto check;
+                /* Code generation is not done now but has to be done
+                   at start of function. Save code here for later use. */
+                nocode_wanted = 1;
+                skip_or_save_block(&vla_array_tok);
+                unget_tok(0);
+                vla_array_str = vla_array_tok->str;
+                begin_macro(vla_array_tok, 2);
+                next();
+                gexpr();
+                end_macro();
+                next();
+                goto check;
             }
             break;
 
-	} else if (tok != ']') {
+        }
+        else if (tok != ']') {
             if (!local_stack || (storage & VT_STATIC))
                 vpushi(expr_const());
             else {
-		/* VLAs (which can only happen with local_stack && !VT_STATIC)
-		   length must always be evaluated, even under nocode_wanted,
-		   so that its size slot is initialized (e.g. under sizeof
-		   or typeof).  */
-		nocode_wanted = 0;
-		gexpr();
-	    }
-check:
+                /* VLAs (which can only happen with local_stack && !VT_STATIC)
+                   length must always be evaluated, even under nocode_wanted,
+                   so that its size slot is initialized (e.g. under sizeof
+                   or typeof).  */
+                nocode_wanted = 0;
+                gexpr();
+            }
+        check:
             if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
                 n = vtop->c.i;
                 if (n < 0)
-                    tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½È”zï¿½ï¿½Tï¿½Cï¿½Y");
-            } else {
+                    tcc_error("–³Œø‚È”z—ñƒTƒCƒY");
+            }
+            else {
                 if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-                    tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ï¿½ÌƒTï¿½Cï¿½Yï¿½Íï¿½ï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
+                    tcc_error("‰Â•Ï’·”z—ñ‚ÌƒTƒCƒY‚Í®”‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
                 n = 0;
                 t1 = VT_VLA;
             }
         }
         skip(']');
         /* parse next post type */
-        post_type(type, ad, storage, (td & ~(TYPE_DIRECT|TYPE_ABSTRACT)) | TYPE_NEST);
+        post_type(type, ad, storage, (td & ~(TYPE_DIRECT | TYPE_ABSTRACT)) | TYPE_NEST);
 
         if ((type->t & VT_BTYPE) == VT_FUNC)
-            tcc_error("ï¿½Öï¿½ï¿½Ì”zï¿½ï¿½ÌéŒ¾ï¿½Í–ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
+            tcc_error("ŠÖ”‚Ì”z—ñ‚ÌéŒ¾‚Í–³Œø‚Å‚·");
         if ((type->t & VT_BTYPE) == VT_VOID
             || type_size(type, &align) < 0)
-            tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ï¿½vï¿½fï¿½Ì”zï¿½ï¿½éŒ¾ï¿½Í–ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
+            tcc_error("•sŠ®‘SŒ^—v‘f‚Ì”z—ñéŒ¾‚Í–³Œø‚Å‚·");
 
         t1 |= type->t & VT_VLA;
 
         if (t1 & VT_VLA) {
-                    if (n < 0) {
-        	if  (td & TYPE_NEST)
-                    tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ï¿½Ì“ï¿½ï¿½ï¿½ï¿½Tï¿½Cï¿½Yï¿½Í–ï¿½ï¿½ï¿½ï¿½Iï¿½Éwï¿½è‚·ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
-	    }
-	    else {
+            if (n < 0) {
+                if (td & TYPE_NEST)
+                    tcc_error("‰Â•Ï’·”z—ñ‚Ì“à•”ƒTƒCƒY‚Í–¾¦“I‚Éw’è‚·‚é•K—v‚ª‚ ‚è‚Ü‚·");
+            }
+            else {
                 loc -= type_size(&int_type, &align);
                 loc &= -align;
                 n = loc;
 
                 vpush_type_size(type, &align);
                 gen_op('*');
-                vset(&int_type, VT_LOCAL|VT_LVAL, n);
+                vset(&int_type, VT_LOCAL | VT_LVAL, n);
                 vswap();
                 vstore();
-	    }
+            }
         }
         if (n != -1)
             vpop();
-	nocode_wanted = saved_nocode_wanted;
-                
+        nocode_wanted = saved_nocode_wanted;
+
         /* we push an anonymous symbol which will contain the array
            element type */
         s = sym_push(SYM_FIELD, type, 0, n);
@@ -5167,11 +5224,11 @@ check:
 
         if (vla_array_str) {
             /* for function args, the top dimension is converted to pointer */
-	    if ((t1 & VT_VLA) && (td & TYPE_NEST))
-	        s->vla_array_str = vla_array_str;
-	    else
-	        tok_str_free_str(vla_array_str);
-	}
+            if ((t1 & VT_VLA) && (td & TYPE_NEST))
+                s->vla_array_str = vla_array_str;
+            else
+                tok_str_free_str(vla_array_str);
+        }
     }
     return 1;
 }
@@ -5183,9 +5240,9 @@ check:
    type_decl().  If this (possibly abstract) declarator is a pointer chain
    it returns the innermost pointed to type (equals *type, but is a different
    pointer), otherwise returns type itself, that's used for recursive calls.  */
-static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
+static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
 {
-    CType *post, *ret;
+    CType* post, * ret;
     int qualifiers, storage;
 
     /* recursive type, remove storage bits first, apply them later again */
@@ -5197,7 +5254,7 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
         qualifiers = 0;
     redo:
         next();
-        switch(tok) {
+        switch (tok) {
         case TOK__Atomic:
             qualifiers |= VT_ATOMIC;
             goto redo;
@@ -5215,44 +5272,47 @@ static CType *type_decl(CType *type, AttributeDef *ad, int *v, int td)
         case TOK_RESTRICT2:
         case TOK_RESTRICT3:
             goto redo;
-	/* XXX: clarify attribute handling */
-	case TOK_ATTRIBUTE1:
-	case TOK_ATTRIBUTE2:
-	    parse_attribute(ad);
-	    break;
+            /* XXX: clarify attribute handling */
+        case TOK_ATTRIBUTE1:
+        case TOK_ATTRIBUTE2:
+            parse_attribute(ad);
+            break;
         }
         mk_pointer(type);
         type->t |= qualifiers;
-	if (ret == type)
-	    /* innermost pointed to type is the one for the first derivation */
-	    ret = pointed_type(type);
+        if (ret == type)
+            /* innermost pointed to type is the one for the first derivation */
+            ret = pointed_type(type);
     }
 
     if (tok == '(') {
-	/* This is possibly a parameter type list for abstract declarators
-	   ('int ()'), use post_type for testing this.  */
-	if (!post_type(type, ad, 0, td)) {
-	    /* It's not, so it's a nested declarator, and the post operations
-	       apply to the innermost pointed to type (if any).  */
-	    /* XXX: this is not correct to modify 'ad' at this point, but
-	       the syntax is not clear */
-	    parse_attribute(ad);
-	    post = type_decl(type, ad, v, td);
-	    skip(')');
-	} else
-	  goto abstract;
-    } else if (tok >= TOK_IDENT && (td & TYPE_DIRECT)) {
-	/* type identifier */
-	*v = tok;
-	next();
-    } else {
-  abstract:
-	if (!(td & TYPE_ABSTRACT))
-	  expect("identifier");
-	*v = 0;
+        /* This is possibly a parameter type list for abstract declarators
+           ('int ()'), use post_type for testing this.  */
+        if (!post_type(type, ad, 0, td)) {
+            /* It's not, so it's a nested declarator, and the post operations
+               apply to the innermost pointed to type (if any).  */
+               /* XXX: this is not correct to modify 'ad' at this point, but
+                  the syntax is not clear */
+            parse_attribute(ad);
+            post = type_decl(type, ad, v, td);
+            skip(')');
+        }
+        else
+            goto abstract;
+    }
+    else if (tok >= TOK_IDENT && (td & TYPE_DIRECT)) {
+        /* type identifier */
+        *v = tok;
+        next();
+    }
+    else {
+    abstract:
+        if (!(td & TYPE_ABSTRACT))
+            expect("identifier");
+        *v = 0;
     }
     post_type(post, ad, post != ret ? 0 : storage,
-              td & ~(TYPE_DIRECT|TYPE_ABSTRACT));
+        td & ~(TYPE_DIRECT | TYPE_ABSTRACT));
     parse_attribute(ad);
     type->t |= storage;
     return ret;
@@ -5282,7 +5342,7 @@ ST_FUNC void indir(void)
 }
 
 /* pass a parameter to a function and do type checking and casting */
-static void gfunc_param_typed(Sym *func, Sym *arg)
+static void gfunc_param_typed(Sym* func, Sym* arg)
 {
     int func_type;
     CType type;
@@ -5293,16 +5353,20 @@ static void gfunc_param_typed(Sym *func, Sym *arg)
         /* default casting : only need to convert float to double */
         if ((vtop->type.t & VT_BTYPE) == VT_FLOAT) {
             gen_cast_s(VT_DOUBLE);
-        } else if (vtop->type.t & VT_BITFIELD) {
+        }
+        else if (vtop->type.t & VT_BITFIELD) {
             type.t = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
-	    type.ref = vtop->type.ref;
+            type.ref = vtop->type.ref;
             gen_cast(&type);
-        } else if (vtop->r & VT_MUSTCAST) {
+        }
+        else if (vtop->r & VT_MUSTCAST) {
             force_charshort_cast();
         }
-    } else if (arg == NULL) {
-        tcc_error("ï¿½Öï¿½ï¿½Ö‚Ìˆï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
-    } else {
+    }
+    else if (arg == NULL) {
+        tcc_error("ŠÖ”‚Ö‚Ìˆø”‚ª‘½‚·‚¬‚Ü‚·");
+    }
+    else {
         type = arg->type;
         type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
         gen_assign_cast(&type);
@@ -5310,7 +5374,7 @@ static void gfunc_param_typed(Sym *func, Sym *arg)
 }
 
 /* parse an expression and return its type without any side effect. */
-static void expr_type(CType *type, void (*expr_fn)(void))
+static void expr_type(CType* type, void (*expr_fn)(void))
 {
     nocode_wanted++;
     expr_fn();
@@ -5321,7 +5385,7 @@ static void expr_type(CType *type, void (*expr_fn)(void))
 
 /* parse an expression of the form '(type)' or '(expr)' and return its
    type */
-static void parse_expr_type(CType *type)
+static void parse_expr_type(CType* type)
 {
     int n;
     AttributeDef ad;
@@ -5329,13 +5393,14 @@ static void parse_expr_type(CType *type)
     skip('(');
     if (parse_btype(type, &ad, 0)) {
         type_decl(type, &ad, &n, TYPE_ABSTRACT);
-    } else {
+    }
+    else {
         expr_type(type, gexpr);
     }
     skip(')');
 }
 
-static void parse_type(CType *type)
+static void parse_type(CType* type)
 {
     AttributeDef ad;
     int n;
@@ -5346,7 +5411,7 @@ static void parse_type(CType *type)
     type_decl(type, &ad, &n, TYPE_ABSTRACT);
 }
 
-static void parse_builtin_params(int nc, const char *args)
+static void parse_builtin_params(int nc, const char* args)
 {
     char c, sep = '(';
     CType type;
@@ -5354,42 +5419,42 @@ static void parse_builtin_params(int nc, const char *args)
         nocode_wanted++;
     next();
     if (*args == 0)
-	skip(sep);
+        skip(sep);
     while ((c = *args++)) {
-	skip(sep);
-	sep = ',';
+        skip(sep);
+        sep = ',';
         if (c == 't') {
             parse_type(&type);
-	    vpush(&type);
-	    continue;
+            vpush(&type);
+            continue;
         }
         expr_eq();
         type.ref = NULL;
         type.t = 0;
-	switch (c) {
-	    case 'e':
-		continue;
-	    case 'V':
-                type.t = VT_CONSTANT;
-	    case 'v':
-                type.t |= VT_VOID;
-                mk_pointer (&type);
-                break;
-	    case 'S':
-                type.t = VT_CONSTANT;
-	    case 's':
-                type.t |= char_type.t;
-                mk_pointer (&type);
-                break;
-	    case 'i':
-                type.t = VT_INT;
-                break;
-	    case 'l':
-                type.t = VT_SIZE_T;
-                break;
-	    default:
-                break;
-	}
+        switch (c) {
+        case 'e':
+            continue;
+        case 'V':
+            type.t = VT_CONSTANT;
+        case 'v':
+            type.t |= VT_VOID;
+            mk_pointer(&type);
+            break;
+        case 'S':
+            type.t = VT_CONSTANT;
+        case 's':
+            type.t |= char_type.t;
+            mk_pointer(&type);
+            break;
+        case 'i':
+            type.t = VT_INT;
+            break;
+        case 'l':
+            type.t = VT_SIZE_T;
+            break;
+        default:
+            break;
+        }
         gen_assign_cast(&type);
     }
     skip(')');
@@ -5400,10 +5465,10 @@ static void parse_builtin_params(int nc, const char *args)
 static void parse_atomic(int atok)
 {
     int size, align, arg, t, save = 0;
-    CType *atom, *atom_ptr, ct = {0};
+    CType* atom, * atom_ptr, ct = { 0 };
     SValue store;
     char buf[40];
-    static const char *const templates[] = {
+    static const char* const templates[] = {
         /*
          * Each entry consists of callback and function template.
          * The template represents argument types and return type.
@@ -5419,7 +5484,7 @@ static void parse_atomic(int atok)
          * m memory model
          */
 
-        /* keep in order of appearance in tcctok.h: */
+         /* keep in order of appearance in tcctok.h: */
         /* __atomic_store */            "alm.?",
         /* __atomic_load */             "Asm.v",
         /* __atomic_exchange */         "alsm.v",
@@ -5437,7 +5502,7 @@ static void parse_atomic(int atok)
         /* __atomic_and_fetch */        "avm.v",
         /* __atomic_nand_fetch */       "avm.v"
     };
-    const char *template = templates[(atok - TOK___atomic_store)];
+    const char* template = templates[(atok - TOK___atomic_store)];
 
     atom = atom_ptr = NULL;
     size = 0; /* pacify compiler */
@@ -5465,9 +5530,9 @@ static void parse_atomic(int atok)
             break;
 
         case 'p':
-                if ((vtop->type.t & VT_BTYPE) != VT_PTR
-                 || type_size(pointed_type(&vtop->type), &align) != size)
-                     tcc_error("ï¿½ï¿½ï¿½ï¿½ %d ï¿½Ìƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ìƒ^ï¿½[ï¿½Qï¿½bï¿½gï¿½^ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", arg + 1);
+            if ((vtop->type.t & VT_BTYPE) != VT_PTR
+                || type_size(pointed_type(&vtop->type), &align) != size)
+                tcc_error("ˆø” %d ‚Ìƒ|ƒCƒ“ƒ^‚Ìƒ^[ƒQƒbƒgŒ^‚ªˆê’v‚µ‚Ü‚¹‚ñ", arg + 1);
             gen_assign_cast(atom_ptr);
             break;
         case 'v':
@@ -5535,32 +5600,32 @@ ST_FUNC void unary(void)
 {
     int n, t, align, size, r;
     CType type;
-    Sym *s;
+    Sym* s;
     AttributeDef ad;
 
     /* generate line number info */
     if (debug_modes)
-        tcc_debug_line(tcc_state), tcc_tcov_check_line (tcc_state, 1);
+        tcc_debug_line(tcc_state), tcc_tcov_check_line(tcc_state, 1);
 
     type.ref = NULL;
     /* XXX: GCC 2.95.3 does not generate a table although it should be
        better here */
- tok_next:
-    switch(tok) {
+tok_next:
+    switch (tok) {
     case TOK_EXTENSION:
         next();
         goto tok_next;
     case TOK_LCHAR:
 #ifdef TCC_TARGET_PE
-        t = VT_SHORT|VT_UNSIGNED;
+        t = VT_SHORT | VT_UNSIGNED;
         goto push_tokc;
 #endif
     case TOK_CINT:
-    case TOK_CCHAR: 
-	t = VT_INT;
- push_tokc:
-	type.t = t;
-	vsetc(&type, VT_CONST, &tokc);
+    case TOK_CCHAR:
+        t = VT_INT;
+    push_tokc:
+        type.t = t;
+        vsetc(&type, VT_CONST, &tokc);
         next();
         break;
     case TOK_CUINT:
@@ -5568,36 +5633,28 @@ ST_FUNC void unary(void)
         goto push_tokc;
     case TOK_CLLONG:
         t = VT_LLONG;
-	goto push_tokc;
+        goto push_tokc;
     case TOK_CULLONG:
         t = VT_LLONG | VT_UNSIGNED;
-	goto push_tokc;
+        goto push_tokc;
     case TOK_CFLOAT:
         t = VT_FLOAT;
-	goto push_tokc;
+        goto push_tokc;
     case TOK_CDOUBLE:
         t = VT_DOUBLE;
-	goto push_tokc;
+        goto push_tokc;
     case TOK_CLDOUBLE:
 #ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
         t = VT_DOUBLE | VT_LONG;
 #else
         t = VT_LDOUBLE;
 #endif
-	goto push_tokc;
+        goto push_tokc;
     case TOK_CLONG:
         t = (LONG_SIZE == 8 ? VT_LLONG : VT_INT) | VT_LONG;
-	goto push_tokc;
+        goto push_tokc;
     case TOK_CULONG:
         t = (LONG_SIZE == 8 ? VT_LLONG : VT_INT) | VT_LONG | VT_UNSIGNED;
-	goto push_tokc;
-    case TOK_TRUE:
-        tokc.i = 1;
-        t = VT_BOOL;
-        goto push_tokc;
-    case TOK_FALSE:
-        tokc.i = 0;
-        t = VT_BOOL;
         goto push_tokc;
     case TOK___FUNCTION__:
         if (!gnu_ext)
@@ -5641,7 +5698,7 @@ ST_FUNC void unary(void)
             skip(')');
             /* check ISOC99 compound literal */
             if (tok == '{') {
-                    /* data is allocated locally by default */
+                /* data is allocated locally by default */
                 if (global_expr)
                     r = VT_CONST;
                 else
@@ -5651,35 +5708,39 @@ ST_FUNC void unary(void)
                     r |= VT_LVAL;
                 memset(&ad, 0, sizeof(AttributeDef));
                 decl_initializer_alloc(&type, &ad, r, 1, 0, 0);
-            } else if (t == TOK_SOTYPE) { /* from sizeof/alignof (...) */
+            }
+            else if (t == TOK_SOTYPE) { /* from sizeof/alignof (...) */
                 vpush(&type);
                 return;
-            } else {
+            }
+            else {
                 unary();
                 gen_cast(&type);
             }
-        } else if (tok == '{') {
-	    int saved_nocode_wanted = nocode_wanted;
+        }
+        else if (tok == '{') {
+            int saved_nocode_wanted = nocode_wanted;
             if (CONST_WANTED && !NOEVAL_WANTED)
                 expect("constant");
             if (0 == local_scope)
-                tcc_error("ï¿½Öï¿½ï¿½Oï¿½Å‚ï¿½ statement expression ï¿½Í‹ï¿½ï¿½Â‚ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+                tcc_error("ŠÖ”ŠO‚Å‚Ì statement expression ‚Í‹–‰Â‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
             /* save all registers */
             save_regs(0);
             /* statement expression : we do not accept break/continue
                inside as GCC does.  We do retain the nocode_wanted state,
-	       as statement expressions can't ever be entered from the
-	       outside, so any reactivation of code emission (from labels
-	       or loop heads) can be disabled again after the end of it. */
+           as statement expressions can't ever be entered from the
+           outside, so any reactivation of code emission (from labels
+           or loop heads) can be disabled again after the end of it. */
             block(STMT_EXPR);
             /* If the statement expr can be entered, then we retain the current
                nocode_wanted state (from e.g. a 'return 0;' in the stmt-expr).
                If it can't be entered then the state is that from before the
                statement expression.  */
             if (saved_nocode_wanted)
-              nocode_wanted = saved_nocode_wanted;
+                nocode_wanted = saved_nocode_wanted;
             skip(')');
-        } else {
+        }
+        else {
             gexpr();
             skip(')');
         }
@@ -5696,12 +5757,12 @@ ST_FUNC void unary(void)
            except for unary '&' and sizeof. Since we consider that
            functions are not lvalues, we only have to handle it
            there and in function calls. */
-        /* arrays can also be used although they are not lvalues */
+           /* arrays can also be used although they are not lvalues */
         if ((vtop->type.t & VT_BTYPE) != VT_FUNC &&
             !(vtop->type.t & (VT_ARRAY | VT_VLA)))
             test_lvalue();
         if (vtop->sym)
-          vtop->sym->a.addrtaken = 1;
+            vtop->sym->a.addrtaken = 1;
         mk_pointer(&vtop->type);
         gaddrof();
         break;
@@ -5720,14 +5781,14 @@ ST_FUNC void unary(void)
         next();
         unary();
         if ((vtop->type.t & VT_BTYPE) == VT_PTR)
-            tcc_error("ï¿½Pï¿½ï¿½ + ï¿½É‘Î‚ï¿½ï¿½Äƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½Í‹ï¿½ï¿½eï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            tcc_error("’P€ + ‚É‘Î‚µ‚Äƒ|ƒCƒ“ƒ^‚Í‹–—e‚³‚ê‚Ü‚¹‚ñ");
         /* In order to force cast, we add zero, except for floating point
-	   where we really need an noop (otherwise -0.0 will be transformed
-	   into +0.0).  */
-	if (!is_float(vtop->type.t)) {
-	    vpushi(0);
-	    gen_op('+');
-	}
+       where we really need an noop (otherwise -0.0 will be transformed
+       into +0.0).  */
+        if (!is_float(vtop->type.t)) {
+            vpushi(0);
+            gen_op('+');
+        }
         break;
     case TOK_SIZEOF:
     case TOK_ALIGNOF1:
@@ -5741,7 +5802,8 @@ ST_FUNC void unary(void)
         if (t == TOK_SIZEOF) {
             vpush_type_size(&type, &align);
             gen_cast_s(VT_SIZE_T);
-        } else {
+        }
+        else {
             type_size(&type, &align);
             s = NULL;
             if (vtop[1].r & VT_SYM)
@@ -5753,100 +5815,100 @@ ST_FUNC void unary(void)
         break;
 
     case TOK_builtin_expect:
-	/* __builtin_expect is a no-op for now */
-	parse_builtin_params(0, "ee");
-	vpop();
+        /* __builtin_expect is a no-op for now */
+        parse_builtin_params(0, "ee");
+        vpop();
         break;
     case TOK_builtin_types_compatible_p:
-	parse_builtin_params(0, "tt");
-	vtop[-1].type.t &= ~(VT_CONSTANT | VT_VOLATILE);
-	vtop[0].type.t &= ~(VT_CONSTANT | VT_VOLATILE);
-	n = is_compatible_types(&vtop[-1].type, &vtop[0].type);
-	vtop -= 2;
-	vpushi(n);
+        parse_builtin_params(0, "tt");
+        vtop[-1].type.t &= ~(VT_CONSTANT | VT_VOLATILE);
+        vtop[0].type.t &= ~(VT_CONSTANT | VT_VOLATILE);
+        n = is_compatible_types(&vtop[-1].type, &vtop[0].type);
+        vtop -= 2;
+        vpushi(n);
         break;
     case TOK_builtin_choose_expr:
-	{
-	    int64_t c;
-	    next();
-	    skip('(');
-	    c = expr_const64();
-	    skip(',');
-	    if (!c) {
-		nocode_wanted++;
-	    }
-	    expr_eq();
-	    if (!c) {
-		vpop();
-		nocode_wanted--;
-	    }
-	    skip(',');
-	    if (c) {
-		nocode_wanted++;
-	    }
-	    expr_eq();
-	    if (c) {
-		vpop();
-		nocode_wanted--;
-	    }
-	    skip(')');
-	}
-        break;
+    {
+        int64_t c;
+        next();
+        skip('(');
+        c = expr_const64();
+        skip(',');
+        if (!c) {
+            nocode_wanted++;
+        }
+        expr_eq();
+        if (!c) {
+            vpop();
+            nocode_wanted--;
+        }
+        skip(',');
+        if (c) {
+            nocode_wanted++;
+        }
+        expr_eq();
+        if (c) {
+            vpop();
+            nocode_wanted--;
+        }
+        skip(')');
+    }
+    break;
     case TOK_builtin_constant_p:
-	parse_builtin_params(1, "e");
-	n = 1;
-	if ((vtop->r & (VT_VALMASK | VT_LVAL)) != VT_CONST
-	    || ((vtop->r & VT_SYM) && vtop->sym->a.addrtaken)
-	    )
-	    n = 0;
-	vtop--;
-	vpushi(n);
+        parse_builtin_params(1, "e");
+        n = 1;
+        if ((vtop->r & (VT_VALMASK | VT_LVAL)) != VT_CONST
+            || ((vtop->r & VT_SYM) && vtop->sym->a.addrtaken)
+            )
+            n = 0;
+        vtop--;
+        vpushi(n);
         break;
     case TOK_builtin_unreachable:
-	parse_builtin_params(0, ""); /* just skip '()' */
+        parse_builtin_params(0, ""); /* just skip '()' */
         type.t = VT_VOID;
         vpush(&type);
         CODE_OFF();
         break;
     case TOK_builtin_frame_address:
     case TOK_builtin_return_address:
-        {
-            int tok1 = tok;
-            int level;
-            next();
-            skip('(');
-            level = expr_const();
-            if (level < 0)
-                tcc_error("%s ï¿½Íï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½Ì‚İó‚¯•tï¿½ï¿½ï¿½Ü‚ï¿½", get_tok_str(tok1, 0));
-            skip(')');
-            type.t = VT_VOID;
-            mk_pointer(&type);
-            vset(&type, VT_LOCAL, 0);       /* local frame */
-            while (level--) {
+    {
+        int tok1 = tok;
+        int level;
+        next();
+        skip('(');
+        level = expr_const();
+        if (level < 0)
+            tcc_error("%s ‚Í³‚Ì®”‚Ì‚İó‚¯•t‚¯‚Ü‚·", get_tok_str(tok1, 0));
+        skip(')');
+        type.t = VT_VOID;
+        mk_pointer(&type);
+        vset(&type, VT_LOCAL, 0);       /* local frame */
+        while (level--) {
 #ifdef TCC_TARGET_RISCV64
-                vpushi(2*PTR_SIZE);
-                gen_op('-');
+            vpushi(2 * PTR_SIZE);
+            gen_op('-');
 #endif
-                mk_pointer(&vtop->type);
-                indir();                    /* -> parent frame */
-            }
-            if (tok1 == TOK_builtin_return_address) {
-                // assume return address is just above frame pointer on stack
-#ifdef TCC_TARGET_ARM
-                vpushi(2*PTR_SIZE);
-                gen_op('+');
-#elif defined TCC_TARGET_RISCV64
-                vpushi(PTR_SIZE);
-                gen_op('-');
-#else
-                vpushi(PTR_SIZE);
-                gen_op('+');
-#endif
-                mk_pointer(&vtop->type);
-                indir();
-            }
+            mk_pointer(&vtop->type);
+            indir();                    /* -> parent frame */
         }
-        break;
+        if (tok1 == TOK_builtin_return_address) {
+            // assume return address is just above frame pointer on stack
+#ifdef TCC_TARGET_ARM
+            vpushi(2 * PTR_SIZE);
+            gen_op('+');
+#elif defined TCC_TARGET_RISCV64
+            vpushi(PTR_SIZE);
+            gen_op('-');
+#else
+            vpushi(PTR_SIZE);
+            gen_op('+');
+#endif
+            mk_pointer(&vtop->type);
+            indir();
+        }
+    }
+    break;
 #ifdef TCC_TARGET_RISCV64
     case TOK_builtin_va_start:
         parse_builtin_params(0, "ee");
@@ -5854,38 +5916,38 @@ ST_FUNC void unary(void)
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start ï¿½Íƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ï¿½Kï¿½vï¿½Æ‚ï¿½ï¿½Ü‚ï¿½");
+            tcc_error("__builtin_va_start ‚Íƒ[ƒJƒ‹•Ï”‚ğ•K—v‚Æ‚µ‚Ü‚·");
         gen_va_start();
-	vstore();
+        vstore();
         break;
 #endif
 #ifdef TCC_TARGET_X86_64
 #ifdef TCC_TARGET_PE
     case TOK_builtin_va_start:
-	parse_builtin_params(0, "ee");
+        parse_builtin_params(0, "ee");
         r = vtop->r & VT_VALMASK;
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start ï¿½Íƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ï¿½Kï¿½vï¿½Æ‚ï¿½ï¿½Ü‚ï¿½");
+            tcc_error("__builtin_va_start ‚Íƒ[ƒJƒ‹•Ï”‚ğ•K—v‚Æ‚µ‚Ü‚·");
         vtop->r = r;
-	vtop->type = char_pointer_type;
-	vtop->c.i += 8;
-	vstore();
+        vtop->type = char_pointer_type;
+        vtop->c.i += 8;
+        vstore();
         break;
 #else
     case TOK_builtin_va_arg_types:
-	parse_builtin_params(0, "t");
-	vpushi(classify_x86_64_va_arg(&vtop->type));
-	vswap();
-	vpop();
-	break;
+        parse_builtin_params(0, "t");
+        vpushi(classify_x86_64_va_arg(&vtop->type));
+        vswap();
+        vpop();
+        break;
 #endif
 #endif
 
 #ifdef TCC_TARGET_ARM64
     case TOK_builtin_va_start: {
-	parse_builtin_params(0, "ee");
+        parse_builtin_params(0, "ee");
         //xx check types
         gen_va_start();
         vpushi(0);
@@ -5893,16 +5955,16 @@ ST_FUNC void unary(void)
         break;
     }
     case TOK_builtin_va_arg: {
-	parse_builtin_params(0, "et");
-	type = vtop->type;
-	vpop();
+        parse_builtin_params(0, "et");
+        type = vtop->type;
+        vpop();
         //xx check types
         gen_va_arg(&type);
         vtop->type = type;
         break;
     }
     case TOK___arm64_clear_cache: {
-	parse_builtin_params(0, "ee");
+        parse_builtin_params(0, "ee");
         gen_clear_cache();
         vpushi(0);
         vtop->type.t = VT_VOID;
@@ -5910,7 +5972,7 @@ ST_FUNC void unary(void)
     }
 #endif
 
-    /* atomic operations */
+                                /* atomic operations */
     case TOK___atomic_store:
     case TOK___atomic_load:
     case TOK___atomic_exchange:
@@ -5930,7 +5992,7 @@ ST_FUNC void unary(void)
         parse_atomic(tok);
         break;
 
-    /* pre operations */
+        /* pre operations */
     case TOK_INC:
     case TOK_DEC:
         t = tok;
@@ -5941,9 +6003,10 @@ ST_FUNC void unary(void)
     case '-':
         next();
         unary();
-	if (is_float(vtop->type.t)) {
+        if (is_float(vtop->type.t)) {
             gen_opif(TOK_NEG);
-	} else {
+        }
+        else {
             vpushi(0);
             vswap();
             gen_op('-');
@@ -5959,7 +6022,8 @@ ST_FUNC void unary(void)
         s = label_find(tok);
         if (!s) {
             s = label_push(&global_label_stack, tok, LABEL_FORWARD);
-        } else {
+        }
+        else {
             if (s->r == LABEL_DECLARED)
                 s->r = LABEL_FORWARD;
         }
@@ -5974,97 +6038,99 @@ ST_FUNC void unary(void)
 
     case TOK_GENERIC:
     {
-	CType controlling_type;
-	int has_default = 0;
-	int has_match = 0;
-	int learn = 0;
-	TokenString *str = NULL;
-	int saved_nocode_wanted = nocode_wanted;
+        CType controlling_type;
+        int has_default = 0;
+        int has_match = 0;
+        int learn = 0;
+        TokenString* str = NULL;
+        int saved_nocode_wanted = nocode_wanted;
         nocode_wanted &= ~CONST_WANTED_MASK;
 
         next();
-	skip('(');
-	expr_type(&controlling_type, expr_eq);
-	convert_parameter_type (&controlling_type);
+        skip('(');
+        expr_type(&controlling_type, expr_eq);
+        convert_parameter_type(&controlling_type);
 
         nocode_wanted = saved_nocode_wanted;
 
         for (;;) {
-	    learn = 0;
-	    skip(',');
-        if (tok == TOK_DEFAULT) {
-        	if (has_default)
-        	    tcc_error("'default' ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
-		has_default = 1;
-		if (!has_match)
-		    learn = 1;
-		next();
-	    } else {
-	        AttributeDef ad_tmp;
-		int itmp;
-	        CType cur_type;
+            learn = 0;
+            skip(',');
+            if (tok == TOK_DEFAULT) {
+                if (has_default)
+                    tcc_error("'default' ‚ª‘½‚·‚¬‚Ü‚·");
+                has_default = 1;
+                if (!has_match)
+                    learn = 1;
+                next();
+            }
+            else {
+                AttributeDef ad_tmp;
+                int itmp;
+                CType cur_type;
 
-		parse_btype(&cur_type, &ad_tmp, 0);
-		type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
-            if (compare_types(&controlling_type, &cur_type, 0)) {
-            	if (has_match) {
-            	  tcc_error("ï¿½^ï¿½ï¿½2ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
-            	}
-		    has_match = 1;
-		    learn = 1;
-		}
-	    }
-	    skip(':');
-	    if (learn) {
-		if (str)
-		    tok_str_free(str);
-		skip_or_save_block(&str);
-	    } else {
-		skip_or_save_block(NULL);
-	    }
-	    if (tok == ')')
-		break;
-	}
-    if (!str) {
-	    char buf[60];
-	    type_to_str(buf, sizeof buf, &controlling_type, NULL);
-        tcc_error("ï¿½^ '%s' ï¿½Í‚Ç‚ÌŠÖ˜Aï¿½tï¿½ï¿½ï¿½É‚ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", buf);
-	}
-	begin_macro(str, 1);
-	next();
-	expr_eq();
-	if (tok != TOK_EOF)
-	    expect(",");
-	end_macro();
+                parse_btype(&cur_type, &ad_tmp, 0);
+                type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
+                if (compare_types(&controlling_type, &cur_type, 0)) {
+                    if (has_match) {
+                        tcc_error("Œ^‚ª2‰ñˆê’v‚µ‚Ü‚µ‚½");
+                    }
+                    has_match = 1;
+                    learn = 1;
+                }
+            }
+            skip(':');
+            if (learn) {
+                if (str)
+                    tok_str_free(str);
+                skip_or_save_block(&str);
+            }
+            else {
+                skip_or_save_block(NULL);
+            }
+            if (tok == ')')
+                break;
+        }
+        if (!str) {
+            char buf[60];
+            type_to_str(buf, sizeof buf, &controlling_type, NULL);
+            tcc_error("Œ^ '%s' ‚Í‚Ç‚ÌŠÖ˜A•t‚¯‚É‚àˆê’v‚µ‚Ü‚¹‚ñ", buf);
+        }
+        begin_macro(str, 1);
         next();
-	break;
+        expr_eq();
+        if (tok != TOK_EOF)
+            expect(",");
+        end_macro();
+        next();
+        break;
     }
     // special qnan , snan and infinity values
     case TOK___NAN__:
         n = 0x7fc00000;
-special_math_val:
-	vpushi(n);
-	vtop->type.t = VT_FLOAT;
+    special_math_val:
+        vpushi(n);
+        vtop->type.t = VT_FLOAT;
         next();
         break;
     case TOK___SNAN__:
-	n = 0x7f800001;
-	goto special_math_val;
+        n = 0x7f800001;
+        goto special_math_val;
     case TOK___INF__:
-	n = 0x7f800000;
-	goto special_math_val;
+        n = 0x7f800000;
+        goto special_math_val;
 
     default:
     tok_identifier:
         if (tok < TOK_UIDENT)
-            tcc_error("'%s' ï¿½Ì‘Oï¿½Éï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½Å‚ï¿½", get_tok_str(tok, &tokc));
+            tcc_error("'%s' ‚Ì‘O‚É®‚ª•K—v‚Å‚·", get_tok_str(tok, &tokc));
         t = tok;
         next();
         s = sym_find(t);
         if (!s || IS_ASM_SYM(s)) {
-            const char *name = get_tok_str(t, NULL);
+            const char* name = get_tok_str(t, NULL);
             if (tok != '(')
-                tcc_error("'%s' ï¿½ÍéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", name);
+                tcc_error("'%s' ‚ÍéŒ¾‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ", name);
             /* for simple function calls, we tolerate undeclared
                external reference to int() function */
             tcc_warning_c(warn_implicit_function_declaration)(
@@ -6080,9 +6146,9 @@ special_math_val:
 
         vset(&s->type, r, s->c);
         /* Point to s as backpointer (even without r&VT_SYM).
-	   Will be used by at least the x86 inline asm parser for
-	   regvars.  */
-	vtop->sym = s;
+       Will be used by at least the x86 inline asm parser for
+       regvars.  */
+        vtop->sym = s;
 
         if (r & VT_SYM) {
             vtop->c.i = 0;
@@ -6093,27 +6159,29 @@ special_math_val:
                 indir();
             }
 #endif
-        } else if (r == VT_CONST && IS_ENUM_VAL(s->type.t)) {
+        }
+        else if (r == VT_CONST && IS_ENUM_VAL(s->type.t)) {
             vtop->c.i = s->enum_val;
         }
         break;
     }
-    
+
     /* post operations */
     while (1) {
         if (tok == TOK_INC || tok == TOK_DEC) {
             inc(1, tok);
             next();
-        } else if (tok == '.' || tok == TOK_ARROW) {
+        }
+        else if (tok == '.' || tok == TOK_ARROW) {
             int qualifiers, cumofs;
-            /* field */ 
-            if (tok == TOK_ARROW) 
+            /* field */
+            if (tok == TOK_ARROW)
                 indir();
             qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
             test_lvalue();
             /* expect pointer on structure */
             next();
-	    s = find_field(&vtop->type, tok, &cumofs);
+            s = find_field(&vtop->type, tok, &cumofs);
             /* add field offset to pointer */
             gaddrof();
             vtop->type = char_pointer_type; /* change type to 'char *' */
@@ -6132,17 +6200,19 @@ special_math_val:
 #endif
             }
             next();
-        } else if (tok == '[') {
+        }
+        else if (tok == '[') {
             next();
             gexpr();
             gen_op('+');
             indir();
             skip(']');
-        } else if (tok == '(') {
+        }
+        else if (tok == '(') {
             SValue ret;
-            Sym *sa;
+            Sym* sa;
             int nb_args, ret_nregs, ret_align, regsize, variadic;
-            TokenString *p, *p2;
+            TokenString* p, * p2;
 
             /* function call  */
             if ((vtop->type.t & VT_BTYPE) != VT_FUNC) {
@@ -6151,11 +6221,13 @@ special_math_val:
                     vtop->type = *pointed_type(&vtop->type);
                     if ((vtop->type.t & VT_BTYPE) != VT_FUNC)
                         goto error_func;
-                } else {
+                }
+                else {
                 error_func:
                     expect("function pointer");
                 }
-            } else {
+            }
+            else {
                 vtop->r &= ~VT_LVAL; /* no lvalue */
             }
             /* get return type */
@@ -6168,18 +6240,18 @@ special_math_val:
             if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
                 variadic = (s->f.func_type == FUNC_ELLIPSIS);
                 ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
-                                       &ret_align, &regsize);
+                    &ret_align, &regsize);
                 if (ret_nregs <= 0) {
                     /* get some space for the returned structure */
                     size = type_size(&s->type, &align);
 #ifdef TCC_TARGET_ARM64
-                /* On arm64, a small struct is return in registers.
-                   It is much easier to write it to memory if we know
-                   that we are allowed to write some extra bytes, so
-                   round the allocated space up to a power of 2: */
-                if (size < 16)
-                    while (size & (size - 1))
-                        size = (size | (size - 1)) + 1;
+                    /* On arm64, a small struct is return in registers.
+                       It is much easier to write it to memory if we know
+                       that we are allowed to write some extra bytes, so
+                       round the allocated space up to a power of 2: */
+                    if (size < 16)
+                        while (size & (size - 1))
+                            size = (size | (size - 1)) + 1;
 #endif
                     loc = (loc - size) & -align;
                     ret.type = s->type;
@@ -6193,11 +6265,12 @@ special_math_val:
 #endif
                     ret.c = vtop->c;
                     if (ret_nregs < 0)
-                      vtop--;
+                        vtop--;
                     else
-                      nb_args++;
+                        nb_args++;
                 }
-            } else {
+            }
+            else {
                 ret_nregs = 1;
                 ret.type = s->type;
             }
@@ -6211,11 +6284,12 @@ special_math_val:
             p = NULL;
             if (tok != ')') {
                 r = tcc_state->reverse_funcargs;
-                for(;;) {
+                for (;;) {
                     if (r) {
                         skip_or_save_block(&p2);
                         p2->prev = p, p = p2;
-                    } else {
+                    }
+                    else {
                         expr_eq();
                         gfunc_param_typed(s, sa);
                     }
@@ -6228,7 +6302,7 @@ special_math_val:
                 }
             }
             if (sa)
-                tcc_error("ï¿½Öï¿½ï¿½Ö‚Ìˆï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
+                tcc_error("ŠÖ”‚Ö‚Ìˆø”‚ª­‚È‚·‚¬‚Ü‚·");
 
             if (p) { /* with reverse_funcargs */
                 for (n = 0; p; p = p2, ++n) {
@@ -6254,7 +6328,8 @@ special_math_val:
 #ifdef TCC_TARGET_RISCV64
                 arch_transfer_ret_regs(1);
 #endif
-            } else {
+            }
+            else {
                 /* return value */
                 n = ret_nregs;
                 while (n > 1) {
@@ -6290,7 +6365,7 @@ special_math_val:
                         vstore();
                         vtop--;
                         if (--ret_nregs == 0)
-                          break;
+                            break;
                         offset += regsize;
                     }
                     vset(&s->type, VT_LOCAL | VT_LVAL, addr);
@@ -6312,10 +6387,11 @@ special_math_val:
             }
             if (s->f.func_noreturn) {
                 if (debug_modes)
-	            tcc_tcov_block_end(tcc_state, -1);
+                    tcc_tcov_block_end(tcc_state, -1);
                 CODE_OFF();
-	    }
-        } else {
+            }
+        }
+        else {
             break;
         }
     }
@@ -6365,7 +6441,7 @@ static void expr_cmp(void)
 
     expr_shift();
     while (((t = tok) >= TOK_ULE && t <= TOK_GT) ||
-           t == TOK_ULT || t == TOK_UGE) {
+        t == TOK_ULT || t == TOK_UGE) {
         next();
         expr_shift();
         gen_op(t);
@@ -6438,20 +6514,20 @@ static void expr_lor(void)
 static int precedence(int tok)
 {
     switch (tok) {
-        case TOK_LOR: return 1;
-        case TOK_LAND: return 2;
-	case '|': return 3;
-	case '^': return 4;
-	case '&': return 5;
-	case TOK_EQ: case TOK_NE: return 6;
- relat: case TOK_ULT: case TOK_UGE: return 7;
-	case TOK_SHL: case TOK_SAR: return 8;
-	case '+': case '-': return 9;
-	case '*': case '/': case '%': return 10;
-	default:
-	    if (tok >= TOK_ULE && tok <= TOK_GT)
-	        goto relat;
-	    return 0;
+    case TOK_LOR: return 1;
+    case TOK_LAND: return 2;
+    case '|': return 3;
+    case '^': return 4;
+    case '&': return 5;
+    case TOK_EQ: case TOK_NE: return 6;
+    relat: case TOK_ULT: case TOK_UGE: return 7;
+    case TOK_SHL: case TOK_SAR: return 8;
+    case '+': case '-': return 9;
+    case '*': case '/': case '%': return 10;
+    default:
+        if (tok >= TOK_ULE && tok <= TOK_GT)
+            goto relat;
+        return 0;
     }
 }
 static unsigned char prec[256];
@@ -6459,7 +6535,7 @@ static void init_prec(void)
 {
     int i;
     for (i = 0; i < 256; i++)
-	prec[i] = precedence(i);
+        prec[i] = precedence(i);
 }
 #define precedence(i) ((unsigned)i < 256 ? prec[i] : 0)
 
@@ -6471,11 +6547,12 @@ static void expr_infix(int p)
     while ((p2 = precedence(t)) >= p) {
         if (t == TOK_LOR || t == TOK_LAND) {
             expr_landor(t);
-        } else {
+        }
+        else {
             next();
             unary();
             if (precedence(tok) > p2)
-              expr_infix(p2 + 1);
+                expr_infix(p2 + 1);
             gen_op(t);
         }
         t = tok;
@@ -6490,11 +6567,11 @@ static int condition_3way(void)
 {
     int c = -1;
     if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST &&
-	(!(vtop->r & VT_SYM) || !vtop->sym->a.weak)) {
-	vdup();
+        (!(vtop->r & VT_SYM) || !vtop->sym->a.weak)) {
+        vdup();
         gen_cast_s(VT_BOOL);
-	c = vtop->c.i;
-	vpop();
+        c = vtop->c.i;
+        vpop();
     }
     return c;
 }
@@ -6502,7 +6579,7 @@ static int condition_3way(void)
 static void expr_landor(int op)
 {
     int t = 0, cc = 1, f = 0, i = op == TOK_LAND, c;
-    for(;;) {
+    for (;;) {
         c = f ? i : condition_3way();
         if (c < 0)
             save_regs(1), cc = 0;
@@ -6522,12 +6599,13 @@ static void expr_landor(int op)
         vpushi(i ^ f);
         gsym(t);
         nocode_wanted -= f;
-    } else {
+    }
+    else {
         gvtst_set(i, t);
     }
 }
 
-static int is_cond_bool(SValue *sv)
+static int is_cond_bool(SValue* sv)
 {
     if ((sv->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST
         && (sv->type.t & VT_BTYPE) == VT_INT)
@@ -6546,17 +6624,19 @@ static void expr_cond(void)
     expr_lor();
     if (tok == '?') {
         next();
-	c = condition_3way();
+        c = condition_3way();
         g = (tok == ':' && gnu_ext);
         tt = 0;
         if (!g) {
             if (c < 0) {
                 save_regs(1);
                 tt = gvtst(1, 0);
-            } else {
+            }
+            else {
                 vpop();
             }
-        } else if (c < 0) {
+        }
+        else if (c < 0) {
             /* needed to avoid having different registers saved in
                each branch */
             save_regs(1);
@@ -6565,37 +6645,39 @@ static void expr_cond(void)
         }
 
         if (c == 0)
-          nocode_wanted++;
+            nocode_wanted++;
         if (!g)
-          gexpr();
+            gexpr();
 
         if ((vtop->type.t & VT_BTYPE) == VT_FUNC)
-          mk_pointer(&vtop->type);
+            mk_pointer(&vtop->type);
         sv = *vtop; /* save value to handle it later */
         vtop--; /* no vpop so that FP stack is not flushed */
 
         if (g) {
             u = tt;
-        } else if (c < 0) {
+        }
+        else if (c < 0) {
             u = gjmp(0);
             gsym(tt);
-        } else
-          u = 0;
+        }
+        else
+            u = 0;
 
         if (c == 0)
-          nocode_wanted--;
+            nocode_wanted--;
         if (c == 1)
-          nocode_wanted++;
+            nocode_wanted++;
         skip(':');
         expr_cond();
 
         if ((vtop->type.t & VT_BTYPE) == VT_FUNC)
-          mk_pointer(&vtop->type);
+            mk_pointer(&vtop->type);
 
         /* cast operands to correct type according to ISOC rules */
         if (!combine_types(&type, &sv, vtop, '?'))
-          type_incompatibility_error(&sv.type, &vtop->type,
-            "type mismatch in conditional expression (have '%s' and '%s')");
+            type_incompatibility_error(&sv.type, &vtop->type,
+                "type mismatch in conditional expression (have '%s' and '%s')");
 
         if (c < 0 && is_cond_bool(vtop) && is_cond_bool(&sv)) {
             /* optimize "if (f ? a > b : c || d) ..." for example, where normally
@@ -6623,15 +6705,16 @@ static void expr_cond(void)
             if (islv) {
                 mk_pointer(&vtop->type);
                 gaddrof();
-            } else if (VT_STRUCT == (vtop->type.t & VT_BTYPE))
-              gaddrof();
+            }
+            else if (VT_STRUCT == (vtop->type.t & VT_BTYPE))
+                gaddrof();
         }
 
         rc = RC_TYPE(type.t);
         /* for long longs, we use fixed registers to avoid having
            to handle a complicated move */
         if (USING_TWO_WORDS(type.t))
-          rc = RC_RET(type.t);
+            rc = RC_RET(type.t);
 
         tt = r2 = 0;
         if (c < 0) {
@@ -6640,7 +6723,7 @@ static void expr_cond(void)
         }
         gsym(u);
         if (c == 1)
-          nocode_wanted--;
+            nocode_wanted--;
 
         /* this is horrible, but we must also convert first
            operand */
@@ -6650,8 +6733,9 @@ static void expr_cond(void)
             if (islv) {
                 mk_pointer(&vtop->type);
                 gaddrof();
-            } else if (VT_STRUCT == (vtop->type.t & VT_BTYPE))
-              gaddrof();
+            }
+            else if (VT_STRUCT == (vtop->type.t & VT_BTYPE))
+                gaddrof();
         }
 
         if (c < 0) {
@@ -6662,21 +6746,22 @@ static void expr_cond(void)
         }
 
         if (islv)
-          indir();
+            indir();
     }
 }
 
 static void expr_eq(void)
 {
     int t;
-    
+
     expr_cond();
     if ((t = tok) == '=' || TOK_ASSIGN(t)) {
         test_lvalue();
         next();
         if (t == '=') {
             expr_eq();
-        } else {
+        }
+        else {
             vdup();
             expr_eq();
             gen_op(TOK_ASSIGN_OP(t));
@@ -6732,7 +6817,7 @@ ST_FUNC int expr_const(void)
     int64_t wc = expr_const64();
     c = wc;
     if (c != wc && (unsigned)c != wc)
-        tcc_error("ï¿½è”ï¿½ï¿½32ï¿½rï¿½bï¿½gï¿½ğ’´‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
+        tcc_error("’è”‚ª32ƒrƒbƒg‚ğ’´‚¦‚Ä‚¢‚Ü‚·");
     return c;
 }
 
@@ -6740,18 +6825,19 @@ ST_FUNC int expr_const(void)
 /* return from function */
 
 #ifndef TCC_TARGET_ARM64
-static void gfunc_return(CType *func_type)
+static void gfunc_return(CType* func_type)
 {
     if ((func_type->t & VT_BTYPE) == VT_STRUCT) {
         CType type, ret_type;
         int ret_align, ret_nregs, regsize;
         ret_nregs = gfunc_sret(func_type, func_var, &ret_type,
-                               &ret_align, &regsize);
+            &ret_align, &regsize);
         if (ret_nregs < 0) {
 #ifdef TCC_TARGET_RISCV64
             arch_transfer_ret_regs(0);
 #endif
-        } else if (0 == ret_nregs) {
+        }
+        else if (0 == ret_nregs) {
             /* if returning structure, must copy it to implicit
                first pointer arg location */
             type = *func_type;
@@ -6761,10 +6847,11 @@ static void gfunc_return(CType *func_type)
             vswap();
             /* copy structure value to pointer */
             vstore();
-        } else {
+        }
+        else {
             /* returning structure packed into registers */
             int size, addr, align, rc, n;
-            size = type_size(func_type,&align);
+            size = type_size(func_type, &align);
             if ((align & (ret_align - 1))
                 && ((vtop->r & VT_VALMASK) < VT_CONST /* pointer to struct */
                     || (vtop->c.i & (ret_align - 1))
@@ -6794,7 +6881,8 @@ static void gfunc_return(CType *func_type)
             gv(rc);
             vtop -= ret_nregs - 1;
         }
-    } else {
+    }
+    else {
         gv(RC_RET(func_type->t));
     }
     vtop--; /* NOT vpop() because on x86 it would flush the fp stack */
@@ -6805,14 +6893,15 @@ static void check_func_return(void)
 {
     if ((func_vt.t & VT_BTYPE) == VT_VOID)
         return;
-    if (!strcmp (funcname, "main")
+    if (!strcmp(funcname, "main")
         && (func_vt.t & VT_BTYPE) == VT_INT) {
         /* main returns 0 by default */
         vpushi(0);
         gen_assign_cast(&func_vt);
         gfunc_return(&func_vt);
-    } else {
-    tcc_warning("ï¿½Öï¿½ï¿½ï¿½ï¿½lï¿½ï¿½Ô‚ï¿½ï¿½È‚ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½: '%s'", funcname);
+    }
+    else {
+        tcc_warning("ŠÖ”‚ª’l‚ğ•Ô‚³‚È‚¢‰Â”\«‚ª‚ ‚è‚Ü‚·: '%s'", funcname);
     }
 }
 
@@ -6824,39 +6913,41 @@ static int case_cmp(uint64_t a, uint64_t b)
     if (cur_switch->sv.type.t & VT_UNSIGNED)
         return a < b ? -1 : a > b;
     else
-        return (int64_t)a < (int64_t)b ? -1 : (int64_t)a > (int64_t)b;
+        return (int64_t)a < (int64_t)b ? -1 : (int64_t)a >(int64_t)b;
 }
 
-static int case_cmp_qs(const void *pa, const void *pb)
+static int case_cmp_qs(const void* pa, const void* pb)
 {
     return case_cmp((*(struct case_t**)pa)->v1, (*(struct case_t**)pb)->v1);
 }
 
-static void case_sort(struct switch_t *sw)
+static void case_sort(struct switch_t* sw)
 {
-    struct case_t **p;
+    struct case_t** p;
     if (sw->n < 2)
         return;
-    qsort(sw->p, sw->n, sizeof *sw->p, case_cmp_qs);
+    qsort(sw->p, sw->n, sizeof * sw->p, case_cmp_qs);
     p = sw->p;
     while (p < sw->p + sw->n - 1) {
         if (case_cmp(p[0]->v2, p[1]->v1) >= 0) {
             int l1 = p[0]->line, l2 = p[1]->line;
             /* using special format "%i:..." to show specific line */
-            tcc_error("%i:case ï¿½Ì’lï¿½ï¿½ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½", l1 > l2 ? l1 : l2);
-        } else if (p[0]->v2 + 1 == p[1]->v1 && p[0]->ind == p[1]->ind) {
+            tcc_error("%i:case ‚Ì’l‚ªd•¡‚µ‚Ä‚¢‚Ü‚·", l1 > l2 ? l1 : l2);
+        }
+        else if (p[0]->v2 + 1 == p[1]->v1 && p[0]->ind == p[1]->ind) {
             /* treat "case 1: case 2: case 3:" like "case 1 ... 3: */
             p[1]->v1 = p[0]->v1;
             tcc_free(p[0]);
-            memmove(p, p + 1, (--sw->n - (p - sw->p)) * sizeof *p);
-        } else
+            memmove(p, p + 1, (--sw->n - (p - sw->p)) * sizeof * p);
+        }
+        else
             ++p;
     }
 }
 
-static int gcase(struct case_t **base, int len, int dsym)
+static int gcase(struct case_t** base, int len, int dsym)
 {
-    struct case_t *p;
+    struct case_t* p;
     int t, l2, e;
 
     t = vtop->type.t & VT_BTYPE;
@@ -6864,13 +6955,14 @@ static int gcase(struct case_t **base, int len, int dsym)
         t = VT_INT;
     while (len) {
         /* binary search while len > 8, else linear */
-        l2 = len > 8 ? len/2 : 0;
+        l2 = len > 8 ? len / 2 : 0;
         p = base[l2];
         vdup(), vpush64(t, p->v2);
         if (l2 == 0 && p->v1 == p->v2) {
             gen_op(TOK_EQ); /* jmp to case when equal */
             gsym_addr(gvtst(0, 0), p->ind);
-        } else {
+        }
+        else {
             /* case v1 ... v2 */
             gen_op(TOK_GT); /* jmp over when > V2 */
             if (len == 1) /* last case test jumps to default when false */
@@ -6891,7 +6983,7 @@ static int gcase(struct case_t **base, int len, int dsym)
 
 static void end_switch(void)
 {
-    struct switch_t *sw = cur_switch;
+    struct switch_t* sw = cur_switch;
     dynarray_reset(&sw->p, &sw->n);
     cur_switch = sw->prev;
     tcc_free(sw);
@@ -6900,51 +6992,51 @@ static void end_switch(void)
 /* ------------------------------------------------------------------------- */
 /* __attribute__((cleanup(fn))) */
 
-static void try_call_scope_cleanup(Sym *stop)
+static void try_call_scope_cleanup(Sym* stop)
 {
-    Sym *cls = cur_scope->cl.s;
+    Sym* cls = cur_scope->cl.s;
 
     for (; cls != stop; cls = cls->next) {
-	Sym *fs = cls->cleanup_func;
-	Sym *vs = cls->prev_tok;
+        Sym* fs = cls->cleanup_func;
+        Sym* vs = cls->prev_tok;
 
-	vpushsym(&fs->type, fs);
-	vset(&vs->type, vs->r, vs->c);
-	vtop->sym = vs;
+        vpushsym(&fs->type, fs);
+        vset(&vs->type, vs->r, vs->c);
+        vtop->sym = vs;
         mk_pointer(&vtop->type);
-	gaddrof();
-	gfunc_call(1);
+        gaddrof();
+        gfunc_call(1);
     }
 }
 
-static void try_call_cleanup_goto(Sym *cleanupstate)
+static void try_call_cleanup_goto(Sym* cleanupstate)
 {
-    Sym *oc, *cc;
+    Sym* oc, * cc;
     int ocd, ccd;
 
     if (!cur_scope->cl.s)
-	return;
+        return;
 
     /* search NCA of both cleanup chains given parents and initial depth */
     ocd = cleanupstate ? cleanupstate->v & ~SYM_FIELD : 0;
     for (ccd = cur_scope->cl.n, oc = cleanupstate; ocd > ccd; --ocd, oc = oc->next)
-      ;
+        ;
     for (cc = cur_scope->cl.s; ccd > ocd; --ccd, cc = cc->next)
-      ;
+        ;
     for (; cc != oc; cc = cc->next, oc = oc->next, --ccd)
-      ;
+        ;
 
     try_call_scope_cleanup(cc);
 }
 
 /* call 'func' for each __attribute__((cleanup(func))) */
-static void block_cleanup(struct scope *o)
+static void block_cleanup(struct scope* o)
 {
     int jmp = 0;
-    Sym *g, **pg;
+    Sym* g, ** pg;
     for (pg = &pending_gotos; (g = *pg) && g->c > o->cl.n;) {
         if (g->prev_tok->r & LABEL_FORWARD) {
-            Sym *pcl = g->next;
+            Sym* pcl = g->next;
             if (!jmp)
                 jmp = gjmp(0);
             gsym(pcl->jnext);
@@ -6954,8 +7046,9 @@ static void block_cleanup(struct scope *o)
                 goto remove_pending;
             g->c = o->cl.n;
             pg = &g->prev;
-        } else {
-    remove_pending:
+        }
+        else {
+        remove_pending:
             *pg = g->prev;
             sym_free(g);
         }
@@ -6973,20 +7066,20 @@ static void vla_restore(int loc)
         gen_vla_sp_restore(loc);
 }
 
-static void vla_leave(struct scope *o)
+static void vla_leave(struct scope* o)
 {
-    struct scope *c = cur_scope, *v = NULL;
+    struct scope* c = cur_scope, * v = NULL;
     for (; c != o && c; c = c->prev)
-      if (c->vla.num)
-        v = c;
+        if (c->vla.num)
+            v = c;
     if (v)
-      vla_restore(v->vla.locorig);
+        vla_restore(v->vla.locorig);
 }
 
 /* ------------------------------------------------------------------------- */
 /* local scopes */
 
-static void new_scope(struct scope *o)
+static void new_scope(struct scope* o)
 {
     /* copy and link previous scope */
     *o = *cur_scope;
@@ -7000,7 +7093,7 @@ static void new_scope(struct scope *o)
     ++local_scope;
 }
 
-static void prev_scope(struct scope *o, int is_expr)
+static void prev_scope(struct scope* o, int is_expr)
 {
     vla_leave(o->prev);
 
@@ -7018,14 +7111,14 @@ static void prev_scope(struct scope *o, int is_expr)
        do that.  We do have to remove such symbols from the lookup
        tables, though.  sym_pop will do that.  */
 
-    /* pop locally defined symbols */
+       /* pop locally defined symbols */
     pop_local_syms(o->lstk, is_expr);
     cur_scope = o->prev;
     --local_scope;
 }
 
 /* leave a scope via break/continue(/goto) */
-static void leave_scope(struct scope *o)
+static void leave_scope(struct scope* o)
 {
     if (!o)
         return;
@@ -7035,13 +7128,13 @@ static void leave_scope(struct scope *o)
 
 /* short versiona for scopes with 'if/do/while/switch' which can
    declare only types (of struct/union/enum) */
-static void new_scope_s(struct scope *o)
+static void new_scope_s(struct scope* o)
 {
     o->lstk = local_stack;
     ++local_scope;
 }
 
-static void prev_scope_s(struct scope *o)
+static void prev_scope_s(struct scope* o)
 {
     sym_pop(&local_stack, o->lstk, 0);
     --local_scope;
@@ -7050,10 +7143,10 @@ static void prev_scope_s(struct scope *o)
 /* ------------------------------------------------------------------------- */
 /* call block from 'for do while' loops */
 
-static void lblock(int *bsym, int *csym)
+static void lblock(int* bsym, int* csym)
 {
-    struct scope *lo = loop_scope, *co = cur_scope;
-    int *b = co->bsym, *c = co->csym;
+    struct scope* lo = loop_scope, * co = cur_scope;
+    int* b = co->bsym, * c = co->csym;
     if (csym) {
         co->csym = csym;
         loop_scope = co;
@@ -7071,7 +7164,7 @@ static void block(int flags)
 {
     int a, b, c, d, e, t;
     struct scope o;
-    Sym *s;
+    Sym* s;
 
     if (flags & STMT_EXPR) {
         /* default return value is (void) */
@@ -7088,7 +7181,7 @@ again:
     next();
 
     if (debug_modes)
-        tcc_tcov_check_line (tcc_state, 0), tcc_tcov_block_begin (tcc_state);
+        tcc_tcov_check_line(tcc_state, 0), tcc_tcov_block_begin(tcc_state);
 
     if (t == TOK_IF) {
         new_scope_s(&o);
@@ -7103,12 +7196,14 @@ again:
             next();
             block(0);
             gsym(d); /* patch else jmp */
-        } else {
+        }
+        else {
             gsym(a);
         }
         prev_scope_s(&o);
 
-    } else if (t == TOK_WHILE) {
+    }
+    else if (t == TOK_WHILE) {
         new_scope_s(&o);
         d = gind();
         skip('(');
@@ -7122,7 +7217,8 @@ again:
         gsym(a);
         prev_scope_s(&o);
 
-    } else if (t == '{') {
+    }
+    else if (t == '{') {
         if (debug_modes)
             tcc_debug_stabn(tcc_state, N_LBRAC, ind - func_ind);
         new_scope(&o);
@@ -7140,7 +7236,7 @@ again:
         }
 
         while (tok != '}') {
-	    decl(VT_LOCAL);
+            decl(VT_LOCAL);
             if (tok != '}') {
                 if (flags & STMT_EXPR)
                     vpop();
@@ -7156,19 +7252,22 @@ again:
         else if (!nocode_wanted)
             check_func_return();
 
-    } else if (t == TOK_RETURN) {
+    }
+    else if (t == TOK_RETURN) {
         b = (func_vt.t & VT_BTYPE) != VT_VOID;
         if (tok != ';') {
             gexpr();
             if (b) {
                 gen_assign_cast(&func_vt);
-            } else {
+            }
+            else {
                 if (vtop->type.t != VT_VOID)
-                    tcc_warning("void ï¿½^ï¿½ÌŠÖï¿½ï¿½ï¿½ï¿½lï¿½ï¿½Ô‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
+                    tcc_warning("void Œ^‚ÌŠÖ”‚ª’l‚ğ•Ô‚µ‚Ä‚¢‚Ü‚·");
                 vtop--;
             }
-        } else if (b) {
-            tcc_warning("ï¿½lï¿½Ì‚È‚ï¿½ 'return' ï¿½Å‚ï¿½");
+        }
+        else if (b) {
+            tcc_warning("’l‚Ì‚È‚¢ 'return' ‚Å‚·");
             b = 0;
         }
         leave_scope(root_scope);
@@ -7179,13 +7278,14 @@ again:
         if (tok != '}' || local_scope != 1)
             rsym = gjmp(rsym);
         if (debug_modes)
-	    tcc_tcov_block_end (tcc_state, -1);
+            tcc_tcov_block_end(tcc_state, -1);
         CODE_OFF();
 
-    } else if (t == TOK_BREAK) {
+    }
+    else if (t == TOK_BREAK) {
         /* compute jump */
         if (!cur_scope->bsym)
-            tcc_error("break ï¿½Í‚ï¿½ï¿½ï¿½ï¿½Å‚Ígï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            tcc_error("break ‚Í‚±‚±‚Å‚Íg—p‚Å‚«‚Ü‚¹‚ñ");
         if (cur_switch && cur_scope->bsym == cur_switch->bsym)
             leave_scope(cur_switch->scope);
         else
@@ -7193,15 +7293,17 @@ again:
         *cur_scope->bsym = gjmp(*cur_scope->bsym);
         skip(';');
 
-    } else if (t == TOK_CONTINUE) {
+    }
+    else if (t == TOK_CONTINUE) {
         /* compute jump */
         if (!cur_scope->csym)
-            tcc_error("continue ï¿½Í‚ï¿½ï¿½ï¿½ï¿½Å‚Ígï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            tcc_error("continue ‚Í‚±‚±‚Å‚Íg—p‚Å‚«‚Ü‚¹‚ñ");
         leave_scope(loop_scope);
         *cur_scope->csym = gjmp(*cur_scope->csym);
         skip(';');
 
-    } else if (t == TOK_FOR) {
+    }
+    else if (t == TOK_FOR) {
         new_scope(&o);
 
         skip('(');
@@ -7216,10 +7318,10 @@ again:
         skip(';');
         a = b = 0;
         c = d = gind();
-            if (tok != ';') {
-                gexpr();
-                a = gvtst(1, 0);
-            }
+        if (tok != ';') {
+            gexpr();
+            a = gvtst(1, 0);
+        }
         skip(';');
         if (tok != ')') {
             e = gjmp(0);
@@ -7236,7 +7338,8 @@ again:
         gsym(a);
         prev_scope(&o, 0);
 
-    } else if (t == TOK_DO) {
+    }
+    else if (t == TOK_DO) {
         new_scope_s(&o);
         a = b = 0;
         d = gind();
@@ -7244,18 +7347,19 @@ again:
         gsym(b);
         skip(TOK_WHILE);
         skip('(');
-	gexpr();
+        gexpr();
         skip(')');
         skip(';');
-	c = gvtst(0, 0);
-	gsym_addr(c, d);
+        c = gvtst(0, 0);
+        gsym_addr(c, d);
         gsym(a);
         prev_scope_s(&o);
 
-    } else if (t == TOK_SWITCH) {
-        struct switch_t *sw;
+    }
+    else if (t == TOK_SWITCH) {
+        struct switch_t* sw;
 
-        sw = tcc_mallocz(sizeof *sw);
+        sw = tcc_mallocz(sizeof * sw);
         sw->bsym = &a;
         sw->scope = cur_scope;
         sw->prev = cur_switch;
@@ -7267,7 +7371,7 @@ again:
         gexpr();
         skip(')');
         if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-            tcc_error("switch ï¿½Ì’lï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            tcc_error("switch ‚Ì’l‚ª®”‚Å‚Í‚ ‚è‚Ü‚¹‚ñ");
         sw->sv = *vtop--; /* save switch value */
         a = 0;
         b = gjmp(0); /* jump to first case */
@@ -7293,8 +7397,9 @@ again:
         gsym(a);
         end_switch();
 
-    } else if (t == TOK_CASE) {
-        struct case_t *cr;
+    }
+    else if (t == TOK_CASE) {
+        struct case_t* cr;
         if (!cur_switch)
             expect("switch");
         cr = tcc_malloc(sizeof(struct case_t));
@@ -7305,7 +7410,7 @@ again:
             next();
             cr->v2 = value64(expr_const64(), t);
             if (case_cmp(cr->v2, cr->v1) < 0)
-                tcc_warning("ï¿½ï¿½ï¿½ case ï¿½ÍˆÍ‚Å‚ï¿½");
+                tcc_warning("‹ó‚Ì case ”ÍˆÍ‚Å‚·");
         }
         /* case and default are unreachable from a switch under nocode_wanted */
         if (!cur_switch->nocode_wanted)
@@ -7314,16 +7419,18 @@ again:
         skip(':');
         goto block_after_label;
 
-    } else if (t == TOK_DEFAULT) {
+    }
+    else if (t == TOK_DEFAULT) {
         if (!cur_switch)
             expect("switch");
         if (cur_switch->def_sym)
-            tcc_error("'default' ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
+            tcc_error("'default' ‚ª‘½‚·‚¬‚Ü‚·");
         cur_switch->def_sym = cur_switch->nocode_wanted ? -1 : gind();
         skip(':');
         goto block_after_label;
 
-    } else if (t == TOK_GOTO) {
+    }
+    else if (t == TOK_GOTO) {
         vla_restore(cur_scope->vla.locorig);
         if (tok == '*' && gnu_ext) {
             /* computed goto */
@@ -7333,65 +7440,72 @@ again:
                 expect("pointer");
             ggoto();
 
-        } else if (tok >= TOK_UIDENT) {
-	    s = label_find(tok);
-	    /* put forward definition if needed */
+        }
+        else if (tok >= TOK_UIDENT) {
+            s = label_find(tok);
+            /* put forward definition if needed */
             if (!s)
-              s = label_push(&global_label_stack, tok, LABEL_FORWARD);
+                s = label_push(&global_label_stack, tok, LABEL_FORWARD);
             else if (s->r == LABEL_DECLARED)
-              s->r = LABEL_FORWARD;
+                s->r = LABEL_FORWARD;
 
-	    if (s->r & LABEL_FORWARD) {
-		/* start new goto chain for cleanups, linked via label->next */
-		if (cur_scope->cl.s && !nocode_wanted) {
+            if (s->r & LABEL_FORWARD) {
+                /* start new goto chain for cleanups, linked via label->next */
+                if (cur_scope->cl.s && !nocode_wanted) {
                     sym_push2(&pending_gotos, SYM_FIELD, 0, cur_scope->cl.n);
                     pending_gotos->prev_tok = s;
                     s = sym_push2(&s->next, SYM_FIELD, 0, 0);
                     pending_gotos->next = s;
                 }
-		s->jnext = gjmp(s->jnext);
-	    } else {
-		try_call_cleanup_goto(s->cleanupstate);
-		gjmp_addr(s->jind);
-	    }
-	    next();
+                s->jnext = gjmp(s->jnext);
+            }
+            else {
+                try_call_cleanup_goto(s->cleanupstate);
+                gjmp_addr(s->jind);
+            }
+            next();
 
-        } else {
+        }
+        else {
             expect("label identifier");
         }
         skip(';');
 
-    } else if (t == TOK_ASM1 || t == TOK_ASM2 || t == TOK_ASM3) {
+    }
+    else if (t == TOK_ASM1 || t == TOK_ASM2 || t == TOK_ASM3) {
         asm_instr();
 
-    } else {
+    }
+    else {
         if (tok == ':' && t >= TOK_UIDENT) {
             /* label case */
-	    next();
+            next();
             s = label_find(t);
             if (s) {
                 if (s->r == LABEL_DEFINED)
-                    tcc_error("ï¿½ï¿½ï¿½xï¿½ï¿½ '%s' ï¿½ï¿½ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½", get_tok_str(s->v, NULL));
+                    tcc_error("ƒ‰ƒxƒ‹ '%s' ‚ªd•¡‚µ‚Ä‚¢‚Ü‚·", get_tok_str(s->v, NULL));
                 s->r = LABEL_DEFINED;
-		if (s->next) {
-		    Sym *pcl; /* pending cleanup goto */
-		    for (pcl = s->next; pcl; pcl = pcl->prev)
-		      gsym(pcl->jnext);
-		    sym_pop(&s->next, NULL, 0);
-		} else
-		  gsym(s->jnext);
-            } else {
+                if (s->next) {
+                    Sym* pcl; /* pending cleanup goto */
+                    for (pcl = s->next; pcl; pcl = pcl->prev)
+                        gsym(pcl->jnext);
+                    sym_pop(&s->next, NULL, 0);
+                }
+                else
+                    gsym(s->jnext);
+            }
+            else {
                 s = label_push(&global_label_stack, t, LABEL_DEFINED);
             }
             s->jind = gind();
             s->cleanupstate = cur_scope->cl.s;
 
-    block_after_label:
-              {
+        block_after_label:
+            {
                 /* Accept attributes after labels (e.g. 'unused') */
                 AttributeDef ad_tmp;
                 parse_attribute(&ad_tmp);
-              }
+            }
             if (debug_modes)
                 tcc_tcov_reset_ind(tcc_state);
             vla_restore(cur_scope->vla.loc);
@@ -7400,19 +7514,22 @@ again:
                 if (0 == (flags & STMT_COMPOUND))
                     goto again;
                 /* C23: insert implicit null-statement whithin compound statement */
-            } else {
-                /* we accept this, but it is a mistake */
-                tcc_warning_c(warn_all)("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì–ï¿½ï¿½ï¿½ï¿½Å‚Ìƒï¿½ï¿½xï¿½ï¿½ï¿½Ìgï¿½pï¿½Í”ñ„ï¿½ï¿½Å‚ï¿½");
             }
-        } else {
+            else {
+                /* we accept this, but it is a mistake */
+                tcc_warning_c(warn_all)("•¡‡•¶‚Ì––”ö‚Å‚Ìƒ‰ƒxƒ‹‚Ìg—p‚Í”ñ„§‚Å‚·");
+            }
+        }
+        else {
             /* expression case */
             if (t != ';') {
                 unget_tok(t);
-    expr:
+            expr:
                 if (flags & STMT_EXPR) {
                     vpop();
                     gexpr();
-                } else {
+                }
+                else {
                     gexpr();
                     vpop();
                 }
@@ -7422,7 +7539,7 @@ again:
     }
 
     if (debug_modes)
-        tcc_tcov_check_line (tcc_state, 0), tcc_tcov_block_end (tcc_state, 0);
+        tcc_tcov_check_line(tcc_state, 0), tcc_tcov_block_end(tcc_state, 0);
 }
 
 /* This skips over a stream of tokens containing balanced {} and ()
@@ -7430,41 +7547,42 @@ again:
    with a '{').  If STR then allocates and stores the skipped tokens
    in *STR.  This doesn't check if () and {} are nested correctly,
    i.e. "({)}" is accepted.  */
-static void skip_or_save_block(TokenString **str)
+static void skip_or_save_block(TokenString** str)
 {
     int braces = tok == '{';
     int level = 0;
     if (str)
-      *str = tok_str_alloc();
+        *str = tok_str_alloc();
 
     while (1) {
-	int t = tok;
+        int t = tok;
         if (level == 0
             && (t == ','
-             || t == ';'
-             || t == '}'
-             || t == ')'
-             || t == ']'))
-             break;
+                || t == ';'
+                || t == '}'
+                || t == ')'
+                || t == ']'))
+            break;
         if (tok == TOK_EOF) {
-                 if (str || level > 0)
-                     tcc_error("ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ÌIï¿½[ï¿½É—\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
-                 else
-                     break;
+            if (str || level > 0)
+                tcc_error("ƒtƒ@ƒCƒ‹‚ÌI’[‚É—\Šú‚¹‚¸“’B‚µ‚Ü‚µ‚½");
+            else
+                break;
         }
-	if (str)
-	  tok_str_add_tok(*str);
-	next();
-	if (t == '{' || t == '(' || t == '[') {
-	    level++;
-	} else if (t == '}' || t == ')' || t == ']') {
-	    level--;
-	    if (level == 0 && braces && t == '}')
-	      break;
-	}
+        if (str)
+            tok_str_add_tok(*str);
+        next();
+        if (t == '{' || t == '(' || t == '[') {
+            level++;
+        }
+        else if (t == '}' || t == ')' || t == ']') {
+            level--;
+            if (level == 0 && braces && t == '}')
+                break;
+        }
     }
     if (str)
-	tok_str_add(*str, TOK_EOF);
+        tok_str_add(*str, TOK_EOF);
 }
 
 #define EXPR_CONST 1
@@ -7473,7 +7591,7 @@ static void skip_or_save_block(TokenString **str)
 static void parse_init_elem(int expr_type)
 {
     int saved_global_expr;
-    switch(expr_type) {
+    switch (expr_type) {
     case EXPR_CONST:
         /* compound literals must be allocated globally in this case */
         saved_global_expr = global_expr;
@@ -7481,15 +7599,15 @@ static void parse_init_elem(int expr_type)
         expr_const1();
         global_expr = saved_global_expr;
         /* NOTE: symbols are accepted, as well as lvalue for anon symbols
-	   (compound literals).  */
+       (compound literals).  */
         if (((vtop->r & (VT_VALMASK | VT_LVAL)) != VT_CONST
-             && ((vtop->r & (VT_SYM|VT_LVAL)) != (VT_SYM|VT_LVAL)
-                 || vtop->sym->v < SYM_FIRST_ANOM))
+            && ((vtop->r & (VT_SYM | VT_LVAL)) != (VT_SYM | VT_LVAL)
+                || vtop->sym->v < SYM_FIRST_ANOM))
 #ifdef TCC_TARGET_PE
-                 || ((vtop->r & VT_SYM) && vtop->sym->a.dllimport)
+            || ((vtop->r & VT_SYM) && vtop->sym->a.dllimport)
 #endif
-           )
-            tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ì—vï¿½fï¿½ï¿½ï¿½è”ï¿½Å‚Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            )
+            tcc_error("‰Šú‰»q‚Ì—v‘f‚ª’è”‚Å‚Í‚ ‚è‚Ü‚¹‚ñ");
         break;
     case EXPR_ANY:
         expr_eq();
@@ -7498,10 +7616,10 @@ static void parse_init_elem(int expr_type)
 }
 
 #if 1
-static void init_assert(init_params *p, int offset)
+static void init_assert(init_params* p, int offset)
 {
     if (p->sec ? !NODATA_WANTED && offset > p->sec->data_offset
-               : !nocode_wanted && offset > p->local_offset)
+        : !nocode_wanted && offset > p->local_offset)
         tcc_internal_error("initializer overflow");
 }
 #else
@@ -7509,12 +7627,13 @@ static void init_assert(init_params *p, int offset)
 #endif
 
 /* put zeros for variable based init */
-static void init_putz(init_params *p, unsigned long c, int size)
+static void init_putz(init_params* p, unsigned long c, int size)
 {
     init_assert(p, c + size);
     if (p->sec) {
         /* nothing to do because globals are already set to zero */
-    } else {
+    }
+    else {
         vpush_helper_func(TOK_memset);
         vseti(VT_LOCAL, c);
         vpushi(0);
@@ -7533,32 +7652,34 @@ static void init_putz(init_params *p, unsigned long c, int size)
 
 /* delete relocations for specified range c ... c + size. Unfortunatly
    in very special cases, relocations may occur unordered */
-static void decl_design_delrels(Section *sec, int c, int size)
+static void decl_design_delrels(Section* sec, int c, int size)
 {
-    ElfW_Rel *rel, *rel2, *rel_end;
+    ElfW_Rel* rel, * rel2, * rel_end;
     if (!sec || !sec->reloc)
         return;
     rel = rel2 = (ElfW_Rel*)sec->reloc->data;
     rel_end = (ElfW_Rel*)(sec->reloc->data + sec->reloc->data_offset);
     while (rel < rel_end) {
         if (rel->r_offset >= c && rel->r_offset < c + size) {
-            sec->reloc->data_offset -= sizeof *rel;
-        } else {
+            sec->reloc->data_offset -= sizeof * rel;
+        }
+        else {
             if (rel2 != rel)
-                memcpy(rel2, rel, sizeof *rel);
+                memcpy(rel2, rel, sizeof * rel);
             ++rel2;
         }
         ++rel;
     }
 }
 
-static void decl_design_flex(init_params *p, Sym *ref, int index)
+static void decl_design_flex(init_params* p, Sym* ref, int index)
 {
     if (ref == p->flex_array_ref) {
         if (index >= ref->c)
             ref->c = index + 1;
-    } else if (ref->c < 0)
-        tcc_error("ï¿½ï¿½ï¿½Ì•ï¿½ï¿½ï¿½ï¿½Å‚Í‰Â•Ï’ï¿½ï¿½zï¿½ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½0ï¿½Å‚ï¿½");
+    }
+    else if (ref->c < 0)
+        tcc_error("‚±‚Ì•¶–¬‚Å‚Í‰Â•Ï’·”z—ñ‚ÌƒTƒCƒY‚ª0‚Å‚·");
 }
 
 /* t is the array or struct type. c is the array or struct
@@ -7567,10 +7688,10 @@ static void decl_design_flex(init_params *p, Sym *ref, int index)
    index.  'flags' is as in decl_initializer.
    'al' contains the already initialized length of the
    current container (starting at c).  This returns the new length of that.  */
-static int decl_designator(init_params *p, CType *type, unsigned long c,
-                           Sym **cur_field, int flags, int al)
+static int decl_designator(init_params* p, CType* type, unsigned long c,
+    Sym** cur_field, int flags, int al)
 {
-    Sym *s, *f;
+    Sym* s, * f;
     int index, index_last, align, l, nb_elems, elem_size;
     unsigned long corig = c;
 
@@ -7602,23 +7723,24 @@ static int decl_designator(init_params *p, CType *type, unsigned long c,
             s = type->ref;
             decl_design_flex(p, s, index_last);
             if (index < 0 || index_last >= s->c || index_last < index)
-        	 tcc_error("ï¿½Yï¿½ï¿½ï¿½ï¿½ï¿½zï¿½ï¿½Ì”ÍˆÍ‚ğ’´‚ï¿½ï¿½Ä‚ï¿½ï¿½é‚©ï¿½Aï¿½ÍˆÍ‚ï¿½ï¿½ï¿½Å‚ï¿½");
+                tcc_error("“Yš‚ª”z—ñ‚Ì”ÍˆÍ‚ğ’´‚¦‚Ä‚¢‚é‚©A”ÍˆÍ‚ª‹ó‚Å‚·");
             if (cur_field)
-		(*cur_field)->c = index_last;
+                (*cur_field)->c = index_last;
             type = pointed_type(type);
             elem_size = type_size(type, &align);
             c += index * elem_size;
             nb_elems = index_last - index + 1;
-        } else {
+        }
+        else {
             int cumofs;
             next();
             l = tok;
         struct_field:
             next();
-	    f = find_field(type, l, &cumofs);
+            f = find_field(type, l, &cumofs);
             if (cur_field)
                 *cur_field = f;
-	    type = &f->type;
+            type = &f->type;
             c += cumofs;
         }
         cur_field = NULL;
@@ -7626,29 +7748,32 @@ static int decl_designator(init_params *p, CType *type, unsigned long c,
     if (!cur_field) {
         if (tok == '=') {
             next();
-        } else if (!gnu_ext) {
-	    expect("=");
         }
-    } else {
+        else if (!gnu_ext) {
+            expect("=");
+        }
+    }
+    else {
     no_designator:
         if (type->t & VT_ARRAY) {
-	    index = (*cur_field)->c;
+            index = (*cur_field)->c;
             s = type->ref;
             decl_design_flex(p, s, index);
             if (index >= s->c)
-                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
+                tcc_error("‰Šú‰»q‚Ì”‚ª‘½‚·‚¬‚Ü‚·");
             type = pointed_type(type);
             elem_size = type_size(type, &align);
             c += index * elem_size;
-        } else {
+        }
+        else {
             f = *cur_field;
-	    /* Skip bitfield padding. Also with size 32 and 64. */
-	    while (f && (f->v & SYM_FIRST_ANOM) &&
-		   is_integer_btype(f->type.t & VT_BTYPE))
-	        *cur_field = f = f->next;
+            /* Skip bitfield padding. Also with size 32 and 64. */
+            while (f && (f->v & SYM_FIRST_ANOM) &&
+                is_integer_btype(f->type.t & VT_BTYPE))
+                *cur_field = f = f->next;
             if (!f)
-                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
-	    type = &f->type;
+                tcc_error("‰Šú‰»q‚Ì”‚ª‘½‚·‚¬‚Ü‚·");
+            type = &f->type;
             c += f->c;
         }
     }
@@ -7667,7 +7792,7 @@ static int decl_designator(init_params *p, CType *type, unsigned long c,
     decl_initializer(p, type, c, flags & ~DIF_FIRST);
 
     if (!(flags & DIF_SIZE_ONLY) && nb_elems > 1) {
-        Sym aref = {0};
+        Sym aref = { 0 };
         CType t1;
         int i;
         if (p->sec || (type->t & VT_ARRAY)) {
@@ -7679,28 +7804,28 @@ static int decl_designator(init_params *p, CType *type, unsigned long c,
         if (p->sec)
             vpush_ref(type, p->sec, c, elem_size);
         else
-	    vset(type, VT_LOCAL|VT_LVAL, c);
+            vset(type, VT_LOCAL | VT_LVAL, c);
         for (i = 1; i < nb_elems; i++) {
             vdup();
             init_putv(p, type, c + elem_size * i);
-	}
+        }
         vpop();
     }
 
     c += nb_elems * elem_size;
     if (c - corig > al)
-      al = c - corig;
+        al = c - corig;
     return al;
 }
 
 /* store a value or an expression directly in global data or in local array */
-static void init_putv(init_params *p, CType *type, unsigned long c)
+static void init_putv(init_params* p, CType* type, unsigned long c)
 {
     int bt;
-    void *ptr;
+    void* ptr;
     CType dtype;
     int size, align;
-    Section *sec = p->sec;
+    Section* sec = p->sec;
     uint64_t val;
 
     dtype = *type;
@@ -7723,7 +7848,7 @@ static void init_putv(init_params *p, CType *type, unsigned long c)
                 || (type->t & VT_BITFIELD))
             && !((vtop->r & VT_CONST) && vtop->sym->v >= SYM_FIRST_ANOM)
             )
-            tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ì—vï¿½fï¿½Íƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½ÉŒvï¿½Zï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            tcc_error("‰Šú‰»q‚Ì—v‘f‚Íƒ[ƒh‚ÉŒvZ‚Å‚«‚Ü‚¹‚ñ");
 
         if (NODATA_WANTED) {
             vtop--;
@@ -7734,55 +7859,56 @@ static void init_putv(init_params *p, CType *type, unsigned long c)
         val = vtop->c.i;
 
         /* XXX: make code faster ? */
-	if ((vtop->r & (VT_SYM|VT_CONST)) == (VT_SYM|VT_CONST) &&
-	    vtop->sym->v >= SYM_FIRST_ANOM &&
-	    /* XXX This rejects compound literals like
-	       '(void *){ptr}'.  The problem is that '&sym' is
-	       represented the same way, which would be ruled out
-	       by the SYM_FIRST_ANOM check above, but also '"string"'
-	       in 'char *p = "string"' is represented the same
-	       with the type being VT_PTR and the symbol being an
-	       anonymous one.  That is, there's no difference in vtop
-	       between '(void *){x}' and '&(void *){x}'.  Ignore
-	       pointer typed entities here.  Hopefully no real code
-	       will ever use compound literals with scalar type.  */
-	    (vtop->type.t & VT_BTYPE) != VT_PTR) {
-	    /* These come from compound literals, memcpy stuff over.  */
-	    Section *ssec;
-	    ElfSym *esym;
-	    ElfW_Rel *rel;
-	    esym = elfsym(vtop->sym);
-	    ssec = tcc_state->sections[esym->st_shndx];
-	    memmove (ptr, ssec->data + esym->st_value + (int)vtop->c.i, size);
-	    if (ssec->reloc) {
-		/* We need to copy over all memory contents, and that
-		   includes relocations.  Use the fact that relocs are
-		   created it order, so look from the end of relocs
-		   until we hit one before the copied region.  */
+        if ((vtop->r & (VT_SYM | VT_CONST)) == (VT_SYM | VT_CONST) &&
+            vtop->sym->v >= SYM_FIRST_ANOM &&
+            /* XXX This rejects compound literals like
+               '(void *){ptr}'.  The problem is that '&sym' is
+               represented the same way, which would be ruled out
+               by the SYM_FIRST_ANOM check above, but also '"string"'
+               in 'char *p = "string"' is represented the same
+               with the type being VT_PTR and the symbol being an
+               anonymous one.  That is, there's no difference in vtop
+               between '(void *){x}' and '&(void *){x}'.  Ignore
+               pointer typed entities here.  Hopefully no real code
+               will ever use compound literals with scalar type.  */
+            (vtop->type.t & VT_BTYPE) != VT_PTR) {
+            /* These come from compound literals, memcpy stuff over.  */
+            Section* ssec;
+            ElfSym* esym;
+            ElfW_Rel* rel;
+            esym = elfsym(vtop->sym);
+            ssec = tcc_state->sections[esym->st_shndx];
+            memmove(ptr, ssec->data + esym->st_value + (int)vtop->c.i, size);
+            if (ssec->reloc) {
+                /* We need to copy over all memory contents, and that
+                   includes relocations.  Use the fact that relocs are
+                   created it order, so look from the end of relocs
+                   until we hit one before the copied region.  */
                 unsigned long relofs = ssec->reloc->data_offset;
-		while (relofs >= sizeof(*rel)) {
+                while (relofs >= sizeof(*rel)) {
                     relofs -= sizeof(*rel);
                     rel = (ElfW_Rel*)(ssec->reloc->data + relofs);
-		    if (rel->r_offset >= esym->st_value + size)
-		      continue;
-		    if (rel->r_offset < esym->st_value)
-		      break;
-		    put_elf_reloca(symtab_section, sec,
-				   c + rel->r_offset - esym->st_value,
-				   ELFW(R_TYPE)(rel->r_info),
-				   ELFW(R_SYM)(rel->r_info),
+                    if (rel->r_offset >= esym->st_value + size)
+                        continue;
+                    if (rel->r_offset < esym->st_value)
+                        break;
+                    put_elf_reloca(symtab_section, sec,
+                        c + rel->r_offset - esym->st_value,
+                        ELFW(R_TYPE)(rel->r_info),
+                        ELFW(R_SYM)(rel->r_info),
 #if PTR_SIZE == 8
-				   rel->r_addend
+                        rel->r_addend
 #else
-				   0
+                        0
 #endif
-				  );
-		}
-	    }
-	} else {
+                    );
+                }
+            }
+        }
+        else {
             if (type->t & VT_BITFIELD) {
                 int bit_pos, bit_size, bits, n;
-                unsigned char *p, v, m;
+                unsigned char* p, v, m;
                 bit_pos = BIT_POS(vtop->type.t);
                 bit_size = BIT_SIZE(vtop->type.t);
                 p = (unsigned char*)ptr + (bit_pos >> 3);
@@ -7796,85 +7922,87 @@ static void init_putv(init_params *p, CType *type, unsigned long c)
                     *p = (*p & ~m) | (v & m);
                     bits += n, bit_size -= n, bit_pos = 0, ++p;
                 }
-            } else
-            switch(bt) {
-	    case VT_BOOL:
-		*(char *)ptr = val != 0;
-                break;
-	    case VT_BYTE:
-		*(char *)ptr = val;
-		break;
-	    case VT_SHORT:
-                write16le(ptr, val);
-		break;
-	    case VT_FLOAT:
-                write32le(ptr, val);
-		break;
-	    case VT_DOUBLE:
-                write64le(ptr, val);
-		break;
-	    case VT_LDOUBLE:
+            }
+            else
+                switch (bt) {
+                case VT_BOOL:
+                    *(char*)ptr = val != 0;
+                    break;
+                case VT_BYTE:
+                    *(char*)ptr = val;
+                    break;
+                case VT_SHORT:
+                    write16le(ptr, val);
+                    break;
+                case VT_FLOAT:
+                    write32le(ptr, val);
+                    break;
+                case VT_DOUBLE:
+                    write64le(ptr, val);
+                    break;
+                case VT_LDOUBLE:
 #if defined TCC_IS_NATIVE_387
-                /* Host and target platform may be different but both have x87.
-                   On windows, tcc does not use VT_LDOUBLE, except when it is a
-                   cross compiler.  In this case a mingw gcc as host compiler
-                   comes here with 10-byte long doubles, while msvc or tcc won't.
-                   tcc itself can still translate by asm.
-                   In any case we avoid possibly random bytes 11 and 12.
-                */
-                if (sizeof (long double) >= 10)
-                    memcpy(ptr, &vtop->c.ld, 10);
+                    /* Host and target platform may be different but both have x87.
+                       On windows, tcc does not use VT_LDOUBLE, except when it is a
+                       cross compiler.  In this case a mingw gcc as host compiler
+                       comes here with 10-byte long doubles, while msvc or tcc won't.
+                       tcc itself can still translate by asm.
+                       In any case we avoid possibly random bytes 11 and 12.
+                    */
+                    if (sizeof(long double) >= 10)
+                        memcpy(ptr, &vtop->c.ld, 10);
 #ifdef __TINYC__
-                else if (sizeof (long double) == sizeof (double))
-                    __asm__("fldl %1\nfstpt %0\n" : "=m" (*ptr) : "m" (vtop->c.ld));
+                    else if (sizeof(long double) == sizeof(double))
+                        __asm__("fldl %1\nfstpt %0\n" : "=m" (*ptr) : "m" (vtop->c.ld));
 #endif
-                else
+                    else
 #endif
-                /* For other platforms it should work natively, but may not work
-                   for cross compilers */
-                if (sizeof(long double) == LDOUBLE_SIZE)
-                    memcpy(ptr, &vtop->c.ld, LDOUBLE_SIZE);
-                else if (sizeof(double) == LDOUBLE_SIZE)
-                    *(double*)ptr = (double)vtop->c.ld;
-                else if (0 == memcmp(ptr, &vtop->c.ld, LDOUBLE_SIZE))
-                    ; /* nothing to do for 0.0 */
+                        /* For other platforms it should work natively, but may not work
+                           for cross compilers */
+                        if (sizeof(long double) == LDOUBLE_SIZE)
+                            memcpy(ptr, &vtop->c.ld, LDOUBLE_SIZE);
+                        else if (sizeof(double) == LDOUBLE_SIZE)
+                            *(double*)ptr = (double)vtop->c.ld;
+                        else if (0 == memcmp(ptr, &vtop->c.ld, LDOUBLE_SIZE))
+                            ; /* nothing to do for 0.0 */
 #ifndef TCC_CROSS_TEST
-                else
-                    tcc_error("long double ï¿½è”ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½Xï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+                        else
+                            tcc_error("long double ’è”‚ğƒNƒƒXƒRƒ“ƒpƒCƒ‹‚Å‚«‚Ü‚¹‚ñ");
 #endif
-		break;
+                    break;
 
 #if PTR_SIZE == 8
-            /* intptr_t may need a reloc too, see tcctest.c:relocation_test() */
-	    case VT_LLONG:
-	    case VT_PTR:
-	        if (vtop->r & VT_SYM)
-	          greloca(sec, vtop->sym, c, R_DATA_PTR, val);
-	        else
-	          write64le(ptr, val);
-	        break;
-            case VT_INT:
-                write32le(ptr, val);
-                break;
+                    /* intptr_t may need a reloc too, see tcctest.c:relocation_test() */
+                case VT_LLONG:
+                case VT_PTR:
+                    if (vtop->r & VT_SYM)
+                        greloca(sec, vtop->sym, c, R_DATA_PTR, val);
+                    else
+                        write64le(ptr, val);
+                    break;
+                case VT_INT:
+                    write32le(ptr, val);
+                    break;
 #else
-	    case VT_LLONG:
-                write64le(ptr, val);
-                break;
-            case VT_PTR:
-            case VT_INT:
-	        if (vtop->r & VT_SYM)
-	          greloc(sec, vtop->sym, c, R_DATA_PTR);
-	        write32le(ptr, val);
-	        break;
+                case VT_LLONG:
+                    write64le(ptr, val);
+                    break;
+                case VT_PTR:
+                case VT_INT:
+                    if (vtop->r & VT_SYM)
+                        greloc(sec, vtop->sym, c, R_DATA_PTR);
+                    write32le(ptr, val);
+                    break;
 #endif
-	    default:
-                //tcc_internal_error("unexpected type");
-                break;
-	    }
-	}
+                default:
+                    //tcc_internal_error("unexpected type");
+                    break;
+                }
+        }
         vtop--;
-    } else {
-        vset(&dtype, VT_LOCAL|VT_LVAL, c);
+    }
+    else {
+        vset(&dtype, VT_LOCAL | VT_LVAL, c);
         vswap();
         vstore();
         vpop();
@@ -7886,24 +8014,24 @@ static void init_putv(init_params *p, CType *type, unsigned long c)
    allocation. 'flags & DIF_FIRST' is true if array '{' must be read (multi
    dimension implicit array init handling). 'flags & DIF_SIZE_ONLY' is true if
    size only evaluation is wanted (only for arrays). */
-static void decl_initializer(init_params *p, CType *type, unsigned long c, int flags)
+static void decl_initializer(init_params* p, CType* type, unsigned long c, int flags)
 {
     int len, n, no_oblock, i;
     int size1, align1;
-    Sym *s, *f;
+    Sym* s, * f;
     Sym indexsym;
-    CType *t1;
+    CType* t1;
 
     /* generate line number info */
     if (debug_modes && !(flags & DIF_SIZE_ONLY) && !p->sec)
-        tcc_debug_line(tcc_state), tcc_tcov_check_line (tcc_state, 1);
+        tcc_debug_line(tcc_state), tcc_tcov_check_line(tcc_state, 1);
 
     if (!(flags & DIF_HAVE_ELEM) && tok != '{' &&
-	/* In case of strings we have special handling for arrays, so
-	   don't consume them as initializer value (which would commit them
-	   to some anonymous symbol).  */
-	tok != TOK_LSTR && tok != TOK_STR &&
-	(!(flags & DIF_SIZE_ONLY)
+        /* In case of strings we have special handling for arrays, so
+           don't consume them as initializer value (which would commit them
+           to some anonymous symbol).  */
+        tok != TOK_LSTR && tok != TOK_STR &&
+        (!(flags & DIF_SIZE_ONLY)
             /* a struct may be initialized from a struct of same type, as in
                     struct {int x,y;} a = {1,2}, b = {3,4}, c[] = {a,b};
                In that case we need to parse the element in order to check
@@ -7913,7 +8041,7 @@ static void decl_initializer(init_params *p, CType *type, unsigned long c, int f
         int ncw_prev = nocode_wanted;
         if ((flags & DIF_SIZE_ONLY) && !p->sec)
             ++nocode_wanted;
-	parse_init_elem(!p->sec ? EXPR_ANY : EXPR_CONST);
+        parse_init_elem(!p->sec ? EXPR_ANY : EXPR_CONST);
         nocode_wanted = ncw_prev;
         flags |= DIF_HAVE_ELEM;
     }
@@ -7933,24 +8061,24 @@ static void decl_initializer(init_params *p, CType *type, unsigned long c, int f
 
         /* only parse strings here if correct type (otherwise: handle
            them as ((w)char *) expressions */
-        if ((tok == TOK_LSTR && 
+        if ((tok == TOK_LSTR &&
 #ifdef TCC_TARGET_PE
-             (t1->t & VT_BTYPE) == VT_SHORT && (t1->t & VT_UNSIGNED)
+        (t1->t & VT_BTYPE) == VT_SHORT && (t1->t & VT_UNSIGNED)
 #else
-             (t1->t & VT_BTYPE) == VT_INT
+            (t1->t & VT_BTYPE) == VT_INT
 #endif
             ) || (tok == TOK_STR && (t1->t & VT_BTYPE) == VT_BYTE)) {
-	    len = 0;
+            len = 0;
             cstr_reset(&initstr);
-                        if (size1 != (tok == TOK_STR ? 1 : sizeof(nwchar_t)))
-                            tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ñƒŠƒeï¿½ï¿½ï¿½ï¿½ï¿½ÌŒï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+            if (size1 != (tok == TOK_STR ? 1 : sizeof(nwchar_t)))
+                tcc_error("•¶š—ñƒŠƒeƒ‰ƒ‹‚ÌŒ‹‡‚ğˆ—‚Å‚«‚Ü‚¹‚ñ");
             while (tok == TOK_STR || tok == TOK_LSTR) {
                 if (initstr.size)
-                  initstr.size -= size1;
+                    initstr.size -= size1;
                 if (tok == TOK_STR)
-                  len += tokc.str.size;
+                    len += tokc.str.size;
                 else
-                  len += tokc.str.size / sizeof(nwchar_t);
+                    len += tokc.str.size / sizeof(nwchar_t);
                 len--;
                 cstr_cat(&initstr, tokc.str.data, tokc.str.size);
                 next();
@@ -7969,89 +8097,95 @@ static void decl_initializer(init_params *p, CType *type, unsigned long c, int f
                 int nb = n, ch;
                 if (len < nb)
                     nb = len;
-                                if (len > nb)
-                                    tcc_warning("ï¿½zï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ñ‚ª’ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
+                if (len > nb)
+                    tcc_warning("”z—ñ‚Ì‰Šú‰»•¶š—ñ‚ª’·‚·‚¬‚Ü‚·");
                 /* in order to go faster for common case (char
                    string in global variable, we handle it
                    specifically */
                 if (p->sec && size1 == 1) {
                     init_assert(p, c + nb);
                     if (!NODATA_WANTED)
-                      memcpy(p->sec->data + c, initstr.data, nb);
-                } else {
-                    for(i=0;i<n;i++) {
+                        memcpy(p->sec->data + c, initstr.data, nb);
+                }
+                else {
+                    for (i = 0; i < n; i++) {
                         if (i >= nb) {
-                          /* only add trailing zero if enough storage (no
-                             warning in this case since it is standard) */
-                          if (flags & DIF_CLEAR)
-                            break;
-                          if (n - i >= 4) {
-                            init_putz(p, c + i * size1, (n - i) * size1);
-                            break;
-                          }
-                          ch = 0;
-                        } else if (size1 == 1)
-                          ch = ((unsigned char *)initstr.data)[i];
+                            /* only add trailing zero if enough storage (no
+                               warning in this case since it is standard) */
+                            if (flags & DIF_CLEAR)
+                                break;
+                            if (n - i >= 4) {
+                                init_putz(p, c + i * size1, (n - i) * size1);
+                                break;
+                            }
+                            ch = 0;
+                        }
+                        else if (size1 == 1)
+                            ch = ((unsigned char*)initstr.data)[i];
                         else
-                          ch = ((nwchar_t *)initstr.data)[i];
+                            ch = ((nwchar_t*)initstr.data)[i];
                         vpushi(ch);
                         init_putv(p, t1, c + i * size1);
                     }
                 }
             }
-        } else {
+        }
+        else {
 
-          do_init_array:
-	    indexsym.c = 0;
-	    f = &indexsym;
+        do_init_array:
+            indexsym.c = 0;
+            f = &indexsym;
 
-          do_init_list:
+        do_init_list:
             /* zero memory once in advance */
             if (!(flags & (DIF_CLEAR | DIF_SIZE_ONLY))) {
-                init_putz(p, c, n*size1);
+                init_putz(p, c, n * size1);
                 flags |= DIF_CLEAR;
             }
 
-	    len = 0;
+            len = 0;
             /* GNU extension: if the initializer is empty for a flex array,
                it's size is zero.  We won't enter the loop, so set the size
                now.  */
             decl_design_flex(p, s, len);
-	    while (tok != '}' || (flags & DIF_HAVE_ELEM)) {
-		len = decl_designator(p, type, c, &f, flags, len);
-		flags &= ~DIF_HAVE_ELEM;
-		if (type->t & VT_ARRAY) {
-		    ++indexsym.c;
-		    /* special test for multi dimensional arrays (may not
-		       be strictly correct if designators are used at the
-		       same time) */
-		    if (no_oblock && len >= n*size1)
-		        break;
-		} else {
-		    if (s->type.t == VT_UNION)
-		        f = NULL;
-		    else
-		        f = f->next;
-		    if (no_oblock && f == NULL)
-		        break;
-		}
+            while (tok != '}' || (flags & DIF_HAVE_ELEM)) {
+                len = decl_designator(p, type, c, &f, flags, len);
+                flags &= ~DIF_HAVE_ELEM;
+                if (type->t & VT_ARRAY) {
+                    ++indexsym.c;
+                    /* special test for multi dimensional arrays (may not
+                       be strictly correct if designators are used at the
+                       same time) */
+                    if (no_oblock && len >= n * size1)
+                        break;
+                }
+                else {
+                    if (s->type.t == VT_UNION)
+                        f = NULL;
+                    else
+                        f = f->next;
+                    if (no_oblock && f == NULL)
+                        break;
+                }
 
-		if (tok == '}')
-		    break;
-		skip(',');
-	    }
+                if (tok == '}')
+                    break;
+                skip(',');
+            }
         }
         if (!no_oblock)
             skip('}');
 
-    } else if ((flags & DIF_HAVE_ELEM)
+    }
+    else if ((flags & DIF_HAVE_ELEM)
         /* Use i_c_parameter_t, to strip toplevel qualifiers.
            The source type might have VT_CONSTANT set, which is
            of course assignable to non-const elements.  */
-            && is_compatible_unqualified_types(type, &vtop->type)) {
+        && is_compatible_unqualified_types(type, &vtop->type)) {
         goto one_elem;
 
-    } else if ((type->t & VT_BTYPE) == VT_STRUCT) {
+    }
+    else if ((type->t & VT_BTYPE) == VT_STRUCT) {
         no_oblock = 1;
         if ((flags & DIF_FIRST) || tok == '{') {
             skip('{');
@@ -8061,37 +8195,40 @@ static void decl_initializer(init_params *p, CType *type, unsigned long c, int f
         f = s->next;
         n = s->c;
         size1 = 1;
-	goto do_init_list;
+        goto do_init_list;
 
-    } else if (tok == '{') {
+    }
+    else if (tok == '{') {
         if (flags & DIF_HAVE_ELEM)
-          skip(';');
+            skip(';');
         next();
         decl_initializer(p, type, c, flags & ~DIF_HAVE_ELEM);
         skip('}');
 
-    } else one_elem: if ((flags & DIF_SIZE_ONLY)) {
-	/* If we supported only ISO C we wouldn't have to accept calling
-	   this on anything than an array if DIF_SIZE_ONLY (and even then
-	   only on the outermost level, so no recursion would be needed),
-	   because initializing a flex array member isn't supported.
-	   But GNU C supports it, so we need to recurse even into
-	   subfields of structs and arrays when DIF_SIZE_ONLY is set.  */
-        /* just skip expression */
+    }
+    else one_elem: if ((flags & DIF_SIZE_ONLY)) {
+        /* If we supported only ISO C we wouldn't have to accept calling
+           this on anything than an array if DIF_SIZE_ONLY (and even then
+           only on the outermost level, so no recursion would be needed),
+           because initializing a flex array member isn't supported.
+           But GNU C supports it, so we need to recurse even into
+           subfields of structs and arrays when DIF_SIZE_ONLY is set.  */
+           /* just skip expression */
         if (flags & DIF_HAVE_ELEM)
             vpop();
         else
             skip_or_save_block(NULL);
 
-    } else {
-	if (!(flags & DIF_HAVE_ELEM)) {
-	    /* This should happen only when we haven't parsed
-	       the init element above for fear of committing a
-	       string constant to memory too early.  */
-	    if (tok != TOK_STR && tok != TOK_LSTR)
-	      expect("string constant");
-	    parse_init_elem(!p->sec ? EXPR_ANY : EXPR_CONST);
-	}
+    }
+    else {
+        if (!(flags & DIF_HAVE_ELEM)) {
+            /* This should happen only when we haven't parsed
+               the init element above for fear of committing a
+               string constant to memory too early.  */
+            if (tok != TOK_STR && tok != TOK_LSTR)
+                expect("string constant");
+            parse_init_elem(!p->sec ? EXPR_ANY : EXPR_CONST);
+        }
         if (!p->sec && (flags & DIF_CLEAR) /* container was already zero'd */
             && (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST
             && vtop->c.i == 0
@@ -8110,20 +8247,20 @@ static void decl_initializer(init_params *p, CType *type, unsigned long c, int f
    are parsed. If 'v' is zero, then a reference to the new object
    is put in the value stack. If 'has_init' is 2, a special parsing
    is done to handle string constants. */
-static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, 
-                                   int has_init, int v, int global)
+static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
+    int has_init, int v, int global)
 {
     int size, align, addr;
-    TokenString *init_str = NULL;
+    TokenString* init_str = NULL;
 
-    Section *sec;
-    Sym *flexible_array;
-    Sym *sym;
+    Section* sec;
+    Sym* flexible_array;
+    Sym* sym;
     int saved_nocode_wanted = nocode_wanted;
 #ifdef CONFIG_TCC_BCHECK
     int bcheck = tcc_state->do_bounds_check && !NODATA_WANTED;
 #endif
-    init_params p = {0};
+    init_params p = { 0 };
 
     /* Always allocate static or global variables */
     if (v && (r & VT_VALMASK) == VT_CONST)
@@ -8135,11 +8272,11 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
     /* exactly one flexible array may be initialized, either the
        toplevel array or the last member of the toplevel struct */
 
-        if (size < 0) {
+    if (size < 0) {
         // error out except for top-level incomplete arrays
         // (arrays of incomplete types are handled in array parsing)
         if (!(type->t & VT_ARRAY))
-            tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
+            tcc_error("•sŠ®‘SŒ^‚Ì‰Šú‰»‚Å‚·");
 
         /* If the base type itself was an array type of unspecified size
            (like in 'typedef int arr[]; arr x = {1};') then we will
@@ -8148,8 +8285,9 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         type->ref = sym_push(SYM_FIELD, &type->ref->type, 0, type->ref->c);
         p.flex_array_ref = type->ref;
 
-    } else if (has_init && (type->t & VT_BTYPE) == VT_STRUCT) {
-        Sym *field = type->ref->next;
+    }
+    else if (has_init && (type->t & VT_BTYPE) == VT_STRUCT) {
+        Sym* field = type->ref->next;
         if (field) {
             while (field->next)
                 field = field->next;
@@ -8163,8 +8301,8 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
 
     if (size < 0) {
         /* If unknown size, do a dry-run 1st pass */
-        if (!has_init) 
-            tcc_error("ï¿½^ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Å‚ï¿½");
+        if (!has_init)
+            tcc_error("Œ^‚ÌƒTƒCƒY‚ª•s–¾‚Å‚·");
         if (has_init == 2) {
             /* only get strings */
             init_str = tok_str_alloc();
@@ -8173,7 +8311,8 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
                 next();
             }
             tok_str_add(init_str, TOK_EOF);
-        } else
+        }
+        else
             skip_or_save_block(&init_str);
         unget_tok(0);
 
@@ -8187,22 +8326,23 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
 
         /* if still unknown size, error */
         size = type_size(type, &align);
-        if (size < 0) 
-            tcc_error("ï¿½^ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Å‚ï¿½");
+        if (size < 0)
+            tcc_error("Œ^‚ÌƒTƒCƒY‚ª•s–¾‚Å‚·");
 
         /* If there's a flex member and it was used in the initializer
            adjust size.  */
         if (flexible_array && flexible_array->type.ref->c > 0)
             size += flexible_array->type.ref->c
-                    * pointed_size(&flexible_array->type);
+            * pointed_size(&flexible_array->type);
     }
 
     /* take into account specified alignment if bigger */
     if (ad->a.aligned) {
-	int speca = 1 << (ad->a.aligned - 1);
+        int speca = 1 << (ad->a.aligned - 1);
         if (speca > align)
             align = speca;
-    } else if (ad->a.packed) {
+    }
+    else if (ad->a.packed) {
         align = 1;
     }
 
@@ -8229,29 +8369,31 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         if (v) {
             /* local variable */
 #ifdef CONFIG_TCC_ASM
-	    if (ad->asm_label) {
-		int reg = asm_parse_regvar(ad->asm_label);
-		if (reg >= 0)
-		    r = (r & ~VT_VALMASK) | reg;
-	    }
+            if (ad->asm_label) {
+                int reg = asm_parse_regvar(ad->asm_label);
+                if (reg >= 0)
+                    r = (r & ~VT_VALMASK) | reg;
+            }
 #endif
             sym = sym_push(v, type, r, addr);
-	    if (ad->cleanup_func) {
-		Sym *cls = sym_push2(&all_cleanups,
+            if (ad->cleanup_func) {
+                Sym* cls = sym_push2(&all_cleanups,
                     SYM_FIELD | ++cur_scope->cl.n, 0, 0);
-		cls->prev_tok = sym;
-		cls->cleanup_func = ad->cleanup_func;
-		cls->next = cur_scope->cl.s;
-		cur_scope->cl.s = cls;
-	    }
+                cls->prev_tok = sym;
+                cls->cleanup_func = ad->cleanup_func;
+                cls->next = cur_scope->cl.s;
+                cur_scope->cl.s = cls;
+            }
 
             sym->a = ad->a;
-        } else {
+        }
+        else {
             /* push local reference */
             vset(type, r, addr);
         }
-    } else {
-	sym = NULL;
+    }
+    else {
+        sym = NULL;
         if (v && global) {
             /* see if the symbol was already defined */
             sym = sym_find(v);
@@ -8274,29 +8416,32 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         /* allocate symbol in corresponding section */
         sec = ad->section;
         if (!sec) {
-            CType *tp = type;
-            while ((tp->t & (VT_BTYPE|VT_ARRAY)) == (VT_PTR|VT_ARRAY))
+            CType* tp = type;
+            while ((tp->t & (VT_BTYPE | VT_ARRAY)) == (VT_PTR | VT_ARRAY))
                 tp = &tp->ref->type;
             if (tp->t & VT_CONSTANT) {
-		sec = rodata_section;
-            } else if (has_init) {
-		sec = data_section;
+                sec = rodata_section;
+            }
+            else if (has_init) {
+                sec = data_section;
                 /*if (g_debug & 4)
                     tcc_warning("rw data: %s", get_tok_str(v, 0));*/
-            } else if (tcc_state->nocommon)
+            }
+            else if (tcc_state->nocommon)
                 sec = bss_section;
         }
 
         if (sec) {
-	    addr = section_add(sec, size, align);
+            addr = section_add(sec, size, align);
 #ifdef CONFIG_TCC_BCHECK
             /* add padding if bound check */
             if (bcheck)
                 section_add(sec, 1, 1);
 #endif
-        } else {
+        }
+        else {
             addr = align; /* SHN_COMMON is special, symbol value is align */
-	    sec = common_section;
+            sec = common_section;
         }
 
         if (v) {
@@ -8305,19 +8450,20 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
                 patch_storage(sym, ad, NULL);
             }
             /* update symbol definition */
-	    put_extern_sym(sym, sec, addr, size);
-        } else {
+            put_extern_sym(sym, sec, addr, size);
+        }
+        else {
             /* push global reference */
             vpush_ref(type, sec, addr, size);
             sym = vtop->sym;
-	    vtop->r |= r;
+            vtop->r |= r;
         }
 
 #ifdef CONFIG_TCC_BCHECK
         /* handles bounds now because the symbol must be defined
            before for the relocation */
         if (bcheck) {
-            addr_t *bounds_ptr;
+            addr_t* bounds_ptr;
 
             greloca(bounds_section, sym, bounds_section->data_offset, R_DATA_PTR, 0);
             /* then add global bound info */
@@ -8338,7 +8484,8 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         if (cur_scope->vla.num == 0) {
             if (cur_scope->prev && cur_scope->prev->vla.num) {
                 cur_scope->vla.locorig = cur_scope->prev->vla.loc;
-            } else {
+            }
+            else {
                 gen_vla_sp_save(loc -= PTR_SIZE);
                 cur_scope->vla.locorig = loc;
             }
@@ -8354,7 +8501,8 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
         gen_vla_sp_save(addr);
         cur_scope->vla.loc = addr;
         cur_scope->vla.num++;
-    } else if (has_init) {
+    }
+    else if (has_init) {
         p.sec = sec;
         decl_initializer(&p, type, addr, DIF_FIRST);
         /* patch flexible array member size back to -1, */
@@ -8363,7 +8511,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
             flexible_array->type.ref->c = -1;
     }
 
- no_alloc:
+no_alloc:
     /* restore parse state if needed */
     if (init_str) {
         end_macro();
@@ -8374,39 +8522,39 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
 }
 
 /* generate vla code saved in post_type() */
-static void func_vla_arg_code(Sym *arg)
+static void func_vla_arg_code(Sym* arg)
 {
     int align;
-    TokenString *vla_array_tok = NULL;
+    TokenString* vla_array_tok = NULL;
 
     if (arg->type.ref)
         func_vla_arg_code(arg->type.ref);
 
     if ((arg->type.t & VT_VLA) && arg->type.ref->vla_array_str) {
-	loc -= type_size(&int_type, &align);
-	loc &= -align;
-	arg->type.ref->c = loc;
+        loc -= type_size(&int_type, &align);
+        loc &= -align;
+        arg->type.ref->c = loc;
 
-	unget_tok(0);
-	vla_array_tok = tok_str_alloc();
-	vla_array_tok->str = arg->type.ref->vla_array_str;
-	begin_macro(vla_array_tok, 1);
-	next();
-	gexpr();
-	end_macro();
-	next();
-	vpush_type_size(&arg->type.ref->type, &align);
-	gen_op('*');
-	vset(&int_type, VT_LOCAL|VT_LVAL, arg->type.ref->c);
-	vswap();
-	vstore();
-	vpop();
+        unget_tok(0);
+        vla_array_tok = tok_str_alloc();
+        vla_array_tok->str = arg->type.ref->vla_array_str;
+        begin_macro(vla_array_tok, 1);
+        next();
+        gexpr();
+        end_macro();
+        next();
+        vpush_type_size(&arg->type.ref->type, &align);
+        gen_op('*');
+        vset(&int_type, VT_LOCAL | VT_LVAL, arg->type.ref->c);
+        vswap();
+        vstore();
+        vpop();
     }
 }
 
-static void func_vla_arg(Sym *sym)
+static void func_vla_arg(Sym* sym)
 {
-    Sym *arg;
+    Sym* arg;
 
     for (arg = sym->type.ref->next; arg; arg = arg->next)
         if ((arg->type.t & VT_BTYPE) == VT_PTR && (arg->type.ref->type.t & VT_VLA))
@@ -8415,7 +8563,7 @@ static void func_vla_arg(Sym *sym)
 
 /* parse a function defined by symbol 'sym' and generate its code in
    'cur_text_section' */
-static void gen_function(Sym *sym)
+static void gen_function(Sym* sym)
 {
     struct scope f = { 0 };
     cur_scope = root_scope = &f;
@@ -8423,9 +8571,9 @@ static void gen_function(Sym *sym)
 
     ind = cur_text_section->data_offset;
     if (sym->a.aligned) {
-	size_t newoff = section_add(cur_text_section, 0,
-				    1 << (sym->a.aligned - 1));
-	gen_fill_nops(newoff - ind);
+        size_t newoff = section_add(cur_text_section, 0,
+            1 << (sym->a.aligned - 1));
+        gen_fill_nops(newoff - ind);
     }
 
     funcname = get_tok_str(sym->v, NULL);
@@ -8437,9 +8585,9 @@ static void gen_function(Sym *sym)
     put_extern_sym(sym, cur_text_section, ind, 0);
 
     if (sym->type.ref->f.func_ctor)
-        add_array (tcc_state, ".init_array", sym->c);
+        add_array(tcc_state, ".init_array", sym->c);
     if (sym->type.ref->f.func_dtor)
-        add_array (tcc_state, ".fini_array", sym->c);
+        add_array(tcc_state, ".fini_array", sym->c);
 
     /* put debug symbol */
     tcc_debug_funcstart(tcc_state, sym);
@@ -8488,11 +8636,11 @@ static void gen_function(Sym *sym)
     next();
 }
 
-static void gen_inline_functions(TCCState *s)
+static void gen_inline_functions(TCCState* s)
 {
-    Sym *sym;
+    Sym* sym;
     int inline_generated, i;
-    struct InlineFunc *fn;
+    struct InlineFunc* fn;
 
     tcc_open_bf(s, ":inline:", 0);
     /* iterate while inline function are referenced */
@@ -8519,12 +8667,12 @@ static void gen_inline_functions(TCCState *s)
     tcc_close();
 }
 
-static void free_inline_functions(TCCState *s)
+static void free_inline_functions(TCCState* s)
 {
     int i;
     /* free tokens of unused inline functions */
     for (i = 0; i < s->nb_inline_fns; ++i) {
-        struct InlineFunc *fn = s->inline_fns[i];
+        struct InlineFunc* fn = s->inline_fns[i];
         if (fn->sym)
             tok_str_free(fn->func_str);
     }
@@ -8534,7 +8682,7 @@ static void free_inline_functions(TCCState *s)
 static void do_Static_assert(void)
 {
     int c;
-    const char *msg;
+    const char* msg;
 
     next();
     skip('(');
@@ -8557,9 +8705,9 @@ static int decl(int l)
 {
     int v, has_init, r, oldint;
     CType type, btype;
-    Sym *sym;
+    Sym* sym;
     AttributeDef ad, adbase;
-    ElfSym *esym;
+    ElfSym* esym;
 
     while (1) {
 
@@ -8584,11 +8732,12 @@ static int decl(int l)
                 continue;
             }
             if (tok >= TOK_UIDENT) {
-               /* special test for old K&R protos without explicit int
-                  type. Only accepted when defining global data */
+                /* special test for old K&R protos without explicit int
+                   type. Only accepted when defining global data */
                 btype.t = VT_INT;
                 oldint = 1;
-            } else {
+            }
+            else {
                 if (tok != TOK_EOF)
                     expect("declaration");
                 break;
@@ -8596,13 +8745,13 @@ static int decl(int l)
         }
 
         if (tok == ';') {
-	    if ((btype.t & VT_BTYPE) == VT_STRUCT) {
-		v = btype.ref->v;
-		if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) >= SYM_FIRST_ANOM)
-        	    tcc_warning("ï¿½Cï¿½ï¿½ï¿½Xï¿½^ï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½`ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ struct/union ï¿½Å‚ï¿½");
+            if ((btype.t & VT_BTYPE) == VT_STRUCT) {
+                v = btype.ref->v;
+                if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) >= SYM_FIRST_ANOM)
+                    tcc_warning("ƒCƒ“ƒXƒ^ƒ“ƒX‚ğ’è‹`‚µ‚È‚¢–³–¼ struct/union ‚Å‚·");
                 next();
                 continue;
-	    }
+            }
             if (IS_ENUM(btype.t)) {
                 next();
                 continue;
@@ -8611,7 +8760,7 @@ static int decl(int l)
 
         while (1) { /* iterate thru each declaration */
             type = btype;
-	    ad = adbase;
+            ad = adbase;
             type_decl(&type, &ad, &v, TYPE_DIRECT);
 #if 0
             {
@@ -8621,8 +8770,8 @@ static int decl(int l)
             }
 #endif
             if ((type.t & VT_BTYPE) == VT_FUNC) {
-                    if ((type.t & VT_STATIC) && (l != VT_CONST))
-                    tcc_error("ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Xï¿½Rï¿½[ï¿½vï¿½Oï¿½ÌŠÖï¿½ï¿½ï¿½ static ï¿½É‚Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+                if ((type.t & VT_STATIC) && (l != VT_CONST))
+                    tcc_error("ƒtƒ@ƒCƒ‹ƒXƒR[ƒvŠO‚ÌŠÖ”‚Í static ‚É‚Å‚«‚Ü‚¹‚ñ");
                 /* if old style function prototype, we accept a
                    declaration list */
                 sym = type.ref;
@@ -8631,7 +8780,7 @@ static int decl(int l)
                     decl(VT_CMP);
                 }
 
-                if ((type.t & (VT_EXTERN|VT_INLINE)) == (VT_EXTERN|VT_INLINE)) {
+                if ((type.t & (VT_EXTERN | VT_INLINE)) == (VT_EXTERN | VT_INLINE)) {
                     /* always_inline functions must be handled as if they
                        don't generate multiple global defs, even if extern
                        inline, i.e. GNU inline semantics for those.  Rewrite
@@ -8642,31 +8791,33 @@ static int decl(int l)
                         type.t &= ~VT_INLINE; /* always compile otherwise */
                 }
 
-            } else if (oldint) {
-                tcc_warning("ï¿½^ï¿½ÍŠï¿½ï¿½ï¿½ï¿½ int ï¿½É‚È‚ï¿½Ü‚ï¿½");
+            }
+            else if (oldint) {
+                tcc_warning("Œ^‚ÍŠù’è‚Å int ‚É‚È‚è‚Ü‚·");
             }
 
             if (gnu_ext && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
                 ad.asm_label = asm_label_instr();
                 /* parse one last attribute list, after asm label */
                 parse_attribute(&ad);
-            #if 0
+#if 0
                 /* gcc does not allow __asm__("label") with function definition,
                    but why not ... */
                 if (tok == '{')
                     expect(";");
-            #endif
+#endif
             }
 
 #ifdef TCC_TARGET_PE
-                if (ad.a.dllimport || ad.a.dllexport) {
+            if (ad.a.dllimport || ad.a.dllexport) {
                 if (type.t & VT_STATIC)
-                    tcc_error("static ï¿½wï¿½ï¿½ï¿½ DLL ï¿½ï¿½ï¿½ï¿½ï¿½Pï¿½[ï¿½Wï¿½Í•ï¿½ï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+                    tcc_error("static w’è‚Æ DLL ƒŠƒ“ƒP[ƒW‚Í•¹—p‚Å‚«‚Ü‚¹‚ñ");
                 if (type.t & VT_TYPEDEF) {
                     tcc_warning("'%s' attribute ignored for typedef",
                         ad.a.dllimport ? (ad.a.dllimport = 0, "dllimport") :
                         (ad.a.dllexport = 0, "dllexport"));
-                } else if (ad.a.dllimport) {
+                }
+                else if (ad.a.dllimport) {
                     if ((type.t & VT_BTYPE) == VT_FUNC)
                         ad.a.dllimport = 0;
                     else
@@ -8674,9 +8825,9 @@ static int decl(int l)
                 }
             }
 #endif
-                if (tok == '{') {
+            if (tok == '{') {
                 if (l != VT_CONST)
-                    tcc_error("ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Öï¿½ï¿½ï¿½ï¿½gï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+                    tcc_error("ƒ[ƒJƒ‹ŠÖ”‚ğg—p‚Å‚«‚Ü‚¹‚ñ");
                 if ((type.t & VT_BTYPE) != VT_FUNC)
                     expect("function definition");
 
@@ -8701,14 +8852,15 @@ static int decl(int l)
                    of macro. Their code will be emitted at the end of
                    the compilation unit only if they are used */
                 if (sym->type.t & VT_INLINE) {
-                    struct InlineFunc *fn;
-                    fn = tcc_malloc(sizeof *fn + strlen(file->filename));
+                    struct InlineFunc* fn;
+                    fn = tcc_malloc(sizeof * fn + strlen(file->filename));
                     strcpy(fn->filename, file->filename);
                     fn->sym = sym;
                     dynarray_add(&tcc_state->inline_fns,
-				 &tcc_state->nb_inline_fns, fn);
+                        &tcc_state->nb_inline_fns, fn);
                     skip_or_save_block(&fn->func_str);
-                } else {
+                }
+                else {
                     /* compute text section */
                     cur_text_section = ad.section;
                     if (!cur_text_section)
@@ -8718,60 +8870,66 @@ static int decl(int l)
                     gen_function(sym);
                 }
                 break;
-            } else {
-		if (l == VT_CMP) {
-		    /* find parameter in function parameter list */
-            for (sym = func_vt.ref->next; sym; sym = sym->next)
-                if ((sym->v & ~SYM_FIELD) == v)
-                    goto found;
-            tcc_error("ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ '%s' ï¿½ÌéŒ¾ï¿½Å‚ï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Ì‚æ‚¤ï¿½Èƒpï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
-                  get_tok_str(v, NULL));
+            }
+            else {
+                if (l == VT_CMP) {
+                    /* find parameter in function parameter list */
+                    for (sym = func_vt.ref->next; sym; sym = sym->next)
+                        if ((sym->v & ~SYM_FIELD) == v)
+                            goto found;
+                    tcc_error("ƒpƒ‰ƒ[ƒ^ '%s' ‚ÌéŒ¾‚Å‚·‚ªA‚»‚Ì‚æ‚¤‚Èƒpƒ‰ƒ[ƒ^‚Í‚ ‚è‚Ü‚¹‚ñ",
+                        get_tok_str(v, NULL));
                 found:
-                        if (type.t & VT_STORAGE) /* 'register' is okay */
-                                tcc_error("'%s' ï¿½ÉƒXï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½wï¿½è‚³ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½",
-                                    get_tok_str(v, NULL));
-                        if (sym->type.t != VT_VOID)
-                                tcc_error("ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ '%s' ï¿½ÌÄ’ï¿½`ï¿½Å‚ï¿½",
-                                    get_tok_str(v, NULL));
-		    convert_parameter_type(&type);
-		    sym->type = type;
-		} else if (type.t & VT_TYPEDEF) {
+                    if (type.t & VT_STORAGE) /* 'register' is okay */
+                        tcc_error("'%s' ‚ÉƒXƒgƒŒ[ƒWƒNƒ‰ƒX‚ªw’è‚³‚ê‚Ä‚¢‚Ü‚·",
+                            get_tok_str(v, NULL));
+                    if (sym->type.t != VT_VOID)
+                        tcc_error("ƒpƒ‰ƒ[ƒ^ '%s' ‚ÌÄ’è‹`‚Å‚·",
+                            get_tok_str(v, NULL));
+                    convert_parameter_type(&type);
+                    sym->type = type;
+                }
+                else if (type.t & VT_TYPEDEF) {
                     /* save typedefed type  */
                     /* XXX: test storage specifiers ? */
                     sym = sym_find(v);
                     if (sym && sym->sym_scope == local_scope) {
                         if (!is_compatible_types(&sym->type, &type)
                             || !(sym->type.t & VT_TYPEDEF))
-                            tcc_error("'%s' ï¿½ÌÄ’ï¿½`ï¿½ÍŒİŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
+                            tcc_error("'%s' ‚ÌÄ’è‹`‚ÍŒİŠ·«‚ª‚ ‚è‚Ü‚¹‚ñ",
                                 get_tok_str(v, NULL));
                         sym->type = type;
-                    } else {
+                    }
+                    else {
                         sym = sym_push(v, &type, 0, 0);
                     }
                     sym->a = ad.a;
                     if ((type.t & VT_BTYPE) == VT_FUNC)
-                      merge_funcattr(&sym->type.ref->f, &ad.f);
+                        merge_funcattr(&sym->type.ref->f, &ad.f);
                     if (debug_modes)
-                        tcc_debug_typedef (tcc_state, sym);
-    } else if ((type.t & VT_BTYPE) == VT_VOID
-           && !(type.t & VT_EXTERN)) {
-        tcc_error("void ï¿½^ï¿½ÌƒIï¿½uï¿½Wï¿½Fï¿½Nï¿½gï¿½ï¿½éŒ¾ï¿½ï¿½ï¿½é‚±ï¿½Æ‚Í‚Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
-                } else {
+                        tcc_debug_typedef(tcc_state, sym);
+                }
+                else if ((type.t & VT_BTYPE) == VT_VOID
+                    && !(type.t & VT_EXTERN)) {
+                    tcc_error("void Œ^‚ÌƒIƒuƒWƒFƒNƒg‚ğéŒ¾‚·‚é‚±‚Æ‚Í‚Å‚«‚Ü‚¹‚ñ");
+                }
+                else {
                     r = 0;
                     if ((type.t & VT_BTYPE) == VT_FUNC) {
                         /* external function definition */
                         /* specific case for func_call attribute */
                         merge_funcattr(&type.ref->f, &ad.f);
-                    } else if (!(type.t & VT_ARRAY)) {
+                    }
+                    else if (!(type.t & VT_ARRAY)) {
                         /* not lvalue if array */
                         r |= VT_LVAL;
                     }
                     has_init = (tok == '=');
                     if (has_init && (type.t & VT_VLA))
-                        tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ï¿½Íï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+                        tcc_error("‰Â•Ï’·”z—ñ‚Í‰Šú‰»‚Å‚«‚Ü‚¹‚ñ");
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
-		        || (type.t & VT_BTYPE) == VT_FUNC
+                        || (type.t & VT_BTYPE) == VT_FUNC
                         /* as with GCC, uninitialized global arrays with no size
                            are considered extern: */
                         || ((type.t & VT_ARRAY) && !has_init
@@ -8780,7 +8938,8 @@ static int decl(int l)
                         /* external variable or function */
                         type.t |= VT_EXTERN;
                         external_sym(v, &type, r, &ad);
-                    } else {
+                    }
+                    else {
                         if (l == VT_CONST || (type.t & VT_STATIC))
                             r |= VT_CONST;
                         else
@@ -8801,9 +8960,9 @@ static int decl(int l)
                            the aliases until the end of the compile unit.  */
                         esym = elfsym(sym_find(ad.alias_target));
                         if (!esym)
-                            tcc_error("ï¿½ï¿½sï¿½ï¿½ï¿½ï¿½ __alias__ ï¿½ï¿½ï¿½ï¿½ï¿½ÍƒTï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
+                            tcc_error("æs‚·‚é __alias__ ‘®«‚ÍƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
                         put_extern_sym2(sym_find(v), esym->st_shndx,
-                                        esym->st_value, esym->st_size, 1);
+                            esym->st_value, esym->st_size, 1);
                     }
                 }
                 if (tok != ',') {
