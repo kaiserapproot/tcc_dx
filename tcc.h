@@ -563,6 +563,8 @@ typedef struct Sym {
     };
     struct Sym *prev; /* prev symbol in stack */
     struct Sym *prev_tok; /* previous symbol for this token */
+    /* saved token string for an inline function body (for class members) */
+    struct TokenString *inline_func_str;
 } Sym;
 
 /* section definition */
