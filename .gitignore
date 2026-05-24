@@ -243,3 +243,9 @@ proj/iosprooj/iosbase.vsimporter/
 /.vscode
 /dev/*.o
 /dev/*.o
+/test/vs_test/Release Unicode
+/test/vs_test/Release MBCS
+/test/vs_test/Debug Unicode
+/test/vs_test/Debug MBCS
+/test/vs_test/con_cpp_vs_test
+/test/vs_test/con_c_vs_test
