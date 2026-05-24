@@ -3,9 +3,9 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-namespace tcccppunittest
+namespace cppuniut
 {
-	TEST_CLASS(tcccppunittest)
+	TEST_CLASS(cppuniut)
 	{
 	public:
 		

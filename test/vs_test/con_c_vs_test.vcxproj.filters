@@ -13,40 +13,43 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="cunit">
+      <UniqueIdentifier>{601b812a-5d10-4742-b78f-899cbbc6a823}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="vs_test_main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\Automated.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\Basic.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\Console.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\CUError.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\hello_win.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\MyMem.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\TestDB.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\TestRun.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\Util.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
     <ClCompile Include="..\..\dev\cunit\Win.c">
-      <Filter>Source Files</Filter>
+      <Filter>cunit</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

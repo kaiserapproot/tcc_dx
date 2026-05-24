@@ -1,90 +1,48 @@
-#include <windows.h>
-#include <stdio.h>
-
-/*
- * Win32 console/Windows application sample
- */
-void sample_main(void);
-
-void sample_main(void)
+#include <CUnit.h>
+#include <Basic.h>
+int car_setup(void)
 {
-    DWORD dwVersion;
-    DWORD dwWindowsMajorVersion;
-    DWORD dwWindowsMinorVersion;
-    DWORD dwBuild;
-    char buf[256];
-    HANDLE hConsole;
-    SYSTEMTIME st;
-    DWORD drives;
-    int i;
-    char driveLetter;
-#ifdef _WINDOWS
-    char dt[64];
-#endif
-
-    dwVersion = GetVersion();
-    dwWindowsMajorVersion = (DWORD)(LOBYTE(LOWORD(dwVersion)));
-    dwWindowsMinorVersion = (DWORD)(HIBYTE(LOWORD(dwVersion)));
-    dwBuild = 0;
-
-    if (dwVersion < 0x80000000)
-    {
-        dwBuild = (DWORD)(HIWORD(dwVersion));
-    }
-
-        sprintf(buf, "Windows version: %d.%d (Build %d)\n",
-            dwWindowsMajorVersion, dwWindowsMinorVersion, dwBuild);
-
-#ifdef _CONSOLE
-    printf("%s", buf);
-    SetConsoleTitle("console");
-    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-    printf("\nCurrent date/time:\n");
-#else
-    MessageBox(NULL, buf, "Win32 Sample (_WINDOWS)", MB_OK | MB_ICONINFORMATION);
-#endif
-
-    GetLocalTime(&st);
-
-#ifdef _CONSOLE
-    printf("%04d/%02d/%02d %02d:%02d:%02d\n",
-            st.wYear, st.wMonth, st.wDay,
-            st.wHour, st.wMinute, st.wSecond);
-
-    drives = GetLogicalDrives();
-    printf("\nAvailable drives:\n");
-
-    for (i = 0; i < 26; i++)
-    {
-        int mask = drives & (1 << i);
-        if (mask != 0)
-        {
-            driveLetter = 'A' + i;
-            printf("%c:\\n", driveLetter);
-        }
-    }
-
-    printf("\nPress any key to exit...");
-    getchar();
-#else
-    sprintf(dt, "%04d/%02d/%02d %02d:%02d:%02d",
-            st.wYear, st.wMonth, st.wDay,
-            st.wHour, st.wMinute, st.wSecond);
-    MessageBox(NULL, dt, "Current date/time", MB_OK);
-#endif
+	int c = 0;
+	return c != NULL ? 0 : 1;
 }
 
-#ifdef _CONSOLE
-int main(int argc, char **argv)
+int car_teardown(void)
 {
-    sample_main();
-    return 0;
+	return 0;
 }
-#elif defined(_WINDOWS)
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow)
+
+void test_car_init(void)
 {
-    sample_main();
-    return 0;
+	CU_ASSERT_EQUAL(1, 0);
+	CU_ASSERT_EQUAL(1, 0);
 }
-#endif
+
+void test_car_refuel(void)
+{
+	CU_ASSERT_EQUAL(1, 20);
+	CU_ASSERT_EQUAL(1, 40);
+	CU_ASSERT_EQUAL(1, 50);
+}
+
+static CU_TestInfo test_car[] = {
+  { "初期化", test_car_init },
+  { "給油",   test_car_refuel },
+  CU_TEST_INFO_NULL,
+};
+
+static CU_SuiteInfo suites[] = {
+  { "Carのテスト",  car_setup, car_teardown, test_car },
+  CU_SUITE_INFO_NULL,
+};
+void* tinyc_getbp(void)
+{
+	return NULL; // 実際のスタックトレースは行わないシンプルな実装
+}
+int main()
+{
+	CU_initialize_registry();
+	CU_register_suites(suites);
+	CU_basic_set_mode(CU_BRM_VERBOSE);
+	CU_basic_run_tests();
+	CU_cleanup_registry();
+}
