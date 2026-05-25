@@ -1,48 +1,42 @@
-#include <CUnit.h>
+#include "test_common.h"
+extern CU_SuiteInfo stage2_suites[];
 #include <Basic.h>
-int car_setup(void)
+
+void test_no_cplusplus_macro(void)
 {
-	int c = 0;
-	return c != NULL ? 0 : 1;
+#ifdef __cplusplus
+    CU_FAIL("__cplusplus should not be defined in C mode");
+#else
+    CU_PASS();
+#endif
 }
 
-int car_teardown(void)
+void test_class_as_identifier(void)
 {
-	return 0;
+    int class = 42;
+    CU_ASSERT_EQUAL(42, class);
 }
 
-void test_car_init(void)
-{
-	CU_ASSERT_EQUAL(1, 0);
-	CU_ASSERT_EQUAL(1, 0);
-}
-
-void test_car_refuel(void)
-{
-	CU_ASSERT_EQUAL(1, 20);
-	CU_ASSERT_EQUAL(1, 40);
-	CU_ASSERT_EQUAL(1, 50);
-}
-
-static CU_TestInfo test_car[] = {
-  { "初期化", test_car_init },
-  { "給油",   test_car_refuel },
-  CU_TEST_INFO_NULL,
+static CU_TestInfo tests_foundation[] = {
+    { "no __cplusplus in C mode", test_no_cplusplus_macro },
+    { "class as identifier",      test_class_as_identifier },
+    CU_TEST_INFO_NULL,
 };
 
 static CU_SuiteInfo suites[] = {
-  { "Carのテスト",  car_setup, car_teardown, test_car },
-  CU_SUITE_INFO_NULL,
+    { "C Foundation Tests", NULL, NULL, tests_foundation },
+    CU_SUITE_INFO_NULL,
 };
-void* tinyc_getbp(void)
+
+void *tinyc_getbp(void) { return NULL; }
+
+int main(void)
 {
-	return NULL; // 実際のスタックトレースは行わないシンプルな実装
-}
-int main()
-{
-	CU_initialize_registry();
-	CU_register_suites(suites);
-	CU_basic_set_mode(CU_BRM_VERBOSE);
-	CU_basic_run_tests();
-	CU_cleanup_registry();
+    CU_initialize_registry();
+    CU_register_suites(suites);
+    CU_register_suites(stage2_suites);
+    CU_basic_set_mode(CU_BRM_VERBOSE);
+    CU_basic_run_tests();
+    CU_cleanup_registry();
+    return 0;
 }

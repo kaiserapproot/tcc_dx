@@ -449,8 +449,11 @@ typedef struct TokenSym {
     struct Sym *sym_identifier; /* direct pointer to identifier */
     int tok; /* token number */
     int len;
+    int alt_ident_tok;
     char str[1];
 } TokenSym;
+
+#define TCC_CXX_VERSION 199711L
 
 #ifdef TCC_TARGET_PE
 typedef unsigned short nwchar_t;
@@ -565,6 +568,7 @@ typedef struct Sym {
     struct Sym *prev_tok; /* previous symbol for this token */
     /* saved token string for an inline function body (for class members) */
     struct TokenString *inline_func_str;
+    struct Sym *parent_class; /* owning class (C++ member) */
 } Sym;
 
 /* section definition */
@@ -751,6 +755,12 @@ struct TCCState {
     unsigned char option_pthread; /* -pthread option */
     unsigned char enable_new_dtags; /* -Wl,--enable-new-dtags */
     unsigned int  cversion; /* supported C ISO version, 199901 (the default), 201112, ... */
+
+    /* C++ language options */
+    unsigned char cpp;
+    unsigned char cpp_forced;
+    unsigned char extern_c;
+    unsigned char lex_c;
 
     /* C language options */
     unsigned char char_is_unsigned;
@@ -1070,6 +1080,7 @@ struct filespec {
 #define VT_STATIC  0x00002000  /* static variable */
 #define VT_TYPEDEF 0x00004000  /* typedef definition */
 #define VT_INLINE  0x00008000  /* inline definition */
+#define VT_REFERENCE 0x00010000  /* C++ reference type */
 /* currently unused: 0x000[1248]0000  */
 
 #define VT_STRUCT_SHIFT 20     /* shift for bitfield shift values (32 - 2*6) */
