@@ -163,6 +163,369 @@ static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
 static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
+/* --- C++ Stage 2: mangling, references, qualified names --- */
+static Sym *cpp_qualified_class;
+static Sym *cpp_cur_class;
+static int decl_once_flag;
+/* --- C++ Stage 3: this, member calls, default args --- */
+static SValue cpp_member_this;
+static int cpp_member_this_pending;
+static Sym *cpp_this_sym;
+static Sym *cpp_cur_func_class;
+static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
+static void gfunc_param_typed(Sym *func, Sym *arg);
+
+static void mangle_clamp_pos(int buf_size, int *pos)
+{
+    if (*pos >= buf_size)
+        *pos = buf_size - 1;
+}
+
+static void mangle_append_char(char *buf, int buf_size, int *pos, char c)
+{
+    if (*pos + 1 < buf_size)
+        buf[(*pos)++] = c;
+    mangle_clamp_pos(buf_size, pos);
+}
+
+static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
+{
+    CType ty;
+    int bt, wrote, nlen;
+    char c;
+    const char *sn;
+
+    ty = *t;
+    while ((ty.t & VT_BTYPE) == VT_PTR) {
+        mangle_append_char(buf, buf_size, pos,
+            (ty.t & VT_REFERENCE) ? 'r' : 'p');
+        ty = *pointed_type(&ty);
+    }
+    bt = ty.t & VT_BTYPE;
+    c = 'x';
+    switch (bt) {
+    case VT_VOID: c = 'v'; break;
+    case VT_BYTE:
+        c = (ty.t & VT_UNSIGNED) ? 'h' : 'c';
+        break;
+    case VT_SHORT:
+        c = (ty.t & VT_UNSIGNED) ? 't' : 's';
+        break;
+    case VT_INT:
+        if (ty.t & VT_LONG)
+            c = 'l';
+        else if (ty.t & VT_UNSIGNED)
+            c = 'u';
+        else
+            c = 'i';
+        break;
+    case VT_LLONG: c = 'L'; break;
+    case VT_FLOAT: c = 'f'; break;
+    case VT_DOUBLE: c = 'd'; break;
+    case VT_LDOUBLE: c = 'e'; break;
+    case VT_BOOL: c = 'b'; break;
+    case VT_STRUCT:
+        sn = get_tok_str(ty.ref->v & ~SYM_STRUCT, NULL);
+        nlen = (int)strlen(sn);
+        wrote = snprintf(buf + *pos, buf_size - *pos, "S%d_%s", nlen, sn);
+        if (wrote < 0 || wrote >= buf_size - *pos) {
+            mangle_clamp_pos(buf_size, pos);
+            return;
+        }
+        *pos += wrote;
+        mangle_clamp_pos(buf_size, pos);
+        return;
+    default:
+        break;
+    }
+    mangle_append_char(buf, buf_size, pos, c);
+}
+
+static int cpp_build_func_mangle(int v, CType *type, char *mbuf, int buf_size)
+{
+    const char *name;
+    Sym *arg;
+    int pos;
+
+    if (!tcc_state->cpp || tcc_state->extern_c)
+        return 0;
+    if (!type || (type->t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    name = get_tok_str(v, NULL);
+    pos = snprintf(mbuf, buf_size, "__tcc_%s_", name);
+    if (pos < 0 || pos >= buf_size)
+        pos = buf_size - 1;
+    for (arg = type->ref->next; arg; arg = arg->next) {
+        if (arg->type.t == VT_VOID)
+            break;
+        mangle_append_type(&arg->type, mbuf, buf_size, &pos);
+    }
+    mangle_clamp_pos(buf_size, &pos);
+    mbuf[pos] = '\0';
+    return pos;
+}
+
+static int cpp_build_call_mangle(int v, int nb_args, char *mbuf, int buf_size)
+{
+    int pos, i;
+
+    pos = snprintf(mbuf, buf_size, "__tcc_%s_", get_tok_str(v, NULL));
+    if (pos < 0 || pos >= buf_size)
+        pos = buf_size - 1;
+    for (i = nb_args; i > 0; i--)
+        mangle_append_type(&vtop[-nb_args + i].type, mbuf, buf_size, &pos);
+    mangle_clamp_pos(buf_size, &pos);
+    mbuf[pos] = '\0';
+    return pos;
+}
+
+static Sym *cpp_resolve_func_call(int v, int nb_args)
+{
+    Sym *s, *best = NULL;
+    int best_score = -1;
+
+    if (!tcc_state->cpp || tcc_state->extern_c)
+        return sym_find(v);
+
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        Sym *p;
+        int i, score = 0, match = 1;
+
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+
+        p = s->type.ref->next;
+        for (i = 0; i < nb_args; i++) {
+            CType *arg_type = &vtop[-nb_args + 1 + i].type;
+            int p_bt, a_bt;
+
+            if (!p || p->type.t == VT_VOID) {
+                if (s->type.ref->f.func_type == FUNC_ELLIPSIS)
+                    break;
+                match = 0;
+                break;
+            }
+
+            if (is_compatible_types(&p->type, arg_type)) {
+                score += 10;
+            } else {
+                p_bt = p->type.t & VT_BTYPE;
+                a_bt = arg_type->t & VT_BTYPE;
+                if ((is_float(p_bt) || is_integer_btype(p_bt)) &&
+                    (is_float(a_bt) || is_integer_btype(a_bt))) {
+                    score += 1;
+                } else if (p_bt == VT_PTR && a_bt == VT_PTR) {
+                    score += 1;
+                } else {
+                    match = 0;
+                    break;
+                }
+            }
+            p = p->next;
+        }
+
+        if (match && p && p->type.t != VT_VOID)
+            match = 0;
+
+        if (match && score > best_score) {
+            best_score = score;
+            best = s;
+        }
+    }
+
+    if (best)
+        return best;
+    return sym_find(v);
+}
+
+static void cpp_set_func_mangle_label(Sym *sym, CType *type)
+{
+    char mbuf[256];
+    TokenSym *ts;
+    int len;
+    const char *entry_name;
+
+    if (!tcc_state->cpp || tcc_state->extern_c)
+        return;
+    if (!sym || (type->t & VT_BTYPE) != VT_FUNC)
+        return;
+    entry_name = get_tok_str(sym->v, NULL);
+    if (!strcmp(entry_name, "main") || !strcmp(entry_name, "wmain"))
+        return;
+    len = cpp_build_func_mangle(sym->v, type, mbuf, sizeof mbuf);
+    if (len <= 0)
+        return;
+    ts = tok_alloc(mbuf, len);
+    sym->asm_label = ts->tok;
+}
+
+static int parse_cpp_scope_qualifier(int *v)
+{
+    int class_v;
+
+    if (!tcc_state->cpp || tok != ':')
+        return 0;
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        return 0;
+    }
+    next();
+    class_v = *v;
+    if (tok < TOK_IDENT)
+        tcc_error("expected member name after ::");
+    *v = tok;
+    next();
+    cpp_qualified_class = struct_find(class_v);
+    if (!cpp_qualified_class)
+        tcc_error("unknown class in qualified name");
+    return 1;
+}
+
+static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
+{
+    int v;
+    Sym *s, *class_sym;
+
+    if (!field || !obj_type || !obj_type->ref)
+        return field;
+    v = field->v & ~SYM_FIELD;
+    class_sym = obj_type->ref;
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class == class_sym)
+            return s;
+    }
+    return field;
+}
+
+static Sym *cpp_lookup_member_field(int v, Sym *class_sym)
+{
+    Sym *f;
+    int v1;
+
+    if (!class_sym)
+        return NULL;
+    v1 = v | SYM_FIELD;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->v == v1 && (f->type.t & VT_BTYPE) != VT_FUNC)
+            return f;
+    }
+    return NULL;
+}
+
+static void cpp_push_member_var(Sym *field)
+{
+    int cumofs, qualifiers;
+
+    if (!cpp_this_sym)
+        tcc_error("invalid use of member name");
+    cumofs = field->c;
+    vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
+    vtop->sym = cpp_this_sym;
+    indir();
+    qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(cumofs);
+    gen_op('+');
+    vtop->type = field->type;
+    vtop->type.t |= qualifiers;
+    if (!(vtop->type.t & VT_ARRAY))
+        vtop->r |= VT_LVAL;
+}
+
+static void cpp_save_default_arg(Sym *param)
+{
+    TokenString *def;
+    int level;
+
+    if (tok != '=')
+        return;
+    next();
+    def = tok_str_alloc();
+    level = 0;
+    while (1) {
+        int t = tok;
+        if (level == 0 && (t == ',' || t == ')'))
+            break;
+        if (tok == TOK_EOF)
+            tcc_error("unexpected end in default argument");
+        tok_str_add_tok(def);
+        next();
+        if (t == '(')
+            level++;
+        else if (t == ')')
+            level--;
+    }
+    tok_str_add(def, TOK_EOF);
+    param->inline_func_str = def;
+}
+
+static void cpp_register_member_body(Sym *field_sym, Sym *class_sym, CType *ftype, TokenString *body)
+{
+    if (!body || !tcc_state->cpp || !field_sym)
+        return;
+    field_sym->inline_func_str = body;
+}
+
+static void cpp_finish_member_inlines(Sym *class_sym)
+{
+    Sym *f;
+    AttributeDef ad;
+    CType type;
+    struct InlineFunc *fn;
+    Sym *sym;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        TokenString *body;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        body = f->inline_func_str;
+        if (!body)
+            continue;
+        f->inline_func_str = NULL;
+        memset(&ad, 0, sizeof ad);
+        type = f->type;
+        type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
+        sym = external_sym(f->v & ~SYM_FIELD, &type, 0, &ad);
+        sym->parent_class = class_sym;
+        sym->type.t |= VT_INLINE;
+        cpp_set_func_mangle_label(sym, &type);
+        fn = tcc_malloc(sizeof *fn + strlen(file->filename));
+        strcpy(fn->filename, file->filename);
+        fn->sym = sym;
+        fn->func_str = body;
+        dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
+    }
+}
+
+static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa)
+{
+    Sym *sa;
+    int nb_args;
+
+    sa = *psa;
+    nb_args = *pnb_args;
+    while (sa) {
+        if (sa->inline_func_str) {
+            begin_macro(sa->inline_func_str, 1);
+            next();
+            expr_eq();
+            gfunc_param_typed(func, sa);
+            end_macro();
+            nb_args++;
+        } else {
+            tcc_error("too few arguments to function");
+        }
+        sa = sa->next;
+    }
+    *pnb_args = nb_args;
+    *psa = sa;
+}
 static void end_switch(void);
 static void do_Static_assert(void);
 
@@ -386,6 +749,12 @@ ST_FUNC void tccgen_init(TCCState* s1)
     init_prec();
 #endif
     cstr_new(&initstr);
+    cpp_qualified_class = NULL;
+    cpp_cur_class = NULL;
+    decl_once_flag = 0;
+    cpp_member_this_pending = 0;
+    cpp_this_sym = NULL;
+    cpp_cur_func_class = NULL;
 }
 
 ST_FUNC int tccgen_compile(TCCState* s1)
@@ -725,9 +1094,15 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
         s->prev_tok = *ps;
         *ps = s;
         s->sym_scope = local_scope;
-        if (s->prev_tok && sym_scope(s->prev_tok) == s->sym_scope)
-            tcc_error("再定義: '%s'",
+        if (s->prev_tok && sym_scope(s->prev_tok) == s->sym_scope) {
+            if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC) {
+                if (is_compatible_types(&s->prev_tok->type, type))
+                    tcc_error("redefinition of '%s'",
+                        get_tok_str(v & ~SYM_STRUCT, NULL));
+            } else
+                tcc_error("再定義: '%s'",
                 get_tok_str(v & ~SYM_STRUCT, NULL));
+        }
     }
     return s;
 }
@@ -1318,8 +1693,6 @@ static void sym_copy_ref(Sym* s, Sym** ps)
         }
     }
 }
-
-/* シンボル 'v' への新しい外部参照を定義 */
 static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
 {
     Sym* s;
@@ -1339,9 +1712,24 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
         /* copy type to the global stack */
         if (local_stack)
             sym_copy_ref(s, &global_stack);
+        if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC)
+            cpp_set_func_mangle_label(s, type);
     }
     else {
-        patch_storage(s, ad, type);
+        if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC
+            && (s->type.t & VT_BTYPE) == VT_FUNC
+            && !is_compatible_types(&s->type, type)) {
+            s = global_identifier_push(v, type->t, 0);
+            s->r |= r;
+            s->a = ad->a;
+            s->asm_label = ad->asm_label;
+            s->type.ref = type->ref;
+            if (local_stack)
+                sym_copy_ref(s, &global_stack);
+            cpp_set_func_mangle_label(s, type);
+        } else {
+            patch_storage(s, ad, type);
+        }
     }
     /* ローカルスタックに変数があればプッシュする */
     if (local_stack && (s->type.t & VT_BTYPE) != VT_FUNC)
@@ -1350,6 +1738,7 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
 }
 
 /* (vtop - n) のスタックエントリまでのレジスタを保存 */
+
 ST_FUNC void save_regs(int n)
 {
     SValue* p, * p1;
@@ -4198,6 +4587,8 @@ static void struct_layout(CType* type, AttributeDef* ad)
     //#define BF_DEBUG
 
     for (f = type->ref->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
         if (f->type.t & VT_BITFIELD)
             bit_size = BIT_SIZE(f->type.t);
         else
@@ -4440,7 +4831,7 @@ static void struct_layout(CType* type, AttributeDef* ad)
 }
 
 /* enum/struct/union declaration. u is VT_ENUM/VT_STRUCT/VT_UNION */
-static void struct_decl(CType* type, int u)
+static void struct_decl(CType* type, int u, int is_class)
 {
     int v, c, size, align, flexible;
     int bit_size, bsize, bt, ut;
@@ -4495,6 +4886,8 @@ do_decl:
     type->ref = s;
 
     if (tok == '{') {
+        if (is_class)
+            cpp_cur_class = s;
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
@@ -4576,9 +4969,19 @@ do_decl:
 
         }
         else {
+            int cur_access;
             c = 0;
             flexible = 0;
+            cur_access = is_class ? ACCESS_PRIVATE : ACCESS_PUBLIC;
             while (tok != '}') {
+                int skip_member_semi = 0;
+                if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED) {
+                    cur_access = (tok == TOK_PUBLIC) ? ACCESS_PUBLIC :
+                                 (tok == TOK_PROTECTED) ? ACCESS_PROTECTED : ACCESS_PRIVATE;
+                    next();
+                    skip(':');
+                    continue;
+                }
                 if (!parse_btype(&btype, &ad1, 0)) {
                     if (tok == TOK_STATIC_ASSERT) {
                         do_Static_assert();
@@ -4615,7 +5018,8 @@ do_decl:
                                 tcc_error("フィールド '%s' は不完全型です",
                                     get_tok_str(v, NULL));
                         }
-                        if ((type1.t & VT_BTYPE) == VT_FUNC ||
+                        /* Stage 1: member function prototypes allowed in class only; struct in Stage 2+ */
+                        if (((type1.t & VT_BTYPE) == VT_FUNC && !is_class) ||
                             (type1.t & VT_BTYPE) == VT_VOID ||
                             (type1.t & VT_STORAGE))
                             tcc_error("'%s' に対する無効な型",
@@ -4673,9 +5077,17 @@ do_decl:
                             bit_size >= 0)) {
                         v = anon_sym++;
                     }
+                    if ((type1.t & VT_BTYPE) == VT_FUNC && tok == '{') {
+                        skip_or_save_block(NULL);
+                        skip_member_semi = 1;
+                        break;
+                    }
                     if (v) {
                         ss = sym_push(v | SYM_FIELD, &type1, 0, 0);
                         ss->a = ad1.a;
+                        ss->a.access = cur_access;
+                        if ((type1.t & VT_BTYPE) == VT_FUNC)
+                            ss->parent_class = s;
                         *ps = ss;
                         ps = &ss->next;
                     }
@@ -4683,7 +5095,8 @@ do_decl:
                         break;
                     skip(',');
                 }
-                skip(';');
+                if (!skip_member_semi)
+                    skip(';');
             }
             skip('}');
             parse_attribute(&ad);
@@ -4693,8 +5106,19 @@ do_decl:
             check_fields(type, 1);
             check_fields(type, 0);
             struct_layout(type, &ad);
+            if (is_class) {
+                int tag_v;
+                CType ctype;
+
+                tag_v = s->v & ~SYM_STRUCT;
+                ctype = *type;
+                ctype.t &= ~VT_STRUCT;
+                sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
+            }
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
+            if (is_class)
+                cpp_cur_class = NULL;
         }
     }
 }
@@ -4823,16 +5247,21 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             next();
             break;
         case TOK_ENUM:
-            struct_decl(&type1, VT_ENUM);
+            struct_decl(&type1, VT_ENUM, 0);
         basic_type2:
             u = type1.t;
             type->ref = type1.ref;
             goto basic_type1;
         case TOK_STRUCT:
-            struct_decl(&type1, VT_STRUCT);
+            struct_decl(&type1, VT_STRUCT, 0);
+            goto basic_type2;
+        case TOK_CLASS:
+            if (!tcc_state->cpp)
+                tcc_error("class is C++ only");
+            struct_decl(&type1, VT_STRUCT, 1);
             goto basic_type2;
         case TOK_UNION:
-            struct_decl(&type1, VT_UNION);
+            struct_decl(&type1, VT_UNION, 0);
             goto basic_type2;
 
             /* type modifiers */
@@ -4942,9 +5371,20 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             if (typespec_found)
                 goto the_end;
             s = sym_find(tok);
+            if (tcc_state->cpp) {
+                Sym *stsym = struct_find(tok);
+                if (stsym && (stsym->type.t & VT_BTYPE) == VT_STRUCT) {
+                    next();
+                    type->t = stsym->type.t;
+                    type->ref = stsym;
+                    typespec_found = 1;
+                    st = bt = -2;
+                    t = type->t;
+                    break;
+                }
+            }
             if (!s || !(s->type.t & VT_TYPEDEF))
                 goto the_end;
-
             n = tok, next();
             if (tok == ':' && ignore_label) {
                 /* ignore if it's a label */
@@ -5075,6 +5515,8 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
                    nocode_wanted) which is why we push them here as normal symbols
                    temporarily.  Example: int func(int a, int b[++a]); */
                 s = sym_push(n, &pt, VT_LOCAL | VT_LVAL, 0);
+                if (tcc_state->cpp)
+                    cpp_save_default_arg(s);
                 *plast = s;
                 plast = &s->next;
                 if (tok == ')')
@@ -5250,6 +5692,29 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
     type->t &= ~VT_STORAGE;
     post = ret = type;
 
+    while (tok == '&') {
+        if (!tcc_state->cpp)
+            tcc_error("reference type requires C++");
+        qualifiers = 0;
+    redo_ref:
+        next();
+        switch (tok) {
+        case TOK_CONST1:
+        case TOK_CONST2:
+        case TOK_CONST3:
+            qualifiers |= VT_CONSTANT;
+            goto redo_ref;
+        case TOK_VOLATILE1:
+        case TOK_VOLATILE2:
+        case TOK_VOLATILE3:
+            qualifiers |= VT_VOLATILE;
+            goto redo_ref;
+        }
+        mk_pointer(type);
+        type->t |= qualifiers | VT_REFERENCE;
+        if (ret == type)
+            ret = pointed_type(type);
+    }
     while (tok == '*') {
         qualifiers = 0;
     redo:
@@ -5304,6 +5769,7 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
         /* type identifier */
         *v = tok;
         next();
+        parse_cpp_scope_qualifier(v);
     }
     else {
     abstract:
@@ -6120,6 +6586,13 @@ tok_next:
         n = 0x7f800000;
         goto special_math_val;
 
+    case TOK_THIS:
+        if (!tcc_state->cpp || !cpp_this_sym)
+            tcc_error("invalid use of 'this'");
+        next();
+        vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
+        vtop->sym = cpp_this_sym;
+        break;
     default:
     tok_identifier:
         if (tok < TOK_UIDENT)
@@ -6127,6 +6600,13 @@ tok_next:
         t = tok;
         next();
         s = sym_find(t);
+        if (!s && tcc_state->cpp && cpp_cur_func_class) {
+            Sym *mf = cpp_lookup_member_field(t, cpp_cur_func_class);
+            if (mf) {
+                cpp_push_member_var(mf);
+                break;
+            }
+        }
         if (!s || IS_ASM_SYM(s)) {
             const char* name = get_tok_str(t, NULL);
             if (tok != '(')
@@ -6174,30 +6654,41 @@ tok_next:
         }
         else if (tok == '.' || tok == TOK_ARROW) {
             int qualifiers, cumofs;
-            /* field */
+            CType obj_type;
+            Sym *field;
+
             if (tok == TOK_ARROW)
                 indir();
             qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
             test_lvalue();
-            /* expect pointer on structure */
             next();
-            s = find_field(&vtop->type, tok, &cumofs);
-            /* add field offset to pointer */
-            gaddrof();
-            vtop->type = char_pointer_type; /* change type to 'char *' */
-            vpushi(cumofs);
-            gen_op('+');
-            /* change type to field type, and set to lvalue */
-            vtop->type = s->type;
-            vtop->type.t |= qualifiers;
-            /* an array is never an lvalue */
-            if (!(vtop->type.t & VT_ARRAY)) {
-                vtop->r |= VT_LVAL;
+            field = find_field(&vtop->type, tok, &cumofs);
+            if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
+                Sym *fsym;
+
+                obj_type = vtop->type;
+                gaddrof();
+                cpp_member_this = *vtop;
+                vpop();
+                fsym = cpp_lookup_member_func(field, &obj_type);
+                vset(&fsym->type, fsym->r | VT_SYM, 0);
+                vtop->sym = fsym;
+                vtop->r &= ~VT_LVAL;
+                cpp_member_this_pending = 1;
+            } else {
+                gaddrof();
+                vtop->type = char_pointer_type;
+                vpushi(cumofs);
+                gen_op('+');
+                vtop->type = field->type;
+                vtop->type.t |= qualifiers;
+                if (!(vtop->type.t & VT_ARRAY)) {
+                    vtop->r |= VT_LVAL;
 #ifdef CONFIG_TCC_BCHECK
-                /* if bound checking, the referenced pointer must be checked */
-                if (tcc_state->do_bounds_check)
-                    vtop->r |= VT_MUSTBOUND;
+                    if (tcc_state->do_bounds_check)
+                        vtop->r |= VT_MUSTBOUND;
 #endif
+                }
             }
             next();
         }
@@ -6301,8 +6792,10 @@ tok_next:
                     skip(',');
                 }
             }
-            if (sa)
-                tcc_error("関数への引数が少なすぎます");
+            if (sa && tcc_state->cpp)
+                cpp_apply_default_args(s, &nb_args, &sa);
+            else if (sa)
+                tcc_error("too few arguments to function");
 
             if (p) { /* with reverse_funcargs */
                 for (n = 0; p; p = p2, ++n) {
@@ -6321,6 +6814,31 @@ tok_next:
 
             next();
             vcheck_cmp(); /* the generators don't like VT_CMP on vtop */
+            if (tcc_state->cpp && !tcc_state->extern_c && nb_args >= 0
+                && vtop[-nb_args].sym
+                && (vtop[-nb_args].type.t & VT_BTYPE) == VT_FUNC) {
+                Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args);
+                if (resolved) {
+                    vtop[-nb_args].sym = resolved;
+                    vtop[-nb_args].type.ref = resolved->type.ref;
+                    s = resolved->type.ref;
+                }
+            }
+            if (cpp_member_this_pending) {
+                int na = nb_args;
+
+                if (na == 0) {
+                    vpushv(&cpp_member_this);
+                    nb_args++;
+                } else {
+                    vtop++;
+                    nb_args++;
+                    memmove(vtop - nb_args + 1, vtop - nb_args,
+                        na * sizeof(SValue));
+                    vtop[-nb_args + 1] = cpp_member_this;
+                }
+                cpp_member_this_pending = 0;
+            }
             gfunc_call(nb_args);
 
             if (ret_nregs < 0) {
@@ -8566,6 +9084,8 @@ static void func_vla_arg(Sym* sym)
 static void gen_function(Sym* sym)
 {
     struct scope f = { 0 };
+    Sym *this_param;
+    Sym *saved_param_next;
     cur_scope = root_scope = &f;
     nocode_wanted = 0;
 
@@ -8580,6 +9100,24 @@ static void gen_function(Sym* sym)
     func_ind = ind;
     func_vt = sym->type.ref->type;
     func_var = sym->type.ref->f.func_type == FUNC_ELLIPSIS;
+
+    this_param = NULL;
+    saved_param_next = NULL;
+    cpp_this_sym = NULL;
+    cpp_cur_func_class = sym->parent_class;
+    if (sym->parent_class && tcc_state->cpp) {
+        CType pt;
+
+        pt.t = VT_PTR;
+        pt.ref = sym->parent_class;
+        this_param = sym_malloc();
+        this_param->v = TOK_THIS;
+        this_param->type = pt;
+        saved_param_next = sym->type.ref->next;
+        this_param->next = saved_param_next;
+        sym->type.ref->next = this_param;
+        cpp_this_sym = this_param;
+    }
 
     /* NOTE: we patch the symbol size later */
     put_extern_sym(sym, cur_text_section, ind, 0);
@@ -8623,6 +9161,12 @@ static void gen_function(Sym* sym)
     sym_pop(&all_cleanups, NULL, 0);
 
     /* It's better to crash than to generate wrong code */
+    if (this_param) {
+        sym->type.ref->next = saved_param_next;
+        sym_free(this_param);
+    }
+    cpp_this_sym = NULL;
+    cpp_cur_func_class = NULL;
     cur_text_section = NULL;
     funcname = ""; /* for safety */
     func_vt.t = VT_VOID; /* for safety */
@@ -8711,6 +9255,47 @@ static int decl(int l)
 
     while (1) {
 
+        if (tcc_state->cpp && tok == TOK_EXTERN) {
+            next();
+            if (tok == TOK_STR) {
+                const char *s = tokc.str.data;
+                int len = tokc.str.size - 1;
+
+                if (len == 1 && s[0] == 'C') {
+                    next();
+                    if (tok != '{') {
+                        tcc_state->extern_c++;
+                        tcc_state->lex_c++;
+                        decl_once_flag = 1;
+                        decl(l);
+                        decl_once_flag = 0;
+                        tcc_state->lex_c--;
+                        tcc_state->extern_c--;
+                        continue;
+                    }
+                    next();
+                    tcc_state->extern_c++;
+                    tcc_state->lex_c++;
+                    while (tok != '}') {
+                        if (tok == TOK_EOF)
+                            tcc_error("unclosed extern C block");
+                        decl(l);
+                    }
+                    next();
+                    tcc_state->lex_c--;
+                    tcc_state->extern_c--;
+                    continue;
+                }
+                if (len == 3 && !memcmp(s, "C++", 3)) {
+                    next();
+                    tcc_error("Stage 1: extern C++ not supported");
+                }
+                tcc_error("unsupported linkage");
+            } else {
+                unget_tok(TOK_EXTERN);
+            }
+        }
+
         oldint = 0;
         if (!parse_btype(&btype, &adbase, l == VT_LOCAL)) {
             if (l == VT_JMP)
@@ -8738,8 +9323,11 @@ static int decl(int l)
                 oldint = 1;
             }
             else {
-                if (tok != TOK_EOF)
+                if (tok != TOK_EOF) {
+                    if (tok == '}' && tcc_state->extern_c)
+                        break;
                     expect("declaration");
+                }
                 break;
             }
         }
@@ -8847,6 +9435,12 @@ static int decl(int l)
                 /* put function symbol */
                 type.t &= ~VT_EXTERN;
                 sym = external_sym(v, &type, 0, &ad);
+                if ((type.t & VT_BTYPE) == VT_FUNC)
+                    cpp_set_func_mangle_label(sym, &type);
+                if (cpp_qualified_class) {
+                    sym->parent_class = cpp_qualified_class;
+                    cpp_qualified_class = NULL;
+                }
 
                 /* static inline functions are just recorded as a kind
                    of macro. Their code will be emitted at the end of
@@ -8904,8 +9498,10 @@ static int decl(int l)
                         sym = sym_push(v, &type, 0, 0);
                     }
                     sym->a = ad.a;
-                    if ((type.t & VT_BTYPE) == VT_FUNC)
+                    if ((type.t & VT_BTYPE) == VT_FUNC) {
                         merge_funcattr(&sym->type.ref->f, &ad.f);
+                        cpp_set_func_mangle_label(sym, &type);
+                    }
                     if (debug_modes)
                         tcc_debug_typedef(tcc_state, sym);
                 }
@@ -8937,7 +9533,13 @@ static int decl(int l)
                         ) {
                         /* external variable or function */
                         type.t |= VT_EXTERN;
-                        external_sym(v, &type, r, &ad);
+                        sym = external_sym(v, &type, r, &ad);
+                        if ((type.t & VT_BTYPE) == VT_FUNC)
+                            cpp_set_func_mangle_label(sym, &type);
+                        if (cpp_qualified_class && (type.t & VT_BTYPE) == VT_FUNC) {
+                            sym->parent_class = cpp_qualified_class;
+                            cpp_qualified_class = NULL;
+                        }
                     }
                     else {
                         if (l == VT_CONST || (type.t & VT_STATIC))
@@ -8974,6 +9576,8 @@ static int decl(int l)
                 next();
             }
         }
+        if (decl_once_flag)
+            break;
     }
     return 0;
 }

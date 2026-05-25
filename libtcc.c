@@ -1,4 +1,4 @@
-Ôªø/*
+/*
  *  TCC - Tiny C Compiler
  *
  *  Copyright (c) 2001-2004 Fabrice Bellard
@@ -790,6 +790,8 @@ ST_FUNC int tcc_open(TCCState *s1, const char *filename)
     return 0;
 }
 
+static int is_cpp_source(const char *filename);
+
 /* compile the file opened in 'file'. Return non zero if errors. */
 static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
 {
@@ -800,11 +802,23 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
        Alternatively we could use thread local storage for those global
        variables, which may or may not have advantages */
 
+    unsigned char saved_cpp, saved_extern_c, saved_lex_c;
+
     tcc_enter_state(s1);
     s1->error_set_jmp_enabled = 1;
 
+    saved_cpp = s1->cpp;
+    saved_extern_c = s1->extern_c;
+    saved_lex_c = s1->lex_c;
+
     if (setjmp(s1->error_jmp_buf) == 0) {
         s1->nb_errors = 0;
+
+        s1->cpp = s1->cpp_forced;
+        if (!s1->cpp && str && fd != -1)
+            s1->cpp = is_cpp_source(str);
+        s1->extern_c = 0;
+        s1->lex_c = 0;
 
         if (fd == -1) {
             int len = strlen(str);
@@ -833,6 +847,9 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
     tccgen_finish(s1);
     preprocess_end(s1);
     s1->error_set_jmp_enabled = 0;
+    s1->cpp = saved_cpp;
+    s1->extern_c = saved_extern_c;
+    s1->lex_c = saved_lex_c;
     tcc_exit_state(s1);
     return s1->nb_errors != 0 ? -1 : 0;
 }
@@ -1150,7 +1167,7 @@ static int tcc_add_binary(TCCState *s1, int flags, const char *filename, int fd)
     close(fd);
     s1->current_filename = saved_filename;
     if (ret == FILE_NOT_RECOGNIZED)
-        return tcc_error_noabort("%s: Ë™çË≠ò„Åß„Åç„Å™„ÅÑ„Éï„Ç°„Ç§„É´„Çø„Ç§„Éó„Åß„Åô", filename);
+        return tcc_error_noabort("%s: îFéØÇ≈Ç´Ç»Ç¢ÉtÉ@ÉCÉãÉ^ÉCÉvÇ≈Ç∑", filename);
     return ret;
 }
 
@@ -1179,6 +1196,16 @@ static int tcc_glob_so(TCCState *s1, const char *pattern, char *buf, int size)
 }
 #endif
 
+static int is_cpp_source(const char *filename)
+{
+    const char *ext = tcc_fileextension(filename);
+    if (!ext[0])
+        return 0;
+    ext++;
+    return !PATHCMP(ext, "cpp") || !PATHCMP(ext, "cxx")
+        || !PATHCMP(ext, "cc")  || !PATHCMP(ext, "hpp");
+}
+
 static int guess_filetype(const char *filename)
 {
     int filetype = 0;
@@ -1194,6 +1221,8 @@ static int guess_filetype(const char *filename)
             else if (!PATHCMP(ext, "c")
                      || !PATHCMP(ext, "h")
                      || !PATHCMP(ext, "i"))
+                filetype = AFF_TYPE_C;
+            else if (is_cpp_source(filename))
                 filetype = AFF_TYPE_C;
             else
                 filetype |= AFF_TYPE_BIN;
@@ -1226,7 +1255,7 @@ ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
     fd = _tcc_open(s1, filename);
     if (fd < 0) {
         if (flags & AFF_PRINT_ERROR)
-            tcc_error_noabort("„Éï„Ç°„Ç§„É´ '%s' „ÅåË¶ã„Å§„Åã„Çä„Åæ„Åõ„Çì", filename);
+            tcc_error_noabort("ÉtÉ@ÉCÉã '%s' Ç™å©Ç¬Ç©ÇËÇ‹ÇπÇÒ", filename);
         return FILE_NOT_FOUND;
     }
 
@@ -1255,7 +1284,7 @@ static int tcc_add_library_internal(TCCState *s1, const char *fmt,
             return ret;
     }
     if (flags & AFF_PRINT_ERROR)
-        tcc_error_noabort("%s '%s' „ÅåË¶ã„Å§„Åã„Çä„Åæ„Åõ„Çì",
+        tcc_error_noabort("%s '%s' Ç™å©Ç¬Ç©ÇËÇ‹ÇπÇÒ",
             flags & AFF_TYPE_LIB ? "library" : "file", filename);
     return FILE_NOT_FOUND;
 }
@@ -1511,10 +1540,10 @@ static int tcc_set_linker(TCCState *s, const char *optarg)
             return 0; /* expecting argument with next '-Wl,' */
         } else {
     err:
-            return tcc_error_noabort("„Çµ„Éù„Éº„Éà„Åï„Çå„Å¶„ÅÑ„Å™„ÅÑ„É™„É≥„Ç´„Ç™„Éó„Ç∑„Éß„É≥„Åß„Åô: '%s'", o.opt);
+            return tcc_error_noabort("ÉTÉ|Å[ÉgÇ≥ÇÍÇƒÇ¢Ç»Ç¢ÉäÉìÉJÉIÉvÉVÉáÉìÇ≈Ç∑: '%s'", o.opt);
         }
         if (ignoring)
-            tcc_warning_c(warn_unsupported)("„Çµ„Éù„Éº„Éà„Åï„Çå„Å¶„ÅÑ„Å™„ÅÑ„É™„É≥„Ç´„Ç™„Éó„Ç∑„Éß„É≥„Åß„Åô: '%s'", o.opt);
+            tcc_warning_c(warn_unsupported)("ÉTÉ|Å[ÉgÇ≥ÇÍÇƒÇ¢Ç»Ç¢ÉäÉìÉJÉIÉvÉVÉáÉìÇ≈Ç∑: '%s'", o.opt);
         ++s->link_optind;
     }
     return 0;
@@ -1849,7 +1878,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             int fd; char *p;
             fd = open(++r, O_RDONLY | O_BINARY);
             if (fd < 0)
-                return tcc_error_noabort("„É™„Çπ„Éà„Éï„Ç°„Ç§„É´ '%s' „ÅåË¶ã„Å§„Åã„Çä„Åæ„Åõ„Çì", r);
+                return tcc_error_noabort("ÉäÉXÉgÉtÉ@ÉCÉã '%s' Ç™å©Ç¬Ç©ÇËÇ‹ÇπÇÒ", r);
             p = tcc_load_text(fd);
             insert_args(s1, &argv, &argc, optind, p, 0);
             close(fd), tcc_free(p);
@@ -1883,14 +1912,14 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             const char *p1 = popt->name;
             const char *r1 = r + 1;
             if (p1 == NULL)
-                return tcc_error_noabort("ÁÑ°Âäπ„Å™„Ç™„Éó„Ç∑„Éß„É≥„Åß„Åô: '%s'", r);
+                return tcc_error_noabort("ñ≥å¯Ç»ÉIÉvÉVÉáÉìÇ≈Ç∑: '%s'", r);
             if (!strstart(p1, &r1))
                 continue;
             optarg = r1;
             if (popt->flags & TCC_OPTION_HAS_ARG) {
                 if (*r1 == '\0' && !(popt->flags & TCC_OPTION_NOSEP)) {
                     if (optind >= argc)
-                        return tcc_error_noabort("„Ç™„Éó„Ç∑„Éß„É≥ '%s' „Å´ÂºïÊï∞„Åå„ÅÇ„Çä„Åæ„Åõ„Çì", r);
+                        return tcc_error_noabort("ÉIÉvÉVÉáÉì '%s' Ç…à¯êîÇ™Ç†ÇËÇ‹ÇπÇÒ", r);
                     optarg = argv[optind++];
                 }
             } else if (*r1 != '\0')
@@ -1961,7 +1990,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             x = TCC_OUTPUT_OBJ;
         set_output_type:
             if (s->output_type)
-                tcc_warning("-%s: Êó¢„Å´ÊåáÂÆö„Åï„Çå„Å¶„ÅÑ„Çã„Ç≥„É≥„Éë„Ç§„É©„ÅÆÂãï‰Ωú„Çí‰∏äÊõ∏„Åç„Åó„Åæ„Åô", popt->name);
+                tcc_warning("-%s: ä˘Ç…éwíËÇ≥ÇÍÇƒÇ¢ÇÈÉRÉìÉpÉCÉâÇÃìÆçÏÇè„èëÇ´ÇµÇ‹Ç∑", popt->name);
             s->output_type = x;
             break;
         case TCC_OPTION_d:
@@ -1991,7 +2020,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             break;
         case TCC_OPTION_o:
             if (s->outfile) {
-                tcc_warning("Ë§áÊï∞„ÅÆ -o „Ç™„Éó„Ç∑„Éß„É≥„ÅåÊåáÂÆö„Åï„Çå„Å¶„ÅÑ„Åæ„Åô");
+                tcc_warning("ï°êîÇÃ -o ÉIÉvÉVÉáÉìÇ™éwíËÇ≥ÇÍÇƒÇ¢Ç‹Ç∑");
                 tcc_free(s->outfile);
             }
             tcc_set_str(&s->outfile, optarg);
@@ -2021,7 +2050,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             x = TCC_OUTPUT_MEMORY;
             goto set_output_type;
 #else
-            return tcc_error_noabort("-run „ÅØ„ÇØ„É≠„Çπ„Ç≥„É≥„Éë„Ç§„É©„Åß„ÅØÂà©Áî®„Åß„Åç„Åæ„Åõ„Çì");
+            return tcc_error_noabort("-run ÇÕÉNÉçÉXÉRÉìÉpÉCÉâÇ≈ÇÕóòópÇ≈Ç´Ç‹ÇπÇÒ");
 #endif
         case TCC_OPTION_v:
             do ++s->verbose; while (*optarg++ == 'v');
@@ -2038,7 +2067,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             } else if (!strcmp(optarg, "hard"))
                 s->float_abi = ARM_HARD_FLOAT;
             else
-                return tcc_error_noabort("„Çµ„Éù„Éº„Éà„Åï„Çå„Å¶„ÅÑ„Å™„ÅÑ float ABI „Åß„Åô: '%s'", optarg);
+                return tcc_error_noabort("ÉTÉ|Å[ÉgÇ≥ÇÍÇƒÇ¢Ç»Ç¢ float ABI Ç≈Ç∑: '%s'", optarg);
             break;
 #endif
         case TCC_OPTION_m:
@@ -2104,8 +2133,10 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             exit(0);
         case TCC_OPTION_x:
             x = 0;
-            if (*optarg == 'c')
+            if (*optarg == 'c' && !optarg[1])
                 x = AFF_TYPE_C;
+            else if (!strcmp(optarg, "c++") || !strcmp(optarg, "c++-header"))
+                x = AFF_TYPE_C, s->cpp_forced = 1;
             else if (*optarg == 'a')
                 x = AFF_TYPE_ASMPP;
             else if (*optarg == 'b')
@@ -2113,7 +2144,7 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
             else if (*optarg == 'n')
                 x = AFF_TYPE_NONE;
             else
-                tcc_warning("„Çµ„Éù„Éº„Éà„Åï„Çå„Å¶„ÅÑ„Å™„ÅÑË®ÄË™û '%s'", optarg);
+                tcc_warning("ÉTÉ|Å[ÉgÇ≥ÇÍÇƒÇ¢Ç»Ç¢åæåÍ '%s'", optarg);
             s->filetype = x | (s->filetype & ~AFF_TYPE_MASK);
             break;
         case TCC_OPTION_O:
@@ -2156,19 +2187,19 @@ PUB_FUNC int tcc_parse_args(TCCState *s, int *pargc, char ***pargv)
         extra_action:
             arg_start = optind - 1;
             if (not_empty)
-                return tcc_error_noabort("„Åì„Åì„Åß„ÅØ '%s' „ÇíËß£Êûê„Åß„Åç„Åæ„Åõ„Çì", r);
+                return tcc_error_noabort("Ç±Ç±Ç≈ÇÕ '%s' ÇâêÕÇ≈Ç´Ç‹ÇπÇÒ", r);
             tool = x;
             break;
         default:
 unsupported_option:
-            tcc_warning_c(warn_unsupported)("„Çµ„Éù„Éº„Éà„Åï„Çå„Å¶„ÅÑ„Å™„ÅÑ„Ç™„Éó„Ç∑„Éß„É≥„Åß„Åô: '%s'", r);
+            tcc_warning_c(warn_unsupported)("ÉTÉ|Å[ÉgÇ≥ÇÍÇƒÇ¢Ç»Ç¢ÉIÉvÉVÉáÉìÇ≈Ç∑: '%s'", r);
             break;
         }
         not_empty = 1;
     }
 
     if (s->link_optind < s->link_argc)
-        return tcc_error_noabort("„Ç™„Éó„Ç∑„Éß„É≥ '-Wl,%s' „ÅÆÂºïÊï∞„Åå„ÅÇ„Çä„Åæ„Åõ„Çì", s->link_argv[s->link_optind]);
+        return tcc_error_noabort("ÉIÉvÉVÉáÉì '-Wl,%s' ÇÃà¯êîÇ™Ç†ÇËÇ‹ÇπÇÒ", s->link_argv[s->link_optind]);
     if (NULL == argv[0]) /* from tcc_set_options() */
         return 0;
     if (arg_start) {

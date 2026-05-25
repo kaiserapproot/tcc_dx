@@ -242,7 +242,8 @@ proj/iosprooj/iosbase.vsimporter/
 /win
 /.vscode
 /dev/*.o
-/dev/*.o
+/dev/test/**/*.exe
+/dev/test/**/*.o
 /test/vs_test/Release Unicode
 /test/vs_test/Release MBCS
 /test/vs_test/Debug Unicode
@@ -250,3 +251,9 @@ proj/iosprooj/iosbase.vsimporter/
 /test/vs_test/con_cpp_vs_test
 /test/vs_test/con_c_vs_test
 /test/cppuniut/cppuniut
+
+# P1 diff scratch files
+/_baseline_*.c
+/_current_*.c
+/_head_*.c
+/libtcc.hex.txt

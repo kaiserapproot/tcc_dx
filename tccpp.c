@@ -1,4 +1,4 @@
-ï»¿/*
+/*
  *  TCC - Tiny C Compiler
  * 
  *  Copyright (c) 2001-2004 Fabrice Bellard
@@ -102,14 +102,14 @@ ST_FUNC void skip(int c)
     if (tok != c) {
         char tmp[40];
         pstrcpy(tmp, sizeof tmp, get_tok_str(c, &tokc));
-        tcc_error("'%s' ãŒå¿…è¦ã§ã™ï¼ˆ\"%s\" ãŒè¦‹ã¤ã‹ã‚Šã¾ã—ãŸï¼‰", tmp, get_tok_str(tok, &tokc));
+        tcc_error("'%s' ‚ª•K—v‚Å‚·i\"%s\" ‚ªŒ©‚Â‚©‚è‚Ü‚µ‚½j", tmp, get_tok_str(tok, &tokc));
     }
     next();
 }
 
 ST_FUNC void expect(const char *msg)
 {
-    tcc_error("%s ãŒå¿…è¦ã§ã™", msg);
+    tcc_error("%s ‚ª•K—v‚Å‚·", msg);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -355,7 +355,7 @@ ST_INLN char *unicode_to_utf8 (char *b, uint32_t Uc)
     else if (Uc-0xd800u<0x800) goto error;
     else if (Uc<0x10000) *b++=224+Uc/4096, *b++=128+Uc/64%64, *b++=128+Uc%64;
     else if (Uc<0x110000) *b++=240+Uc/262144, *b++=128+Uc/4096%64, *b++=128+Uc/64%64, *b++=128+Uc%64;
-    else error: tcc_error("0x%x ã¯æœ‰åŠ¹ãªãƒ¦ãƒ‹ãƒãƒ¼ã‚µãƒ«æ–‡å­—ã§ã¯ã‚ã‚Šã¾ã›ã‚“", Uc);
+    else error: tcc_error("0x%x ‚Í—LŒø‚Èƒ†ƒjƒo[ƒTƒ‹•¶š‚Å‚Í‚ ‚è‚Ü‚¹‚ñ", Uc);
     return b;
 }
 
@@ -459,6 +459,69 @@ static void add_char(CString *cstr, int c)
 }
 
 /* ------------------------------------------------------------------------- */
+static int effective_cpp_lex(TCCState *s1)
+{
+    if (s1->lex_c)
+        return 0;
+    if (!s1->cpp)
+        return 0;
+    return 1;
+}
+
+static int is_cpp_only_keyword(int t)
+{
+    switch (t) {
+    case TOK_CLASS:
+    case TOK_PUBLIC:
+    case TOK_PRIVATE:
+    case TOK_PROTECTED:
+    case TOK_VIRTUAL:
+    case TOK_THIS:
+    case TOK_OPERATOR:
+    case TOK_NAMESPACE:
+    case TOK_TRUE:
+    case TOK_FALSE:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static TokenSym *tok_alloc_demote(const char *str, int len)
+{
+    TokenSym *ts, **ptable;
+    int i;
+
+    if (tok_ident >= SYM_FIRST_ANOM)
+        tcc_error("memory full (symbol)");
+
+    i = tok_ident - TOK_IDENT;
+    if ((i % TOK_ALLOC_INCR) == 0) {
+        ptable = tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
+        table_ident = ptable;
+    }
+
+    ts = tal_realloc(toksym_alloc, 0, sizeof(TokenSym) + len);
+    table_ident[i] = ts;
+    ts->tok = tok_ident++;
+    ts->sym_define = NULL;
+    ts->sym_label = NULL;
+    ts->sym_struct = NULL;
+    ts->sym_identifier = NULL;
+    ts->len = len;
+    ts->hash_next = NULL;
+    ts->alt_ident_tok = 0;
+    memcpy(ts->str, str, len);
+    ts->str[len] = '\0';
+    return ts;
+}
+
+static int demote_cpp_keyword_to_ident(TokenSym *ts)
+{
+    if (ts->alt_ident_tok == 0)
+        ts->alt_ident_tok = tok_alloc_demote(ts->str, ts->len)->tok;
+    return ts->alt_ident_tok;
+}
 /* allocate a new token */
 static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 {
@@ -466,7 +529,7 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     int i;
 
     if (tok_ident >= SYM_FIRST_ANOM) 
-    tcc_error("ãƒ¡ãƒ¢ãƒªä¸è¶³ (ã‚·ãƒ³ãƒœãƒ«)");
+    tcc_error("ƒƒ‚ƒŠ•s‘« (ƒVƒ“ƒ{ƒ‹)");
 
     /* expand token table if needed */
     i = tok_ident - TOK_IDENT;
@@ -484,6 +547,7 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
     ts->sym_identifier = NULL;
     ts->len = len;
     ts->hash_next = NULL;
+    ts->alt_ident_tok = 0;
     memcpy(ts->str, str, len);
     ts->str[len] = '\0';
     *pts = ts;
@@ -694,7 +758,7 @@ static int handle_stray_noerror(int err)
                 *--file->buf_ptr = '\r';
             }
             if (err)
-                tcc_error("ãƒ—ãƒ­ã‚°ãƒ©ãƒ å†…ã«ä¸æ­£ãª '\\' ãŒã‚ã‚Šã¾ã™");
+                tcc_error("ƒvƒƒOƒ‰ƒ€“à‚É•s³‚È '\\' ‚ª‚ ‚è‚Ü‚·");
             /* may take advantage of 'BufferedFile.unget[4}' */
             return *--file->buf_ptr = '\\';
         }
@@ -799,7 +863,7 @@ static uint8_t *parse_comment(uint8_t *p)
             c = handle_bs(&p);
         check_eof:
             if (c == CH_EOF)
-                tcc_error("ã‚³ãƒ¡ãƒ³ãƒˆå†…ã§äºˆæœŸã›ãšãƒ•ã‚¡ã‚¤ãƒ«çµ‚ç«¯ã«åˆ°é”ã—ã¾ã—ãŸ");
+                tcc_error("ƒRƒƒ“ƒg“à‚Å—\Šú‚¹‚¸ƒtƒ@ƒCƒ‹I’[‚É“’B‚µ‚Ü‚µ‚½");
             if (c != '\\')
                 goto redo;
         }
@@ -822,7 +886,7 @@ static uint8_t *parse_pp_string(uint8_t *p, int sep, CString *str)
         unterminated_string:
                 /* XXX: indicate line number of start of string */
                 tok_flags &= ~TOK_FLAG_BOL;
-                tcc_error("çµ‚ç«¯æ–‡å­— %c ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“", sep);
+                tcc_error("I’[•¶š %c ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ", sep);
             } else if (c == '\\') {
                 if (str)
                     cstr_ccat(str, c);
@@ -1333,7 +1397,7 @@ ST_FUNC void skip_to_eol(int warn)
     if (tok == TOK_LINEFEED)
         return;
     if (warn)
-        tcc_warning("ãƒ‡ã‚£ãƒ¬ã‚¯ãƒ†ã‚£ãƒ–ã®å¾Œã«ä½™åˆ†ãªãƒˆãƒ¼ã‚¯ãƒ³ãŒã‚ã‚Šã¾ã™");
+        tcc_warning("ƒfƒBƒŒƒNƒeƒBƒu‚ÌŒã‚É—]•ª‚Èƒg[ƒNƒ“‚ª‚ ‚è‚Ü‚·");
     while (macro_stack)
         end_macro();
     file->buf_ptr = parse_line_comment(file->buf_ptr - 1);
@@ -1371,7 +1435,7 @@ static int parse_include(TCCState *s1, int do_next, int test)
                  || (p[0] == '<' && p[i] == '>')))
                 break;
             if (tok == TOK_LINEFEED)
-                tcc_error("'#include' ã¯ \"FILENAME\" ã¾ãŸã¯ <FILENAME> ã‚’æœŸå¾…ã—ã¾ã™");
+                tcc_error("'#include' ‚Í \"FILENAME\" ‚Ü‚½‚Í <FILENAME> ‚ğŠú‘Ò‚µ‚Ü‚·");
             pstrcat(name, sizeof name, get_tok_str(tok, &tokc));
 	}
         c = p[0];
@@ -1405,7 +1469,7 @@ static int parse_include(TCCState *s1, int do_next, int test)
             else if (test)
                 return 0;
             else
-                tcc_error("ã‚¤ãƒ³ã‚¯ãƒ«ãƒ¼ãƒ‰ãƒ•ã‚¡ã‚¤ãƒ« '%s' ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“", name);
+                tcc_error("ƒCƒ“ƒNƒ‹[ƒhƒtƒ@ƒCƒ‹ '%s' ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ", name);
             pstrcpy(buf, sizeof buf, p);
             pstrcat(buf, sizeof buf, "/");
         }
@@ -1427,7 +1491,7 @@ static int parse_include(TCCState *s1, int do_next, int test)
         tcc_close();
     } else {
         if (s1->include_stack_ptr >= s1->include_stack + INCLUDE_STACK_SIZE)
-            tcc_error("#include ã®å†å¸°ãŒæ·±ã™ãã¾ã™");
+            tcc_error("#include ‚ÌÄ‹A‚ª[‚·‚¬‚Ü‚·");
         /* push previous file on stack */
         *s1->include_stack_ptr++ = file->prev;
         file->include_next_index = i;
@@ -1466,7 +1530,7 @@ static int expr_preprocess(TCCState *s1)
             if (tok == TOK_LINEFEED || tok == TOK_EOF)
                 break;
             if (tok >= TOK_STR && tok <= TOK_CLDOUBLE)
-                tcc_error("ãƒ—ãƒªãƒ—ãƒ­ã‚»ãƒƒã‚µå¼ã«ç„¡åŠ¹ãªå®šæ•°ãŒã‚ã‚Šã¾ã™");
+                tcc_error("ƒvƒŠƒvƒƒZƒbƒT®‚É–³Œø‚È’è”‚ª‚ ‚è‚Ü‚·");
 
         } else if (tok == TOK_DEFINED) {
             parse_flags &= ~PARSE_FLAG_PREPROCESS; /* no macro subst */
@@ -1510,7 +1574,7 @@ static int expr_preprocess(TCCState *s1)
         tok_str_add_tok(str);
     }
     if (0 == str->len)
-    tcc_error("#%s ã«å¼ãŒã‚ã‚Šã¾ã›ã‚“", get_tok_str(t0, 0));
+    tcc_error("#%s ‚É®‚ª‚ ‚è‚Ü‚¹‚ñ", get_tok_str(t0, 0));
     tok_str_add(str, TOK_EOF); /* simulate end of file */
     pp_expr = t0; /* redirect pre-processor expression error messages */
     t = tok;
@@ -1544,7 +1608,7 @@ ST_FUNC void parse_define(void)
 
     v = tok;
     if (v < TOK_IDENT || v == TOK_DEFINED)
-        tcc_error("ç„¡åŠ¹ãªãƒã‚¯ãƒ­å '%s'", get_tok_str(tok, &tokc));
+        tcc_error("–³Œø‚Èƒ}ƒNƒ–¼ '%s'", get_tok_str(tok, &tokc));
     first = NULL;
     t = MACRO_OBJ;
     /* We have to parse the whole define as if not in asm mode, in particular
@@ -1573,7 +1637,7 @@ ST_FUNC void parse_define(void)
             }
             if (varg < TOK_IDENT)
         bad_list:
-                tcc_error("ä¸æ­£ãªãƒã‚¯ãƒ­ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãƒªã‚¹ãƒˆ");
+                tcc_error("•s³‚Èƒ}ƒNƒƒpƒ‰ƒ[ƒ^ƒŠƒXƒg");
             s = sym_push2(&define_stack, varg | SYM_FIELD, is_vaargs, 0);
             *ps = s;
             ps = &s->next;
@@ -1616,7 +1680,7 @@ ST_FUNC void parse_define(void)
     tok_str_add(&str, 0);
     if (t0 == TOK_PPJOIN)
 bad_twosharp:
-        tcc_error("'##' ã¯ãƒã‚¯ãƒ­ã®å…ˆé ­ã¾ãŸã¯æœ«å°¾ã«å‡ºã›ã¾ã›ã‚“");
+        tcc_error("'##' ‚Íƒ}ƒNƒ‚Ìæ“ª‚Ü‚½‚Í––”ö‚Éo‚¹‚Ü‚¹‚ñ");
     define_push(v, t, str.str, first);
     //tok_print(str.str, "#define (%d) %s %d:", t | is_vaargs * 4, get_tok_str(v, 0));
 }
@@ -1725,7 +1789,7 @@ static int pragma_parse(TCCState *s1)
             next();
             if (s1->pack_stack_ptr <= s1->pack_stack) {
             stk_error:
-                tcc_error("ãƒ‘ãƒƒã‚¯ã‚¹ã‚¿ãƒƒã‚¯ãŒä¸è¶³ã—ã¦ã„ã¾ã™");
+                tcc_error("ƒpƒbƒNƒXƒ^ƒbƒN‚ª•s‘«‚µ‚Ä‚¢‚Ü‚·");
             }
             s1->pack_stack_ptr--;
         } else {
@@ -1781,7 +1845,7 @@ static int pragma_parse(TCCState *s1)
     next();
     return 1;
 pragma_err:
-    tcc_error("ä¸æ­£ãª #pragma æŒ‡ç¤ºã§ã™");
+    tcc_error("•s³‚È #pragma w¦‚Å‚·");
 }
 
 /* put alternative filename */
@@ -1857,7 +1921,7 @@ ST_FUNC void preprocess(int is_bof)
     do_ifdef:
         next_nomacro();
         if (tok < TOK_IDENT)
-            tcc_error("'#if%sdef' ã®å¼•æ•°ãŒç„¡åŠ¹ã§ã™", c ? "n" : "");
+            tcc_error("'#if%sdef' ‚Ìˆø”‚ª–³Œø‚Å‚·", c ? "n" : "");
         if (is_bof) {
             if (c) {
 #ifdef INC_DEBUG
@@ -1873,23 +1937,23 @@ ST_FUNC void preprocess(int is_bof)
         next_nomacro();
     do_if:
         if (s1->ifdef_stack_ptr >= s1->ifdef_stack + IFDEF_STACK_SIZE)
-            tcc_error("ãƒ¡ãƒ¢ãƒªä¸è¶³ (ifdef)");
+            tcc_error("ƒƒ‚ƒŠ•s‘« (ifdef)");
         *s1->ifdef_stack_ptr++ = c;
         goto test_skip;
     case TOK_ELSE:
         next_nomacro();
         if (s1->ifdef_stack_ptr == s1->ifdef_stack)
-            tcc_error("#else ã«å¯¾å¿œã™ã‚‹ #if ãŒã‚ã‚Šã¾ã›ã‚“");
+            tcc_error("#else ‚É‘Î‰‚·‚é #if ‚ª‚ ‚è‚Ü‚¹‚ñ");
         if (s1->ifdef_stack_ptr[-1] & 2)
-            tcc_error("#else ã®å¾Œã«åˆ¥ã® #else ãŒã‚ã‚Šã¾ã™");
+            tcc_error("#else ‚ÌŒã‚É•Ê‚Ì #else ‚ª‚ ‚è‚Ü‚·");
         c = (s1->ifdef_stack_ptr[-1] ^= 3);
         goto test_else;
     case TOK_ELIF:
         if (s1->ifdef_stack_ptr == s1->ifdef_stack)
-            tcc_error("#elif ã«å¯¾å¿œã™ã‚‹ #if ãŒã‚ã‚Šã¾ã›ã‚“");
+            tcc_error("#elif ‚É‘Î‰‚·‚é #if ‚ª‚ ‚è‚Ü‚¹‚ñ");
         c = s1->ifdef_stack_ptr[-1];
         if (c > 1)
-            tcc_error("#elif ã¯ #else ã®å¾Œã«ä½¿ç”¨ã§ãã¾ã›ã‚“");
+            tcc_error("#elif ‚Í #else ‚ÌŒã‚Ég—p‚Å‚«‚Ü‚¹‚ñ");
         /* last #if/#elif expression was true: we skip */
         if (c == 1) {
             skip_to_eol(0);
@@ -1912,7 +1976,7 @@ ST_FUNC void preprocess(int is_bof)
     case TOK_ENDIF:
         next_nomacro();
         if (s1->ifdef_stack_ptr <= file->ifdef_stack_ptr)
-            tcc_error("#endif ã«å¯¾å¿œã™ã‚‹ #if ãŒã‚ã‚Šã¾ã›ã‚“");
+            tcc_error("#endif ‚É‘Î‰‚·‚é #if ‚ª‚ ‚è‚Ü‚¹‚ñ");
         s1->ifdef_stack_ptr--;
         /* '#ifndef macro' was at the start of file. Now we check if
            an '#endif' is exactly at the end of file */
@@ -1931,7 +1995,7 @@ ST_FUNC void preprocess(int is_bof)
         next();
         if (tok != TOK_PPNUM) {
     _line_err:
-            tcc_error("#line ã®å½¢å¼ãŒä¸æ­£ã§ã™");
+            tcc_error("#line ‚ÌŒ`®‚ª•s³‚Å‚·");
         }
         c = 1;
         goto _line_num;
@@ -1992,7 +2056,7 @@ ST_FUNC void preprocess(int is_bof)
         if (tok == '!' && is_bof)
             /* '#!' is ignored at beginning to allow C scripts. */
             goto ignore;
-    tcc_warning("ä¸æ˜ãªãƒ—ãƒªãƒ—ãƒ­ã‚»ãƒƒã‚µæŒ‡ç¤º #%s ã‚’ç„¡è¦–ã—ã¾ã™", get_tok_str(tok, &tokc));
+    tcc_warning("•s–¾‚ÈƒvƒŠƒvƒƒZƒbƒTw¦ #%s ‚ğ–³‹‚µ‚Ü‚·", get_tok_str(tok, &tokc));
     ignore:
         skip_to_eol(0);
         goto the_end;
@@ -2097,9 +2161,9 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
             default:
             invalid_escape:
                 if (c >= '!' && c <= '~')
-                    tcc_warning("ä¸æ˜ãªã‚¨ã‚¹ã‚±ãƒ¼ãƒ—ã‚·ãƒ¼ã‚±ãƒ³ã‚¹ã§ã™: '\\%c'", c);
+                    tcc_warning("•s–¾‚ÈƒGƒXƒP[ƒvƒV[ƒPƒ“ƒX‚Å‚·: '\\%c'", c);
                 else
-                    tcc_warning("ä¸æ˜ãªã‚¨ã‚¹ã‚±ãƒ¼ãƒ—ã‚·ãƒ¼ã‚±ãƒ³ã‚¹ã§ã™: '\\x%x'", c);
+                    tcc_warning("•s–¾‚ÈƒGƒXƒP[ƒvƒV[ƒPƒ“ƒX‚Å‚·: '\\x%x'", c);
                 break;
             }
         } else if (is_long && c >= 0x80) {
@@ -2211,9 +2275,9 @@ static void parse_string(const char *s, int len)
             tok = TOK_LCHAR, char_size = sizeof(nwchar_t);
         n = tokcstr.size / char_size - 1;
         if (n < 1)
-            tcc_error("ç©ºã®æ–‡å­—å®šæ•°ã§ã™");
+            tcc_error("‹ó‚Ì•¶š’è”‚Å‚·");
         if (n > 1)
-            tcc_warning_c(warn_all)("è¤‡æ•°æ–‡å­—ã®æ–‡å­—å®šæ•°ã§ã™");
+            tcc_warning_c(warn_all)("•¡”•¶š‚Ì•¶š’è”‚Å‚·");
         for (c = i = 0; i < n; ++i) {
             if (is_long)
                 c = ((nwchar_t *)tokcstr.data)[i];
@@ -2298,7 +2362,7 @@ static void parse_number(const char *p)
             break;
         if (q >= token_buf + STRING_MAX_SIZE) {
         num_too_long:
-            tcc_error("æ•°å€¤ãŒé•·ã™ãã¾ã™");
+            tcc_error("”’l‚ª’·‚·‚¬‚Ü‚·");
         }
         *q++ = ch;
         ch = *p++;
@@ -2347,7 +2411,7 @@ static void parse_number(const char *p)
                         break;
                     }
                     if (t >= b)
-                        tcc_error("ç„¡åŠ¹ãªæ¡ã§ã™");
+                        tcc_error("–³Œø‚ÈŒ…‚Å‚·");
                     bn_lshift(bn, shift, t);
                     frac_bits += shift;
                     ch = *p++;
@@ -2475,7 +2539,7 @@ static void parse_number(const char *p)
             else
                 t = t - '0';
             if (t >= b)
-                tcc_error("ç„¡åŠ¹ãªæ¡ã§ã™");
+                tcc_error("–³Œø‚ÈŒ…‚Å‚·");
             n1 = n;
             n = n * b + t;
             /* detect overflow */
@@ -2491,14 +2555,14 @@ static void parse_number(const char *p)
             t = toup(ch);
             if (t == 'L') {
                 if (lcount >= 2)
-                    tcc_error("æ•´æ•°å®šæ•°ã« 'l' ãŒ3ã¤ã‚ã‚Šã¾ã™");
+                    tcc_error("®”’è”‚É 'l' ‚ª3‚Â‚ ‚è‚Ü‚·");
                 if (lcount && *(p - 1) != ch)
-                    tcc_error("æ•´æ•°æ¥å°¾è¾ãŒä¸æ­£ã§ã™: %s", p1);
+                    tcc_error("®”Ú”ö«‚ª•s³‚Å‚·: %s", p1);
                 lcount++;
                 ch = *p++;
             } else if (t == 'U') {
                 if (ucount >= 1)
-                    tcc_error("æ•´æ•°å®šæ•°ã« 'u' ãŒ2ã¤ã‚ã‚Šã¾ã™");
+                    tcc_error("®”’è”‚É 'u' ‚ª2‚Â‚ ‚è‚Ü‚·");
                 ucount++;
                 ch = *p++;
             } else {
@@ -2530,7 +2594,7 @@ static void parse_number(const char *p)
         }
 
         if (ov)
-            tcc_warning("æ•´æ•°å®šæ•°ã®ã‚ªãƒ¼ãƒãƒ¼ãƒ•ãƒ­ãƒ¼ã§ã™");
+            tcc_warning("®”’è”‚ÌƒI[ƒo[ƒtƒ[‚Å‚·");
 
         tok = TOK_CINT;
 	if (lcount) {
@@ -2543,7 +2607,7 @@ static void parse_number(const char *p)
         tokc.i = n;
     }
     if (ch)
-        tcc_error("ç„¡åŠ¹ãªæ•°å€¤ã§ã™");
+        tcc_error("–³Œø‚È”’l‚Å‚·");
 }
 
 
@@ -2598,7 +2662,7 @@ static void next_nomacro(void)
             } else if (!(parse_flags & PARSE_FLAG_PREPROCESS)) {
                 tok = TOK_EOF;
             } else if (s1->ifdef_stack_ptr != file->ifdef_stack_ptr) {
-                tcc_error("#endif ãŒä¸è¶³ã—ã¦ã„ã¾ã™");
+                tcc_error("#endif ‚ª•s‘«‚µ‚Ä‚¢‚Ü‚·");
             } else if (s1->include_stack_ptr == s1->include_stack) {
                 /* no include left : end of file. */
                 tok = TOK_EOF;
@@ -2727,6 +2791,8 @@ maybe_newline:
             ts = tok_alloc(tokcstr.data, tokcstr.size);
         }
         tok = ts->tok;
+        if (!effective_cpp_lex(tcc_state) && is_cpp_only_keyword(tok))
+            tok = demote_cpp_keyword_to_ident(ts);
         break;
     case 'L':
         t = p[1];
@@ -2960,7 +3026,7 @@ maybe_newline:
 	    goto parse_ident_fast;
         if (parse_flags & PARSE_FLAG_ASM_FILE)
             goto parse_simple;
-    tcc_error("æœªèªè­˜ã®æ–‡å­— \\x%02x", c);
+    tcc_error("–¢”F¯‚Ì•¶š \\x%02x", c);
         break;
     }
     tok_flags = 0;
@@ -3163,7 +3229,7 @@ static inline int *macro_twosharps(const int *ptr0)
                     break;
                 tok_str_add(&macro_str1, ' ');
                 l = file->buf_ptr - file->buffer;
-                tcc_warning("è²¼ã‚Šåˆã‚ã›ãŸ \"%.*s\" ã¨ \"%s\" ã¯æœ‰åŠ¹ãªãƒ—ãƒªãƒ—ãƒ­ã‚»ãƒƒã‚µãƒˆãƒ¼ã‚¯ãƒ³ã«ãªã‚Šã¾ã›ã‚“",
+                tcc_warning("“\‚è‡‚í‚¹‚½ \"%.*s\" ‚Æ \"%s\" ‚Í—LŒø‚ÈƒvƒŠƒvƒƒZƒbƒTƒg[ƒNƒ“‚É‚È‚è‚Ü‚¹‚ñ",
                     l - n, file->buffer + n, file->buf_ptr);
             }
             tcc_close();
@@ -3307,7 +3373,7 @@ static int macro_subst_tok(
                     if (!sa) {
                         if (t == ')') /* handle '()' case */
                             break;
-                        tcc_error("ãƒã‚¯ãƒ­ '%s' ãŒå¼•æ•°ã‚’å¤šãæŒ‡å®šã—ã¦å‘¼ã³å‡ºã•ã‚Œã¾ã—ãŸ",
+                        tcc_error("ƒ}ƒNƒ '%s' ‚ªˆø”‚ğ‘½‚­w’è‚µ‚ÄŒÄ‚Ño‚³‚ê‚Ü‚µ‚½",
                             get_tok_str(v, 0));
                     }
             empty_arg:
@@ -3317,7 +3383,7 @@ static int macro_subst_tok(
                 while (parlevel > 0
                         || (t != ')' && (t != ',' || sa->type.t))) {
                     if (t == TOK_EOF)
-                        tcc_error("ãƒã‚¯ãƒ­ '%s' ã®å‘¼ã³å‡ºã—ã§ EOF ã«åˆ°é”ã—ã¾ã—ãŸ",
+                        tcc_error("ƒ}ƒNƒ '%s' ‚ÌŒÄ‚Ño‚µ‚Å EOF ‚É“’B‚µ‚Ü‚µ‚½",
                             get_tok_str(v, 0));
                     if (t == '(')
                         parlevel++;
@@ -3340,7 +3406,7 @@ static int macro_subst_tok(
                        var arg argument if it is omitted */
                     if (sa->type.t && gnu_ext)
                         goto empty_arg;
-                    tcc_error("ãƒã‚¯ãƒ­ '%s' ãŒå¼•æ•°ä¸è¶³ã§å‘¼ã³å‡ºã•ã‚Œã¾ã—ãŸ",
+                    tcc_error("ƒ}ƒNƒ '%s' ‚ªˆø”•s‘«‚ÅŒÄ‚Ño‚³‚ê‚Ü‚µ‚½",
                         get_tok_str(v, 0));
                 }
                 i = 1;
@@ -3508,7 +3574,7 @@ redo:
             t &= ~SYM_FIELD; /* remove 'nosubst' marker */
                 if (t == '\\') {
                 if (!(parse_flags & PARSE_FLAG_ACCEPT_STRAYS))
-                    tcc_error("ãƒ—ãƒ­ã‚°ãƒ©ãƒ ä¸­ã«å­¤ç«‹ã—ãŸ '\\' ãŒã‚ã‚Šã¾ã™");
+                    tcc_error("ƒvƒƒOƒ‰ƒ€’†‚ÉŒÇ—§‚µ‚½ '\\' ‚ª‚ ‚è‚Ü‚·");
             }
         }
         tok = t;
@@ -3633,6 +3699,9 @@ static void tcc_predefs(TCCState *s1, CString *cs, int is_asm)
       putdef(cs, "__leading_underscore");
     cstr_printf(cs, "#define __SIZEOF_POINTER__ %d\n", PTR_SIZE);
     cstr_printf(cs, "#define __SIZEOF_LONG__ %d\n", LONG_SIZE);
+    if (s1->cpp && !is_asm) {
+        cstr_printf(cs, "#define __cplusplus %dL\n", (int)TCC_CXX_VERSION);
+    }
     if (!is_asm) {
       putdef(cs, "__STDC__");
       cstr_printf(cs, "#define __STDC_VERSION__ %dL\n", s1->cversion);
