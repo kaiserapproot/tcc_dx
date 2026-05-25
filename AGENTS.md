@@ -73,7 +73,9 @@ TCC (Tiny C Compiler) を **MSVC / Windows x64** でビルドし、段階的に 
 
 ---
 
-## 必須ルール — C++ 実装（Stage 1）
+## 必須ルール — C++ 実装
+
+> **到達状況（2026-05-25）**: Stage 1 + Stage 2 **完了**、Stage 3 **一部**（`this`・メンバ呼び出し）。機能一覧は [実装済み.md](実装済み.md)、次作業は [次の実装.md](次の実装.md)。
 
 - C++ 機能は `s1->cpp == 1` のときのみ有効。**`.c` の従来動作を絶対に壊さない**。
 - 拡張子 → モード：`.c`/`.h`/`.i` → C、`.cpp`/`.cxx`/`.cc`/`.hpp` → C++、`-x c++` で強制。
@@ -81,12 +83,14 @@ TCC (Tiny C Compiler) を **MSVC / Windows x64** でビルドし、段階的に 
   - **`tok_alloc()` で降格を試みない** — hash ヒットで `TOK_CLASS` が返り意味がない。
   - **`tok_alloc_new()` で代替しない** — hash チェーン汚染で `.cpp` 側の `TOK_CLASS` 認識が壊れる。
   - 必ず「`tok_alloc_new()` から `*pts = ts;` だけを除いた新ヘルパ」を作る。
-- `extern "C"` は **ブロック構文のみ**対応（Stage 1）：
-  - `extern "C" { ... }` で `lex_c++/--`（C++ キーワードを識別子化）
-  - `extern "C" void foo();` 単一宣言は **Stage 2**
-  - `extern "C++" { ... }` は **Stage 2**（Stage 1 では `tcc_error`）
+- `extern "C"`（実装済み / 未対応の区別）：
+  - `extern "C" { ... }` — **実装済み**（`lex_c++/--` で C++ キーワードを識別子化）
+  - `extern "C" void foo();` 単一宣言 — **実装済み**（Stage 2、`decl_once_flag`）
+  - `extern "C++" { ... }` — **未対応**（`tcc_error`）
+  - `extern "C" { #include ... }` — **未対応**
 - `.h` ファイルは親 TU の `cpp`/`lex_c` を **継承**（`s1->cpp` リセットされない）。
-- 修飾名 `::` および `Class::method` 形式のクラス外定義は **Stage 2 以降**。
+- 修飾名 `::` — **実装済み**（Stage 2）。新規パースは [実装済み.md](実装済み.md) を確認すること。
+- **`struct_decl()` 内で `gen_function()` を呼ばない**（Stage 3 インライン接続時も同様）。
 
 ---
 

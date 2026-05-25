@@ -1,9 +1,13 @@
 # TCC C++98 実装詳細ガイド
 
 **文書版**：v2.5（[レビューその4.md](レビューその4.md)～[レビューその8.md](レビューその8.md) 反映）  
-**更新日**：2026-05-24  
+**更新日**：2026-05-25（進捗サマリー追記）  
 **対象**：C++ 基盤実装プラン（拡張子判定・`__cplusplus`・`extern "C"`・`class` 最小パース・テスト・ビルド）  
-**参照**：[PLAN.md](PLAN.md)、[TCC_CPP.md](TCC_CPP.md)、[問題と原因.md](問題と原因.md)、[レビューその4.md](レビューその4.md)、[レビューその5.md](レビューその5.md)、[レビューその6.md](レビューその6.md)、[レビューその7.md](レビューその7.md)、[レビューその8.md](レビューその8.md)
+**参照**：[PLAN.md](PLAN.md)、[TCC_CPP.md](TCC_CPP.md)、[問題と原因.md](問題と原因.md)、[実装済み.md](実装済み.md)、[次の実装.md](次の実装.md)、[実装履歴.MD](実装履歴.MD)
+
+> **実装進捗（2026-05-25）** — Part A のガイド A-1〜A-9 および **Stage 2 は実装済み**。**Stage 3 は一部**（`this`・メンバ呼び出し・`member_call.cpp`）。  
+> 一次情報は [実装済み.md](実装済み.md) / [実装履歴.MD](実装履歴.MD) §18・§19。**次に着手する内容**は [次の実装.md](次の実装.md)。  
+> 本書 Part A の「未実装」「Stage 2 以降」等の記述は**ガイド執筆時点の設計書**であり、上記ドキュメントと矛盾する場合は進捗ドキュメントを優先する。
 
 ---
 
@@ -227,18 +231,36 @@ git config core.hooksPath .githooks
 
 ## A-0. 現状と実装原則
 
-### 現状（2026-05-24 時点）
+### 現状（2026-05-25 時点 — 実装済み）
 
-| ファイル | 状態 |
-|----------|------|
-| `tcctok.h` | C++ キーワード（`class`, `public`, `true` 等）**登録済み** |
-| `tcc.h` | `SymAttr.access`, `Sym.inline_func_str` **定義済み・未接続** |
-| `tccgen.c` | upstream 相当。**ビルド可能**。C++ ロジックなし |
-| `libtcc.c` `guess_filetype()` | `.cpp/.cc/.hpp` → `AFF_TYPE_BIN`（**誤判定**） |
-| `tccpp.c` | `__cplusplus` / `extern "C"` / キーワードゲート **未実装** |
-| `test/cppuniut/cppuniut.cpp` | CPPUnit スケルトン（空テスト） |
-| `test/vs_test/vs_test_main.c` | CUnit サンプル（意図的 FAIL あり） |
-| `dev/tcc.exe` | 未配置（ビルド後コピー処理なし） |
+> 以下は **着手前のベースライン（2026-05-24）からの到達点**。詳細は [実装済み.md](実装済み.md)、手順・復元は [実装履歴.MD](実装履歴.MD)。**次の作業**は [次の実装.md](次の実装.md)。
+
+| 領域 | 状態 |
+|------|------|
+| A-P 〜 A-9（Stage 1 基盤） | **完了** — `build.bat` 緑、`dev/test/run_all.bat` |
+| Stage 2（マングル・オーバーロード・`&`・`::`） | **完了** — §18、[実装履歴.MD](実装履歴.MD) |
+| Stage 3 | **一部** — `this`、メンバ呼び出し（`a7/member_call.cpp`）。デフォルト引数・インライン遅延は未接続（§19） |
+| Stage 4 以降 | **未着手** |
+
+| ファイル | 状態（2026-05-25） |
+|----------|---------------------|
+| `tcctok.h` | C++ キーワード登録済み |
+| `tcc.h` | `Sym::parent_class`、`TokenSym.alt_ident_tok` 等 **接続済み** |
+| `tccgen.c` | Stage 1〜3 ロジックあり（**CP932 エンコーディング** — §19.6） |
+| `libtcc.c` | `guess_filetype()` / `is_cpp_source()` — 拡張子判定 **実装済み** |
+| `tccpp.c` | `__cplusplus`、`extern "C"`、キーワード降格 **実装済み** |
+| `test/cppuniut/cppuniut.cpp` | CPPUnit **15/15** |
+| `test/vs_test/` | CUnit（Stage2 含む）、`test_stage2_mangling.c` |
+| `dev/tcc.exe` | `build.bat` で `x64\Release\tcc.exe` をコピー |
+
+### ベースライン（2026-05-24 着手前・参考）
+
+| ファイル | 当時の状態 |
+|----------|------------|
+| `tccgen.c` | upstream 相当。C++ ロジックなし |
+| `libtcc.c` | `.cpp` → `AFF_TYPE_BIN` 誤判定 |
+| `tccpp.c` | `__cplusplus` / `extern "C"` / キーワードゲート未実装 |
+| `dev/tcc.exe` | 未配置 |
 
 ### 実装原則（[問題と原因.md](問題と原因.md) + [レビューその4.md](レビューその4.md) より）
 
@@ -654,12 +676,14 @@ REM 前者のみヒット
 
 ### Stage 1 スコープ（v2.2 確定 — [レビューその5](レビューその5.md) #2, #3）
 
-| 構文 | Stage 1 | 備考 |
-|------|---------|------|
-| `extern "C" { ... }` | **対応** | ブロック内で `lex_c++`（`lex_c` を increment、C++ キーワードを識別子化） |
-| `extern "C++" { ... }` | **未対応** | Stage 2。v2.2 の `continue` は `{` 未消費で壊れる → **Stage 1 では `tcc_error`** |
-| `extern "C" void foo();` 単一宣言 | **未対応** | Stage 2 で別途 |
-| `extern "C" { #include <windows.h> }` | **Stage 2** | Stage 1 では **テスト対象外**（`lex_c` 要検証後） |
+> **実装進捗（2026-05-25）**: 下表「Stage 1」列は**当初スコープ**の記録。`extern "C" void foo();` は Stage 2 で **実装済み**（`decl_once_flag`、[実装履歴.MD](実装履歴.MD) §20）。現状一覧は [実装済み.md](実装済み.md)。
+
+| 構文 | Stage 1（当初） | 現状（2026-05-25） | 備考 |
+|------|----------------|-------------------|------|
+| `extern "C" { ... }` | **対応** | **実装済み** | ブロック内で `lex_c++`（`lex_c` increment、C++ キーワードを識別子化） |
+| `extern "C++" { ... }` | **未対応** | **未対応** | v2.2 の `continue` は `{` 未消費で壊れる → **`tcc_error`** |
+| `extern "C" void foo();` 単一宣言 | **未対応** | **実装済み** | Stage 2 — `decl_once_flag`（§20） |
+| `extern "C" { #include <windows.h> }` | **Stage 2** | **未対応** | Stage 1 では **テスト対象外**（`lex_c` 要検証後） |
 
 **削除するもの**：v2.1 の `saved` ブロック・「adbase ヘルパ TBD」・単一宣言 fall-through — **一切書かない**。
 
@@ -1330,6 +1354,8 @@ flowchart LR
 改造不要。libcunit は純粋 C コード。
 
 ### Stage 3 改造例：テスト関数のメンバ関数化
+
+> **実装進捗（2026-05-25）**: TCC 本体では `this`・`obj.method()`・メンバ変数参照は **実装済み**（`dev/test/a7/member_call.cpp`）。libcunit 改造例は将来の参考。次の本体作業は [次の実装.md](次の実装.md) の Stage 3 残り（デフォルト引数・インライン遅延パース）。
 
 **変更前**（test_cunit.c）
 ```c
