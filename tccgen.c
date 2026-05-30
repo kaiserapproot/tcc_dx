@@ -3,31 +3,31 @@
  *
  *  Copyright (c) 2001-2004 Fabrice Bellard
  *
- * ‚±‚Ìƒ‰ƒCƒuƒ‰ƒŠ‚ÍƒtƒŠ[ƒ\ƒtƒgƒEƒFƒA‚Å‚·BÄ”Ğ•z‚¨‚æ‚Ñ/‚Ü‚½‚Í
- * C³‚ÍAFree Software Foundation ‚É‚æ‚Á‚ÄŒöŠJ‚³‚ê‚½ GNU Lesser
- * General Public License ‚Ìğ€iƒo[ƒWƒ‡ƒ“2 ‚Ü‚½‚Íi‘I‘ğ‚É‚æ‚èj‚»‚êˆÈ~j
- * ‚É]‚Á‚Äs‚¤‚±‚Æ‚ª‚Å‚«‚Ü‚·B
+ * ï¿½ï¿½ï¿½Ìƒï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Íƒtï¿½ï¿½ï¿½[ï¿½\ï¿½tï¿½gï¿½Eï¿½Fï¿½Aï¿½Å‚ï¿½ï¿½Bï¿½Ä”Ğ•zï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½Ü‚ï¿½ï¿½ï¿½
+ * ï¿½Cï¿½ï¿½ï¿½ÍAFree Software Foundation ï¿½É‚ï¿½ï¿½ï¿½ÄŒï¿½ï¿½Jï¿½ï¿½ï¿½ê‚½ GNU Lesser
+ * General Public License ï¿½Ìï¿½ï¿½ï¿½ï¿½iï¿½oï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½2 ï¿½Ü‚ï¿½ï¿½Íiï¿½Iï¿½ï¿½ï¿½É‚ï¿½ï¿½jï¿½ï¿½ï¿½ï¿½È~ï¿½j
+ * ï¿½É]ï¿½ï¿½ï¿½Äsï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½B
  *
- * ‚±‚Ìƒ‰ƒCƒuƒ‰ƒŠ‚Í—L—p‚Å‚ ‚é‚±‚Æ‚ğ–Ú“I‚Æ‚µ‚Ä”z•z‚³‚ê‚Ü‚·‚ªA
- * ¤•i«‚â“Á’è‚Ì–Ú“I‚Ö‚Ì“K‡«‚ğŠÜ‚Ş–¾¦“I‚Ü‚½‚Í–Ù¦“I‚È•ÛØ‚Í‚ ‚è‚Ü‚¹‚ñB
- * Ú×‚Í GNU Lesser General Public License ‚ğQÆ‚µ‚Ä‚­‚¾‚³‚¢B
+ * ï¿½ï¿½ï¿½Ìƒï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Í—Lï¿½pï¿½Å‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½Ú“Iï¿½Æ‚ï¿½ï¿½Ä”zï¿½zï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½ï¿½A
+ * ï¿½ï¿½ï¿½iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì–Ú“Iï¿½Ö‚Ì“Kï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚Ş–ï¿½ï¿½ï¿½ï¿½Iï¿½Ü‚ï¿½ï¿½Í–Ùï¿½ï¿½Iï¿½È•ÛØ‚Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½B
+ * ï¿½Ú×‚ï¿½ GNU Lesser General Public License ï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
  *
- * –{ƒ‰ƒCƒuƒ‰ƒŠ‚Æ‚Æ‚à‚É GNU Lesser General Public License ‚ÌÊ‚µ‚ª
- * ”z•z‚³‚ê‚Ä‚¢‚é‚Í‚¸‚Å‚·B”z•z‚³‚ê‚Ä‚¢‚È‚¢ê‡‚ÍAFree Software
+ * ï¿½{ï¿½ï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Æ‚Æ‚ï¿½ï¿½ï¿½ GNU Lesser General Public License ï¿½ÌÊ‚ï¿½ï¿½ï¿½
+ * ï¿½zï¿½zï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Í‚ï¿½ï¿½Å‚ï¿½ï¿½Bï¿½zï¿½zï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½ê‡ï¿½ÍAFree Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- * ‚Ü‚Å‚¨–â‚¢‡‚í‚¹‚­‚¾‚³‚¢B
+ * ï¿½Ü‚Å‚ï¿½ï¿½â‚¢ï¿½ï¿½ï¿½í‚¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
  */
 
 #define USING_GLOBALS
 #include "tcc.h"
 
  /********************************************************/
- /* ƒOƒ[ƒoƒ‹•Ï” */
+ /* ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½Ïï¿½ */
 
- /* loc : ƒ[ƒJƒ‹•Ï”‚ÌƒCƒ“ƒfƒbƒNƒX
-     ind : o—ÍƒR[ƒh‚ÌƒCƒ“ƒfƒbƒNƒX
-     rsym: –ß‚è’l—pƒVƒ“ƒ{ƒ‹
-     anon_sym: “½–¼ƒVƒ“ƒ{ƒ‹‚ÌƒCƒ“ƒfƒbƒNƒX
+ /* loc : ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ÌƒCï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½X
+     ind : ï¿½oï¿½ÍƒRï¿½[ï¿½hï¿½ÌƒCï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½X
+     rsym: ï¿½ß‚ï¿½lï¿½pï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½
+     anon_sym: ï¿½ï¿½ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ÌƒCï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½X
  */
 ST_DATA int rsym, anon_sym, ind, loc;
 
@@ -49,11 +49,11 @@ ST_DATA SValue* vtop;
 static SValue _vstack[1 + VSTACK_SIZE];
 #define vstack (_vstack + 1)
 
-ST_DATA int nocode_wanted; /* ƒR[ƒh¶¬‚ğ—}§‚·‚éƒtƒ‰ƒO */
-#define NODATA_WANTED (nocode_wanted > 0) /* Ã“Iƒf[ƒ^o—Í‚à•s—v‚Å‚ ‚é‚±‚Æ‚ğˆÓ–¡‚·‚é */
-#define DATA_ONLY_WANTED 0x80000000 /* ŠÖ”ŠO‚¨‚æ‚ÑÃ“I‰Šú‰»q‚ÅON‚É‚È‚é */
+ST_DATA int nocode_wanted; /* ï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½O */
+#define NODATA_WANTED (nocode_wanted > 0) /* ï¿½Ã“Iï¿½fï¿½[ï¿½^ï¿½oï¿½Í‚ï¿½ï¿½sï¿½vï¿½Å‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½Ó–ï¿½ï¿½ï¿½ï¿½ï¿½ */
+#define DATA_ONLY_WANTED 0x80000000 /* ï¿½Öï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ÑÃ“Iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½ï¿½ONï¿½É‚È‚ï¿½ */
 
-/* if (0) ‚Ì‚æ‚¤‚È–³ğŒƒWƒƒƒ“ƒv‚ÌŒã‚ÍƒR[ƒho—Í‚ğs‚í‚È‚¢ */
+/* if (0) ï¿½Ì‚æ‚¤ï¿½È–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ÌŒï¿½ÍƒRï¿½[ï¿½hï¿½oï¿½Í‚ï¿½ï¿½sï¿½ï¿½È‚ï¿½ */
 #define CODE_OFF_BIT 0x20000000
 #define CODE_OFF() if(!nocode_wanted)(nocode_wanted |= CODE_OFF_BIT)
 #define CODE_ON() (nocode_wanted &= ~CODE_OFF_BIT)
@@ -61,7 +61,7 @@ ST_DATA int nocode_wanted; /* ƒR[ƒh¶¬‚ğ—}§‚·‚éƒtƒ‰ƒO */
 #define NOEVAL_MASK 0x0000FFFF
 #define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
 
-/* sizeof()/typeof() “™‚ğ‰ğÍ‚µ‚Ä‚¢‚éŠÔ‚ÍƒR[ƒho—Í‚ğs‚í‚È‚¢inocode_wanted++/-- ‚ğg—pj */
+/* sizeof()/typeof() ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Ô‚ÍƒRï¿½[ï¿½hï¿½oï¿½Í‚ï¿½ï¿½sï¿½ï¿½È‚ï¿½ï¿½inocode_wanted++/-- ï¿½ï¿½ï¿½gï¿½pï¿½j */
 #define NOEVAL_MASK 0x0000FFFF
 #define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
 
@@ -69,14 +69,14 @@ ST_DATA int nocode_wanted; /* ƒR[ƒh¶¬‚ğ—}§‚·‚éƒtƒ‰ƒO */
 #define CONST_WANTED_MASK 0x0FFF0000
 #define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
 
-/* ’è”®‚ğ‰ğÍ‚µ‚Ä‚¢‚éŠÔ‚ÍƒR[ƒho—Í‚ğs‚í‚È‚¢ */
+/* ï¿½è”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Ô‚ÍƒRï¿½[ï¿½hï¿½oï¿½Í‚ï¿½ï¿½sï¿½ï¿½È‚ï¿½ */
 #define CONST_WANTED_BIT  0x00010000
 #define CONST_WANTED_MASK 0x0FFF0000
 #define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
 
-ST_DATA int global_expr;  /* •¡‡ƒŠƒeƒ‰ƒ‹‚ğƒOƒ[ƒoƒ‹‚ÉŠ„‚è“–‚Ä‚é•K—v‚ª‚ ‚éê‡‚É^i‰Šú‰»q‰ğÍ‚Ég—pj */
-ST_DATA CType func_vt; /* Œ»İ‚ÌŠÖ”‚Ì–ß‚è’lŒ^ireturn –½—ß‚Åg—pj */
-ST_DATA int func_var; /* Œ»İ‚ÌŠÖ”‚ª‰Â•Ï’·ˆø”‚©‚Ç‚¤‚©ireturn –½—ß‚Åg—pj */
+ST_DATA int global_expr;  /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½eï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½ÉŠï¿½ï¿½è“–ï¿½Ä‚ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½É^ï¿½iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½ï¿½Íï¿½ï¿½Égï¿½pï¿½j */
+ST_DATA CType func_vt; /* ï¿½ï¿½ï¿½İ‚ÌŠÖï¿½ï¿½Ì–ß‚ï¿½lï¿½^ï¿½ireturn ï¿½ï¿½ï¿½ß‚Ågï¿½pï¿½j */
+ST_DATA int func_var; /* ï¿½ï¿½ï¿½İ‚ÌŠÖï¿½ï¿½ï¿½ï¿½Â•Ï’ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ireturn ï¿½ï¿½ï¿½ß‚Ågï¿½pï¿½j */
 ST_DATA int func_vc;
 ST_DATA int func_ind;
 ST_DATA const char* funcname;
@@ -98,19 +98,19 @@ static struct switch_t {
     struct case_t {
         int64_t v1, v2;
         int ind, line;
-    } **p; int n; /* case ”ÍˆÍ‚ÌƒŠƒXƒg */
-    int def_sym; /* ƒfƒtƒHƒ‹ƒg‚ÌƒVƒ“ƒ{ƒ‹ */
+    } **p; int n; /* case ï¿½ÍˆÍ‚Ìƒï¿½ï¿½Xï¿½g */
+    int def_sym; /* ï¿½fï¿½tï¿½Hï¿½ï¿½ï¿½gï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ */
     int nocode_wanted;
     int* bsym;
     struct scope* scope;
     struct switch_t* prev;
     SValue sv;
-} *cur_switch; /* Œ»İ‚Ì switch \‘¢‘Ì */
+} *cur_switch; /* ï¿½ï¿½ï¿½İ‚ï¿½ switch ï¿½\ï¿½ï¿½ï¿½ï¿½ */
 
 #define MAX_TEMP_LOCAL_VARIABLE_NUMBER 8
-/* Œ»İ‚ÌŠÖ”‚Å‚ÌƒXƒ^ƒbƒNã‚Ìˆêƒ[ƒJƒ‹•Ï”‚Ìˆê—— */
+/* ï¿½ï¿½ï¿½İ‚ÌŠÖï¿½ï¿½Å‚ÌƒXï¿½^ï¿½bï¿½Nï¿½ï¿½Ìˆêï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½Ìˆê—— */
 static struct temp_local_variable {
-    int location; // ƒXƒ^ƒbƒNã‚ÌƒIƒtƒZƒbƒgBSValue.c.i
+    int location; // ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÌƒIï¿½tï¿½Zï¿½bï¿½gï¿½BSValue.c.i
     short size;
     short align;
 } arr_temp_local_vars[MAX_TEMP_LOCAL_VARIABLE_NUMBER];
@@ -382,6 +382,127 @@ static int parse_cpp_scope_qualifier(int *v)
     return 1;
 }
 
+/* If tok is Class::member, unget tokens for expression parsing. */
+static int cpp_unget_scoped_expr(void)
+{
+    int cls_tok, mem_tok;
+
+    if (!tcc_state->cpp || tok < TOK_IDENT)
+        return 0;
+    cls_tok = tok;
+    next();
+    if (tok != ':') {
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    /* Need a SECOND ':' to form `::`.  A single ':' here is a label
+     * (e.g., `foo:` goto target), not a scope qualifier â€” fall back
+     * to the regular decl/statement path. */
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    if (!(tok >= TOK_IDENT)) {
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return 0;
+    }
+    mem_tok = tok;
+    (void)mem_tok;  /* tok is already mem_tok; unget_tok auto-saves it. */
+    /* Restore the token stream as: cls_tok, ':', ':', mem_tok, <rest>.
+     * Each unget_tok auto-saves the current tok before overwriting it,
+     * so unget'ing mem_tok explicitly here would push count TWICE. */
+    unget_tok(':');
+    unget_tok(':');
+    unget_tok(cls_tok);
+    return 1;
+}
+
+static int cpp_unget_scoped_after_class_tok(int cls_tok)
+{
+    int mem_tok;
+
+    if (!tcc_state->cpp || tok != ':')
+        return 0;
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        return 0;
+    }
+    next();
+    if (!(tok >= TOK_IDENT)) {
+        unget_tok(':');
+        unget_tok(':');
+        return 0;
+    }
+    mem_tok = tok;
+    unget_tok(mem_tok);
+    unget_tok(':');
+    unget_tok(':');
+    unget_tok(cls_tok);
+    return 1;
+}
+
+static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
+{
+    Sym *f, *s;
+    int v1;
+
+    if (!class_sym)
+        return NULL;
+    v1 = mem_v | SYM_FIELD;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->v == v1 && (f->type.t & VT_STATIC))
+            break;
+    }
+    if (!f)
+        return NULL;
+    for (s = sym_find(mem_v); s; s = s->prev_tok) {
+        if ((f->type.t & VT_BTYPE) == VT_FUNC) {
+            if ((s->type.t & VT_BTYPE) == VT_FUNC && s->parent_class == class_sym)
+                return s;
+        } else {
+            if ((s->type.t & VT_BTYPE) != VT_FUNC && !(s->v & SYM_FIELD))
+                return s;
+                return s;
+        }
+    }
+    return NULL;
+}
+/* A C++ ctor member has the same identifier as the class itself, which
+ * already lives as a typedef in the global identifier chain.  Storing
+ * the ctor as a global Sym under that token would either collide with
+ * the typedef ("redefinition of incompatible type") or hide it from
+ * later `Foo f;` declarations.  Instead we generate a distinct token
+ * `__cpp_ctor_<Class>` for the global Sym.  Lookups (`f.Foo()`) go
+ * through cpp_lookup_member_func, which translates Fooâ†’__cpp_ctor_Foo. */
+static int cpp_ctor_name_tok(int class_tok)
+{
+    char buf[256];
+    int len;
+    TokenSym *ts;
+    len = snprintf(buf, sizeof buf, "__cpp_ctor_%s",
+                   get_tok_str(class_tok, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return 0;
+    ts = tok_alloc(buf, len);
+    return ts->tok;
+}
+
+static int cpp_is_ctor_field(Sym *field)
+{
+    if (!field || !field->parent_class)
+        return 0;
+    if ((field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    return (field->v & ~SYM_FIELD)
+        == (field->parent_class->v & ~SYM_STRUCT);
+}
+
 static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
 {
     int v;
@@ -389,8 +510,15 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
 
     if (!field || !obj_type || !obj_type->ref)
         return field;
-    v = field->v & ~SYM_FIELD;
-    class_sym = obj_type->ref;
+    class_sym = field->parent_class ? field->parent_class : obj_type->ref;
+    if (cpp_is_ctor_field(field)) {
+        /* ctor lives under the mangled global token. */
+        v = cpp_ctor_name_tok(field->v & ~SYM_FIELD);
+        if (!v)
+            return field;
+    } else {
+        v = field->v & ~SYM_FIELD;
+    }
     for (s = sym_find(v); s; s = s->prev_tok) {
         if ((s->type.t & VT_BTYPE) != VT_FUNC)
             continue;
@@ -400,19 +528,17 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     return field;
 }
 
+static Sym *find_field(CType *type, int v, int *cumofs);
 static Sym *cpp_lookup_member_field(int v, Sym *class_sym)
 {
-    Sym *f;
-    int v1;
+    CType ct;
+    int cumofs;
 
     if (!class_sym)
         return NULL;
-    v1 = v | SYM_FIELD;
-    for (f = class_sym->next; f; f = f->next) {
-        if (f->v == v1 && (f->type.t & VT_BTYPE) != VT_FUNC)
-            return f;
-    }
-    return NULL;
+    ct.t = VT_STRUCT;
+    ct.ref = class_sym;
+    return find_field(&ct, v, &cumofs);
 }
 
 static void cpp_push_member_var(Sym *field)
@@ -463,6 +589,26 @@ static void cpp_save_default_arg(Sym *param)
     param->inline_func_str = def;
 }
 
+static void cpp_save_mem_init_list(Sym *ctor)
+{
+    TokenString *def;
+
+    if (tok != ':')
+        return;
+    next();
+    def = tok_str_alloc();
+    while (tok != '{') {
+        int t = tok;
+        if (t == TOK_EOF)
+            tcc_error("unexpected end in mem-initializer-list");
+        tok_str_add_tok(def);
+        next();
+    }
+    tok_str_add(def, TOK_EOF);
+    ctor->cpp_mem_init_list = def;
+}
+
+
 static void cpp_register_member_body(Sym *field_sym, Sym *class_sym, CType *ftype, TokenString *body)
 {
     if (!body || !tcc_state->cpp || !field_sym)
@@ -482,6 +628,7 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         return;
     for (f = class_sym->next; f; f = f->next) {
         TokenString *body;
+        int global_tok;
         if ((f->type.t & VT_BTYPE) != VT_FUNC)
             continue;
         body = f->inline_func_str;
@@ -491,9 +638,22 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         memset(&ad, 0, sizeof ad);
         type = f->type;
         type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
-        sym = external_sym(f->v & ~SYM_FIELD, &type, 0, &ad);
+        /* ctor: use a mangled token name to dodge the class typedef.
+         * (See cpp_lookup_member_func for the matching lookup path.) */
+        if (cpp_is_ctor_field(f)) {
+            global_tok = cpp_ctor_name_tok(f->v & ~SYM_FIELD);
+            if (!global_tok)
+                global_tok = f->v & ~SYM_FIELD;  /* fallback */
+        } else {
+            global_tok = f->v & ~SYM_FIELD;
+        }
+        sym = external_sym(global_tok, &type, 0, &ad);
         sym->parent_class = class_sym;
         sym->type.t |= VT_INLINE;
+        /* Inline ctor: propagate the saved mem-initializer-list so
+         * gen_function can expand it when codegen runs. */
+        if (f->cpp_mem_init_list)
+            sym->cpp_mem_init_list = f->cpp_mem_init_list;
         cpp_set_func_mangle_label(sym, &type);
         fn = tcc_malloc(sizeof *fn + strlen(file->filename));
         strcpy(fn->filename, file->filename);
@@ -526,13 +686,68 @@ static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa)
     *pnb_args = nb_args;
     *psa = sa;
 }
+
+/* Deep-copy a token string so begin_macro/end_macro(alloc=1) can free the
+ * copy without invalidating the original stored in the field sym param. */
+static TokenString *tok_str_dup_for_default(TokenString *src)
+{
+    TokenString *dst;
+    int i;
+    if (!src || !src->str)
+        return NULL;
+    dst = tok_str_alloc();
+    for (i = 0; i < src->len; i++)
+        tok_str_add(dst, src->str[i]);
+    return dst;
+}
+
+/* Copy default-arg token strings and the VT_STATIC storage class from the
+ * class declaration field sym to the out-of-class definition sym.
+ *   class Foo { static int bar(int x = 10); };
+ *   int Foo::bar(int x) { ... }
+ * The out-of-class definition never repeats "static", so without this
+ * propagation gen_function() would treat bar() as a non-static member and
+ * implicitly insert a `this` parameter, corrupting the calling convention.
+ * The default-arg TokenString is deep-copied so end_macro(alloc=1) frees
+ * only the copy and the original on the field sym stays valid. */
+static void cpp_inherit_decl_defaults(Sym *sym)
+{
+    Sym *field, *dp, *sp;
+
+    if (!sym || !sym->parent_class || !tcc_state->cpp)
+        return;
+    if ((sym->type.t & VT_BTYPE) != VT_FUNC || !sym->type.ref)
+        return;
+    for (field = sym->parent_class->next; field; field = field->next) {
+        if (field->v == (sym->v | SYM_FIELD)
+            && (field->type.t & VT_BTYPE) == VT_FUNC)
+            break;
+    }
+    if (!field || !field->type.ref)
+        return;
+    /* propagate VT_STATIC so gen_function() does not add an implicit
+     * `this` to a static member function defined outside the class. */
+    if (field->type.t & VT_STATIC)
+        sym->type.t |= VT_STATIC;
+    dp = field->type.ref->next;
+    sp = sym->type.ref->next;
+    while (dp && sp) {
+        if (dp->type.t == VT_VOID || sp->type.t == VT_VOID)
+            break;
+        if (!sp->inline_func_str && dp->inline_func_str)
+            sp->inline_func_str = tok_str_dup_for_default(dp->inline_func_str);
+        dp = dp->next;
+        sp = sp->next;
+    }
+}
+
 static void end_switch(void);
 static void do_Static_assert(void);
 
 /* ------------------------------------------------------------------------- */
-/* ©“®“I‚ÈƒR[ƒh—}§ */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½Iï¿½ÈƒRï¿½[ï¿½hï¿½}ï¿½ï¿½ */
 
-/* ‡•ûŒüƒ‰ƒxƒ‹‚Åg—p‚³‚ê‚Ä‚¢‚½ê‡‚É 'nocode_wanted' ‚ğƒNƒŠƒA‚·‚é */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½Ågï¿½pï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½ê‡ï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void gsym(int t)
 {
     if (t) {
@@ -541,7 +756,7 @@ ST_FUNC void gsym(int t)
     }
 }
 
-/* Œ»İ‚ÌƒvƒƒOƒ‰ƒ€ƒJƒEƒ“ƒ^‚ªƒ‰ƒxƒ‹‚Å‚ ‚éê‡‚É 'nocode_wanted' ‚ğƒNƒŠƒA‚·‚é */
+/* ï¿½ï¿½ï¿½İ‚Ìƒvï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½Jï¿½Eï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½Å‚ï¿½ï¿½ï¿½ê‡ï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½ï¿½ */
 static int gind()
 {
     int t = ind;
@@ -551,14 +766,14 @@ static int gind()
     return t;
 }
 
-/* –³ğŒiŒã•ûjƒWƒƒƒ“ƒv‚ÌŒã‚É 'nocode_wanted' ‚ğİ’è‚·‚é */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½ï¿½ï¿½ï¿½jï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ÌŒï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½İ’è‚·ï¿½ï¿½ */
 static void gjmp_addr_acs(int t)
 {
     gjmp_addr(t);
     CODE_OFF();
 }
 
-/* –³ğŒi‘O•ûjƒWƒƒƒ“ƒv‚ÌŒã‚É 'nocode_wanted' ‚ğİ’è‚·‚é */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½Oï¿½ï¿½ï¿½jï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ÌŒï¿½ï¿½ 'nocode_wanted' ï¿½ï¿½İ’è‚·ï¿½ï¿½ */
 static int gjmp_acs(int t)
 {
     t = gjmp(t);
@@ -566,7 +781,7 @@ static int gjmp_acs(int t)
     return t;
 }
 
-/* ‚±‚ê‚ç‚Íƒtƒ@ƒCƒ‹‚ÌÅŒã‚Å #undef ‚³‚ê‚Ü‚· */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½Íƒtï¿½@ï¿½Cï¿½ï¿½ï¿½ÌÅŒï¿½ï¿½ #undef ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ */
 #define gjmp_addr gjmp_addr_acs
 #define gjmp gjmp_acs
 /* ------------------------------------------------------------------------- */
@@ -598,7 +813,7 @@ static int btype_size(int bt)
         bt == VT_PTR ? PTR_SIZE : 0;
 }
 
-/* Œ^‚É‰‚¶‚½ŠÖ”–ß‚èƒŒƒWƒXƒ^‚ğ•Ô‚· */
+/* ï¿½^ï¿½É‰ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½Ô‚ï¿½ */
 static int R_RET(int t)
 {
     if (!is_float(t))
@@ -613,7 +828,7 @@ static int R_RET(int t)
     return REG_FRET;
 }
 
-/* 2”Ô–Ú‚ÌŠÖ”–ß‚èƒŒƒWƒXƒ^‚ğ•Ô‚·i‘¶İ‚·‚éê‡j */
+/* 2ï¿½Ô–Ú‚ÌŠÖï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½Ô‚ï¿½ï¿½iï¿½ï¿½ï¿½İ‚ï¿½ï¿½ï¿½ê‡ï¿½j */
 static int R2_RET(int t)
 {
     t &= VT_BTYPE;
@@ -631,25 +846,25 @@ static int R2_RET(int t)
 #endif
     return VT_CONST;
 }
-/* 2ƒ[ƒhŒ^‚©‚Ç‚¤‚©‚ğ•Ô‚· */
+/* 2ï¿½ï¿½ï¿½[ï¿½hï¿½^ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ï¿½Ô‚ï¿½ */
 #define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
 
-/* 2ƒ[ƒhŒ^‚©‚Ç‚¤‚©‚ğ”»’è‚·‚é */
+/* 2ï¿½ï¿½ï¿½[ï¿½hï¿½^ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ğ”»’è‚·ï¿½ï¿½ */
 #define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
 
-/* ŠÖ”–ß‚èƒŒƒWƒXƒ^‚ğƒXƒ^ƒbƒN’l‚Éİ’è‚·‚é */
+/* ï¿½Öï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½lï¿½Éİ’è‚·ï¿½ï¿½ */
 static void PUT_R_RET(SValue* sv, int t)
 {
     sv->r = R_RET(t), sv->r2 = R2_RET(t);
 }
 
-/* Œ^t‚É‘Î‚·‚éŠÖ”–ß‚èƒŒƒWƒXƒ^‚ÌƒŒƒWƒXƒ^ƒNƒ‰ƒX‚ğ•Ô‚· */
+/* ï¿½^tï¿½É‘Î‚ï¿½ï¿½ï¿½Öï¿½ï¿½ß‚èƒŒï¿½Wï¿½Xï¿½^ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½Ô‚ï¿½ */
 static int RC_RET(int t)
 {
     return reg_classes[R_RET(t)] & ~(RC_FLOAT | RC_INT);
 }
 
-/* Œ^t‚É‘Î‚·‚éˆê”Ê“I‚ÈƒŒƒWƒXƒ^ƒNƒ‰ƒX‚ğ•Ô‚· */
+/* ï¿½^tï¿½É‘Î‚ï¿½ï¿½ï¿½ï¿½Ê“Iï¿½Èƒï¿½ï¿½Wï¿½Xï¿½^ï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½Ô‚ï¿½ */
 static int RC_TYPE(int t)
 {
     if (!is_float(t))
@@ -666,7 +881,7 @@ static int RC_TYPE(int t)
     return RC_FLOAT;
 }
 
-/* t‚Ærc‚É‘Î‰‚·‚é2”Ô–Ú‚ÌƒŒƒWƒXƒ^ƒNƒ‰ƒX‚ğ•Ô‚· */
+/* tï¿½ï¿½rcï¿½É‘Î‰ï¿½ï¿½ï¿½ï¿½ï¿½2ï¿½Ô–Ú‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½Ô‚ï¿½ */
 static int RC2_TYPE(int t, int rc)
 {
     if (!USING_TWO_WORDS(t))
@@ -684,8 +899,8 @@ static int RC2_TYPE(int t, int rc)
     return RC_INT;
 }
 
-/* ”ñ•W€‚Ì”Šwƒ‰ƒCƒuƒ‰ƒŠ‚Å‚Ì–â‘è‚ğ”ğ‚¯‚é‚½‚ß“Æ©‚Ì 'finite' ŠÖ”‚ğg—p */
-/* XXX: ƒGƒ“ƒfƒBƒAƒ“ˆË‘¶ */
+/* ï¿½ï¿½Wï¿½ï¿½ï¿½Ìï¿½ï¿½wï¿½ï¿½ï¿½Cï¿½uï¿½ï¿½ï¿½ï¿½ï¿½Å‚Ì–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ß“Æï¿½ï¿½ï¿½ 'finite' ï¿½Öï¿½ï¿½ï¿½ï¿½gï¿½p */
+/* XXX: ï¿½Gï¿½ï¿½ï¿½fï¿½Bï¿½Aï¿½ï¿½ï¿½Ë‘ï¿½ */
 ST_FUNC int ieee_finite(double d)
 {
     int p[4];
@@ -693,7 +908,7 @@ ST_FUNC int ieee_finite(double d)
     return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
 }
 
-/* IntelŒü‚¯‚É long double ‚ğƒlƒCƒeƒBƒu‚Éˆ—‚·‚éİ’è */
+/* Intelï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ long double ï¿½ï¿½ï¿½lï¿½Cï¿½eï¿½Bï¿½uï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½İ’ï¿½ */
 #if (defined __i386__ || defined __x86_64__) \
     && (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64)
 # define TCC_IS_NATIVE_387
@@ -708,11 +923,11 @@ ST_FUNC void test_lvalue(void)
 ST_FUNC void check_vstack(void)
 {
     if (vtop != vstack - 1)
-        tcc_error("“à•”ƒRƒ“ƒpƒCƒ‰ƒGƒ‰[: vstack ‚ÌƒŠ[ƒN (%d)",
+        tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½[: vstack ï¿½Ìƒï¿½ï¿½[ï¿½N (%d)",
             (int)(vtop - vstack + 1));
 }
 
-/* vstack ‚ÌƒfƒoƒbƒO•â• */
+/* vstack ï¿½Ìƒfï¿½oï¿½bï¿½Oï¿½â• */
 #if 0
 void pv(const char* lbl, int a, int b)
 {
@@ -726,13 +941,13 @@ void pv(const char* lbl, int a, int b)
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* vstack ‚ÆŒ^‚Ì‰Šú‰»Btcc -EiƒvƒŠƒvƒƒZƒX‚Ì‚İj‚Å‚à‚±‚ê‚ğs‚¤•K—v‚ª‚ ‚é */
+/* vstack ï¿½ÆŒ^ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Btcc -Eï¿½iï¿½vï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Zï¿½Xï¿½Ì‚İjï¿½Å‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void tccgen_init(TCCState* s1)
 {
     vtop = vstack - 1;
     memset(vtop, 0, sizeof * vtop);
 
-    /* ‚æ‚­g‚í‚ê‚éŒ^‚ğ’è‹` */
+    /* ï¿½æ‚­ï¿½gï¿½ï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½` */
     int_type.t = VT_INT;
 
     char_type.t = VT_BYTE;
@@ -762,7 +977,7 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     funcname = "";
     func_ind = -1;
     anon_sym = SYM_FIRST_ANOM;
-    nocode_wanted = DATA_ONLY_WANTED; /* ŠÖ”ŠO‚Å‚ÍƒR[ƒh‚ğ¶¬‚µ‚È‚¢ */
+    nocode_wanted = DATA_ONLY_WANTED; /* ï¿½Öï¿½ï¿½Oï¿½Å‚ÍƒRï¿½[ï¿½hï¿½ğ¶ï¿½ï¿½ï¿½ï¿½È‚ï¿½ */
     debug_modes = (s1->do_debug ? 1 : 0) | s1->test_coverage << 1;
 
     tcc_debug_start(s1);
@@ -778,7 +993,7 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     decl(VT_CONST);
     gen_inline_functions(s1);
     check_vstack();
-    /* –|–ó’PˆÊ‚Ìî•ñ‚ÌI‚í‚è */
+    /* ï¿½|ï¿½ï¿½Pï¿½Ê‚Ìï¿½ï¿½ÌIï¿½ï¿½ï¿½ */
 #if TCC_EH_FRAME
     tcc_eh_frame_end(s1);
 #endif
@@ -789,13 +1004,13 @@ ST_FUNC int tccgen_compile(TCCState* s1)
 
 ST_FUNC void tccgen_finish(TCCState* s1)
 {
-    tcc_debug_end(s1); /* ƒGƒ‰[”­¶‚É”õ‚¦‚Äƒƒ‚ƒŠ‚ğ‰ğ•ú */
+    tcc_debug_end(s1); /* ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É”ï¿½ï¿½ï¿½ï¿½Äƒï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     free_inline_functions(s1);
     sym_pop(&global_stack, NULL, 0);
     sym_pop(&local_stack, NULL, 0);
-    /* ƒvƒŠƒvƒƒZƒbƒT‚Ìƒ}ƒNƒ‚ğ‰ğ•ú */
+    /* ï¿½vï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Zï¿½bï¿½Tï¿½Ìƒ}ï¿½Nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     free_defines(NULL);
-    /* sym_pools ‚ğ‰ğ•ú */
+    /* sym_pools ï¿½ï¿½ï¿½ï¿½ï¿½ */
     dynarray_reset(&sym_pools, &nb_sym_pools);
     cstr_free(&initstr);
     dynarray_reset(&stk_data, &nb_stk_data);
@@ -820,7 +1035,7 @@ ST_FUNC ElfSym* elfsym(Sym* s)
     return &((ElfSym*)symtab_section->data)[s->c];
 }
 
-/* ELF ƒVƒ“ƒ{ƒ‹‚ÉƒXƒgƒŒ[ƒW‘®«‚ğ“K—p */
+/* ELF ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ÉƒXï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½p */
 ST_FUNC void update_storage(Sym* sym)
 {
     ElfSym* esym;
@@ -864,7 +1079,7 @@ ST_FUNC void update_storage(Sym* sym)
 }
 
 /* ------------------------------------------------------------------------- */
-/* sym->c ‚ğXV‚µA'section' ƒZƒNƒVƒ‡ƒ““à‚ÌŠO•”ƒVƒ“ƒ{ƒ‹i’l valuej‚ğw‚·‚æ‚¤‚É‚·‚é */
+/* sym->c ï¿½ï¿½ï¿½Xï¿½Vï¿½ï¿½ï¿½A'section' ï¿½Zï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌŠOï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½iï¿½l valueï¿½jï¿½ï¿½ï¿½wï¿½ï¿½ï¿½æ‚¤ï¿½É‚ï¿½ï¿½ï¿½ */
 
 ST_FUNC void put_extern_sym2(Sym* sym, int sh_num,
     addr_t value, unsigned long size,
@@ -944,7 +1159,7 @@ ST_FUNC void put_extern_sym(Sym* sym, Section* s, addr_t value, unsigned long si
     put_extern_sym2(sym, s ? s->sh_num : SHN_UNDEF, value, size, 1);
 }
 
-/* ƒZƒNƒVƒ‡ƒ“ s ‚ÌƒVƒ“ƒ{ƒ‹ sym ‚ÉV‚µ‚¢Ä”z’uƒGƒ“ƒgƒŠ‚ğ’Ç‰Á */
+/* ï¿½Zï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ s ï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ sym ï¿½ÉVï¿½ï¿½ï¿½ï¿½ï¿½Ä”zï¿½uï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ */
 ST_FUNC void greloca(Section* s, Sym* sym, unsigned long offset, int type,
     addr_t addend)
 {
@@ -959,7 +1174,7 @@ ST_FUNC void greloca(Section* s, Sym* sym, unsigned long offset, int type,
         c = sym->c;
     }
 
-    /* ‚±‚ê‚Å ELF Ä”z’uî•ñ‚ğ’Ç‰Á‚Å‚«‚é */
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½ ELF ï¿½Ä”zï¿½uï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½Å‚ï¿½ï¿½ï¿½ */
     put_elf_reloca(symtab_section, s, offset, type, c, addend);
 }
 
@@ -971,7 +1186,7 @@ ST_FUNC void greloc(Section* s, Sym* sym, unsigned long offset, int type)
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* ƒVƒ“ƒ{ƒ‹ƒAƒƒP[ƒ^ */
+/* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Pï¿½[ï¿½^ */
 static Sym* __sym_malloc(void)
 {
     Sym* sym_pool, * sym, * last_sym;
@@ -1016,7 +1231,7 @@ ST_INLN void sym_free(Sym* sym)
 #endif
 }
 
-/* ƒnƒbƒVƒ…‚ğg‚í‚¸‚ÉƒvƒbƒVƒ… */
+/* ï¿½nï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½gï¿½í‚¸ï¿½Éƒvï¿½bï¿½Vï¿½ï¿½ */
 ST_FUNC Sym* sym_push2(Sym** ps, int v, int t, int c)
 {
     Sym* s;
@@ -1032,7 +1247,7 @@ ST_FUNC Sym* sym_push2(Sym** ps, int v, int t, int c)
     return s;
 }
 
-/* ƒVƒ“ƒ{ƒ‹‚ğŒŸõ‚µ‘Î‰‚·‚é\‘¢‘Ì‚ğ•Ô‚·B's' ‚ÍƒVƒ“ƒ{ƒ‹ƒXƒ^ƒbƒN‚Ìƒgƒbƒv */
+/* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î‰ï¿½ï¿½ï¿½ï¿½ï¿½\ï¿½ï¿½ï¿½Ì‚ï¿½Ô‚ï¿½ï¿½B's' ï¿½ÍƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìƒgï¿½bï¿½v */
 ST_FUNC Sym* sym_find2(Sym* s, int v)
 {
     while (s) {
@@ -1043,7 +1258,7 @@ ST_FUNC Sym* sym_find2(Sym* s, int v)
     return NULL;
 }
 
-/* \‘¢‘Ì‚ÌŒŸõ */
+/* ï¿½\ï¿½ï¿½ï¿½Ì‚ÌŒï¿½ï¿½ï¿½ */
 ST_INLN Sym* struct_find(int v)
 {
     v -= TOK_IDENT;
@@ -1052,7 +1267,7 @@ ST_INLN Sym* struct_find(int v)
     return table_ident[v]->sym_struct;
 }
 
-/* ¯•Êq‚ğŒŸõ */
+/* ï¿½ï¿½ï¿½Êqï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 ST_INLN Sym* sym_find(int v)
 {
     v -= TOK_IDENT;
@@ -1069,7 +1284,7 @@ static int sym_scope(Sym* s)
         return s->sym_scope;
 }
 
-/* w’è‚³‚ê‚½ƒVƒ“ƒ{ƒ‹‚ğƒVƒ“ƒ{ƒ‹ƒXƒ^ƒbƒN‚ÉƒvƒbƒVƒ… */
+/* ï¿½wï¿½è‚³ï¿½ê‚½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Éƒvï¿½bï¿½Vï¿½ï¿½ */
 ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
 {
     Sym* s, ** ps;
@@ -1082,10 +1297,10 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
     s = sym_push2(ps, v, type->t, c);
     s->type.ref = type->ref;
     s->r = r;
-    /* ƒtƒB[ƒ‹ƒh‚â“½–¼ƒVƒ“ƒ{ƒ‹‚Í‹L˜^‚µ‚È‚¢ */
+    /* ï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½â“½ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½Í‹Lï¿½^ï¿½ï¿½ï¿½È‚ï¿½ */
     /* XXX: simplify */
     if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-        /* ƒg[ƒNƒ“”z—ñ‚ÉƒVƒ“ƒ{ƒ‹‚ğ‹L˜^ */
+        /* ï¿½gï¿½[ï¿½Nï¿½ï¿½ï¿½zï¿½ï¿½ÉƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½Lï¿½^ */
         ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
         if (v & SYM_STRUCT)
             ps = &ts->sym_struct;
@@ -1100,14 +1315,14 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
                     tcc_error("redefinition of '%s'",
                         get_tok_str(v & ~SYM_STRUCT, NULL));
             } else
-                tcc_error("Ä’è‹`: '%s'",
+                tcc_error("ï¿½Ä’ï¿½`: '%s'",
                 get_tok_str(v & ~SYM_STRUCT, NULL));
         }
     }
     return s;
 }
 
-/* ƒOƒ[ƒoƒ‹¯•Êq‚ğƒvƒbƒVƒ… */
+/* ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½ï¿½ï¿½Êqï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 ST_FUNC Sym* global_identifier_push(int v, int t, int c)
 {
     Sym* s, ** ps;
@@ -1116,9 +1331,9 @@ ST_FUNC Sym* global_identifier_push(int v, int t, int c)
     /* don't record anonymous symbol */
     if (v < SYM_FIRST_ANOM) {
         ps = &table_ident[v - TOK_IDENT]->sym_identifier;
-        /* ƒgƒbƒv‚Ìƒ[ƒJƒ‹¯•Êq‚ğ•ÏX‚µAƒ|ƒbƒv‚³‚ê‚½‚Æ‚«‚É
-           sym_identifier ‚ª 's' ‚ğw‚·‚æ‚¤‚É‚·‚éG‚±‚Ìˆ—‚ÍƒCƒ“ƒ‰ƒCƒ“ asm ‚©‚ç
-           ŒÄ‚Ño‚³‚ê‚½‚Æ‚«‚É”­¶‚·‚é */
+        /* ï¿½gï¿½bï¿½vï¿½Ìƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½ï¿½ï¿½Êqï¿½ï¿½ÏXï¿½ï¿½ï¿½Aï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ê‚½ï¿½Æ‚ï¿½ï¿½ï¿½
+           sym_identifier ï¿½ï¿½ 's' ï¿½ï¿½ï¿½wï¿½ï¿½ï¿½æ‚¤ï¿½É‚ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ÍƒCï¿½ï¿½ï¿½ï¿½ï¿½Cï¿½ï¿½ asm ï¿½ï¿½ï¿½ï¿½
+           ï¿½Ä‚Ñoï¿½ï¿½ï¿½ê‚½ï¿½Æ‚ï¿½ï¿½É”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
         while (*ps != NULL && (*ps)->sym_scope)
             ps = &(*ps)->prev_tok;
         s->prev_tok = *ps;
@@ -1127,8 +1342,8 @@ ST_FUNC Sym* global_identifier_push(int v, int t, int c)
     return s;
 }
 
-/* ƒgƒbƒv‚ª 'b' ‚É“’B‚·‚é‚Ü‚ÅƒVƒ“ƒ{ƒ‹‚ğƒ|ƒbƒv‚·‚éBKEEP ‚ª”ñƒ[ƒ‚Ìê‡‚Í
-    ÀÛ‚É‚ÍƒŠƒXƒg‚©‚çæ‚èœ‚©‚¸Aƒg[ƒNƒ“”z—ñ‚©‚ç‚Ì‚İíœ‚·‚é */
+/* ï¿½gï¿½bï¿½vï¿½ï¿½ 'b' ï¿½É“ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½Ü‚ÅƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½BKEEP ï¿½ï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Ìê‡ï¿½ï¿½
+    ï¿½ï¿½ï¿½Û‚É‚Íƒï¿½ï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½gï¿½[ï¿½Nï¿½ï¿½ï¿½zï¿½ñ‚©‚ï¿½Ì‚İíœï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void sym_pop(Sym** ptop, Sym* b, int keep)
 {
     Sym* s, * ss, ** ps;
@@ -1157,7 +1372,7 @@ ST_FUNC void sym_pop(Sym** ptop, Sym* b, int keep)
         *ptop = b;
 }
 
-/* ƒ‰ƒxƒ‹‚ÌŒŸõ */
+/* ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½ÌŒï¿½ï¿½ï¿½ */
 ST_FUNC Sym* label_find(int v)
 {
     v -= TOK_IDENT;
@@ -1183,18 +1398,18 @@ ST_FUNC Sym* label_push(Sym** ptop, int v, int flags)
     return s;
 }
 
-/* ÅŒã‚Ì—v‘f‚É’B‚·‚é‚Ü‚Åƒ‰ƒxƒ‹‚ğƒ|ƒbƒv‚·‚éB–¢’è‹`‚Ìƒ‰ƒxƒ‹‚ª‚È‚¢‚©Šm”F‚·‚éB
-    '&&label' ‚ªg‚í‚ê‚Ä‚¢‚ê‚ÎƒVƒ“ƒ{ƒ‹‚ğ’è‹`‚·‚é */
+/* ï¿½ÅŒï¿½Ì—vï¿½fï¿½É’Bï¿½ï¿½ï¿½ï¿½Ü‚Åƒï¿½ï¿½xï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½`ï¿½Ìƒï¿½ï¿½xï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½mï¿½Fï¿½ï¿½ï¿½ï¿½B
+    '&&label' ï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ÎƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½`ï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void label_pop(Sym** ptop, Sym* slast, int keep)
 {
     Sym* s, * s1;
     for (s = *ptop; s != slast; s = s1) {
         s1 = s->prev;
         if (s->r == LABEL_DECLARED) {
-            tcc_warning_c(warn_all)("ƒ‰ƒxƒ‹ '%s' ‚ÍéŒ¾‚³‚ê‚Ä‚¢‚Ü‚·‚ªg—p‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ", get_tok_str(s->v, NULL));
+            tcc_warning_c(warn_all)("ï¿½ï¿½ï¿½xï¿½ï¿½ '%s' ï¿½ÍéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", get_tok_str(s->v, NULL));
         }
         else if (s->r == LABEL_FORWARD) {
-            tcc_error("ƒ‰ƒxƒ‹ '%s' ‚ªg—p‚³‚ê‚Ä‚¢‚Ü‚·‚ª’è‹`‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ",
+            tcc_error("ï¿½ï¿½ï¿½xï¿½ï¿½ '%s' ï¿½ï¿½ï¿½gï¿½pï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½ï¿½ï¿½`ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
                 get_tok_str(s->v, NULL));
         }
         else {
@@ -1219,18 +1434,18 @@ ST_FUNC void label_pop(Sym** ptop, Sym* slast, int keep)
 /* ------------------------------------------------------------------------- */
 static void vcheck_cmp(void)
 {
-    /* ‘¼‚Ì–½—ß‚ª¶¬‚³‚ê‚éê‡‚É‚Í CPU ƒtƒ‰ƒO‚ğc‚µ‚Ä‚¨‚¯‚È‚¢B‚Ü‚½
-       VT_JMP ‚ğƒXƒ^ƒbƒN‚Ìæ“ªˆÈŠO‚Éc‚·‚ÆƒR[ƒh¶¬Ší‚ª•¡G‚É‚È‚é‚½‚ß”ğ‚¯‚éB
+    /* ï¿½ï¿½ï¿½Ì–ï¿½ï¿½ß‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½É‚ï¿½ CPU ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½cï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Bï¿½Ü‚ï¿½
+       VT_JMP ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìæ“ªï¿½ÈŠOï¿½Écï¿½ï¿½ï¿½ÆƒRï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½í‚ªï¿½ï¿½ï¿½Gï¿½É‚È‚é‚½ï¿½ß”ï¿½ï¿½ï¿½ï¿½ï¿½B
 
-       nocode_wanted ‚Ì‚Æ‚«‚Í‚±‚ê‚ğs‚Á‚Ä‚Í‚¢‚¯‚È‚¢Bvtop ‚Í
-       !nocode_wanted ‚Ì—Ìˆæ‚©‚ç—ˆ‚éê‡‚ª‚ ‚èi88_codeopt.c ‚ğQÆjA
-       ÀÛ‚ÉƒR[ƒh‚ğ¶¬‚¹‚¸ƒŒƒWƒXƒ^‚É•ÏŠ·‚·‚é‚ÆA’l‚ªÀÛ‚Ég—p‚³‚ê‚é‰Â”\«‚ª‚ ‚èŒë‚è‚Æ‚È‚éB
-       nocode_wanted ‰º‚ÅƒvƒbƒVƒ…‚³‚ê‚½‘S‚Ä‚Ì’l‚ÍÅI“I‚Éƒ|ƒbƒv‚³‚ê,
-       ƒR[ƒh—}~‚ª‰ğœ‚³‚ê‚½‚Æ‚«‚É VT_CMP/VT_JMP ‚Ì’l‚ª vtop ‚É–ß‚éB */
+       nocode_wanted ï¿½Ì‚Æ‚ï¿½ï¿½Í‚ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Ä‚Í‚ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Bvtop ï¿½ï¿½
+       !nocode_wanted ï¿½Ì—Ìˆæ‚©ï¿½ç—ˆï¿½ï¿½ê‡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½i88_codeopt.c ï¿½ï¿½ï¿½Qï¿½Æjï¿½A
+       ï¿½ï¿½ï¿½Û‚ÉƒRï¿½[ï¿½hï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ÆAï¿½lï¿½ï¿½ï¿½ï¿½ï¿½Û‚Égï¿½pï¿½ï¿½ï¿½ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ‚È‚ï¿½B
+       nocode_wanted ï¿½ï¿½ï¿½Åƒvï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ê‚½ï¿½Sï¿½Ä‚Ì’lï¿½ÍÅIï¿½Iï¿½Éƒ|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½,
+       ï¿½Rï¿½[ï¿½hï¿½}ï¿½~ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‚½ï¿½Æ‚ï¿½ï¿½ï¿½ VT_CMP/VT_JMP ï¿½Ì’lï¿½ï¿½ vtop ï¿½É–ß‚ï¿½B */
 
-       /* ‚½‚¾‚µACODE_OFF/ON() ‚É‚æ‚é©“®—}~‚¾‚¯‚Ìê‡‚ÍA‚»‚Ì‚Ü‚Ü“®ì‚ğ–W‚°‚È‚¢•û‚ª—Ç‚¢B
-          nocode_wanted ‰º‚Å‚Ç‚Ì‚æ‚¤‚É‹@”\‚·‚é‚Ì‚©Hgv() ‚ªƒ[ƒh/VT_JMP ‚É‚¨‚¯‚é gsym() ‚Å
-          ÀÛ‚ÉƒNƒŠƒA‚·‚é‚½‚ß‚Å‚ ‚éiƒWƒFƒlƒŒ[ƒ^‚ÌƒoƒbƒNƒGƒ“ƒhQÆjB */
+       /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ACODE_OFF/ON() ï¿½É‚ï¿½é©ï¿½ï¿½ï¿½}ï¿½~ï¿½ï¿½ï¿½ï¿½ï¿½Ìê‡ï¿½ÍAï¿½ï¿½ï¿½Ì‚Ü‚Ü“ï¿½ï¿½ï¿½ï¿½Wï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½B
+          nocode_wanted ï¿½ï¿½ï¿½Å‚Ç‚Ì‚æ‚¤ï¿½É‹@ï¿½\ï¿½ï¿½ï¿½ï¿½Ì‚ï¿½ï¿½Hgv() ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h/VT_JMP ï¿½É‚ï¿½ï¿½ï¿½ï¿½ï¿½ gsym() ï¿½ï¿½
+          ï¿½ï¿½ï¿½Û‚ÉƒNï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½é‚½ï¿½ß‚Å‚ï¿½ï¿½ï¿½iï¿½Wï¿½Fï¿½lï¿½ï¿½ï¿½[ï¿½^ï¿½Ìƒoï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½hï¿½Qï¿½Æjï¿½B */
 
     if (vtop->r == VT_CMP && 0 == (nocode_wanted & ~CODE_OFF_BIT))
         gv(RC_INT);
@@ -1239,7 +1454,7 @@ static void vcheck_cmp(void)
 static void vsetc(CType* type, int r, CValue* vc)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("ƒƒ‚ƒŠ•s‘« (vstack)");
+        tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ (vstack)");
     vcheck_cmp();
     vtop++;
     vtop->type = *type;
@@ -1259,33 +1474,33 @@ ST_FUNC void vswap(void)
     vtop[-1] = tmp;
 }
 
-/* ƒXƒ^ƒbƒN’l‚ğƒ|ƒbƒv */
+/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½lï¿½ï¿½ï¿½|ï¿½bï¿½v */
 ST_FUNC void vpop(void)
 {
     int v;
     v = vtop->r & VT_VALMASK;
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-    /* x86 ‚Å‚Í FPU ƒXƒ^ƒbƒN‚ğƒ|ƒbƒv‚·‚é•K—v‚ª‚ ‚é */
+    /* x86 ï¿½Å‚ï¿½ FPU ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     if (v == TREG_ST0) {
         o(0xd8dd); /* fstp %st(0) */
     }
     else
 #endif
         if (v == VT_CMP) {
-            /* && ‚â || ‚ÌƒeƒXƒg–³‚µ‚Ìê‡A³‚µ‚¢ƒWƒƒƒ“ƒv‚ğ¶¬‚·‚é */
+            /* && ï¿½ï¿½ || ï¿½Ìƒeï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Ìê‡ï¿½Aï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
             gsym(vtop->jtrue);
             gsym(vtop->jfalse);
         }
     vtop--;
 }
 
-/* Œ^ 'type' ‚Ì’è”iƒ_ƒ~[’lj‚ğƒvƒbƒVƒ… */
+/* ï¿½^ 'type' ï¿½Ì’è”ï¿½iï¿½_ï¿½~ï¿½[ï¿½lï¿½jï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 static void vpush(CType* type)
 {
     vset(type, VT_CONST, 0);
 }
 
-/* ”CˆÓ‚Ì 64bit ’è”‚ğƒvƒbƒVƒ… */
+/* ï¿½Cï¿½Ó‚ï¿½ 64bit ï¿½è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 static void vpush64(int ty, unsigned long long v)
 {
     CValue cval;
@@ -1296,19 +1511,19 @@ static void vpush64(int ty, unsigned long long v)
     vsetc(&ctype, VT_CONST, &cval);
 }
 
-/* ®”’è”‚ğƒvƒbƒVƒ… */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 ST_FUNC void vpushi(int v)
 {
     vpush64(VT_INT, v);
 }
 
-/* ƒ|ƒCƒ“ƒ^ƒTƒCƒY‚Ì’è”‚ğƒvƒbƒVƒ… */
+/* ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Tï¿½Cï¿½Yï¿½Ì’è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 static void vpushs(addr_t v)
 {
     vpush64(VT_SIZE_T, v);
 }
 
-/* long long Œ^‚Ì’è”‚ğƒvƒbƒVƒ… */
+/* long long ï¿½^ï¿½Ì’è”ï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 static inline void vpushll(long long v)
 {
     vpush64(VT_LLONG, v);
@@ -1332,7 +1547,7 @@ static void vseti(int r, int v)
 ST_FUNC void vpushv(SValue* v)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("ƒƒ‚ƒŠ•s‘« (vstack)");
+        tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ (vstack)");
     vtop++;
     *vtop = *v;
 }
@@ -1342,7 +1557,7 @@ static void vdup(void)
     vpushv(vtop);
 }
 
-/* ƒXƒ^ƒbƒN‚ÌˆÊ’u n-1 ‚Ì—v‘f‚ğƒgƒbƒv‚Ö‰ñ“] */
+/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½ÌˆÊ’u n-1 ï¿½Ì—vï¿½fï¿½ï¿½ï¿½gï¿½bï¿½vï¿½Ö‰ï¿½] */
 ST_FUNC void vrotb(int n)
 {
     SValue tmp;
@@ -1354,7 +1569,7 @@ ST_FUNC void vrotb(int n)
     vtop[0] = tmp;
 }
 
-/* ƒXƒ^ƒbƒN‚Ìƒgƒbƒv—v‘f‚ğˆÊ’u n-1 ‚É‰ñ“] */
+/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìƒgï¿½bï¿½vï¿½vï¿½fï¿½ï¿½ï¿½Ê’u n-1 ï¿½É‰ï¿½] */
 ST_FUNC void vrott(int n)
 {
     SValue tmp;
@@ -1366,7 +1581,7 @@ ST_FUNC void vrott(int n)
     vtop[-n] = tmp;
 }
 
-/* ƒXƒ^ƒbƒN‚Ìæ“ª n —v‘f‚Ì‡˜‚ğ”½“] */
+/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ìæ“ª n ï¿½vï¿½fï¿½Ìï¿½ï¿½ï¿½ï¿½ğ”½“] */
 ST_FUNC void vrev(int n)
 {
     int i;
@@ -1377,9 +1592,9 @@ ST_FUNC void vrev(int n)
 }
 
 /* ------------------------------------------------------------------------- */
-/* vtop->r = VT_CMP ‚Í”äŠr‚âƒeƒXƒg‚É‚æ‚è CPU ƒtƒ‰ƒO‚ªİ’è‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğˆÓ–¡‚·‚é */
+/* vtop->r = VT_CMP ï¿½Í”ï¿½rï¿½ï¿½eï¿½Xï¿½gï¿½É‚ï¿½ï¿½ CPU ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½İ’è‚³ï¿½ï¿½Ä‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½Ó–ï¿½ï¿½ï¿½ï¿½ï¿½ */
 
-/* ƒWƒFƒlƒŒ[ƒ^‚©‚çŒÄ‚Î‚êAŠÖŒW‰‰Z‚ÌŒ‹‰Ê‚ğİ’è‚·‚é */
+/* ï¿½Wï¿½Fï¿½lï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ï¿½ï¿½Ä‚Î‚ï¿½Aï¿½ÖŒWï¿½ï¿½ï¿½Zï¿½ÌŒï¿½ï¿½Ê‚ï¿½İ’è‚·ï¿½ï¿½ */
 ST_FUNC void vset_VT_CMP(int op)
 {
     vtop->r = VT_CMP;
@@ -1388,27 +1603,27 @@ ST_FUNC void vset_VT_CMP(int op)
     vtop->jtrue = 0;
 }
 
-/* ƒWƒFƒlƒŒ[ƒ^‚É VT_CMP ‚ğƒŒƒWƒXƒ^‚Öƒ[ƒh‚³‚¹‚é‘O‚Éˆê“xŒÄ‚Î‚ê‚é */
+/* ï¿½Wï¿½Fï¿½lï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ VT_CMP ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½Öƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½Éˆï¿½xï¿½Ä‚Î‚ï¿½ï¿½ */
 static void vset_VT_JMP(void)
 {
     int op = vtop->cmp_op;
 
     if (vtop->jtrue || vtop->jfalse) {
         int origt = vtop->type.t;
-        /* 'mov $0,%R' ‚Ü‚½‚Í 'mov $1,%R' ‚ÖƒWƒƒƒ“ƒv‚·‚é•K—v‚ª‚ ‚é */
+        /* 'mov $0,%R' ï¿½Ü‚ï¿½ï¿½ï¿½ 'mov $1,%R' ï¿½ÖƒWï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
         int inv = op & (op < 2); /* small optimization */
         vseti(VT_JMP + inv, gvtst(inv, 0));
         vtop->type.t |= origt & (VT_UNSIGNED | VT_DEFSIGN);
     }
     else {
-        /* ‚»‚êˆÈŠO‚Ìê‡‚Íƒtƒ‰ƒOi0/1j‚ğƒŒƒWƒXƒ^‚É•ÏŠ·‚·‚é */
+        /* ï¿½ï¿½ï¿½ï¿½ÈŠOï¿½Ìê‡ï¿½Íƒtï¿½ï¿½ï¿½Oï¿½i0/1ï¿½jï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ */
         vtop->c.i = op;
         if (op < 2) /* doesn't seem to happen */
             vtop->r = VT_CONST;
     }
 }
 
-/* CPU ƒtƒ‰ƒO‚ğİ’è‚·‚éi‚Ü‚¾ƒWƒƒƒ“ƒv‚Ís‚í‚È‚¢j */
+/* CPU ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½İ’è‚·ï¿½ï¿½iï¿½Ü‚ï¿½ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½Ísï¿½ï¿½È‚ï¿½ï¿½j */
 static void gvtst_set(int inv, int t)
 {
     int* p;
@@ -1424,9 +1639,9 @@ static void gvtst_set(int inv, int t)
     *p = gjmp_append(*p, t);
 }
 
-/* ’lƒeƒXƒg‚Ì¶¬
+/* ï¿½lï¿½eï¿½Xï¿½gï¿½Ìï¿½ï¿½ï¿½
  *
- * ”CˆÓ‚Ì’l‚É‘Î‚·‚éƒeƒXƒg‚ğ¶¬‚·‚éiƒWƒƒƒ“ƒvA”äŠrA®”‚ğŠÜ‚Şj */
+ * ï¿½Cï¿½Ó‚Ì’lï¿½É‘Î‚ï¿½ï¿½ï¿½eï¿½Xï¿½gï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½Aï¿½ï¿½rï¿½Aï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚Şj */
 static int gvtst(int inv, int t)
 {
     int op, x, u;
@@ -1449,7 +1664,7 @@ static int gvtst(int inv, int t)
     return t;
 }
 
-/* ƒ[ƒ/”ñƒ[ƒ‚ÌƒeƒXƒg‚ğ¶¬ */
+/* ï¿½[ï¿½ï¿½/ï¿½ï¿½[ï¿½ï¿½ï¿½Ìƒeï¿½Xï¿½gï¿½ğ¶ï¿½ */
 static void gen_test_zero(int op)
 {
     if (vtop->r == VT_CMP) {
@@ -1468,7 +1683,7 @@ static void gen_test_zero(int op)
 }
 
 /* ------------------------------------------------------------------------- */
-/* w’èŒ^‚ÌƒVƒ“ƒ{ƒ‹’l‚ğƒvƒbƒVƒ… */
+/* ï¿½wï¿½ï¿½^ï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½lï¿½ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 ST_FUNC void vpushsym(CType* type, Sym* sym)
 {
     CValue cval;
@@ -1477,7 +1692,7 @@ ST_FUNC void vpushsym(CType* type, Sym* sym)
     vtop->sym = sym;
 }
 
-/* ƒZƒNƒVƒ‡ƒ“‚ğw‚·Ã“IƒVƒ“ƒ{ƒ‹‚ğ•Ô‚· */
+/* ï¿½Zï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½wï¿½ï¿½ï¿½Ã“Iï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½Ô‚ï¿½ */
 ST_FUNC Sym* get_sym_ref(CType* type, Section* sec, unsigned long offset, unsigned long size)
 {
     int v;
@@ -1490,13 +1705,13 @@ ST_FUNC Sym* get_sym_ref(CType* type, Section* sec, unsigned long offset, unsign
     return sym;
 }
 
-/* ƒ_ƒ~[ƒVƒ“ƒ{ƒ‹‚ğ’Ç‰Á‚µ‚ÄƒZƒNƒVƒ‡ƒ“‚Ö‚ÌQÆ‚ğƒvƒbƒVƒ… */
+/* ï¿½_ï¿½~ï¿½[ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ÄƒZï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½Ö‚ÌQï¿½Æ‚ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 static void vpush_ref(CType* type, Section* sec, unsigned long offset, unsigned long size)
 {
     vpushsym(type, get_sym_ref(type, sec, offset, size));
 }
 
-/* Œ^ 'u' ‚ÌƒVƒ“ƒ{ƒ‹ 'v' ‚Ö‚ÌV‚µ‚¢ŠO•”QÆ‚ğ’è‹` */
+/* ï¿½^ 'u' ï¿½ÌƒVï¿½ï¿½ï¿½{ï¿½ï¿½ 'v' ï¿½Ö‚ÌVï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½` */
 ST_FUNC Sym* external_global_sym(int v, CType* type)
 {
     Sym* s;
@@ -1515,21 +1730,21 @@ ST_FUNC Sym* external_global_sym(int v, CType* type)
     return s;
 }
 
-/* asm ƒ‰ƒxƒ‹‚É—‚½Œ^w’è‚Ì‚È‚¢ŠO•”QÆ‚ğì¬‚·‚éB
-    ‚±‚ê‚É‚æ‚èƒVƒ“ƒ{ƒ‹‚ª C ‚©‚çg‚í‚ê‚Ä‚àŒ^‚ÌÕ“Ë‚ğ”ğ‚¯‚ç‚ê‚é */
+/* asm ï¿½ï¿½ï¿½xï¿½ï¿½ï¿½Éï¿½ï¿½ï¿½ï¿½^ï¿½wï¿½ï¿½Ì‚È‚ï¿½ï¿½Oï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½ì¬ï¿½ï¿½ï¿½ï¿½B
+    ï¿½ï¿½ï¿½ï¿½É‚ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ C ï¿½ï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ä‚ï¿½ï¿½^ï¿½ÌÕ“Ë‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC Sym* external_helper_sym(int v)
 {
     CType ct = { VT_ASM_FUNC, NULL };
     return external_global_sym(v, &ct);
 }
 
-/* ƒwƒ‹ƒpŠÖ”i—á: memmovej‚Ö‚ÌQÆ‚ğƒvƒbƒVƒ… */
+/* ï¿½wï¿½ï¿½ï¿½pï¿½Öï¿½ï¿½iï¿½ï¿½: memmoveï¿½jï¿½Ö‚ÌQï¿½Æ‚ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ */
 ST_FUNC void vpush_helper_func(int v)
 {
     vpushsym(&func_old_type, external_helper_sym(v));
 }
 
-/* ƒVƒ“ƒ{ƒ‹‘®«‚ğƒ}[ƒW‚·‚é */
+/* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
 static void merge_symattr(struct SymAttr* sa, struct SymAttr* sa1)
 {
     if (sa1->aligned && !sa->aligned)
@@ -1549,7 +1764,7 @@ static void merge_symattr(struct SymAttr* sa, struct SymAttr* sa1)
     sa->dllimport |= sa1->dllimport;
 }
 
-/* ŠÖ”‘®«‚ğƒ}[ƒW‚·‚é */
+/* ï¿½Öï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
 static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
 {
     if (fa1->func_call && !fa->func_call)
@@ -1566,7 +1781,7 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_dtor = 1;
 }
 
-/* ‘®«‚ğƒ}[ƒW‚·‚é */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
 static void merge_attr(AttributeDef* ad, AttributeDef* ad1)
 {
     merge_symattr(&ad->a, &ad1->a);
@@ -1582,12 +1797,12 @@ static void merge_attr(AttributeDef* ad, AttributeDef* ad1)
         ad->attr_mode = ad1->attr_mode;
 }
 
-/* Œ^‘®«‚Ìˆê•”‚ğƒ}[ƒW‚·‚é */
+/* ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½Ìˆê•”ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
 static void patch_type(Sym* sym, CType* type)
 {
     if (!(type->t & VT_EXTERN) || IS_ENUM_VAL(sym->type.t)) {
         if (!(sym->type.t & VT_EXTERN))
-            tcc_error("Ä’è‹`: '%s'", get_tok_str(sym->v, NULL));
+            tcc_error("ï¿½Ä’ï¿½`: '%s'", get_tok_str(sym->v, NULL));
         sym->type.t &= ~VT_EXTERN;
     }
 
@@ -1600,7 +1815,7 @@ static void patch_type(Sym* sym, CType* type)
     }
 
     if (!is_compatible_types(&sym->type, type)) {
-        tcc_error("Ä’è‹`‚ÌŒ^‚ªŒİŠ·«‚ª‚ ‚è‚Ü‚¹‚ñ: '%s'",
+        tcc_error("ï¿½Ä’ï¿½`ï¿½ÌŒ^ï¿½ï¿½ï¿½İŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½: '%s'",
             get_tok_str(sym->v, NULL));
 
     }
@@ -1612,7 +1827,7 @@ static void patch_type(Sym* sym, CType* type)
                implement gnu-inline mode again it silences a warning for
                mingw caused by our workarounds.  */
             && !((type->t | sym->type.t) & VT_INLINE))
-            tcc_warning("Ä’è‹`: '%s' ‚Å static w’è‚Í–³‹‚³‚ê‚Ü‚·",
+            tcc_warning("ï¿½Ä’ï¿½`: '%s' ï¿½ï¿½ static ï¿½wï¿½ï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½",
                 get_tok_str(sym->v, NULL));
 
         /* set 'inline' if both agree or if one has static */
@@ -1645,12 +1860,12 @@ static void patch_type(Sym* sym, CType* type)
             sym->type.ref->c = type->ref->c;
         }
         if ((type->t ^ sym->type.t) & VT_STATIC)
-            tcc_warning("Ä’è‹`: '%s' ‚ÌƒXƒgƒŒ[ƒWw’è‚ª•sˆê’v‚Å‚·",
+            tcc_warning("ï¿½Ä’ï¿½`: '%s' ï¿½ÌƒXï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½wï¿½è‚ªï¿½sï¿½ï¿½vï¿½Å‚ï¿½",
                 get_tok_str(sym->v, NULL));
     }
 }
 
-/* ƒXƒgƒŒ[ƒW‘®«‚Ìˆê•”‚ğƒ}[ƒW‚·‚é */
+/* ï¿½Xï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½Ìˆê•”ï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½ */
 static void patch_storage(Sym* sym, AttributeDef* ad, CType* type)
 {
     if (type)
@@ -1658,7 +1873,7 @@ static void patch_storage(Sym* sym, AttributeDef* ad, CType* type)
 
 #ifdef TCC_TARGET_PE
     if (sym->a.dllimport != ad->a.dllimport)
-        tcc_error("Ä’è‹` '%s' ‚Ì DLL ƒŠƒ“ƒP[ƒW‚ªŒİŠ·«‚ª‚ ‚è‚Ü‚¹‚ñ",
+        tcc_error("ï¿½Ä’ï¿½` '%s' ï¿½ï¿½ DLL ï¿½ï¿½ï¿½ï¿½ï¿½Pï¿½[ï¿½Wï¿½ï¿½ï¿½İŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
             get_tok_str(sym->v, NULL));
 #endif
     merge_symattr(&sym->a, &ad->a);
@@ -1667,7 +1882,7 @@ static void patch_storage(Sym* sym, AttributeDef* ad, CType* type)
     update_storage(sym);
 }
 
-/* sym ‚ğ•Ê‚ÌƒXƒ^ƒbƒN‚ÖƒRƒs[ */
+/* sym ï¿½ï¿½Ê‚ÌƒXï¿½^ï¿½bï¿½Nï¿½ÖƒRï¿½sï¿½[ */
 static Sym* sym_copy(Sym* s0, Sym** ps)
 {
     Sym* s;
@@ -1680,7 +1895,7 @@ static Sym* sym_copy(Sym* s0, Sym** ps)
     return s;
 }
 
-/* VT_FUNC ‚Æ VT_PTR ‚Ì‚½‚ß‚É s->type.ref ‚ğƒXƒ^ƒbƒN 'ps' ‚ÉƒRƒs[ */
+/* VT_FUNC ï¿½ï¿½ VT_PTR ï¿½Ì‚ï¿½ï¿½ß‚ï¿½ s->type.ref ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½N 'ps' ï¿½ÉƒRï¿½sï¿½[ */
 static void sym_copy_ref(Sym* s, Sym** ps)
 {
     int bt = s->type.t & VT_BTYPE;
@@ -1697,13 +1912,13 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
 {
     Sym* s;
 
-    /* ƒOƒ[ƒoƒ‹ƒVƒ“ƒ{ƒ‹‚ğ’T‚· */
+    /* ï¿½Oï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½ï¿½Tï¿½ï¿½ */
     s = sym_find(v);
     while (s && s->sym_scope)
         s = s->prev_tok;
 
     if (!s) {
-        /* æsQÆ‚ğƒvƒbƒVƒ…‚·‚é */
+        /* ï¿½ï¿½sï¿½Qï¿½Æ‚ï¿½ï¿½vï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
         s = global_identifier_push(v, type->t, 0);
         s->r |= r;
         s->a = ad->a;
@@ -1731,13 +1946,13 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
             patch_storage(s, ad, type);
         }
     }
-    /* ƒ[ƒJƒ‹ƒXƒ^ƒbƒN‚É•Ï”‚ª‚ ‚ê‚ÎƒvƒbƒVƒ…‚·‚é */
+    /* ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Ïï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îƒvï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     if (local_stack && (s->type.t & VT_BTYPE) != VT_FUNC)
         s = sym_copy(s, &local_stack);
     return s;
 }
 
-/* (vtop - n) ‚ÌƒXƒ^ƒbƒNƒGƒ“ƒgƒŠ‚Ü‚Å‚ÌƒŒƒWƒXƒ^‚ğ•Û‘¶ */
+/* (vtop - n) ï¿½ÌƒXï¿½^ï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ü‚Å‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Û‘ï¿½ */
 
 ST_FUNC void save_regs(int n)
 {
@@ -1746,14 +1961,14 @@ ST_FUNC void save_regs(int n)
         save_reg(p->r);
 }
 
-/* ƒŒƒWƒXƒ^ r ‚ğƒƒ‚ƒŠƒXƒ^ƒbƒN‚É•Û‘¶‚µA‹ó‚«‚Æ‚µ‚Äƒ}[ƒN‚·‚é */
+/* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ r ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½Aï¿½ó‚«‚Æ‚ï¿½ï¿½Äƒ}ï¿½[ï¿½Nï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void save_reg(int r)
 {
     save_reg_upstack(r, 0);
 }
 
-/* ƒŒƒWƒXƒ^ r ‚ğƒƒ‚ƒŠƒXƒ^ƒbƒN‚É•Û‘¶‚µA(vtop - n) ‚Ü‚Å‚ÉŒ©‚Â‚©‚Á‚½ê‡‚Í
-    ƒXƒ^ƒbƒNã‚É•Û‘¶‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğ¦‚µ‚Ä‹ó‚«‚Æ‚µ‚Äƒ}[ƒN‚·‚é */
+/* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ r ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½A(vtop - n) ï¿½Ü‚Å‚ÉŒï¿½ï¿½Â‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½ï¿½
+    ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä‹ó‚«‚Æ‚ï¿½ï¿½Äƒ}ï¿½[ï¿½Nï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void save_reg_upstack(int r, int n)
 {
     int l, size, align, bt, r2;
@@ -1766,7 +1981,7 @@ ST_FUNC void save_reg_upstack(int r, int n)
     l = r2 = 0;
     for (p = vstack, p1 = vtop - n; p <= p1; p++) {
         if ((p->r & VT_VALMASK) == r || p->r2 == r) {
-            /* ‚Ü‚¾•Û‘¶‚³‚ê‚Ä‚¢‚È‚¢ê‡‚Í’l‚ğƒXƒ^ƒbƒN‚É•Û‘¶‚·‚é•K—v‚ª‚ ‚é */
+            /* ï¿½Ü‚ï¿½ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½ê‡ï¿½Í’lï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
             if (!l) {
                 bt = p->type.t & VT_BTYPE;
                 if (bt == VT_VOID)
@@ -1780,18 +1995,18 @@ ST_FUNC void save_reg_upstack(int r, int n)
                 sv.c.i = l;
                 store(p->r & VT_VALMASK, &sv);
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-                /* x86 ŒÅ—L: •Û‘¶‚³‚ê‚Ä‚¢‚éê‡‚Í FP ƒŒƒWƒXƒ^ ST0 ‚ğƒ|ƒbƒv‚·‚é•K—v‚ª‚ ‚é */
+                /* x86 ï¿½Å—L: ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ê‡ï¿½ï¿½ FP ï¿½ï¿½ï¿½Wï¿½Xï¿½^ ST0 ï¿½ï¿½ï¿½|ï¿½bï¿½vï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
                 if (r == TREG_ST0) {
                     o(0xd8dd); /* fstp %st(0) */
                 }
 #endif
-                /* long long ‚Ì“ÁêƒP[ƒX */
+                /* long long ï¿½Ì“ï¿½ï¿½ï¿½Pï¿½[ï¿½X */
                 if (p->r2 < VT_CONST && USING_TWO_WORDS(bt)) {
                     sv.c.i += PTR_SIZE;
                     store(p->r2, &sv);
                 }
             }
-            /* ‚»‚ÌƒXƒ^ƒbƒNƒGƒ“ƒgƒŠ‚ªƒXƒ^ƒbƒNã‚É•Û‘¶‚³‚ê‚½‚±‚Æ‚ğ¦‚· */
+            /* ï¿½ï¿½ï¿½ÌƒXï¿½^ï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½ê‚½ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
             if (p->r & VT_LVAL) {
                 /* also clear the bounded flag because the
                    relocation address of the function was stored in
@@ -1810,8 +2025,8 @@ ST_FUNC void save_reg_upstack(int r, int n)
 }
 
 #ifdef TCC_TARGET_ARM
-/* ƒXƒ^ƒbƒNã‚ÅÅ‘å1‚Â‚µ‚©QÆ‚³‚ê‚Ä‚¢‚È‚¢ƒNƒ‰ƒX 'rc2' ‚ÌƒŒƒWƒXƒ^‚ğ’T‚·B
- * Œ©‚Â‚©‚ç‚È‚¯‚ê‚Î get_reg(rc) ‚ğŒÄ‚Ô */
+/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÅÅ‘ï¿½1ï¿½Â‚ï¿½ï¿½ï¿½ï¿½Qï¿½Æ‚ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½Nï¿½ï¿½ï¿½X 'rc2' ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Tï¿½ï¿½ï¿½B
+ * ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ get_reg(rc) ï¿½ï¿½ï¿½Ä‚ï¿½ */
 ST_FUNC int get_reg_ex(int rc, int rc2)
 {
     int r;
@@ -1834,13 +2049,13 @@ ST_FUNC int get_reg_ex(int rc, int rc2)
 }
 #endif
 
-/* ƒNƒ‰ƒX 'rc' ‚Ì‹ó‚«ƒŒƒWƒXƒ^‚ğ’T‚·B–³‚¯‚ê‚Î1‚Â•Û‘¶‚µ‚ÄŠm•Û‚·‚é */
+/* ï¿½Nï¿½ï¿½ï¿½X 'rc' ï¿½Ì‹ó‚«ƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Tï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½1ï¿½Â•Û‘ï¿½ï¿½ï¿½ï¿½ÄŠmï¿½Û‚ï¿½ï¿½ï¿½ */
 ST_FUNC int get_reg(int rc)
 {
     int r;
     SValue* p;
 
-    /* ‹ó‚«ƒŒƒWƒXƒ^‚ğ’T‚· */
+    /* ï¿½ó‚«ƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½Tï¿½ï¿½ */
     for (r = 0; r < NB_REGS; r++) {
         if (reg_classes[r] & rc) {
             if (nocode_wanted)
@@ -1855,9 +2070,9 @@ ST_FUNC int get_reg(int rc)
     notfound:;
     }
 
-    /* ‹ó‚«ƒŒƒWƒXƒ^‚ª‚È‚¢: ƒXƒ^ƒbƒNã‚ÌÅ‰‚Ì‚à‚Ì‚ğ‰ğ•ú‚·‚é
-       igen_opi() ‚Åg‚í‚ê‚éƒŒƒWƒXƒ^‚ğ‚±‚Ú‚³‚È‚¢‚æ‚¤A‰ºiƒ{ƒgƒ€j‚©‚ç
-       ŠJn‚·‚é‚±‚Æ‚ª”ñí‚Éd—vj */
+    /* ï¿½ó‚«ƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½È‚ï¿½: ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÌÅï¿½ï¿½Ì‚ï¿½ï¿½Ì‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+       ï¿½igen_opi() ï¿½Ågï¿½ï¿½ï¿½éƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½Ú‚ï¿½ï¿½È‚ï¿½ï¿½æ‚¤ï¿½Aï¿½ï¿½ï¿½iï¿½{ï¿½gï¿½ï¿½ï¿½jï¿½ï¿½ï¿½ï¿½
+       ï¿½Jï¿½nï¿½ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½Édï¿½vï¿½j */
     for (p = vstack; p <= vtop; p++) {
         /* look at second register (if long long) */
         r = p->r2;
@@ -1874,8 +2089,8 @@ ST_FUNC int get_reg(int rc)
     return -1;
 }
 
-/* ƒTƒCƒY‚ÆƒAƒ‰ƒCƒ“‚É‡‚¤ˆêƒ[ƒJƒ‹•Ï”‚ğ’T‚·iƒXƒ^ƒbƒNã‚ÌƒIƒtƒZƒbƒg‚ğ•Ô‚·jB
-    Œ©‚Â‚©‚ç‚È‚¯‚ê‚ÎV‚µ‚¢ˆê•Ï”‚ğ’Ç‰Á‚·‚é */
+/* ï¿½Tï¿½Cï¿½Yï¿½ÆƒAï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½Éï¿½ï¿½ï¿½ï¿½êï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ï¿½Tï¿½ï¿½ï¿½iï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ÌƒIï¿½tï¿½Zï¿½bï¿½gï¿½ï¿½Ô‚ï¿½ï¿½jï¿½B
+    ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ÎVï¿½ï¿½ï¿½ï¿½ï¿½êï¿½Ïï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static int get_temp_local_var(int size, int align, int* r2)
 {
     int i;
@@ -1916,7 +2131,7 @@ static int get_temp_local_var(int size, int align, int* r2)
     return loc;
 }
 
-/* ƒŒƒWƒXƒ^ 's'iŒ^ tj‚ğ 'r' ‚ÉˆÚ“®‚µA•K—v‚È‚ç‚Î r ‚ÌˆÈ‘O‚Ì’l‚ğƒƒ‚ƒŠ‚Ö‘‚«o‚· */
+/* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ 's'ï¿½iï¿½^ tï¿½jï¿½ï¿½ 'r' ï¿½ÉˆÚ“ï¿½ï¿½ï¿½ï¿½Aï¿½Kï¿½vï¿½È‚ï¿½ï¿½ r ï¿½ÌˆÈ‘Oï¿½Ì’lï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½ï¿½ï¿½oï¿½ï¿½ */
 static void move_reg(int r, int s, int t)
 {
     SValue sv;
@@ -1931,17 +2146,17 @@ static void move_reg(int r, int s, int t)
     }
 }
 
-/* vtop ‚ÌƒAƒhƒŒƒX‚ğ“¾‚é (vtop ‚Í lvalue ‚Å‚ ‚é•K—v‚ª‚ ‚é) */
+/* vtop ï¿½ÌƒAï¿½hï¿½ï¿½ï¿½Xï¿½ğ“¾‚ï¿½ (vtop ï¿½ï¿½ lvalue ï¿½Å‚ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½) */
 ST_FUNC void gaddrof(void)
 {
     vtop->r &= ~VT_LVAL;
-    /* ƒgƒŠƒbƒL[: •Û‘¶‚³‚ê‚½ lvalue ‚Ìê‡‚ÍÄ‚Ñ lvalue ‚É–ß‚¹‚é */
+    /* ï¿½gï¿½ï¿½ï¿½bï¿½Lï¿½[: ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ê‚½ lvalue ï¿½Ìê‡ï¿½ÍÄ‚ï¿½ lvalue ï¿½É–ß‚ï¿½ï¿½ï¿½ */
     if ((vtop->r & VT_VALMASK) == VT_LLOCAL)
         vtop->r = (vtop->r & ~VT_VALMASK) | VT_LOCAL | VT_LVAL;
 }
 
 #ifdef CONFIG_TCC_BCHECK
-/* ‹«ŠE•t‚«ƒ|ƒCƒ“ƒ^‚Ì‰ÁZƒR[ƒh‚ğ¶¬ */
+/* ï¿½ï¿½ï¿½Eï¿½tï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ì‰ï¿½ï¿½Zï¿½Rï¿½[ï¿½hï¿½ğ¶ï¿½ */
 static void gen_bounded_ptr_add(void)
 {
     int save = (vtop[-1].r & VT_VALMASK) == VT_LOCAL;
@@ -1954,15 +2169,15 @@ static void gen_bounded_ptr_add(void)
     gfunc_call(2);
     vtop -= save;
     vpushi(0);
-    /* –ß‚èƒ|ƒCƒ“ƒ^‚Í REG_IRET ‚É“ü‚é */
+    /* ï¿½ß‚ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ REG_IRET ï¿½É“ï¿½ï¿½ï¿½ */
     vtop->r = REG_IRET | VT_BOUNDED;
     if (nocode_wanted)
         return;
-    /* ‹«ŠEƒ`ƒFƒbƒNŠÖ”ŒÄ‚Ño‚µ’n“_‚ÌÄ”z’uƒIƒtƒZƒbƒg */
+    /* ï¿½ï¿½ï¿½Eï¿½`ï¿½Fï¿½bï¿½Nï¿½Öï¿½ï¿½Ä‚Ñoï¿½ï¿½ï¿½nï¿½_ï¿½ÌÄ”zï¿½uï¿½Iï¿½tï¿½Zï¿½bï¿½g */
     vtop->c.i = (cur_text_section->reloc->data_offset - sizeof(ElfW_Rel));
 }
 
-/* vtop ‚Ìƒ|ƒCƒ“ƒ^‰ÁZ‚ğC³‚µ‚Äƒ|ƒCƒ“ƒ^QÆ‚àƒeƒXƒg‚·‚é */
+/* vtop ï¿½Ìƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Äƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½Qï¿½Æ‚ï¿½ï¿½eï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ */
 static void gen_bounded_ptr_deref(void)
 {
     addr_t func;
@@ -1982,29 +2197,29 @@ static void gen_bounded_ptr_deref(void)
     case 12: func = TOK___bound_ptr_indir12; break;
     case 16: func = TOK___bound_ptr_indir16; break;
     default:
-        /* \‘¢‘Ìƒƒ“ƒoƒAƒNƒZƒX‚Å”­¶‚·‚é‚±‚Æ‚ª‚ ‚é */
+        /* ï¿½\ï¿½ï¿½ï¿½Ìƒï¿½ï¿½ï¿½ï¿½oï¿½Aï¿½Nï¿½Zï¿½Xï¿½Å”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚±ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
         return;
     }
     sym = external_helper_sym(func);
     if (!sym->c)
         put_extern_sym(sym, NULL, 0, 0);
-    /* Ä”z’u‚ğC³ */
-    /* XXX: ‚æ‚è—Ç‚¢‰ğŒˆô‚ğŒ©‚Â‚¯‚éH */
+    /* ï¿½Ä”zï¿½uï¿½ï¿½ï¿½Cï¿½ï¿½ */
+    /* XXX: ï¿½ï¿½ï¿½Ç‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½H */
     rel = (ElfW_Rel*)(cur_text_section->reloc->data + vtop->c.i);
     rel->r_info = ELFW(R_INFO)(sym->c, ELFW(R_TYPE)(rel->r_info));
 }
 
-/* lvalue ‚Ì‹«ŠEƒ`ƒFƒbƒNƒR[ƒh‚ğ¶¬ */
+/* lvalue ï¿½Ì‹ï¿½ï¿½Eï¿½`ï¿½Fï¿½bï¿½Nï¿½Rï¿½[ï¿½hï¿½ğ¶ï¿½ */
 static void gbound(void)
 {
     CType type1;
 
     vtop->r &= ~VT_MUSTBOUND;
-    /* lvalue ‚Ìê‡AQÆ‰ğœiƒfƒŠƒtƒ@ƒŒƒ“ƒXj‚·‚é‘O‚Éƒ`ƒFƒbƒNƒR[ƒh‚ğg‚¤ */
+    /* lvalue ï¿½Ìê‡ï¿½Aï¿½Qï¿½Æ‰ï¿½ï¿½ï¿½ï¿½iï¿½fï¿½ï¿½ï¿½tï¿½@ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½jï¿½ï¿½ï¿½ï¿½Oï¿½Éƒ`ï¿½Fï¿½bï¿½Nï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½gï¿½ï¿½ */
     if (vtop->r & VT_LVAL) {
-        /* VT_BOUNDED ‚Å‚È‚¢’l‚È‚çA‹«ŠE•t‚«’l‚ğì¬‚·‚é */
+        /* VT_BOUNDED ï¿½Å‚È‚ï¿½ï¿½lï¿½È‚ï¿½Aï¿½ï¿½ï¿½Eï¿½tï¿½ï¿½ï¿½lï¿½ï¿½ï¿½ì¬ï¿½ï¿½ï¿½ï¿½ */
         if (!(vtop->r & VT_BOUNDED)) {
-            /* ƒ|ƒCƒ“ƒ^‚ğ“¾‚é‚½‚ß‚ÉŒ^‚ğ int ‚Éİ’è‚·‚é•K—v‚ª‚ ‚é‚Ì‚ÅAŒ³‚ÌŒ^‚ğ•Û‘¶‚·‚é */
+            /* ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ğ“¾‚é‚½ï¿½ß‚ÉŒ^ï¿½ï¿½ int ï¿½Éİ’è‚·ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì‚ÅAï¿½ï¿½ï¿½ÌŒ^ï¿½ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½ */
             type1 = vtop->type;
             vtop->type.t = VT_PTR;
             gaddrof();
@@ -2013,12 +2228,12 @@ static void gbound(void)
             vtop->r |= VT_LVAL;
             vtop->type = type1;
         }
-        /* ‘±‚¢‚ÄƒfƒŠƒtƒ@ƒŒƒ“ƒX‚Ìƒ`ƒFƒbƒN‚ğs‚¤ */
+        /* ï¿½ï¿½ï¿½ï¿½ï¿½Äƒfï¿½ï¿½ï¿½tï¿½@ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½Ìƒ`ï¿½Fï¿½bï¿½Nï¿½ï¿½ï¿½sï¿½ï¿½ */
         gen_bounded_ptr_deref();
     }
 }
 
-/* ŠÖ”ˆø”‚ğƒŒƒWƒXƒ^‚Éƒ[ƒh‚µn‚ß‚é‘O‚É __bound_ptr_add ‚ğŒÄ‚Ô•K—v‚ª‚ ‚é */
+/* ï¿½Öï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½Éƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½nï¿½ß‚ï¿½Oï¿½ï¿½ __bound_ptr_add ï¿½ï¿½ï¿½Ä‚Ô•Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void gbound_args(int nb_args)
 {
     int i, v;
@@ -2051,23 +2266,23 @@ ST_FUNC void gbound_args(int nb_args)
             func_bound_add_epilog = 1;
 #endif
 #if TARGETOS_NetBSD
-        if (v == TOK_longjmp) /* __longjmp14 ‚Ö‚Ì–¼‘O•ÏX‚ğŒ³‚É–ß‚· */
+        if (v == TOK_longjmp) /* __longjmp14 ï¿½Ö‚Ì–ï¿½ï¿½Oï¿½ÏXï¿½ï¿½ï¿½ï¿½ï¿½É–ß‚ï¿½ */
             sv->sym->asm_label = TOK___bound_longjmp;
 #endif
     }
 }
 
-/* S ‚©‚ç E ‚Ü‚Å‚Ìƒ[ƒJƒ‹ƒVƒ“ƒ{ƒ‹‚É‘Î‚µ‚Ä‹«ŠEî•ñ‚ğ’Ç‰Á‚·‚éi->prev ‚ğ’H‚éj */
+/* S ï¿½ï¿½ï¿½ï¿½ E ï¿½Ü‚Å‚Ìƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½É‘Î‚ï¿½ï¿½Ä‹ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½i->prev ï¿½ï¿½Hï¿½ï¿½j */
 static void add_local_bounds(Sym* s, Sym* e)
 {
     for (; s != e; s = s->prev) {
         if (!s->v || (s->r & VT_VALMASK) != VT_LOCAL)
             continue;
-        /* ”z—ñE\‘¢‘ÌE‹¤—p‘Ì‚Íí‚ÉƒAƒhƒŒƒX‚ğæ‚é‚½‚ß’Ç‰Á‚·‚é */
+        /* ï¿½zï¿½ï¿½Eï¿½\ï¿½ï¿½ï¿½ÌEï¿½ï¿½ï¿½pï¿½Ì‚Íï¿½ÉƒAï¿½hï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½ï¿½é‚½ï¿½ß’Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½ */
         if ((s->type.t & VT_ARRAY)
             || (s->type.t & VT_BTYPE) == VT_STRUCT
             || s->a.addrtaken) {
-            /* ƒ[ƒJƒ‹‚Ì‹«ŠEî•ñ‚ğ’Ç‰Á */
+            /* ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ì‹ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ */
             int align, size = type_size(&s->type, &align);
             addr_t* bounds_ptr = section_ptr_add(lbounds_section,
                 2 * sizeof(addr_t));
@@ -2078,7 +2293,7 @@ static void add_local_bounds(Sym* s, Sym* e)
 }
 #endif
 
-/* sym_pop ‚Ìƒ‰ƒbƒp[B•K—v‚É‰‚¶‚Äƒ[ƒJƒ‹‚Ì‹«ŠEî•ñ‚à“o˜^‚·‚é */
+/* sym_pop ï¿½Ìƒï¿½ï¿½bï¿½pï¿½[ï¿½Bï¿½Kï¿½vï¿½É‰ï¿½ï¿½ï¿½ï¿½Äƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ì‹ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½ï¿½oï¿½^ï¿½ï¿½ï¿½ï¿½ */
 static void pop_local_syms(Sym* b, int keep)
 {
 #ifdef CONFIG_TCC_BCHECK
@@ -2090,12 +2305,12 @@ static void pop_local_syms(Sym* b, int keep)
     sym_pop(&local_stack, b, keep);
 }
 
-/* lvalue ƒ|ƒCƒ“ƒ^‚ÌƒIƒtƒZƒbƒg‚ğ‘‚â‚·iƒ|ƒCƒ“ƒ^‚ğƒCƒ“ƒNƒŠƒƒ“ƒgj */
+/* lvalue ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ÌƒIï¿½tï¿½Zï¿½bï¿½gï¿½ğ‘‚â‚·ï¿½iï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½j */
 static void incr_offset(int offset)
 {
     int t = vtop->type.t;
-    gaddrof(); /* VT_LVAL ‚ğæ‚èœ‚­ */
-    vtop->type.t = VT_PTRDIFF_T; /* ƒXƒJƒ‰[Œ^‚Éİ’è */
+    gaddrof(); /* VT_LVAL ï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ */
+    vtop->type.t = VT_PTRDIFF_T; /* ï¿½Xï¿½Jï¿½ï¿½ï¿½[ï¿½^ï¿½Éİ’ï¿½ */
     vpushs(offset);
     gen_op('+');
     vtop->r |= VT_LVAL;
@@ -2108,7 +2323,7 @@ static void incr_bf_adr(int o)
     incr_offset(o);
 }
 
-/* ƒpƒbƒN‚³‚ê‚½A‚Ü‚½‚Í®—ñ‚³‚ê‚Ä‚¢‚È‚¢ƒrƒbƒgƒtƒB[ƒ‹ƒh‚Ì‚½‚ß‚ÌƒoƒCƒg’PˆÊƒ[ƒhƒ‚[ƒh */
+/* ï¿½pï¿½bï¿½Nï¿½ï¿½ï¿½ê‚½ï¿½Aï¿½Ü‚ï¿½ï¿½Íï¿½ï¿½ñ‚³‚ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½Ì‚ï¿½ï¿½ß‚Ìƒoï¿½Cï¿½gï¿½Pï¿½Êƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½[ï¿½h */
 static void load_packed_bf(CType* type, int bit_pos, int bit_size)
 {
     int n, o, bits;
@@ -2141,7 +2356,7 @@ static void load_packed_bf(CType* type, int bit_pos, int bit_size)
     }
 }
 
-/* ƒpƒbƒN‚³‚ê‚½A‚Ü‚½‚Í®—ñ‚³‚ê‚Ä‚¢‚È‚¢ƒrƒbƒgƒtƒB[ƒ‹ƒh‚Ì‚½‚ß‚ÌƒoƒCƒg’PˆÊƒXƒgƒAƒ‚[ƒh */
+/* ï¿½pï¿½bï¿½Nï¿½ï¿½ï¿½ê‚½ï¿½Aï¿½Ü‚ï¿½ï¿½Íï¿½ï¿½ñ‚³‚ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½Ì‚ï¿½ï¿½ß‚Ìƒoï¿½Cï¿½gï¿½Pï¿½ÊƒXï¿½gï¿½Aï¿½ï¿½ï¿½[ï¿½h */
 static void store_packed_bf(int bit_pos, int bit_size)
 {
     int bits, n, o, m, c;
@@ -2189,20 +2404,20 @@ static int adjust_bf(SValue* sv, int bit_pos, int bit_size)
     return t;
 }
 
-/* vtop ‚ğƒNƒ‰ƒX 'rc' ‚É‘®‚·‚éƒŒƒWƒXƒ^‚ÉŠi”[‚·‚éBlvalue ‚Í’l‚É•ÏŠ·‚³‚ê‚éB
-   \‘¢‘Ì‚Ì‚æ‚¤‚ÉƒŒƒWƒXƒ^’l‚É•ÏŠ·‚Å‚«‚È‚¢ê‡‚Íg‚¦‚È‚¢B */
+/* vtop ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½X 'rc' ï¿½É‘ï¿½ï¿½ï¿½ï¿½éƒŒï¿½Wï¿½Xï¿½^ï¿½ÉŠiï¿½[ï¿½ï¿½ï¿½ï¿½Blvalue ï¿½Í’lï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
+   ï¿½\ï¿½ï¿½ï¿½Ì‚Ì‚æ‚¤ï¿½Éƒï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½É•ÏŠï¿½ï¿½Å‚ï¿½ï¿½È‚ï¿½ï¿½ê‡ï¿½Ígï¿½ï¿½ï¿½È‚ï¿½ï¿½B */
 ST_FUNC int gv(int rc)
 {
     int r, r2, r_ok, r2_ok, rc2, bt;
     int bit_pos, bit_size, size, align;
 
-    /* ’ˆÓ: get_reg ‚Í vstack[] ‚ğ•ÏX‚·‚é‰Â”\«‚ª‚ ‚é */
+    /* ï¿½ï¿½ï¿½ï¿½: get_reg ï¿½ï¿½ vstack[] ï¿½ï¿½ÏXï¿½ï¿½ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     if (vtop->type.t & VT_BITFIELD) {
         CType type;
 
         bit_pos = BIT_POS(vtop->type.t);
         bit_size = BIT_SIZE(vtop->type.t);
-        /* ƒ‹[ƒv‚ğ”ğ‚¯‚é‚½‚ßƒrƒbƒgƒtƒB[ƒ‹ƒhî•ñ‚ğæ‚èœ‚­ */
+        /* ï¿½ï¿½ï¿½[ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ßƒrï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ */
         vtop->type.t &= ~VT_STRUCT_MASK;
 
         type.ref = NULL;
@@ -2222,13 +2437,13 @@ ST_FUNC int gv(int rc)
         }
         else {
             int bits = (type.t & VT_BTYPE) == VT_LLONG ? 64 : 32;
-            /* Œã‘±‚Ì‰‰Z‚Å•„†‚ğ“`”d‚³‚¹‚é‚½‚ß‚É int ‚ÉƒLƒƒƒXƒg‚·‚é */
+            /* ï¿½ã‘±ï¿½Ì‰ï¿½ï¿½Zï¿½Å•ï¿½ï¿½ï¿½ï¿½ï¿½`ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ß‚ï¿½ int ï¿½ÉƒLï¿½ï¿½ï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ */
             gen_cast(&type);
-            /* ƒVƒtƒg‚ğ¶¬ */
+            /* ï¿½Vï¿½tï¿½gï¿½ğ¶ï¿½ */
             vpushi(bits - (bit_pos + bit_size));
             gen_op(TOK_SHL);
             vpushi(bits - bit_size);
-            /* ’ˆÓ: •„†–³‚µ‚Ìê‡‚Í SHR ‚Ö•ÏŠ·‚³‚ê‚é */
+            /* ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ìê‡ï¿½ï¿½ SHR ï¿½Ö•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
             gen_op(TOK_SAR);
         }
         r = gv(rc);
@@ -2236,7 +2451,7 @@ ST_FUNC int gv(int rc)
     else {
         if (is_float(vtop->type.t) &&
             (vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-            /* CPU ‚Í’Êí•‚“®¬”“_’è”‚ğ’¼Úˆµ‚¦‚È‚¢‚½‚ßAƒf[ƒ^ƒZƒOƒƒ“ƒg‚ÉŠi”[‚·‚é */
+            /* CPU ï¿½Í’Êí•‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½_ï¿½è”ï¿½ğ’¼Úˆï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ßAï¿½fï¿½[ï¿½^ï¿½Zï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½gï¿½ÉŠiï¿½[ï¿½ï¿½ï¿½ï¿½ */
             init_params p = { rodata_section };
             unsigned long offset;
             size = type_size(&vtop->type, &align);
@@ -2256,16 +2471,16 @@ ST_FUNC int gv(int rc)
         bt = vtop->type.t & VT_BTYPE;
 
 #ifdef TCC_TARGET_RISCV64
-        /* XXX: ‘å‚«‚ÈƒnƒbƒN */
+        /* XXX: ï¿½å‚«ï¿½Èƒnï¿½bï¿½N */
         if (bt == VT_LDOUBLE && rc == RC_FLOAT)
             rc = RC_INT;
 #endif
         rc2 = RC2_TYPE(bt, rc);
 
-        /* Äƒ[ƒh‚ª•K—v‚Èê‡:
-           - ’è”
-           - lvalueiƒ|ƒCƒ“ƒ^‚ğQÆ‰ğœ‚·‚é•K—v‚ª‚ ‚éj
-           - ‚·‚Å‚ÉƒŒƒWƒXƒ^‚É‚ ‚é‚ª“KØ‚ÈƒNƒ‰ƒX‚Å‚È‚¢ */
+        /* ï¿½Äƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½Kï¿½vï¿½Èê‡:
+           - ï¿½è”
+           - lvalueï¿½iï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½Qï¿½Æ‰ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½j
+           - ï¿½ï¿½ï¿½Å‚Éƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É‚ï¿½ï¿½é‚ªï¿½Kï¿½Ø‚ÈƒNï¿½ï¿½ï¿½Xï¿½Å‚È‚ï¿½ */
         r = vtop->r & VT_VALMASK;
         r_ok = !(vtop->r & VT_LVAL) && (r < VT_CONST) && (reg_classes[r] & rc);
         r2_ok = !rc2 || ((vtop->r2 < VT_CONST) && (reg_classes[vtop->r2] & rc2));
@@ -2273,7 +2488,7 @@ ST_FUNC int gv(int rc)
         if (!r_ok || !r2_ok) {
 
             if (!r_ok) {
-                if (1 /* ƒP[ƒX‚É‚æ‚Á‚Ä‚Í 'mov (r),r' ‚ª‰Â”\ */
+                if (1 /* ï¿½Pï¿½[ï¿½Xï¿½É‚ï¿½ï¿½ï¿½Ä‚ï¿½ 'mov (r),r' ï¿½ï¿½ï¿½Â”\ */
                     && r < VT_CONST
                     && (reg_classes[r] & rc)
                     && !rc2
@@ -2287,42 +2502,42 @@ ST_FUNC int gv(int rc)
                 int load_type = (bt == VT_QFLOAT) ? VT_DOUBLE : VT_PTRDIFF_T;
                 int original_type = vtop->type.t;
 
-                /* 2 ƒŒƒWƒXƒ^Œ^‚Ìƒ[ƒh: ˆê“I‚É 2 ƒ[ƒh‚ÉŠg’£‚·‚é */
+                /* 2 ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½^ï¿½Ìƒï¿½ï¿½[ï¿½h: ï¿½êï¿½Iï¿½ï¿½ 2 ï¿½ï¿½ï¿½[ï¿½hï¿½ÉŠgï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
                 if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-                    /* ’è”‚ğƒ[ƒh */
+                    /* ï¿½è”ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½h */
                     unsigned long long ll = vtop->c.i;
-                    vtop->c.i = ll; /* Å‰‚Ìƒ[ƒh */
+                    vtop->c.i = ll; /* ï¿½Åï¿½ï¿½Ìƒï¿½ï¿½[ï¿½h */
                     load(r, vtop);
-                    vtop->r = r; /* ƒŒƒWƒXƒ^’l‚ğ•Û‘¶ */
-                    vpushi(ll >> 32); /* 2 ”Ô–Ú‚Ìƒ[ƒh */
+                    vtop->r = r; /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½ï¿½Û‘ï¿½ */
+                    vpushi(ll >> 32); /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½[ï¿½h */
                 }
                 else if (vtop->r & VT_LVAL) {
-                    /* long long ƒ|ƒCƒ“ƒ^‚ğ‚±‚±‚Å•ÏX‚µ‚½‚­‚È‚¢‚½‚ßA
-                       ‘¼‚ÌƒCƒ“ƒXƒ^ƒ“ƒX‚ğƒXƒ^ƒbƒN‚Ö‘Ş”ğ‚·‚é */
+                    /* long long ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å•ÏXï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ßA
+                       ï¿½ï¿½ï¿½ÌƒCï¿½ï¿½ï¿½Xï¿½^ï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½Xï¿½^ï¿½bï¿½Nï¿½Ö‘Ş”ï¿½ï¿½ï¿½ï¿½ï¿½ */
                     save_reg_upstack(vtop->r, 1);
-                    /* ƒƒ‚ƒŠ‚©‚çƒ[ƒh */
+                    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½çƒï¿½[ï¿½h */
                     vtop->type.t = load_type;
                     load(r, vtop);
                     vdup();
-                    vtop[-1].r = r; /* ƒŒƒWƒXƒ^’l‚ğ•Û‘¶ */
-                    /* 2 ”Ô–Ú‚Ìƒ[ƒh‚ğ“¾‚é‚½‚ß‚Éƒ|ƒCƒ“ƒ^‚ğ‘‚â‚· */
+                    vtop[-1].r = r; /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½ï¿½Û‘ï¿½ */
+                    /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½[ï¿½hï¿½ğ“¾‚é‚½ï¿½ß‚Éƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½ğ‘‚â‚· */
                     incr_offset(PTR_SIZE);
                 }
                 else {
-                    /* ƒŒƒWƒXƒ^ŠÔ‚ÌˆÚ“® */
+                    /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½Ô‚ÌˆÚ“ï¿½ */
                     if (!r_ok)
                         load(r, vtop);
                     if (r2_ok && vtop->r2 < VT_CONST)
                         goto done;
                     vdup();
-                    vtop[-1].r = r; /* ƒŒƒWƒXƒ^’l‚ğ•Û‘¶ */
+                    vtop[-1].r = r; /* ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½lï¿½ï¿½Û‘ï¿½ */
                     vtop->r = vtop[-1].r2;
                 }
-                /* 2 ”Ô–Ú‚ÌƒŒƒWƒXƒ^‚ğŠm•ÛBget_reg() ‚ª‚Ü‚¸ SValue ‚Ì r2 ‚ğŠJ•ú‚µ‚æ‚¤‚Æ‚·‚é“_‚ÉˆË‘¶‚·‚é */
+                /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½mï¿½ÛBget_reg() ï¿½ï¿½ï¿½Ü‚ï¿½ SValue ï¿½ï¿½ r2 ï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½ï¿½ï¿½æ‚¤ï¿½Æ‚ï¿½ï¿½ï¿½_ï¿½ÉˆË‘ï¿½ï¿½ï¿½ï¿½ï¿½ */
                 r2 = get_reg(rc2);
                 load(r2, vtop);
                 vpop();
-                /* 2 ”Ô–Ú‚ÌƒŒƒWƒXƒ^‚ğ‘‚«‚Ş */
+                /* 2 ï¿½Ô–Ú‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
                 vtop->r2 = r2;
             done:
                 vtop->type.t = original_type;
@@ -2330,13 +2545,13 @@ ST_FUNC int gv(int rc)
             else {
                 if (vtop->r == VT_CMP)
                     vset_VT_JMP();
-                /* 1 ƒŒƒWƒXƒ^Œ^‚Ìƒ[ƒh */
+                /* 1 ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½^ï¿½Ìƒï¿½ï¿½[ï¿½h */
                 load(r, vtop);
             }
         }
         vtop->r = r;
 #ifdef TCC_TARGET_C67
-        /* double ‚ÍƒŒƒWƒXƒ^ƒyƒA‚ğg—p */
+        /* double ï¿½Íƒï¿½ï¿½Wï¿½Xï¿½^ï¿½yï¿½Aï¿½ï¿½ï¿½gï¿½p */
         if (bt == VT_DOUBLE)
             vtop->r2 = r + 1;
 #endif
@@ -2344,17 +2559,17 @@ ST_FUNC int gv(int rc)
     return r;
 }
 
-/* vtop[-1] ‚Æ vtop[0] ‚ğ‚»‚ê‚¼‚ê rc1 ‚Æ rc2 ‚ÌƒNƒ‰ƒX‚Å¶¬‚·‚é */
+/* vtop[-1] ï¿½ï¿½ vtop[0] ï¿½ï¿½ï¿½ï¿½ï¿½ê‚¼ï¿½ï¿½ rc1 ï¿½ï¿½ rc2 ï¿½ÌƒNï¿½ï¿½ï¿½Xï¿½Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void gv2(int rc1, int rc2)
 {
-    /* ”Ä—p“I‚ÈƒŒƒWƒXƒ^‚ğæ‚É¶¬‚·‚éB‚µ‚©‚µ VT_JMP ‚â VT_CMP ‚Ì’l‚Í
-       ƒŠƒ[ƒhƒGƒ‰[‚ğ”ğ‚¯‚é‚½‚ßí‚Éæ‚É¶¬‚·‚é•K—v‚ª‚ ‚é */
+    /* ï¿½Ä—pï¿½Iï¿½Èƒï¿½ï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ VT_JMP ï¿½ï¿½ VT_CMP ï¿½Ì’lï¿½ï¿½
+       ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½hï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ßï¿½Éï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     if (vtop->r != VT_CMP && rc1 <= rc2) {
         vswap();
         gv(rc1);
         vswap();
         gv(rc2);
-        /* Å‰‚ÌƒŒƒWƒXƒ^‚É‘Î‚µ‚ÄÄƒ[ƒh‚ª•K—v‚©‚ğƒeƒXƒg */
+        /* ï¿½Åï¿½ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É‘Î‚ï¿½ï¿½ÄÄƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½eï¿½Xï¿½g */
         if ((vtop[-1].r & VT_VALMASK) >= VT_CONST) {
             vswap();
             gv(rc1);
@@ -2366,7 +2581,7 @@ ST_FUNC void gv2(int rc1, int rc2)
         vswap();
         gv(rc1);
         vswap();
-        /* Å‰‚ÌƒŒƒWƒXƒ^‚É‘Î‚µ‚ÄÄƒ[ƒh‚ª•K—v‚©‚ğƒeƒXƒg */
+        /* ï¿½Åï¿½ï¿½Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É‘Î‚ï¿½ï¿½ÄÄƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½eï¿½Xï¿½g */
         if ((vtop[0].r & VT_VALMASK) >= VT_CONST) {
             gv(rc2);
         }
@@ -2374,7 +2589,7 @@ ST_FUNC void gv2(int rc1, int rc2)
 }
 
 #if PTR_SIZE == 4
-/* ƒXƒ^ƒbƒNã‚Ì 64bit ’l‚ğ 2 ‚Â‚Ì int ‚É“WŠJ‚·‚é */
+/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½ï¿½ï¿½ 64bit ï¿½lï¿½ï¿½ 2 ï¿½Â‚ï¿½ int ï¿½É“Wï¿½Jï¿½ï¿½ï¿½ï¿½ */
 ST_FUNC void lexpand(void)
 {
     int u, v;
@@ -2399,7 +2614,7 @@ ST_FUNC void lexpand(void)
 #endif
 
 #if PTR_SIZE == 4
-/* 2 ‚Â‚Ì int ‚©‚ç long long ‚ğ\’z‚·‚é */
+/* 2 ï¿½Â‚ï¿½ int ï¿½ï¿½ï¿½ï¿½ long long ï¿½ï¿½ï¿½\ï¿½zï¿½ï¿½ï¿½ï¿½ */
 static void lbuild(int t)
 {
     gv2(RC_INT, RC_INT);
@@ -2409,7 +2624,7 @@ static void lbuild(int t)
 }
 #endif
 
-/* ƒXƒ^ƒbƒNƒGƒ“ƒgƒŠ‚ğƒŒƒWƒXƒ^‚É•ÏŠ·‚µA‚»‚Ì’l‚ğ•Ê‚ÌƒŒƒWƒXƒ^‚É•¡»‚·‚é */
+/* ï¿½Xï¿½^ï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ÏŠï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Ì’lï¿½ï¿½Ê‚Ìƒï¿½ï¿½Wï¿½Xï¿½^ï¿½É•ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void gv_dup(void)
 {
     int t, rc, r;
@@ -2437,7 +2652,7 @@ static void gv_dup(void)
         return;
     }
 #endif
-    /* ’l‚ğ•¡» */
+    /* ï¿½lï¿½ğ•¡ï¿½ */
     rc = RC_TYPE(t);
     gv(rc);
     r = get_reg(rc);
@@ -2447,7 +2662,7 @@ static void gv_dup(void)
 }
 
 #if PTR_SIZE == 4
-/* CPU ”ñˆË‘¶‚Ìi•„†–³‚µjlong long ‰‰Z‚ğ¶¬‚·‚é */
+/* CPU ï¿½ï¿½Ë‘ï¿½ï¿½Ìiï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½jlong long ï¿½ï¿½ï¿½Zï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void gen_opl(int op)
 {
     int t, a, b, op1, c, i;
@@ -2475,7 +2690,7 @@ static void gen_opl(int op)
         reg_lret = TREG_R3;
 #endif
     gen_func:
-        /* ”Ä—p‚Ì long long ŠÖ”‚ğŒÄ‚Ño‚· */
+        /* ï¿½Ä—pï¿½ï¿½ long long ï¿½Öï¿½ï¿½ï¿½ï¿½Ä‚Ñoï¿½ï¿½ */
         vpush_helper_func(func);
         vrott(3);
         gfunc_call(2);
@@ -2527,7 +2742,7 @@ static void gen_opl(int op)
             gen_op('+');
         }
         else if (op == '+' || op == '-') {
-            /* XXX: ƒLƒƒƒŠ[‚È‚µ‚Ì•û–@‚à’Ç‰Á‚·‚éiMIPS ‚â alpha —pj */
+            /* XXX: ï¿½Lï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½È‚ï¿½ï¿½Ì•ï¿½ï¿½@ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½iMIPS ï¿½ï¿½ alpha ï¿½pï¿½j */
             if (op == '+')
                 op1 = TOK_ADDC1;
             else
@@ -2560,8 +2775,8 @@ static void gen_opl(int op)
             vrotb(3);
             /* stack: L H shift */
             c = (int)vtop->c.i;
-            /* ’è”‚Ìê‡: ‚æ‚è’Pƒ */
-            /* ’ˆÓ: ‚·‚×‚Ä‚ÌƒRƒƒ“ƒg‚Í SHL —pB‚»‚Ì‘¼‚Íƒ[ƒh‚ğ“ü‚ê‘Ö‚¦‚é‚±‚Æ‚Åˆ—‚³‚ê‚é */
+            /* ï¿½è”ï¿½Ìê‡: ï¿½ï¿½ï¿½Pï¿½ï¿½ */
+            /* ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½×‚Ä‚ÌƒRï¿½ï¿½ï¿½ï¿½ï¿½gï¿½ï¿½ SHL ï¿½pï¿½Bï¿½ï¿½ï¿½Ì‘ï¿½ï¿½Íƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½Ö‚ï¿½ï¿½é‚±ï¿½Æ‚Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
             vpop();
             if (op != TOK_SHL)
                 vswap();
@@ -2608,7 +2823,7 @@ static void gen_opl(int op)
             lbuild(t);
         }
         else {
-            /* XXX: x86 —p‚Ì‚‘¬‚ÈƒtƒH[ƒ‹ƒoƒbƒN‚ğ—pˆÓ‚·‚×‚«‚©H */
+            /* XXX: x86 ï¿½pï¿½Ìï¿½ï¿½ï¿½ï¿½Èƒtï¿½Hï¿½[ï¿½ï¿½ï¿½oï¿½bï¿½Nï¿½ï¿½pï¿½Ó‚ï¿½ï¿½×‚ï¿½ï¿½ï¿½ï¿½H */
             switch (op) {
             case TOK_SAR:
                 func = TOK___ashrdi3;
@@ -2623,7 +2838,7 @@ static void gen_opl(int op)
         }
         break;
     default:
-        /* ”äŠr‰‰Z */
+        /* ï¿½ï¿½rï¿½ï¿½ï¿½Z */
         t = vtop->type.t;
         vswap();
         lexpand();
@@ -2635,13 +2850,13 @@ static void gen_opl(int op)
         vtop[-2] = tmp;
         /* stack: L1 L2 H1 H2 */
         if (!cur_switch || cur_switch->bsym) {
-            /* •ªŠò‚ÅˆÙ‚È‚éƒŒƒWƒXƒ^‚ª•Û‘¶‚³‚ê‚é‚Ì‚ğ”ğ‚¯‚éB
-               switch ‚Ì case ”äŠr‚Å‚Í•s—v */
+            /* ï¿½ï¿½ï¿½ï¿½ÅˆÙ‚È‚éƒŒï¿½Wï¿½Xï¿½^ï¿½ï¿½ï¿½Û‘ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
+               switch ï¿½ï¿½ case ï¿½ï¿½rï¿½Å‚Í•sï¿½v */
             save_regs(4);
         }
-        /* ãˆÊƒ[ƒh‚ğ”äŠr */
+        /* ï¿½ï¿½Êƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½r */
         op1 = op;
-        /* ’l‚ª“™‚µ‚¢ê‡A‰ºˆÊƒ[ƒh‚ğ”äŠr‚·‚é•K—v‚ª‚ ‚éBƒWƒƒƒ“ƒv‚ª”½“]‚·‚é‚½‚ßAƒeƒXƒg‚à”½“]‚·‚é */
+        /* ï¿½lï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½Aï¿½ï¿½ï¿½Êƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½rï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Bï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½]ï¿½ï¿½ï¿½é‚½ï¿½ßAï¿½eï¿½Xï¿½gï¿½ï¿½ï¿½ï¿½ï¿½]ï¿½ï¿½ï¿½ï¿½ */
         if (op1 == TOK_LT)
             op1 = TOK_LE;
         else if (op1 == TOK_GT)
@@ -2659,13 +2874,13 @@ static void gen_opl(int op)
         else {
             a = gvtst(1, 0);
             if (op != TOK_EQ) {
-                /* “™‚µ‚­‚È‚¢ƒeƒXƒg‚ğ¶¬ */
+                /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½eï¿½Xï¿½gï¿½ğ¶ï¿½ */
                 vpushi(0);
                 vset_VT_CMP(TOK_NE);
                 b = gvtst(0, 0);
             }
         }
-        /* ‰ºˆÊƒ[ƒh‚Ì”äŠrBí‚É•„†‚È‚µ */
+        /* ï¿½ï¿½ï¿½Êƒï¿½ï¿½[ï¿½hï¿½Ì”ï¿½rï¿½Bï¿½ï¿½É•ï¿½ï¿½ï¿½ï¿½È‚ï¿½ */
         op1 = op;
         if (op1 == TOK_LT)
             op1 = TOK_ULT;
@@ -2687,7 +2902,7 @@ static void gen_opl(int op)
 }
 #endif
 
-/* ’l‚ğ³‹K‰» */
+/* ï¿½lï¿½ğ³‹Kï¿½ï¿½ */
 static uint64_t value64(uint64_t l1, int t)
 {
     if ((t & VT_BTYPE) == VT_LLONG
@@ -2710,7 +2925,7 @@ static int gen_opic_lt(uint64_t a, uint64_t b)
     return (a ^ (uint64_t)1 << 63) < (b ^ (uint64_t)1 << 63);
 }
 
-/* ®”’è”‚ÌÅ“K‰»‚ÆŠeí‹@ŠB”ñˆË‘¶‚ÌÅ“K‰»‚ğˆµ‚¤ */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½è”ï¿½ÌÅ“Kï¿½ï¿½ï¿½ÆŠeï¿½ï¿½@ï¿½Bï¿½ï¿½Ë‘ï¿½ï¿½ÌÅ“Kï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void gen_opic(int op)
 {
     SValue* v1 = vtop - 1;
@@ -2738,10 +2953,10 @@ static void gen_opic(int op)
         case '%':
         case TOK_UDIV:
         case TOK_UMOD:
-            /* 0 ‚ÅœZ‚·‚éê‡‚ÍA–¾¦“I‚ÈœZ‚ğ¶¬‚·‚é */
+            /* 0 ï¿½Åï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½ê‡ï¿½ÍAï¿½ï¿½ï¿½ï¿½ï¿½Iï¿½Èï¿½ï¿½Zï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
             if (l2 == 0) {
                 if (CONST_WANTED && !NOEVAL_WANTED)
-                    tcc_error("’è”®‚Å‚Ìƒ[ƒ‚É‚æ‚éœZ");
+                    tcc_error("ï¿½è”ï¿½ï¿½ï¿½Å‚Ìƒ[ï¿½ï¿½ï¿½É‚ï¿½éœï¿½Z");
                 goto general_case;
             }
             switch (op) {
@@ -2788,14 +3003,14 @@ static void gen_opic(int op)
         if (c1 && ((l1 == 0 &&
             (op == TOK_SHL || op == TOK_SHR || op == TOK_SAR)) ||
             (l1 == -1 && op == TOK_SAR))) {
-            /* (0 << x), (0 >> x) ‚¨‚æ‚Ñ (-1 >> x) ‚ğ’è”‚Æ‚µ‚Äˆµ‚¤ */
+            /* (0 << x), (0 >> x) ï¿½ï¿½ï¿½ï¿½ï¿½ (-1 >> x) ï¿½ï¿½è”ï¿½Æ‚ï¿½ï¿½Äˆï¿½ï¿½ï¿½ */
             vpop();
         }
         else if (c2 && ((l2 == 0 && (op == '&' || op == '*')) ||
             (op == '|' &&
                 (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))) ||
             (l2 == 1 && (op == '%' || op == TOK_UMOD)))) {
-            /* (x & 0), (x * 0), (x | -1) ‚¨‚æ‚Ñ (x % 1) ‚ğ’è”‚Æ‚µ‚Äˆµ‚¤ */
+            /* (x & 0), (x * 0), (x | -1) ï¿½ï¿½ï¿½ï¿½ï¿½ (x % 1) ï¿½ï¿½è”ï¿½Æ‚ï¿½ï¿½Äˆï¿½ï¿½ï¿½ */
             if (l2 == 1)
                 vtop->c.i = 0;
             vswap();
@@ -2809,11 +3024,11 @@ static void gen_opic(int op)
                 l2 == 0) ||
             (op == '&' &&
                 (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))))) {
-            /* x*1, x-0, x&-1 ‚Ì‚æ‚¤‚È NOP ‰‰Z‚ğœ‹‚·‚é */
+            /* x*1, x-0, x&-1 ï¿½Ì‚æ‚¤ï¿½ï¿½ NOP ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
             vtop--;
         }
         else if (c2 && (op == '*' || op == TOK_PDIV || op == TOK_UDIV || op == TOK_UMOD)) {
-            /* æZ‚âœZ‚Ì‘ã‚í‚è‚ÉƒVƒtƒg‚ğg‚¦‚é‚©‚· */
+            /* ï¿½ï¿½Zï¿½âœï¿½Zï¿½Ì‘ï¿½ï¿½ï¿½ÉƒVï¿½tï¿½gï¿½ï¿½ï¿½gï¿½ï¿½ï¿½é‚©ï¿½ï¿½ï¿½ï¿½ */
             if (l2 > 0 && (l2 & (l2 - 1)) == 0) {
                 int n = -1;
                 if (op == TOK_UMOD) {
@@ -2838,11 +3053,11 @@ static void gen_opic(int op)
         else if (c2 && (op == '+' || op == '-') &&
             (r = vtop[-1].r & (VT_VALMASK | VT_LVAL | VT_SYM),
                 r == (VT_CONST | VT_SYM) || r == VT_LOCAL)) {
-            /* ƒVƒ“ƒ{ƒ‹ + ’è” ‚ÌƒP[ƒX */
+            /* ï¿½Vï¿½ï¿½ï¿½{ï¿½ï¿½ + ï¿½è” ï¿½ÌƒPï¿½[ï¿½X */
             if (op == '-')
                 l2 = -l2;
             l2 += vtop[-1].c.i;
-            /* ƒoƒbƒNƒGƒ“ƒh‚ÍƒVƒ“ƒ{ƒ‹‚É‘Î‚µ‚Ä +-1<<31 ‚ğ’´‚¦‚é‰ÁZ‚ğí‚Éˆµ‚¦‚é‚Æ‚ÍŒÀ‚ç‚È‚¢B‚»‚¤‚µ‚½’l‚Íì‚ç‚È‚¢ */
+            /* ï¿½oï¿½bï¿½Nï¿½Gï¿½ï¿½ï¿½hï¿½ÍƒVï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½É‘Î‚ï¿½ï¿½ï¿½ +-1<<31 ï¿½ğ’´‚ï¿½ï¿½ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½Éˆï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ÍŒï¿½ï¿½ï¿½È‚ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½lï¿½Íï¿½ï¿½È‚ï¿½ */
             if ((int)l2 != l2)
                 goto general_case;
             vtop--;
@@ -2895,13 +3110,13 @@ void gen_negf(int op)
 }
 #endif
 
-/* ’è”“`”À‚ğ”º‚¤•‚“®¬”“_‰‰Z‚ğ¶¬‚·‚é */
+/* ï¿½è”ï¿½`ï¿½ï¿½ï¿½ğ”º‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½_ï¿½ï¿½ï¿½Zï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void gen_opif(int op)
 {
     int c1, c2, i, bt;
     SValue* v1, * v2;
 #if defined _MSC_VER && defined __x86_64__
-    /* f1:-0.0, f2:0.0 ‚Ìê‡‚É f1 -= f2 ‚Ìˆ«‚¢Å“K‰»‚ğ”ğ‚¯‚é */
+    /* f1:-0.0, f2:0.0 ï¿½Ìê‡ï¿½ï¿½ f1 -= f2 ï¿½Ìˆï¿½ï¿½ï¿½ï¿½Å“Kï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     volatile
 #endif
         long double f1, f2;
@@ -2928,7 +3143,7 @@ static void gen_opif(int op)
             f1 = v1->c.ld;
             f2 = v2->c.ld;
         }
-        /* ’ˆÓ: ’è”“`”À‚Í—LŒÀ‚È”iNaN ‚â–³ŒÀ‘å‚Å‚È‚¢j‚É‘Î‚µ‚Ä‚Ì‚İs‚¤iANSI ‹KŠij */
+        /* ï¿½ï¿½ï¿½ï¿½: ï¿½è”ï¿½`ï¿½ï¿½ï¿½Í—Lï¿½ï¿½ï¿½Èï¿½ï¿½iNaN ï¿½â–³ï¿½ï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½jï¿½É‘Î‚ï¿½ï¿½Ä‚Ì‚İsï¿½ï¿½ï¿½iANSI ï¿½Kï¿½iï¿½j */
         if (!(ieee_finite(f1) || !ieee_finite(f2)) && !CONST_WANTED)
             goto general_case;
         switch (op) {
@@ -2938,11 +3153,11 @@ static void gen_opif(int op)
         case '/':
             if (f2 == 0.0) {
                 union { float f; unsigned u; } x1, x2, y;
-                /* ‰Šú‰»q“à‚Å‚È‚¢ê‡‚ÍÀs‚É•‚“®¬”“_—áŠO‚ğ”­¶‚³‚¹‚é•K—v‚ª‚ ‚é‰Â”\«‚ª‚ ‚é‚½‚ßA
-                   ‚»‚¤‚Å‚È‚¯‚ê‚Î’è”ô‚İ‚İ‚ğs‚¤ */
+                /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½ê‡ï¿½Íï¿½ï¿½sï¿½ï¿½ï¿½É•ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½_ï¿½ï¿½Oï¿½ğ”­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ßA
+                   ï¿½ï¿½ï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½ï¿½Î’è”ï¿½ï¿½İï¿½ï¿½İ‚ï¿½ï¿½sï¿½ï¿½ */
                 if (!CONST_WANTED)
                     goto general_case;
-                /* x87 ã‚Å‚Ì 0.0/0.0 ‚ÌÀsŒ‹‰Ê‚Í -nan ‚Æ‚È‚éi‘¼‚ÌƒRƒ“ƒpƒCƒ‰‚Å‚à“¯—lj */
+                /* x87 ï¿½ï¿½Å‚ï¿½ 0.0/0.0 ï¿½Ìï¿½ï¿½sï¿½ï¿½ï¿½ï¿½ï¿½Ê‚ï¿½ -nan ï¿½Æ‚È‚ï¿½iï¿½ï¿½ï¿½ÌƒRï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½Å‚ï¿½ï¿½ï¿½ï¿½lï¿½j */
                 x1.f = f1, x2.f = f2;
                 if (f1 == 0.0)
                     y.u = 0x7fc00000; /* nan */
@@ -3005,9 +3220,9 @@ static void gen_opif(int op)
     }
 }
 
-/* Œ^‚ğo—Í‚·‚éB'varstr' ‚ª NULL ‚Å‚È‚¢ê‡‚Í•Ï”–¼‚àŒ^‚É•\¦‚·‚é */
-/* XXX: ‹¤—p‘Ì (union) */
-/* XXX: ”z—ñ‚¨‚æ‚ÑŠÖ”ƒ|ƒCƒ“ƒ^‚Ì•\¦‚ğ’Ç‰Á‚·‚é */
+/* ï¿½^ï¿½ï¿½ï¿½oï¿½Í‚ï¿½ï¿½ï¿½B'varstr' ï¿½ï¿½ NULL ï¿½Å‚È‚ï¿½ï¿½ê‡ï¿½Í•Ïï¿½ï¿½ï¿½ï¿½ï¿½ï¿½^ï¿½É•\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+/* XXX: ï¿½ï¿½ï¿½pï¿½ï¿½ (union) */
+/* XXX: ï¿½zï¿½ñ‚¨‚ï¿½ÑŠÖï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ì•\ï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void type_to_str(char* buf, int buf_size,
     CType* type, const char* varstr)
 {
@@ -3178,7 +3393,7 @@ static inline int is_null_pointer(SValue* p)
             );
 }
 
-/* ŠÖ”Œ^‚ğ”äŠr‚·‚éBOLDiŒÃ‚¢jŠÖ”‚Í”CˆÓ‚ÌV‚µ‚¢ŠÖ”‚Éƒ}ƒbƒ`‚·‚é */
+/* ï¿½Öï¿½ï¿½^ï¿½ï¿½ï¿½rï¿½ï¿½ï¿½ï¿½BOLDï¿½iï¿½Ã‚ï¿½ï¿½jï¿½Öï¿½ï¿½Í”Cï¿½Ó‚ÌVï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½Éƒ}ï¿½bï¿½`ï¿½ï¿½ï¿½ï¿½ */
 static int is_compatible_func(CType* type1, CType* type2)
 {
     Sym* s1, * s2;
@@ -3205,7 +3420,7 @@ static int is_compatible_func(CType* type1, CType* type2)
     }
 }
 
-/* type1 ‚Æ type2 ‚ª“¯‚¶‚È‚ç^‚ğ•Ô‚·Bunqualified ‚ª^‚È‚çAŒ^‚ÌCüq‚Í–³‹‚³‚ê‚éB */
+/* type1 ï¿½ï¿½ type2 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½^ï¿½ï¿½Ô‚ï¿½ï¿½Bunqualified ï¿½ï¿½ï¿½^ï¿½È‚ï¿½Aï¿½^ï¿½ÌCï¿½ï¿½ï¿½qï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B */
 static int compare_types(CType* type1, CType* type2, int unqualified)
 {
     int bt1, t1, t2;
@@ -3262,15 +3477,15 @@ static int compare_types(CType* type1, CType* type2, int unqualified)
 #define CMP_OP 'C'
 #define SHIFT_OP 'S'
 
-/* OP1 ‚Æ OP2 ‚ª‰‰Z OP ‚Å "Œ‹‡" ‚Å‚«‚é‚©‚ğƒ`ƒFƒbƒN‚·‚éBŒ‹‡Œ^‚Í DEST ‚ÉŠi”[‚³‚ê‚éiƒ|ƒCƒ“ƒ^‚Ì‰ÁŒ¸Z‚ğœ‚­jB */
+/* OP1 ï¿½ï¿½ OP2 ï¿½ï¿½ï¿½ï¿½ï¿½Z OP ï¿½ï¿½ "ï¿½ï¿½ï¿½ï¿½" ï¿½Å‚ï¿½ï¿½é‚©ï¿½ï¿½ï¿½`ï¿½Fï¿½bï¿½Nï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½^ï¿½ï¿½ DEST ï¿½ÉŠiï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½iï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ì‰ï¿½ï¿½ï¿½ï¿½Zï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½jï¿½B */
     /* for shifts, 'combine' only left operand */
-    /* ƒVƒtƒg‚Ìê‡A'combine' ‚Í¶ƒIƒyƒ‰ƒ“ƒh‚Ì‚İ‚ğˆµ‚¤ */
+    /* ï¿½Vï¿½tï¿½gï¿½Ìê‡ï¿½A'combine' ï¿½Íï¿½ï¿½Iï¿½yï¿½ï¿½ï¿½ï¿½ï¿½hï¿½Ì‚İ‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
     /* strip qualifiers before comparing */
-    /* ”äŠr‘O‚ÉCüq‚ğæ‚èœ‚­ */
+    /* ï¿½ï¿½rï¿½Oï¿½ÉCï¿½ï¿½ï¿½qï¿½ï¿½ï¿½ï¿½èœï¿½ï¿½ */
     /* Default Vs explicit signedness only matters for char */
-    /* ƒfƒtƒHƒ‹ƒg‚Æ–¾¦“I‚È•„†w’è‚Ìˆá‚¢‚Í char ‚Ìê‡‚É‚Ì‚İ–â‘è‚Æ‚È‚é */
+    /* ï¿½fï¿½tï¿½Hï¿½ï¿½ï¿½gï¿½Æ–ï¿½ï¿½ï¿½ï¿½Iï¿½È•ï¿½ï¿½ï¿½ï¿½wï¿½ï¿½Ìˆá‚¢ï¿½ï¿½ char ï¿½Ìê‡ï¿½É‚Ì‚İ–ï¿½ï¿½Æ‚È‚ï¿½ */
     /* XXX: bitfields ? */
-    /* XXX: ƒrƒbƒgƒtƒB[ƒ‹ƒh ? */
+    /* XXX: ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h ? */
 static int combine_types(CType* dest, SValue* op1, SValue* op2, int op)
 {
     CType* type1, * type2, type;
@@ -3307,8 +3522,8 @@ static int combine_types(CType* dest, SValue* op1, SValue* op2, int op)
                with a warning */
             if ((op == '?' || op == CMP_OP)
                 && (is_integer_btype(bt1) || is_integer_btype(bt2)))
-                tcc_warning("ƒ|ƒCƒ“ƒ^/®”‚Ì•sˆê’v: %s",
-                    op == '?' ? "ğŒ‰‰Zq" : "”äŠr");
+                tcc_warning("ï¿½|ï¿½Cï¿½ï¿½ï¿½^/ï¿½ï¿½ï¿½ï¿½ï¿½Ì•sï¿½ï¿½v: %s",
+                    op == '?' ? "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Zï¿½q" : "ï¿½ï¿½r");
             else if (op != '-' || !is_integer_btype(bt2))
                 ret = 0;
             type = *(bt1 == VT_PTR ? type1 : type2);
@@ -3439,7 +3654,7 @@ redo:
     }
     else if (!combine_types(&combtype, vtop - 1, vtop, op_class)) {
     op_err:
-        tcc_error("“ñ€‰‰Z‚ÌƒIƒyƒ‰ƒ“ƒhŒ^‚ª•s³‚Å‚·");
+        tcc_error("ï¿½ñ€‰ï¿½ï¿½Zï¿½ÌƒIï¿½yï¿½ï¿½ï¿½ï¿½ï¿½hï¿½^ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Å‚ï¿½");
     }
     else if (bt1 == VT_PTR || bt2 == VT_PTR) {
         /* at least one operand is a pointer */
@@ -3471,7 +3686,7 @@ redo:
             }
 #if PTR_SIZE == 4
             if (bt2 == VT_LLONG)
-                /* XXX: ‚±‚±‚ÅØ‚èÌ‚Ä‚éBgen_opl ‚Í ptr + long long ‚ğˆµ‚¦‚È‚¢‚½‚ß */
+                /* XXX: ï¿½ï¿½ï¿½ï¿½ï¿½ÅØ‚ï¿½Ì‚Ä‚ï¿½Bgen_opl ï¿½ï¿½ ptr + long long ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ */
                 gen_cast_s(VT_INT);
 #endif
             type1 = vtop[-1].type;
@@ -3479,7 +3694,7 @@ redo:
             gen_op('*');
 #ifdef CONFIG_TCC_BCHECK
             if (tcc_state->do_bounds_check && !CONST_WANTED) {
-                /* ‹«ŠEŒŸ¸•t‚«ƒ|ƒCƒ“ƒ^‚Ìê‡A‹«ŠE‚ğƒeƒXƒg‚·‚é‚½‚ß‚Ì“Á•Ê‚ÈƒR[ƒh‚ğ¶¬‚·‚é */
+                /* ï¿½ï¿½ï¿½Eï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ìê‡ï¿½Aï¿½ï¿½ï¿½Eï¿½ï¿½ï¿½eï¿½Xï¿½gï¿½ï¿½ï¿½é‚½ï¿½ß‚Ì“ï¿½ï¿½Ê‚ÈƒRï¿½[ï¿½hï¿½ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
                 if (op == '-') {
                     vpushi(0);
                     vswap();
@@ -3506,10 +3721,10 @@ redo:
         }
     std_op:
         t = t2 = combtype.t;
-        /* ƒVƒtƒg‚Æ long long ‚Ì“ÁêƒP[ƒX: ƒVƒtƒg‚Í®”‚Ì‚Ü‚Ü‚É‚·‚é */
+        /* ï¿½Vï¿½tï¿½gï¿½ï¿½ long long ï¿½Ì“ï¿½ï¿½ï¿½Pï¿½[ï¿½X: ï¿½Vï¿½tï¿½gï¿½Íï¿½ï¿½ï¿½ï¿½Ì‚Ü‚Ü‚É‚ï¿½ï¿½ï¿½ */
         if (op_class == SHIFT_OP)
             t2 = VT_INT;
-        /* XXX: Œ»óAˆê•”‚Ì•„†‚È‚µ‰‰Z‚Í–¾¦“I‚È‚Ì‚ÅA‚±‚±‚Å•ÏŠ·‚·‚é */
+        /* XXX: ï¿½ï¿½ï¿½ï¿½Aï¿½ê•”ï¿½Ì•ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½Zï¿½Í–ï¿½ï¿½ï¿½ï¿½Iï¿½È‚Ì‚ÅAï¿½ï¿½ï¿½ï¿½ï¿½Å•ÏŠï¿½ï¿½ï¿½ï¿½ï¿½ */
         if (t & VT_UNSIGNED) {
             if (op == TOK_SAR)
                 op = TOK_SHR;
@@ -3535,7 +3750,7 @@ redo:
         else
             gen_opic(op);
         if (op_class == CMP_OP) {
-            /* ŠÖŒW‰‰Zq: Œ‹‰Ê‚Í int */
+            /* ï¿½ÖŒWï¿½ï¿½ï¿½Zï¿½q: ï¿½ï¿½ï¿½Ê‚ï¿½ int */
             vtop->type.t = VT_INT;
         }
         else {
@@ -3638,7 +3853,7 @@ static void gen_cast(CType* type)
         gv(RC_INT);
 
     if (IS_ENUM(type->t) && type->ref->c < 0)
-        tcc_error("•sŠ®‘SŒ^‚Ö‚ÌƒLƒƒƒXƒg");
+        tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ï¿½Ö‚ÌƒLï¿½ï¿½ï¿½Xï¿½g");
 
     dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
     sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
@@ -3773,7 +3988,7 @@ again:
         if (ds == ss && ds >= 4)
             goto done;
         if (dbt_bt == VT_PTR || sbt_bt == VT_PTR) {
-            tcc_warning("ƒ|ƒCƒ“ƒ^‚Æ®”‚ÌƒTƒCƒY‚ªˆÙ‚È‚éŠÔ‚ÌƒLƒƒƒXƒg‚Å‚·");
+            tcc_warning("ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½Æï¿½ï¿½ï¿½ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½ï¿½Ù‚È‚ï¿½Ô‚ÌƒLï¿½ï¿½ï¿½Xï¿½gï¿½Å‚ï¿½");
             if (sbt_bt == VT_PTR) {
                 /* put integer type to allow logical operations below */
                 vtop->type.t = (PTR_SIZE == 8 ? VT_LLONG : VT_INT);
@@ -3947,7 +4162,7 @@ static void vpush_type_size(CType* type, int* a)
     else {
         int size = type_size(type, a);
         if (size < 0)
-            tcc_error("•s–¾‚ÈŒ^ƒTƒCƒY‚Å‚·");
+            tcc_error("ï¿½sï¿½ï¿½ï¿½ÈŒ^ï¿½Tï¿½Cï¿½Yï¿½Å‚ï¿½");
         vpushs(size);
     }
 }
@@ -3984,7 +4199,7 @@ static int is_compatible_unqualified_types(CType* type1, CType* type2)
 
 static void cast_error(CType* st, CType* dt)
 {
-    type_incompatibility_error(st, dt, "'%s' ‚ğ '%s' ‚É•ÏŠ·‚Å‚«‚Ü‚¹‚ñ");
+    type_incompatibility_error(st, dt, "'%s' ï¿½ï¿½ '%s' ï¿½É•ÏŠï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
 }
 
 /* verify type compatibility to store vtop in 'dt' type */
@@ -3997,11 +4212,11 @@ static void verify_assign_cast(CType* dt)
     dbt = dt->t & VT_BTYPE;
     sbt = st->t & VT_BTYPE;
     if (dt->t & VT_CONSTANT)
-        tcc_warning("“Ç‚İæ‚èê—p‚ÌêŠ‚Ö‚Ì‘ã“ü‚Å‚·");
+        tcc_warning("ï¿½Ç‚İï¿½ï¿½ï¿½pï¿½ÌêŠï¿½Ö‚Ì‘ï¿½ï¿½ï¿½Å‚ï¿½");
     switch (dbt) {
     case VT_VOID:
         if (sbt != dbt)
-            tcc_error("void Œ^‚Ö‚Ì‘ã“ü");
+            tcc_error("void ï¿½^ï¿½Ö‚Ì‘ï¿½ï¿½");
         break;
     case VT_PTR:
         /* special cases for pointers */
@@ -4010,7 +4225,7 @@ static void verify_assign_cast(CType* dt)
             break;
         /* accept implicit pointer to integer cast with warning */
         if (is_integer_btype(sbt)) {
-            tcc_warning("ƒLƒƒƒXƒg‚È‚µ‚Å®”‚©‚çƒ|ƒCƒ“ƒ^‚ªì‚ç‚ê‚Ü‚·");
+            tcc_warning("ï¿½Lï¿½ï¿½ï¿½Xï¿½gï¿½È‚ï¿½ï¿½Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
             break;
         }
         type1 = pointed_type(dt);
@@ -4047,7 +4262,7 @@ static void verify_assign_cast(CType* dt)
                    and signed int targets.  */
             }
             else {
-                tcc_warning("ŒİŠ·«‚Ì‚È‚¢ƒ|ƒCƒ“ƒ^Œ^‚©‚ç‚Ì‘ã“ü‚Å‚·");
+                tcc_warning("ï¿½İŠï¿½ï¿½ï¿½ï¿½Ì‚È‚ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½^ï¿½ï¿½ï¿½ï¿½Ì‘ï¿½ï¿½ï¿½Å‚ï¿½");
                 break;
             }
         }
@@ -4059,7 +4274,7 @@ static void verify_assign_cast(CType* dt)
     case VT_INT:
     case VT_LLONG:
         if (sbt == VT_PTR || sbt == VT_FUNC) {
-            tcc_warning("ƒLƒƒƒXƒg‚È‚µ‚Åƒ|ƒCƒ“ƒ^‚©‚ç®”‚ªì‚ç‚ê‚Ü‚·");
+            tcc_warning("ï¿½Lï¿½ï¿½ï¿½Xï¿½gï¿½È‚ï¿½ï¿½Åƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½ï¿½ï¿½ç®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
         }
         else if (sbt == VT_STRUCT) {
             goto case_VT_STRUCT;
@@ -4343,7 +4558,7 @@ redo:
                 s = external_global_sym(tok, &func_old_type);
             }
             else if ((s->type.t & VT_BTYPE) != VT_FUNC)
-                tcc_error("'%s' ‚ÍŠÖ”‚Æ‚µ‚ÄéŒ¾‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ", get_tok_str(tok, &tokc));
+                tcc_error("'%s' ï¿½ÍŠÖï¿½ï¿½Æ‚ï¿½ï¿½ÄéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", get_tok_str(tok, &tokc));
             ad->cleanup_func = s;
             next();
             skip(')');
@@ -4398,7 +4613,7 @@ redo:
                 next();
                 n = expr_const();
                 if (n <= 0 || (n & (n - 1)) != 0)
-                    tcc_error("ƒAƒ‰ƒCƒ“ƒƒ“ƒg‚Í³‚Ì2‚Ì™p‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
+                    tcc_error("ï¿½Aï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½Íï¿½ï¿½ï¿½2ï¿½Ì™pï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
                 skip(')');
             }
             else {
@@ -4406,7 +4621,7 @@ redo:
             }
             ad->a.aligned = exact_log2p1(n);
             if (n != 1 << (ad->a.aligned - 1))
-                tcc_error("ƒAƒ‰ƒCƒ“ƒƒ“ƒg %d ‚ÍÀ‘•‚æ‚è‘å‚«‚·‚¬‚Ü‚·", n);
+                tcc_error("ï¿½Aï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½g %d ï¿½Íï¿½ï¿½ï¿½ï¿½ï¿½ï¿½å‚«ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½", n);
             break;
         case TOK_PACKED1:
         case TOK_PACKED2:
@@ -4480,7 +4695,7 @@ redo:
                 ad->attr_mode = VT_INT + 1;
                 break;
             default:
-                tcc_warning("__mode__(%s) ‚ÍƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ\n", get_tok_str(tok, NULL));
+                tcc_warning("__mode__(%s) ï¿½ÍƒTï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½\n", get_tok_str(tok, NULL));
                 break;
             }
             next();
@@ -4496,7 +4711,7 @@ redo:
             ad->a.dllimport = 1;
             break;
         default:
-            tcc_warning_c(warn_unsupported)("‘®« '%s' ‚Í–³‹‚³‚ê‚Ü‚·", get_tok_str(t, NULL));
+            tcc_warning_c(warn_unsupported)("ï¿½ï¿½ï¿½ï¿½ '%s' ï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½", get_tok_str(t, NULL));
             /* skip parameters */
             if (tok == '(') {
                 int parenthesis = 0;
@@ -4529,7 +4744,7 @@ static Sym* find_field(CType* type, int v, int* cumofs)
         if (v < TOK_UIDENT)
             expect("field name");
         if (s->c < 0)
-            tcc_error("•sŠ®‘SŒ^ '%s' ‚ÌQÆ‰ğœ",
+            tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ '%s' ï¿½ÌQï¿½Æ‰ï¿½ï¿½ï¿½",
                 get_tok_str(s->v & ~SYM_STRUCT, 0));
     }
     while ((s = s->next) != NULL) {
@@ -4548,7 +4763,7 @@ static Sym* find_field(CType* type, int v, int* cumofs)
         }
     }
     if (!(v & SYM_FIELD))
-        tcc_error("ƒtƒB[ƒ‹ƒh‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: %s", get_tok_str(v, NULL));
+        tcc_error("ï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½: %s", get_tok_str(v, NULL));
     return s;
 }
 
@@ -4561,7 +4776,7 @@ static void check_fields(CType* type, int check)
         if (v < SYM_FIRST_ANOM) {
             TokenSym* ts = table_ident[v - TOK_IDENT];
             if (check && (ts->tok & SYM_FIELD))
-                tcc_error("ƒƒ“ƒo '%s' ‚ªd•¡‚µ‚Ä‚¢‚Ü‚·", get_tok_str(v, NULL));
+                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½o '%s' ï¿½ï¿½ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½", get_tok_str(v, NULL));
             ts->tok ^= SYM_FIELD;
         }
         else if ((s->type.t & VT_BTYPE) == VT_STRUCT)
@@ -4588,6 +4803,8 @@ static void struct_layout(CType* type, AttributeDef* ad)
 
     for (f = type->ref->next; f; f = f->next) {
         if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (f->type.t & VT_STATIC)
             continue;
         if (f->type.t & VT_BITFIELD)
             bit_size = BIT_SIZE(f->type.t);
@@ -4835,7 +5052,7 @@ static void struct_decl(CType* type, int u, int is_class)
 {
     int v, c, size, align, flexible;
     int bit_size, bsize, bt, ut;
-    Sym* s, * ss, ** ps;
+    Sym *s, *ss = NULL, **ps;
     AttributeDef ad, ad1;
     CType type1, btype;
 
@@ -4867,7 +5084,7 @@ static void struct_decl(CType* type, int u, int is_class)
                 goto do_decl;
             if (u == VT_ENUM && IS_ENUM(s->type.t)) /* XXX: check integral types */
                 goto do_decl;
-            tcc_error("Ä’è‹`: '%s'", get_tok_str(v, NULL));
+            tcc_error("ï¿½Ä’ï¿½`: '%s'", get_tok_str(v, NULL));
         }
     }
     else {
@@ -4885,17 +5102,44 @@ do_decl:
     type->t = s->type.t;
     type->ref = s;
 
+
+    if (is_class && tok == ':') {
+        Sym *base_class_sym, *base_field;
+        CType base_type;
+
+        next();
+        if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED)
+            next();
+        if (tok < TOK_IDENT)
+            tcc_error("expected base class name");
+        base_class_sym = struct_find(tok);
+        if (!base_class_sym)
+            tcc_error("unknown base class");
+        next();
+        if (tok == ',')
+            tcc_error("multiple inheritance not supported");
+        base_type.t = VT_STRUCT;
+        base_type.ref = base_class_sym;
+        base_field = sym_push(anon_sym++ | SYM_FIELD, &base_type, 0, 0);
+        base_field->a.access = ACCESS_PUBLIC;
+        base_field->parent_class = base_class_sym;
+        base_field->next = s->next;
+        s->next = base_field;
+    }
+
     if (tok == '{') {
         if (is_class)
             cpp_cur_class = s;
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
-            tcc_error("struct/union/enum ‚ÍŠù‚É’è‹`‚³‚ê‚Ä‚¢‚Ü‚·");
+            tcc_error("struct/union/enum ï¿½ÍŠï¿½ï¿½É’ï¿½`ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
         s->c = -2;
         /* cannot be empty */
         /* non empty enums are not allowed */
         ps = &s->next;
+        while (*ps)
+            ps = &(*ps)->next;
         if (u == VT_ENUM) {
             long long ll = 0, pl = 0, nl = 0;
             CType t;
@@ -4910,7 +5154,7 @@ do_decl:
                     expect("identifier");
                 ss = sym_find(v);
                 if (ss && !local_stack)
-                    tcc_error("—ñ‹“q '%s' ‚ÌÄ’è‹`",
+                    tcc_error("ï¿½ñ‹“q '%s' ï¿½ÌÄ’ï¿½`",
                         get_tok_str(v, NULL));
                 next();
                 if (tok == '=') {
@@ -4975,6 +5219,7 @@ do_decl:
             cur_access = is_class ? ACCESS_PRIVATE : ACCESS_PUBLIC;
             while (tok != '}') {
                 int skip_member_semi = 0;
+                int is_ctor_decl = 0;
                 if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED) {
                     cur_access = (tok == TOK_PUBLIC) ? ACCESS_PUBLIC :
                                  (tok == TOK_PROTECTED) ? ACCESS_PROTECTED : ACCESS_PRIVATE;
@@ -4982,7 +5227,23 @@ do_decl:
                     skip(':');
                     continue;
                 }
-                if (!parse_btype(&btype, &ad1, 0)) {
+                /* C++: a member named identically to the class with `(`
+                 * after it is a ctor declaration with omitted return type.
+                 * parse_btype() would otherwise consume the typedef'd class
+                 * name as the return type and confuse the parser. */
+                if (tcc_state->cpp && is_class
+                    && tok == (s->v & ~SYM_STRUCT)) {
+                    int saved = tok;
+                    next();
+                    if (tok == '(') {
+                        is_ctor_decl = 1;
+                        btype.t = VT_VOID;
+                        btype.ref = NULL;
+                        memset(&ad1, 0, sizeof ad1);
+                    }
+                    unget_tok(saved);
+                }
+                if (!is_ctor_decl && !parse_btype(&btype, &ad1, 0)) {
                     if (tok == TOK_STATIC_ASSERT) {
                         do_Static_assert();
                         continue;
@@ -4992,7 +5253,7 @@ do_decl:
                 }
                 while (1) {
                     if (flexible)
-                        tcc_error("‰Â•Ï’·”z—ñƒƒ“ƒo '%s' ‚ª\‘¢‘Ì‚Ì––”ö‚É‚ ‚è‚Ü‚¹‚ñ",
+                        tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ñƒƒï¿½ï¿½o '%s' ï¿½ï¿½ï¿½\ï¿½ï¿½ï¿½Ì‚Ì–ï¿½ï¿½ï¿½ï¿½É‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
                             get_tok_str(v, NULL));
                     bit_size = -1;
                     v = 0;
@@ -5015,25 +5276,25 @@ do_decl:
                             if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
                                 flexible = 1;
                             else
-                                tcc_error("ƒtƒB[ƒ‹ƒh '%s' ‚Í•sŠ®‘SŒ^‚Å‚·",
+                                tcc_error("ï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h '%s' ï¿½Í•sï¿½ï¿½ï¿½Sï¿½^ï¿½Å‚ï¿½",
                                     get_tok_str(v, NULL));
                         }
                         /* Stage 1: member function prototypes allowed in class only; struct in Stage 2+ */
                         if (((type1.t & VT_BTYPE) == VT_FUNC && !is_class) ||
                             (type1.t & VT_BTYPE) == VT_VOID ||
-                            (type1.t & VT_STORAGE))
-                            tcc_error("'%s' ‚É‘Î‚·‚é–³Œø‚ÈŒ^",
+                            ((type1.t & VT_STORAGE) && !(is_class && (type1.t & VT_STATIC))))
+                            tcc_error("'%s' ï¿½É‘Î‚ï¿½ï¿½é–³ï¿½ï¿½ï¿½ÈŒ^",
                                 get_tok_str(v, NULL));
                     }
-                    if (tok == ':') {
+                    if (tok == ':' && !is_ctor_decl) {
                         next();
                         bit_size = expr_const();
                         /* XXX: handle v = 0 case for messages */
                         if (bit_size < 0)
-                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh '%s' ‚Ì•‚ª•‰‚Å‚·",
+                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h '%s' ï¿½Ì•ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½",
                                 get_tok_str(v, NULL));
                         if (v && bit_size == 0)
-                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh '%s' ‚Ì•‚ª0‚Å‚·",
+                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h '%s' ï¿½Ì•ï¿½ï¿½ï¿½0ï¿½Å‚ï¿½",
                                 get_tok_str(v, NULL));
                         parse_attribute(&ad1);
                     }
@@ -5045,10 +5306,10 @@ do_decl:
                             bt != VT_SHORT &&
                             bt != VT_BOOL &&
                             bt != VT_LLONG)
-                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh‚ÍƒXƒJƒ‰[Œ^‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
+                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ÍƒXï¿½Jï¿½ï¿½ï¿½[ï¿½^ï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
                         bsize = size * 8;
                         if (bit_size > bsize) {
-                            tcc_error("'%s' ‚Ì•‚ªŒ^‚Ì‹–—e”ÍˆÍ‚ğ’´‚¦‚Ä‚¢‚Ü‚·",
+                            tcc_error("'%s' ï¿½Ì•ï¿½ï¿½ï¿½ï¿½^ï¿½Ì‹ï¿½ï¿½eï¿½ÍˆÍ‚ğ’´‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½",
                                 get_tok_str(v, NULL));
                         }
                         else if (bit_size == bsize
@@ -5057,7 +5318,7 @@ do_decl:
                             ;
                         }
                         else if (bit_size == 64) {
-                            tcc_error("ƒrƒbƒgƒtƒB[ƒ‹ƒh•64‚Í–¢À‘•‚Å‚·");
+                            tcc_error("ï¿½rï¿½bï¿½gï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½hï¿½ï¿½64ï¿½Í–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
                         }
                         else {
                             type1.t = (type1.t & ~VT_STRUCT_MASK)
@@ -5077,11 +5338,6 @@ do_decl:
                             bit_size >= 0)) {
                         v = anon_sym++;
                     }
-                    if ((type1.t & VT_BTYPE) == VT_FUNC && tok == '{') {
-                        skip_or_save_block(NULL);
-                        skip_member_semi = 1;
-                        break;
-                    }
                     if (v) {
                         ss = sym_push(v | SYM_FIELD, &type1, 0, 0);
                         ss->a = ad1.a;
@@ -5090,6 +5346,24 @@ do_decl:
                             ss->parent_class = s;
                         *ps = ss;
                         ps = &ss->next;
+                        {
+                            int is_ctor = is_class && v && (v == (s->v & ~SYM_STRUCT))
+                                && (type1.t & VT_BTYPE) == VT_FUNC;
+                            if (is_ctor && tok == ':')
+                                cpp_save_mem_init_list(ss);
+                        }
+                    }
+                    if ((type1.t & VT_BTYPE) == VT_FUNC && tok == '{') {
+                        /* Save the in-class inline body so cpp_finish_member_inlines
+                         * can convert it into a real out-of-line function at end of
+                         * the class declaration.  ss is non-NULL here because v != 0
+                         * (a named function), so the `if (v)` block above ran. */
+                        TokenString *body = NULL;
+                        skip_or_save_block(&body);
+                        if (tcc_state->cpp && v && body)
+                            cpp_register_member_body(ss, s, &type1, body);
+                        skip_member_semi = 1;
+                        break;
                     }
                     if (tok == ';' || tok == TOK_EOF)
                         break;
@@ -5101,7 +5375,7 @@ do_decl:
             skip('}');
             parse_attribute(&ad);
             if (ad.cleanup_func) {
-                tcc_warning("‘®« '__cleanup__' ‚ÍŒ^‚É‘Î‚µ‚Ä–³‹‚³‚ê‚Ü‚·");
+                tcc_warning("ï¿½ï¿½ï¿½ï¿½ '__cleanup__' ï¿½ÍŒ^ï¿½É‘Î‚ï¿½ï¿½Ä–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
             }
             check_fields(type, 1);
             check_fields(type, 0);
@@ -5112,13 +5386,17 @@ do_decl:
 
                 tag_v = s->v & ~SYM_STRUCT;
                 ctype = *type;
-                ctype.t &= ~VT_STRUCT;
+                ctype.t |= VT_TYPEDEF;
                 sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
             }
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
-            if (is_class)
+            if (is_class) {
+                /* Convert in-class inline bodies into real global functions
+                 * (registered via inline_fns) so member calls can link. */
+                cpp_finish_member_inlines(s);
                 cpp_cur_class = NULL;
+            }
         }
     }
 }
@@ -5171,7 +5449,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
         basic_type1:
             if (u == VT_SHORT || u == VT_LONG) {
                 if (st != -1 || (bt != -1 && bt != VT_INT))
-                    tmbt: tcc_error("Šî–{Œ^‚ª‘½‚·‚¬‚Ü‚·");
+                    tmbt: tcc_error("ï¿½ï¿½{ï¿½^ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
                 st = u;
             }
             else {
@@ -5209,7 +5487,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             else {
                 n = expr_const();
                 if (n < 0 || (n & (n - 1)) != 0)
-                    tcc_error("ƒAƒ‰ƒCƒ“ƒƒ“ƒg‚Í³‚Ì2‚Ì™p‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
+                    tcc_error("ï¿½Aï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½Íï¿½ï¿½ï¿½2ï¿½Ì™pï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
             }
             skip(')');
             ad->a.aligned = exact_log2p1(n);
@@ -5232,7 +5510,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             u = VT_BOOL;
             goto basic_type;
         case TOK_COMPLEX:
-            tcc_error("_Complex ‚Í‚Ü‚¾ƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
+            tcc_error("_Complex ï¿½Í‚Ü‚ï¿½ï¿½Tï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
         case TOK_FLOAT:
             u = VT_FLOAT;
             goto basic_type;
@@ -5299,7 +5577,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
         case TOK_SIGNED2:
         case TOK_SIGNED3:
             if ((t & (VT_DEFSIGN | VT_UNSIGNED)) == (VT_DEFSIGN | VT_UNSIGNED))
-                tcc_error("•„†•t‚«‚Æ–³•„†‚ÌCüq‚ª¬İ‚µ‚Ä‚¢‚Ü‚·");
+                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½Æ–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌCï¿½ï¿½ï¿½qï¿½ï¿½ï¿½ï¿½ï¿½İ‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
             t |= VT_DEFSIGN;
             next();
             typespec_found = 1;
@@ -5313,7 +5591,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             break;
         case TOK_UNSIGNED:
             if ((t & (VT_DEFSIGN | VT_UNSIGNED)) == VT_DEFSIGN)
-                tcc_error("•„†•t‚«‚Æ–³•„†‚ÌCüq‚ª¬İ‚µ‚Ä‚¢‚Ü‚·");
+                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½tï¿½ï¿½ï¿½Æ–ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÌCï¿½ï¿½ï¿½qï¿½ï¿½ï¿½ï¿½ï¿½İ‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
             t |= VT_DEFSIGN | VT_UNSIGNED;
             next();
             typespec_found = 1;
@@ -5331,7 +5609,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             goto storage;
         storage:
             if (t & (VT_EXTERN | VT_STATIC | VT_TYPEDEF) & ~g)
-                tcc_error("ƒXƒgƒŒ[ƒWƒNƒ‰ƒX‚ª•¡”w’è‚³‚ê‚Ä‚¢‚Ü‚·");
+                tcc_error("ï¿½Xï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½wï¿½è‚³ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
             t |= g;
             next();
             break;
@@ -5366,7 +5644,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 sym_to_attr(ad, type1.ref);
             goto basic_type2;
         case TOK_THREAD_LOCAL:
-            tcc_error("_Thread_local ‚ÍÀ‘•‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
+            tcc_error("_Thread_local ï¿½Íï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
         default:
             if (typespec_found)
                 goto the_end;
@@ -5374,7 +5652,18 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             if (tcc_state->cpp) {
                 Sym *stsym = struct_find(tok);
                 if (stsym && (stsym->type.t & VT_BTYPE) == VT_STRUCT) {
+                    int cls_tok = tok;
                     next();
+                    if (tok == ':') {
+                        next();
+                        if (tok == ':') {
+                            unget_tok(':');
+                            unget_tok(':');
+                            unget_tok(cls_tok);
+                            goto the_end;
+                        }
+                        unget_tok(':');
+                    }
                     type->t = stsym->type.t;
                     type->ref = stsym;
                     typespec_found = 1;
@@ -5387,7 +5676,16 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 goto the_end;
             n = tok, next();
             if (tok == ':' && ignore_label) {
-                /* ignore if it's a label */
+                if (tcc_state->cpp) {
+                    next();
+                    if (tok == ':') {
+                        unget_tok(':');
+                        unget_tok(':');
+                        unget_tok(n);
+                        goto the_end;
+                    }
+                    unget_tok(':');
+                }
                 unget_tok(n);
                 goto the_end;
             }
@@ -5497,7 +5795,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
                         break;
                     type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT | TYPE_PARAM);
                     if ((pt.t & VT_BTYPE) == VT_VOID)
-                        tcc_error("ƒpƒ‰ƒ[ƒ^‚ª void ‚Æ‚µ‚ÄéŒ¾‚³‚ê‚Ä‚¢‚Ü‚·");
+                        tcc_error("ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ void ï¿½Æ‚ï¿½ï¿½ÄéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
                     if (n == 0)
                         n = SYM_FIELD;
                 }
@@ -5528,7 +5826,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
                     break;
                 }
                 if (l == FUNC_NEW && !parse_btype(&pt, &ad1, 0))
-                    tcc_error("–³Œø‚ÈŒ^");
+                    tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ÈŒ^");
             }
         }
         else
@@ -5616,11 +5914,11 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
             if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
                 n = vtop->c.i;
                 if (n < 0)
-                    tcc_error("–³Œø‚È”z—ñƒTƒCƒY");
+                    tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½È”zï¿½ï¿½Tï¿½Cï¿½Y");
             }
             else {
                 if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-                    tcc_error("‰Â•Ï’·”z—ñ‚ÌƒTƒCƒY‚Í®”‚Å‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñ");
+                    tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ï¿½ÌƒTï¿½Cï¿½Yï¿½Íï¿½ï¿½ï¿½ï¿½Å‚È‚ï¿½ï¿½ï¿½Î‚È‚ï¿½Ü‚ï¿½ï¿½ï¿½");
                 n = 0;
                 t1 = VT_VLA;
             }
@@ -5630,17 +5928,17 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
         post_type(type, ad, storage, (td & ~(TYPE_DIRECT | TYPE_ABSTRACT)) | TYPE_NEST);
 
         if ((type->t & VT_BTYPE) == VT_FUNC)
-            tcc_error("ŠÖ”‚Ì”z—ñ‚ÌéŒ¾‚Í–³Œø‚Å‚·");
+            tcc_error("ï¿½Öï¿½ï¿½Ì”zï¿½ï¿½ÌéŒ¾ï¿½Í–ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
         if ((type->t & VT_BTYPE) == VT_VOID
             || type_size(type, &align) < 0)
-            tcc_error("•sŠ®‘SŒ^—v‘f‚Ì”z—ñéŒ¾‚Í–³Œø‚Å‚·");
+            tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ï¿½vï¿½fï¿½Ì”zï¿½ï¿½éŒ¾ï¿½Í–ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
 
         t1 |= type->t & VT_VLA;
 
         if (t1 & VT_VLA) {
             if (n < 0) {
                 if (td & TYPE_NEST)
-                    tcc_error("‰Â•Ï’·”z—ñ‚Ì“à•”ƒTƒCƒY‚Í–¾¦“I‚Éw’è‚·‚é•K—v‚ª‚ ‚è‚Ü‚·");
+                    tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ï¿½Ì“ï¿½ï¿½ï¿½ï¿½Tï¿½Cï¿½Yï¿½Í–ï¿½ï¿½ï¿½ï¿½Iï¿½Éwï¿½è‚·ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
             }
             else {
                 loc -= type_size(&int_type, &align);
@@ -5830,7 +6128,7 @@ static void gfunc_param_typed(Sym* func, Sym* arg)
         }
     }
     else if (arg == NULL) {
-        tcc_error("ŠÖ”‚Ö‚Ìˆø”‚ª‘½‚·‚¬‚Ü‚·");
+        tcc_error("ï¿½Öï¿½ï¿½Ö‚Ìˆï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
     }
     else {
         type = arg->type;
@@ -5998,7 +6296,7 @@ static void parse_atomic(int atok)
         case 'p':
             if ((vtop->type.t & VT_BTYPE) != VT_PTR
                 || type_size(pointed_type(&vtop->type), &align) != size)
-                tcc_error("ˆø” %d ‚Ìƒ|ƒCƒ“ƒ^‚Ìƒ^[ƒQƒbƒgŒ^‚ªˆê’v‚µ‚Ü‚¹‚ñ", arg + 1);
+                tcc_error("ï¿½ï¿½ï¿½ï¿½ %d ï¿½Ìƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½Ìƒ^ï¿½[ï¿½Qï¿½bï¿½gï¿½^ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", arg + 1);
             gen_assign_cast(atom_ptr);
             break;
         case 'v':
@@ -6189,7 +6487,7 @@ tok_next:
             if (CONST_WANTED && !NOEVAL_WANTED)
                 expect("constant");
             if (0 == local_scope)
-                tcc_error("ŠÖ”ŠO‚Å‚Ì statement expression ‚Í‹–‰Â‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
+                tcc_error("ï¿½Öï¿½ï¿½Oï¿½Å‚ï¿½ statement expression ï¿½Í‹ï¿½ï¿½Â‚ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
             /* save all registers */
             save_regs(0);
             /* statement expression : we do not accept break/continue
@@ -6247,7 +6545,7 @@ tok_next:
         next();
         unary();
         if ((vtop->type.t & VT_BTYPE) == VT_PTR)
-            tcc_error("’P€ + ‚É‘Î‚µ‚Äƒ|ƒCƒ“ƒ^‚Í‹–—e‚³‚ê‚Ü‚¹‚ñ");
+            tcc_error("ï¿½Pï¿½ï¿½ + ï¿½É‘Î‚ï¿½ï¿½Äƒ|ï¿½Cï¿½ï¿½ï¿½^ï¿½Í‹ï¿½ï¿½eï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
         /* In order to force cast, we add zero, except for floating point
        where we really need an noop (otherwise -0.0 will be transformed
        into +0.0).  */
@@ -6345,7 +6643,7 @@ tok_next:
         skip('(');
         level = expr_const();
         if (level < 0)
-            tcc_error("%s ‚Í³‚Ì®”‚Ì‚İó‚¯•t‚¯‚Ü‚·", get_tok_str(tok1, 0));
+            tcc_error("%s ï¿½Íï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½Ì‚İó‚¯•tï¿½ï¿½ï¿½Ü‚ï¿½", get_tok_str(tok1, 0));
         skip(')');
         type.t = VT_VOID;
         mk_pointer(&type);
@@ -6382,7 +6680,7 @@ tok_next:
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start ‚Íƒ[ƒJƒ‹•Ï”‚ğ•K—v‚Æ‚µ‚Ü‚·");
+            tcc_error("__builtin_va_start ï¿½Íƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ï¿½Kï¿½vï¿½Æ‚ï¿½ï¿½Ü‚ï¿½");
         gen_va_start();
         vstore();
         break;
@@ -6395,7 +6693,7 @@ tok_next:
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start ‚Íƒ[ƒJƒ‹•Ï”‚ğ•K—v‚Æ‚µ‚Ü‚·");
+            tcc_error("__builtin_va_start ï¿½Íƒï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Ïï¿½ï¿½ï¿½Kï¿½vï¿½Æ‚ï¿½ï¿½Ü‚ï¿½");
         vtop->r = r;
         vtop->type = char_pointer_type;
         vtop->c.i += 8;
@@ -6524,7 +6822,7 @@ tok_next:
             skip(',');
             if (tok == TOK_DEFAULT) {
                 if (has_default)
-                    tcc_error("'default' ‚ª‘½‚·‚¬‚Ü‚·");
+                    tcc_error("'default' ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
                 has_default = 1;
                 if (!has_match)
                     learn = 1;
@@ -6539,7 +6837,7 @@ tok_next:
                 type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
                 if (compare_types(&controlling_type, &cur_type, 0)) {
                     if (has_match) {
-                        tcc_error("Œ^‚ª2‰ñˆê’v‚µ‚Ü‚µ‚½");
+                        tcc_error("ï¿½^ï¿½ï¿½2ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
                     }
                     has_match = 1;
                     learn = 1;
@@ -6560,7 +6858,7 @@ tok_next:
         if (!str) {
             char buf[60];
             type_to_str(buf, sizeof buf, &controlling_type, NULL);
-            tcc_error("Œ^ '%s' ‚Í‚Ç‚ÌŠÖ˜A•t‚¯‚É‚àˆê’v‚µ‚Ü‚¹‚ñ", buf);
+            tcc_error("ï¿½^ '%s' ï¿½Í‚Ç‚ÌŠÖ˜Aï¿½tï¿½ï¿½ï¿½É‚ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", buf);
         }
         begin_macro(str, 1);
         next();
@@ -6596,7 +6894,7 @@ tok_next:
     default:
     tok_identifier:
         if (tok < TOK_UIDENT)
-            tcc_error("'%s' ‚Ì‘O‚É®‚ª•K—v‚Å‚·", get_tok_str(tok, &tokc));
+            tcc_error("'%s' ï¿½Ì‘Oï¿½Éï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½Å‚ï¿½", get_tok_str(tok, &tokc));
         t = tok;
         next();
         s = sym_find(t);
@@ -6610,7 +6908,7 @@ tok_next:
         if (!s || IS_ASM_SYM(s)) {
             const char* name = get_tok_str(t, NULL);
             if (tok != '(')
-                tcc_error("'%s' ‚ÍéŒ¾‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ", name);
+                tcc_error("'%s' ï¿½ÍéŒ¾ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½", name);
             /* for simple function calls, we tolerate undeclared
                external reference to int() function */
             tcc_warning_c(warn_implicit_function_declaration)(
@@ -6691,6 +6989,38 @@ tok_next:
                 }
             }
             next();
+        }
+        else if (tcc_state->cpp && tok == ':') {
+            Sym *class_sym, *ss;
+            int mem_tok, cls_tok;
+
+            /* Check second ':' first so a ternary ':' does not trigger
+             * the struct check and falsely fire "identifier required". */
+            next();
+            if (tok != ':') {
+                unget_tok(':');
+                break;
+            }
+            if (!vtop->sym || (vtop->type.t & VT_BTYPE) != VT_STRUCT || !vtop->type.ref)
+                expect("identifier");
+            class_sym = vtop->type.ref;
+            cls_tok = vtop->sym->v;
+            next();
+            if (tok < TOK_IDENT)
+                tcc_error("expected member name after ::");
+            mem_tok = tok;
+            next();
+            ss = cpp_lookup_static_member(class_sym, mem_tok);
+            if (!ss)
+                tcc_error("static member not found");
+            vpop();
+            r = ss->r;
+            if ((r & VT_VALMASK) < VT_CONST)
+                r = (r & ~VT_VALMASK) | VT_LOCAL;
+            vset(&ss->type, r, ss->c);
+            vtop->sym = ss;
+            if (r & VT_SYM)
+                vtop->c.i = 0;
         }
         else if (tok == '[') {
             next();
@@ -6833,7 +7163,11 @@ tok_next:
                 } else {
                     vtop++;
                     nb_args++;
-                    memmove(vtop - nb_args + 1, vtop - nb_args,
+                    /* Shift the na explicit args one slot up to make room
+                     * for 'this' at vtop[-nb_args+1].  The args currently
+                     * sit at [vtop-nb_args+1 .. vtop-1]; move them to
+                     * [vtop-nb_args+2 .. vtop].                           */
+                    memmove(vtop - nb_args + 2, vtop - nb_args + 1,
                         na * sizeof(SValue));
                     vtop[-nb_args + 1] = cpp_member_this;
                 }
@@ -7335,7 +7669,7 @@ ST_FUNC int expr_const(void)
     int64_t wc = expr_const64();
     c = wc;
     if (c != wc && (unsigned)c != wc)
-        tcc_error("’è”‚ª32ƒrƒbƒg‚ğ’´‚¦‚Ä‚¢‚Ü‚·");
+        tcc_error("ï¿½è”ï¿½ï¿½32ï¿½rï¿½bï¿½gï¿½ğ’´‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
     return c;
 }
 
@@ -7419,7 +7753,7 @@ static void check_func_return(void)
         gfunc_return(&func_vt);
     }
     else {
-        tcc_warning("ŠÖ”‚ª’l‚ğ•Ô‚³‚È‚¢‰Â”\«‚ª‚ ‚è‚Ü‚·: '%s'", funcname);
+        tcc_warning("ï¿½Öï¿½ï¿½ï¿½ï¿½lï¿½ï¿½Ô‚ï¿½ï¿½È‚ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½: '%s'", funcname);
     }
 }
 
@@ -7450,7 +7784,7 @@ static void case_sort(struct switch_t* sw)
         if (case_cmp(p[0]->v2, p[1]->v1) >= 0) {
             int l1 = p[0]->line, l2 = p[1]->line;
             /* using special format "%i:..." to show specific line */
-            tcc_error("%i:case ‚Ì’l‚ªd•¡‚µ‚Ä‚¢‚Ü‚·", l1 > l2 ? l1 : l2);
+            tcc_error("%i:case ï¿½Ì’lï¿½ï¿½ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½", l1 > l2 ? l1 : l2);
         }
         else if (p[0]->v2 + 1 == p[1]->v1 && p[0]->ind == p[1]->ind) {
             /* treat "case 1: case 2: case 3:" like "case 1 ... 3: */
@@ -7754,6 +8088,12 @@ again:
         }
 
         while (tok != '}') {
+            if (cpp_unget_scoped_expr()) {
+                gexpr();
+                vpop();
+                skip(';');
+                continue;
+            }
             decl(VT_LOCAL);
             if (tok != '}') {
                 if (flags & STMT_EXPR)
@@ -7780,12 +8120,12 @@ again:
             }
             else {
                 if (vtop->type.t != VT_VOID)
-                    tcc_warning("void Œ^‚ÌŠÖ”‚ª’l‚ğ•Ô‚µ‚Ä‚¢‚Ü‚·");
+                    tcc_warning("void ï¿½^ï¿½ÌŠÖï¿½ï¿½ï¿½ï¿½lï¿½ï¿½Ô‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½");
                 vtop--;
             }
         }
         else if (b) {
-            tcc_warning("’l‚Ì‚È‚¢ 'return' ‚Å‚·");
+            tcc_warning("ï¿½lï¿½Ì‚È‚ï¿½ 'return' ï¿½Å‚ï¿½");
             b = 0;
         }
         leave_scope(root_scope);
@@ -7803,7 +8143,7 @@ again:
     else if (t == TOK_BREAK) {
         /* compute jump */
         if (!cur_scope->bsym)
-            tcc_error("break ‚Í‚±‚±‚Å‚Íg—p‚Å‚«‚Ü‚¹‚ñ");
+            tcc_error("break ï¿½Í‚ï¿½ï¿½ï¿½ï¿½Å‚Ígï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
         if (cur_switch && cur_scope->bsym == cur_switch->bsym)
             leave_scope(cur_switch->scope);
         else
@@ -7815,7 +8155,7 @@ again:
     else if (t == TOK_CONTINUE) {
         /* compute jump */
         if (!cur_scope->csym)
-            tcc_error("continue ‚Í‚±‚±‚Å‚Íg—p‚Å‚«‚Ü‚¹‚ñ");
+            tcc_error("continue ï¿½Í‚ï¿½ï¿½ï¿½ï¿½Å‚Ígï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
         leave_scope(loop_scope);
         *cur_scope->csym = gjmp(*cur_scope->csym);
         skip(';');
@@ -7889,7 +8229,7 @@ again:
         gexpr();
         skip(')');
         if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-            tcc_error("switch ‚Ì’l‚ª®”‚Å‚Í‚ ‚è‚Ü‚¹‚ñ");
+            tcc_error("switch ï¿½Ì’lï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
         sw->sv = *vtop--; /* save switch value */
         a = 0;
         b = gjmp(0); /* jump to first case */
@@ -7928,7 +8268,7 @@ again:
             next();
             cr->v2 = value64(expr_const64(), t);
             if (case_cmp(cr->v2, cr->v1) < 0)
-                tcc_warning("‹ó‚Ì case ”ÍˆÍ‚Å‚·");
+                tcc_warning("ï¿½ï¿½ï¿½ case ï¿½ÍˆÍ‚Å‚ï¿½");
         }
         /* case and default are unreachable from a switch under nocode_wanted */
         if (!cur_switch->nocode_wanted)
@@ -7942,7 +8282,7 @@ again:
         if (!cur_switch)
             expect("switch");
         if (cur_switch->def_sym)
-            tcc_error("'default' ‚ª‘½‚·‚¬‚Ü‚·");
+            tcc_error("'default' ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
         cur_switch->def_sym = cur_switch->nocode_wanted ? -1 : gind();
         skip(':');
         goto block_after_label;
@@ -8001,7 +8341,7 @@ again:
             s = label_find(t);
             if (s) {
                 if (s->r == LABEL_DEFINED)
-                    tcc_error("ƒ‰ƒxƒ‹ '%s' ‚ªd•¡‚µ‚Ä‚¢‚Ü‚·", get_tok_str(s->v, NULL));
+                    tcc_error("ï¿½ï¿½ï¿½xï¿½ï¿½ '%s' ï¿½ï¿½ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½", get_tok_str(s->v, NULL));
                 s->r = LABEL_DEFINED;
                 if (s->next) {
                     Sym* pcl; /* pending cleanup goto */
@@ -8035,7 +8375,7 @@ again:
             }
             else {
                 /* we accept this, but it is a mistake */
-                tcc_warning_c(warn_all)("•¡‡•¶‚Ì––”ö‚Å‚Ìƒ‰ƒxƒ‹‚Ìg—p‚Í”ñ„§‚Å‚·");
+                tcc_warning_c(warn_all)("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì–ï¿½ï¿½ï¿½ï¿½Å‚Ìƒï¿½ï¿½xï¿½ï¿½ï¿½Ìgï¿½pï¿½Í”ñ„ï¿½ï¿½Å‚ï¿½");
             }
         }
         else {
@@ -8083,7 +8423,7 @@ static void skip_or_save_block(TokenString** str)
             break;
         if (tok == TOK_EOF) {
             if (str || level > 0)
-                tcc_error("ƒtƒ@ƒCƒ‹‚ÌI’[‚É—\Šú‚¹‚¸“’B‚µ‚Ü‚µ‚½");
+                tcc_error("ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ÌIï¿½[ï¿½É—\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Bï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
             else
                 break;
         }
@@ -8125,7 +8465,7 @@ static void parse_init_elem(int expr_type)
             || ((vtop->r & VT_SYM) && vtop->sym->a.dllimport)
 #endif
             )
-            tcc_error("‰Šú‰»q‚Ì—v‘f‚ª’è”‚Å‚Í‚ ‚è‚Ü‚¹‚ñ");
+            tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ì—vï¿½fï¿½ï¿½ï¿½è”ï¿½Å‚Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
         break;
     case EXPR_ANY:
         expr_eq();
@@ -8197,7 +8537,7 @@ static void decl_design_flex(init_params* p, Sym* ref, int index)
             ref->c = index + 1;
     }
     else if (ref->c < 0)
-        tcc_error("‚±‚Ì•¶–¬‚Å‚Í‰Â•Ï’·”z—ñ‚ÌƒTƒCƒY‚ª0‚Å‚·");
+        tcc_error("ï¿½ï¿½ï¿½Ì•ï¿½ï¿½ï¿½ï¿½Å‚Í‰Â•Ï’ï¿½ï¿½zï¿½ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½0ï¿½Å‚ï¿½");
 }
 
 /* t is the array or struct type. c is the array or struct
@@ -8241,7 +8581,7 @@ static int decl_designator(init_params* p, CType* type, unsigned long c,
             s = type->ref;
             decl_design_flex(p, s, index_last);
             if (index < 0 || index_last >= s->c || index_last < index)
-                tcc_error("“Yš‚ª”z—ñ‚Ì”ÍˆÍ‚ğ’´‚¦‚Ä‚¢‚é‚©A”ÍˆÍ‚ª‹ó‚Å‚·");
+                tcc_error("ï¿½Yï¿½ï¿½ï¿½ï¿½ï¿½zï¿½ï¿½Ì”ÍˆÍ‚ğ’´‚ï¿½ï¿½Ä‚ï¿½ï¿½é‚©ï¿½Aï¿½ÍˆÍ‚ï¿½ï¿½ï¿½Å‚ï¿½");
             if (cur_field)
                 (*cur_field)->c = index_last;
             type = pointed_type(type);
@@ -8278,7 +8618,7 @@ static int decl_designator(init_params* p, CType* type, unsigned long c,
             s = type->ref;
             decl_design_flex(p, s, index);
             if (index >= s->c)
-                tcc_error("‰Šú‰»q‚Ì”‚ª‘½‚·‚¬‚Ü‚·");
+                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
             type = pointed_type(type);
             elem_size = type_size(type, &align);
             c += index * elem_size;
@@ -8290,7 +8630,7 @@ static int decl_designator(init_params* p, CType* type, unsigned long c,
                 is_integer_btype(f->type.t & VT_BTYPE))
                 *cur_field = f = f->next;
             if (!f)
-                tcc_error("‰Šú‰»q‚Ì”‚ª‘½‚·‚¬‚Ü‚·");
+                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
             type = &f->type;
             c += f->c;
         }
@@ -8366,7 +8706,7 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
                 || (type->t & VT_BITFIELD))
             && !((vtop->r & VT_CONST) && vtop->sym->v >= SYM_FIRST_ANOM)
             )
-            tcc_error("‰Šú‰»q‚Ì—v‘f‚Íƒ[ƒh‚ÉŒvZ‚Å‚«‚Ü‚¹‚ñ");
+            tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½qï¿½Ì—vï¿½fï¿½Íƒï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½ÉŒvï¿½Zï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
 
         if (NODATA_WANTED) {
             vtop--;
@@ -8485,7 +8825,7 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
                             ; /* nothing to do for 0.0 */
 #ifndef TCC_CROSS_TEST
                         else
-                            tcc_error("long double ’è”‚ğƒNƒƒXƒRƒ“ƒpƒCƒ‹‚Å‚«‚Ü‚¹‚ñ");
+                            tcc_error("long double ï¿½è”ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½Xï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
 #endif
                     break;
 
@@ -8589,7 +8929,7 @@ static void decl_initializer(init_params* p, CType* type, unsigned long c, int f
             len = 0;
             cstr_reset(&initstr);
             if (size1 != (tok == TOK_STR ? 1 : sizeof(nwchar_t)))
-                tcc_error("•¶š—ñƒŠƒeƒ‰ƒ‹‚ÌŒ‹‡‚ğˆ—‚Å‚«‚Ü‚¹‚ñ");
+                tcc_error("ï¿½ï¿½ï¿½ï¿½ï¿½ñƒŠƒeï¿½ï¿½ï¿½ï¿½ï¿½ÌŒï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
             while (tok == TOK_STR || tok == TOK_LSTR) {
                 if (initstr.size)
                     initstr.size -= size1;
@@ -8616,7 +8956,7 @@ static void decl_initializer(init_params* p, CType* type, unsigned long c, int f
                 if (len < nb)
                     nb = len;
                 if (len > nb)
-                    tcc_warning("”z—ñ‚Ì‰Šú‰»•¶š—ñ‚ª’·‚·‚¬‚Ü‚·");
+                    tcc_warning("ï¿½zï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ñ‚ª’ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½");
                 /* in order to go faster for common case (char
                    string in global variable, we handle it
                    specifically */
@@ -8794,7 +9134,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
         // error out except for top-level incomplete arrays
         // (arrays of incomplete types are handled in array parsing)
         if (!(type->t & VT_ARRAY))
-            tcc_error("•sŠ®‘SŒ^‚Ì‰Šú‰»‚Å‚·");
+            tcc_error("ï¿½sï¿½ï¿½ï¿½Sï¿½^ï¿½Ìï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½");
 
         /* If the base type itself was an array type of unspecified size
            (like in 'typedef int arr[]; arr x = {1};') then we will
@@ -8820,7 +9160,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
     if (size < 0) {
         /* If unknown size, do a dry-run 1st pass */
         if (!has_init)
-            tcc_error("Œ^‚ÌƒTƒCƒY‚ª•s–¾‚Å‚·");
+            tcc_error("ï¿½^ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Å‚ï¿½");
         if (has_init == 2) {
             /* only get strings */
             init_str = tok_str_alloc();
@@ -8845,7 +9185,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
         /* if still unknown size, error */
         size = type_size(type, &align);
         if (size < 0)
-            tcc_error("Œ^‚ÌƒTƒCƒY‚ª•s–¾‚Å‚·");
+            tcc_error("ï¿½^ï¿½ÌƒTï¿½Cï¿½Yï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Å‚ï¿½");
 
         /* If there's a flex member and it was used in the initializer
            adjust size.  */
@@ -9105,7 +9445,7 @@ static void gen_function(Sym* sym)
     saved_param_next = NULL;
     cpp_this_sym = NULL;
     cpp_cur_func_class = sym->parent_class;
-    if (sym->parent_class && tcc_state->cpp) {
+    if (sym->parent_class && tcc_state->cpp && !(sym->type.t & VT_STATIC)) {
         CType pt;
 
         pt.t = VT_PTR;
@@ -9140,6 +9480,69 @@ static void gen_function(Sym* sym)
     local_scope = 0;
     rsym = 0;
     func_vla_arg(sym);
+
+    /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
+     * the ctor sym into `this->a = x; this->b = y;` instructions before the
+     * body runs.  Base-class initializers and unknown names are skipped for
+     * now (Stage 4 limitation). */
+    if (tcc_state->cpp && sym->cpp_mem_init_list
+        && cpp_this_sym && sym->parent_class) {
+        TokenString *init_copy = tok_str_dup_for_default(sym->cpp_mem_init_list);
+        if (init_copy) {
+            Sym *class_sym = sym->parent_class;
+            begin_macro(init_copy, 1);
+            next();
+            while (tok != TOK_EOF) {
+                int member_tok;
+                Sym *member_field;
+
+                if (tok < TOK_IDENT)
+                    expect("identifier");
+                member_tok = tok;
+                next();
+                if (tok != '(')
+                    expect("(");
+                next();
+
+                member_field = cpp_lookup_member_field(member_tok, class_sym);
+                if (member_field
+                    && (member_field->type.t & VT_BTYPE) != VT_FUNC) {
+                    cpp_push_member_var(member_field);
+                    if (tok != ')') {
+                        expr_eq();
+                        vstore();
+                        vpop();
+                    } else {
+                        vpop();
+                    }
+                } else {
+                    /* Base class initializer or unknown name: skip expr. */
+                    int paren = 0;
+                    while (tok != TOK_EOF) {
+                        if (tok == '(') paren++;
+                        else if (tok == ')') {
+                            if (paren == 0) break;
+                            paren--;
+                        }
+                        next();
+                    }
+                }
+
+                if (tok != ')')
+                    expect(")");
+                next();
+                if (tok == ',')
+                    next();
+            }
+            end_macro();
+            /* gen_inline_functions has already consumed the body's `{`
+             * (tok == '{' when gen_function was entered).  After our
+             * init-list expansion tok is TOK_EOF, so put back `{` to
+             * keep block()'s entry contract. */
+            unget_tok('{');
+        }
+    }
+
     block(0);
     gsym(rsym);
 
@@ -9309,6 +9712,10 @@ static int decl(int l)
                 do_Static_assert();
                 continue;
             }
+            if (tcc_state->cpp && cpp_unget_scoped_expr()) {
+                if (l != VT_CONST)
+                    break;
+            }
             if (l != VT_CONST)
                 break;
             if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
@@ -9319,8 +9726,38 @@ static int decl(int l)
             if (tok >= TOK_UIDENT) {
                 /* special test for old K&R protos without explicit int
                    type. Only accepted when defining global data */
-                btype.t = VT_INT;
-                oldint = 1;
+                int is_qual = 0;
+                if (tcc_state->cpp) {
+                    Sym *stsym = struct_find(tok);
+                    if (!stsym) {
+                        Sym *ts = sym_find(tok);
+                        if (ts && ts->type.ref)
+                            stsym = ts->type.ref;
+                    }
+                    if (stsym) {
+                        int cls_tok = tok;
+                        next();
+                        if (tok == ':') {
+                            next();
+                            if (tok == ':') {
+                                unget_tok(':');
+                                unget_tok(':');
+                                unget_tok(cls_tok);
+                                is_qual = 1;
+                            } else
+                                unget_tok(':');
+                        }
+                        if (!is_qual)
+                            unget_tok(cls_tok);
+                    }
+                }
+                if (is_qual) {
+                    if (l != VT_CONST)
+                        break;
+                } else {
+                    btype.t = VT_INT;
+                    oldint = 1;
+                }
             }
             else {
                 if (tok != TOK_EOF) {
@@ -9336,7 +9773,7 @@ static int decl(int l)
             if ((btype.t & VT_BTYPE) == VT_STRUCT) {
                 v = btype.ref->v;
                 if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) >= SYM_FIRST_ANOM)
-                    tcc_warning("ƒCƒ“ƒXƒ^ƒ“ƒX‚ğ’è‹`‚µ‚È‚¢–³–¼ struct/union ‚Å‚·");
+                    tcc_warning("ï¿½Cï¿½ï¿½ï¿½Xï¿½^ï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½`ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ struct/union ï¿½Å‚ï¿½");
                 next();
                 continue;
             }
@@ -9359,7 +9796,7 @@ static int decl(int l)
 #endif
             if ((type.t & VT_BTYPE) == VT_FUNC) {
                 if ((type.t & VT_STATIC) && (l != VT_CONST))
-                    tcc_error("ƒtƒ@ƒCƒ‹ƒXƒR[ƒvŠO‚ÌŠÖ”‚Í static ‚É‚Å‚«‚Ü‚¹‚ñ");
+                    tcc_error("ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½Xï¿½Rï¿½[ï¿½vï¿½Oï¿½ÌŠÖï¿½ï¿½ï¿½ static ï¿½É‚Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
                 /* if old style function prototype, we accept a
                    declaration list */
                 sym = type.ref;
@@ -9381,7 +9818,7 @@ static int decl(int l)
 
             }
             else if (oldint) {
-                tcc_warning("Œ^‚ÍŠù’è‚Å int ‚É‚È‚è‚Ü‚·");
+                tcc_warning("ï¿½^ï¿½ÍŠï¿½ï¿½ï¿½ï¿½ int ï¿½É‚È‚ï¿½Ü‚ï¿½");
             }
 
             if (gnu_ext && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
@@ -9399,7 +9836,7 @@ static int decl(int l)
 #ifdef TCC_TARGET_PE
             if (ad.a.dllimport || ad.a.dllexport) {
                 if (type.t & VT_STATIC)
-                    tcc_error("static w’è‚Æ DLL ƒŠƒ“ƒP[ƒW‚Í•¹—p‚Å‚«‚Ü‚¹‚ñ");
+                    tcc_error("static ï¿½wï¿½ï¿½ï¿½ DLL ï¿½ï¿½ï¿½ï¿½ï¿½Pï¿½[ï¿½Wï¿½Í•ï¿½ï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
                 if (type.t & VT_TYPEDEF) {
                     tcc_warning("'%s' attribute ignored for typedef",
                         ad.a.dllimport ? (ad.a.dllimport = 0, "dllimport") :
@@ -9415,7 +9852,7 @@ static int decl(int l)
 #endif
             if (tok == '{') {
                 if (l != VT_CONST)
-                    tcc_error("ƒ[ƒJƒ‹ŠÖ”‚ğg—p‚Å‚«‚Ü‚¹‚ñ");
+                    tcc_error("ï¿½ï¿½ï¿½[ï¿½Jï¿½ï¿½ï¿½Öï¿½ï¿½ï¿½ï¿½gï¿½pï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
                 if ((type.t & VT_BTYPE) != VT_FUNC)
                     expect("function definition");
 
@@ -9439,6 +9876,7 @@ static int decl(int l)
                     cpp_set_func_mangle_label(sym, &type);
                 if (cpp_qualified_class) {
                     sym->parent_class = cpp_qualified_class;
+                    cpp_inherit_decl_defaults(sym);
                     cpp_qualified_class = NULL;
                 }
 
@@ -9471,14 +9909,14 @@ static int decl(int l)
                     for (sym = func_vt.ref->next; sym; sym = sym->next)
                         if ((sym->v & ~SYM_FIELD) == v)
                             goto found;
-                    tcc_error("ƒpƒ‰ƒ[ƒ^ '%s' ‚ÌéŒ¾‚Å‚·‚ªA‚»‚Ì‚æ‚¤‚Èƒpƒ‰ƒ[ƒ^‚Í‚ ‚è‚Ü‚¹‚ñ",
+                    tcc_error("ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ '%s' ï¿½ÌéŒ¾ï¿½Å‚ï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Ì‚æ‚¤ï¿½Èƒpï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½Í‚ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
                         get_tok_str(v, NULL));
                 found:
                     if (type.t & VT_STORAGE) /* 'register' is okay */
-                        tcc_error("'%s' ‚ÉƒXƒgƒŒ[ƒWƒNƒ‰ƒX‚ªw’è‚³‚ê‚Ä‚¢‚Ü‚·",
+                        tcc_error("'%s' ï¿½ÉƒXï¿½gï¿½ï¿½ï¿½[ï¿½Wï¿½Nï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½wï¿½è‚³ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½",
                             get_tok_str(v, NULL));
                     if (sym->type.t != VT_VOID)
-                        tcc_error("ƒpƒ‰ƒ[ƒ^ '%s' ‚ÌÄ’è‹`‚Å‚·",
+                        tcc_error("ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ '%s' ï¿½ÌÄ’ï¿½`ï¿½Å‚ï¿½",
                             get_tok_str(v, NULL));
                     convert_parameter_type(&type);
                     sym->type = type;
@@ -9490,7 +9928,7 @@ static int decl(int l)
                     if (sym && sym->sym_scope == local_scope) {
                         if (!is_compatible_types(&sym->type, &type)
                             || !(sym->type.t & VT_TYPEDEF))
-                            tcc_error("'%s' ‚ÌÄ’è‹`‚ÍŒİŠ·«‚ª‚ ‚è‚Ü‚¹‚ñ",
+                            tcc_error("'%s' ï¿½ÌÄ’ï¿½`ï¿½ÍŒİŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½",
                                 get_tok_str(v, NULL));
                         sym->type = type;
                     }
@@ -9507,7 +9945,7 @@ static int decl(int l)
                 }
                 else if ((type.t & VT_BTYPE) == VT_VOID
                     && !(type.t & VT_EXTERN)) {
-                    tcc_error("void Œ^‚ÌƒIƒuƒWƒFƒNƒg‚ğéŒ¾‚·‚é‚±‚Æ‚Í‚Å‚«‚Ü‚¹‚ñ");
+                    tcc_error("void ï¿½^ï¿½ÌƒIï¿½uï¿½Wï¿½Fï¿½Nï¿½gï¿½ï¿½éŒ¾ï¿½ï¿½ï¿½é‚±ï¿½Æ‚Í‚Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
                 }
                 else {
                     r = 0;
@@ -9522,7 +9960,7 @@ static int decl(int l)
                     }
                     has_init = (tok == '=');
                     if (has_init && (type.t & VT_VLA))
-                        tcc_error("‰Â•Ï’·”z—ñ‚Í‰Šú‰»‚Å‚«‚Ü‚¹‚ñ");
+                        tcc_error("ï¿½Â•Ï’ï¿½ï¿½zï¿½ï¿½Íï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
@@ -9562,7 +10000,7 @@ static int decl(int l)
                            the aliases until the end of the compile unit.  */
                         esym = elfsym(sym_find(ad.alias_target));
                         if (!esym)
-                            tcc_error("æs‚·‚é __alias__ ‘®«‚ÍƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
+                            tcc_error("ï¿½ï¿½sï¿½ï¿½ï¿½ï¿½ __alias__ ï¿½ï¿½ï¿½ï¿½ï¿½ÍƒTï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
                         put_extern_sym2(sym_find(v), esym->st_shndx,
                             esym->st_value, esym->st_size, 1);
                     }

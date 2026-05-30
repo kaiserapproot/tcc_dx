@@ -568,6 +568,7 @@ typedef struct Sym {
     struct Sym *prev_tok; /* previous symbol for this token */
     /* saved token string for an inline function body (for class members) */
     struct TokenString *inline_func_str;
+    struct TokenString *cpp_mem_init_list;
     struct Sym *parent_class; /* owning class (C++ member) */
 } Sym;
 

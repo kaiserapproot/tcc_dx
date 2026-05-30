@@ -1,5 +1,7 @@
 #include "test_common.h"
 extern CU_SuiteInfo stage2_suites[];
+extern CU_SuiteInfo stage3_suites[];
+extern CU_SuiteInfo stage4_suites[];
 #include <Basic.h>
 
 void test_no_cplusplus_macro(void)
@@ -35,6 +37,8 @@ int main(void)
     CU_initialize_registry();
     CU_register_suites(suites);
     CU_register_suites(stage2_suites);
+    CU_register_suites(stage3_suites);
+    CU_register_suites(stage4_suites);
     CU_basic_set_mode(CU_BRM_VERBOSE);
     CU_basic_run_tests();
     CU_cleanup_registry();
