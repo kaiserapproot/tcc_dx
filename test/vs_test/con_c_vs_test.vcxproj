@@ -276,7 +276,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <!-- E½vE½E½E½WE½FE½NE½gE½AE½CE½eE½E½E½iE½E½[E½XE½tE½@E½CE½E½E½E½E½jE½Í‚ï¿½E½E½E½É’Ç‰ï¿½E½E½E½E½Ü‚ï¿½ -->
+    <!-- ï¿½Eï¿½vï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½Wï¿½Eï¿½Fï¿½Eï¿½Nï¿½Eï¿½gï¿½Eï¿½Aï¿½Eï¿½Cï¿½Eï¿½eï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½iï¿½Eï¿½ï¿½Eï¿½[ï¿½Eï¿½Xï¿½Eï¿½tï¿½Eï¿½@ï¿½Eï¿½Cï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½jï¿½Eï¿½Í‚ï¿½ï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½É’Ç‰ï¿½ï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½ï¿½Eï¿½Ü‚ï¿½ -->
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
@@ -293,6 +293,8 @@
     <ClCompile Include="..\..\dev\cunit\Util.c" />
     <ClCompile Include="..\..\dev\cunit\Win.c" />
     <ClCompile Include="test_stage2_mangling.c" />
+    <ClCompile Include="test_stage3_members.c" />
+    <ClCompile Include="test_stage4_inheritance.c" />
     <ClCompile Include="vs_test_main.c"><CompileAs>CompileAsC</CompileAs></ClCompile>
   </ItemGroup>
 </Project>

@@ -4,7 +4,7 @@ pushd "%~dp0"
 set TCC=..\tcc.exe
 set FAILED=0
 
-for %%f in (smoke\*.c smoke\*.cpp a2\*.c a2\*.cpp a3\*.c a3\*.cpp a4\*.cpp a5\*.cpp a6\*.cpp a7\member_call.cpp) do (
+for %%f in (smoke\*.c smoke\*.cpp a2\*.c a2\*.cpp a3\*.c a3\*.cpp a4\*.cpp a5\*.cpp a6\*.cpp a8\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp a7\typedef_class.cpp) do (
     echo === %%f ===
     "%TCC%" -c "%%f" -o "%%~dpnf.o"
     if errorlevel 1 set FAILED=1
