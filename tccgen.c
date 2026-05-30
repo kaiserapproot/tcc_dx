@@ -9805,6 +9805,24 @@ static int decl(int l)
         }
 
         while (1) { /* iterate thru each declaration */
+            /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
+               Only when in C++ mode, the base type is a class with a
+               constructor, we are in a local scope, and an identifier is
+               directly followed by '('. Phase 2 just reports detection. */
+            if (tcc_state->cpp
+                && l == VT_LOCAL
+                && (btype.t & VT_BTYPE) == VT_STRUCT
+                && btype.ref
+                && tok >= TOK_UIDENT
+                && cpp_find_ctor_field(btype.ref)) {
+                int saved_var_tok = tok;
+                next();
+                if (tok == '(') {
+                    tcc_error("FEAT-4B detected: ctor call form for class");
+                }
+                unget_tok(saved_var_tok);
+            }
+
             type = btype;
             ad = adbase;
             type_decl(&type, &ad, &v, TYPE_DIRECT);
