@@ -9805,10 +9805,13 @@ static int decl(int l)
         }
 
         while (1) { /* iterate thru each declaration */
+            type = btype;
+            ad = adbase;
             /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
-               Only when in C++ mode, the base type is a class with a
+               Only in C++ mode, when the base type is a class with a
                constructor, we are in a local scope, and an identifier is
-               directly followed by '('. Phase 2 just reports detection. */
+               directly followed by '('. Phase 3 allocates the variable and
+               skips the argument list (the ctor call is wired in Phase 4). */
             if (tcc_state->cpp
                 && l == VT_LOCAL
                 && (btype.t & VT_BTYPE) == VT_STRUCT
@@ -9818,13 +9821,31 @@ static int decl(int l)
                 int saved_var_tok = tok;
                 next();
                 if (tok == '(') {
-                    tcc_error("FEAT-4B detected: ctor call form for class");
+                    int paren = 1;
+                    decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                                           0, saved_var_tok, 0);
+                    next(); /* consume '(' */
+                    while (paren > 0 && tok != TOK_EOF) {
+                        if (tok == '(')
+                            paren++;
+                        else if (tok == ')')
+                            paren--;
+                        if (paren > 0)
+                            next();
+                    }
+                    if (tok != ')')
+                        expect(")");
+                    next(); /* consume ')' */
+                    if (tok == ',') {
+                        next();
+                        continue;
+                    }
+                    skip(';');
+                    break;
                 }
                 unget_tok(saved_var_tok);
             }
 
-            type = btype;
-            ad = adbase;
             type_decl(&type, &ad, &v, TYPE_DIRECT);
 #if 0
             {
