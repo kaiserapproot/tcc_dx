@@ -541,6 +541,27 @@ static Sym *cpp_lookup_member_field(int v, Sym *class_sym)
     return find_field(&ct, v, &cumofs);
 }
 
+/* C++: scan class_sym's member chain for the constructor field (a VT_FUNC
+ * member whose name equals the class name).  Returns the field Sym or NULL.
+ * Used by FEAT-4B to detect `Foo f(args);` ctor-call declarations. */
+static Sym *cpp_find_ctor_field(Sym *class_sym)
+{
+    Sym *f;
+    int class_name_tok;
+
+    if (!class_sym)
+        return NULL;
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        return f;
+    }
+    return NULL;
+}
+
 static void cpp_push_member_var(Sym *field)
 {
     int cumofs, qualifiers;
