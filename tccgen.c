@@ -9810,8 +9810,9 @@ static int decl(int l)
             /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
                Only in C++ mode, when the base type is a class with a
                constructor, we are in a local scope, and an identifier is
-               directly followed by '('. Phase 3 allocates the variable and
-               skips the argument list (the ctor call is wired in Phase 4). */
+               directly followed by '('. The variable is allocated like a
+               plain `Foo f;` and `Foo f(args)` is rewritten into the
+               existing member-call path `f.Foo(args)` via token unget. */
             if (tcc_state->cpp
                 && l == VT_LOCAL
                 && (btype.t & VT_BTYPE) == VT_STRUCT
@@ -9821,29 +9822,37 @@ static int decl(int l)
                 int saved_var_tok = tok;
                 next();
                 if (tok == '(') {
-                    int paren = 1;
-                    decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
-                                           0, saved_var_tok, 0);
-                    next(); /* consume '(' */
-                    while (paren > 0 && tok != TOK_EOF) {
-                        if (tok == '(')
-                            paren++;
-                        else if (tok == ')')
-                            paren--;
-                        if (paren > 0)
+                    next(); /* peek first token inside the parens */
+                    if (tok != ')') {
+                        /* `Foo f(args);` -> `f.Foo(args);` */
+                        Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                        int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                        decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                                               0, saved_var_tok, 0);
+                        /* Rebuild the stream `var . Ctor ( <args...> )`.
+                           unget is LIFO and saves the current tok (the first
+                           argument), so push in reverse so next() yields
+                           var_tok, '.', ctor_tok, '(', first_arg, ... */
+                        unget_tok('(');
+                        unget_tok(ctor_tok_v);
+                        unget_tok('.');
+                        unget_tok(saved_var_tok);
+                        expr_eq();
+                        vpop();
+                        if (tok == ',') {
                             next();
+                            continue;
+                        }
+                        skip(';');
+                        break;
                     }
-                    if (tok != ')')
-                        expect(")");
-                    next(); /* consume ')' */
-                    if (tok == ',') {
-                        next();
-                        continue;
-                    }
-                    skip(';');
-                    break;
+                    /* `Foo f();` is a function declaration (most vexing
+                       parse): restore the stream and fall through. */
+                    unget_tok('(');
+                    unget_tok(saved_var_tok);
+                } else {
+                    unget_tok(saved_var_tok);
                 }
-                unget_tok(saved_var_tok);
             }
 
             type_decl(&type, &ad, &v, TYPE_DIRECT);
