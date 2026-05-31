@@ -562,6 +562,53 @@ static Sym *cpp_find_ctor_field(Sym *class_sym)
     return NULL;
 }
 
+/* FEAT-4C: peek `Class::Class(` at file/block scope without consuming
+ * the stream.  Returns 1 and sets *class_tok when matched. */
+static int cpp_peek_out_of_class_ctor(int *class_tok)
+{
+    int cls, mem;
+
+    if (!tcc_state->cpp || tok < TOK_IDENT || !class_tok)
+        return 0;
+    cls = tok;
+    if (!struct_find(cls))
+        return 0;
+    next();
+    if (tok != ':') {
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    mem = tok;
+    if (mem != cls) {
+        unget_tok(mem);
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok != '(') {
+        unget_tok(mem);
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    unget_tok(mem);
+    unget_tok(':');
+    unget_tok(':');
+    unget_tok(cls);
+    *class_tok = cls;
+    return 1;
+}
+
 static void cpp_push_member_var(Sym *field)
 {
     int cumofs, qualifiers;
@@ -9671,7 +9718,7 @@ static void do_Static_assert(void)
    or VT_JMP if parsing c99 for decl: for (int i = 0, ...) */
 static int decl(int l)
 {
-    int v, has_init, r, oldint;
+    int v, has_init, r, oldint, ooc_cls;
     CType type, btype;
     Sym* sym;
     AttributeDef ad, adbase;
@@ -9721,7 +9768,15 @@ static int decl(int l)
         }
 
         oldint = 0;
-        if (!parse_btype(&btype, &adbase, l == VT_LOCAL)) {
+        ooc_cls = 0;
+        if (tcc_state->cpp && cpp_peek_out_of_class_ctor(&ooc_cls)) {
+            btype.t = VT_VOID;
+            btype.ref = NULL;
+            memset(&adbase, 0, sizeof adbase);
+            cpp_qualified_class = struct_find(ooc_cls);
+            if (!cpp_qualified_class)
+                tcc_error("unknown class in qualified name");
+        } else if (!parse_btype(&btype, &adbase, l == VT_LOCAL)) {
             if (l == VT_JMP)
                 return 0;
             /* skip redundant ';' if not in old parameter decl scope */
@@ -9919,7 +9974,13 @@ static int decl(int l)
                 }
             }
 #endif
-            if (tok == '{') {
+            if (tok == '{'
+                || (tcc_state->cpp && tok == ':'
+                    && (type.t & VT_BTYPE) == VT_FUNC
+                    && cpp_qualified_class)) {
+                Sym *qclass;
+                int sym_tok;
+
                 if (l != VT_CONST)
                     tcc_error("���[�J���֐����g�p�ł��܂���");
                 if ((type.t & VT_BTYPE) != VT_FUNC)
@@ -9940,14 +10001,24 @@ static int decl(int l)
 
                 /* put function symbol */
                 type.t &= ~VT_EXTERN;
-                sym = external_sym(v, &type, 0, &ad);
+                qclass = cpp_qualified_class;
+                sym_tok = v;
+                if (qclass
+                    && (v & ~SYM_FIELD) == (qclass->v & ~SYM_STRUCT)) {
+                    int ct = cpp_ctor_name_tok(v & ~SYM_FIELD);
+                    if (ct)
+                        sym_tok = ct;
+                }
+                sym = external_sym(sym_tok, &type, 0, &ad);
                 if ((type.t & VT_BTYPE) == VT_FUNC)
                     cpp_set_func_mangle_label(sym, &type);
-                if (cpp_qualified_class) {
-                    sym->parent_class = cpp_qualified_class;
+                if (qclass) {
+                    sym->parent_class = qclass;
                     cpp_inherit_decl_defaults(sym);
                     cpp_qualified_class = NULL;
                 }
+                if (tok == ':')
+                    cpp_save_mem_init_list(sym);
 
                 /* static inline functions are just recorded as a kind
                    of macro. Their code will be emitted at the end of

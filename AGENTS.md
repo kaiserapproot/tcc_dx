@@ -1,4 +1,4 @@
-# プロジェクト指針（AI エージェント共通）
+﻿# プロジェクト指針（AI エージェント共通）
 
 > このファイルは AGENTS.md と CLAUDE.md で同一内容。`.github/copilot-instructions.md` は Windows ルールのみ簡略版。
 > 詳細プランは [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)、過去事例は [履歴.md](履歴.md) / [問題と原因.md](問題と原因.md) を参照。
@@ -75,7 +75,7 @@ TCC (Tiny C Compiler) を **MSVC / Windows x64** でビルドし、段階的に 
 
 ## 必須ルール — C++ 実装
 
-> **到達状況（2026-05-25）**: Stage 1 + Stage 2 **完了**、Stage 3 **一部**（`this`・メンバ呼び出し）。機能一覧は [実装済み.md](実装済み.md)、次作業は [次の実装.md](次の実装.md)。
+> **到達状況（2026-05-31）**: Stage 1 + Stage 2 + Stage 3 **完了**、Stage 4 **一部完了**（FEAT-4A ctor init codegen、FEAT-4B `Foo f(args);` まで）。機能一覧は [実装済み.md](実装済み.md)、次作業は [次の実装.md](次の実装.md)（FEAT-4C）。
 
 - C++ 機能は `s1->cpp == 1` のときのみ有効。**`.c` の従来動作を絶対に壊さない**。
 - 拡張子 → モード：`.c`/`.h`/`.i` → C、`.cpp`/`.cxx`/`.cc`/`.hpp` → C++、`-x c++` で強制。
