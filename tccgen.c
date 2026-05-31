@@ -493,6 +493,34 @@ static int cpp_ctor_name_tok(int class_tok)
     return ts->tok;
 }
 
+/* Internal class-member token for the destructor field (distinct from the
+ * ctor field, which reuses the class name token). */
+static int cpp_dtor_field_tok(int class_tok)
+{
+    char buf[256];
+    int len;
+    TokenSym *ts;
+    len = snprintf(buf, sizeof buf, "__cpp_dtor_fld_%s",
+                   get_tok_str(class_tok, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return 0;
+    ts = tok_alloc(buf, len);
+    return ts->tok;
+}
+
+static int cpp_dtor_name_tok(int class_tok)
+{
+    char buf[256];
+    int len;
+    TokenSym *ts;
+    len = snprintf(buf, sizeof buf, "__cpp_dtor_%s",
+                   get_tok_str(class_tok, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return 0;
+    ts = tok_alloc(buf, len);
+    return ts->tok;
+}
+
 static int cpp_is_ctor_field(Sym *field)
 {
     if (!field || !field->parent_class)
@@ -501,6 +529,20 @@ static int cpp_is_ctor_field(Sym *field)
         return 0;
     return (field->v & ~SYM_FIELD)
         == (field->parent_class->v & ~SYM_STRUCT);
+}
+
+static int cpp_is_dtor_field(Sym *field)
+{
+    int fld_tok;
+
+    if (!field || !field->parent_class)
+        return 0;
+    if ((field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    fld_tok = cpp_dtor_field_tok(field->parent_class->v & ~SYM_STRUCT);
+    if (!fld_tok)
+        return 0;
+    return (field->v & ~SYM_FIELD) == fld_tok;
 }
 
 static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
@@ -514,6 +556,10 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     if (cpp_is_ctor_field(field)) {
         /* ctor lives under the mangled global token. */
         v = cpp_ctor_name_tok(field->v & ~SYM_FIELD);
+        if (!v)
+            return field;
+    } else if (cpp_is_dtor_field(field)) {
+        v = cpp_dtor_name_tok(field->parent_class->v & ~SYM_STRUCT);
         if (!v)
             return field;
     } else {
@@ -560,6 +606,61 @@ static Sym *cpp_find_ctor_field(Sym *class_sym)
         return f;
     }
     return NULL;
+}
+
+/* C++: scan class_sym's member chain for the destructor field. */
+static Sym *cpp_find_dtor_field(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_dtor_field(f))
+            continue;
+        return f;
+    }
+    return NULL;
+}
+
+/* FEAT-4E: emit __cpp_dtor_Class(&obj) for a stack local. */
+static void cpp_emit_local_dtor(Sym *obj_sym)
+{
+    Sym *class_sym;
+    Sym *dtor_field;
+    Sym *dtor_global;
+    CType obj_type;
+
+    if (!obj_sym || !tcc_state->cpp)
+        return;
+    if ((obj_sym->type.t & VT_BTYPE) != VT_STRUCT)
+        return;
+    if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
+        return;
+    class_sym = obj_sym->type.ref;
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (!dtor_field)
+        return;
+    obj_type.t = VT_STRUCT;
+    obj_type.ref = class_sym;
+    dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
+    vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+    vtop->sym = dtor_global;
+    vtop->r &= ~VT_LVAL;
+    vset(&obj_sym->type, obj_sym->r, obj_sym->c);
+    gaddrof();
+    gfunc_call(1);
+}
+
+/* FEAT-4E: call dtors for locals declared since bottom (reverse decl order). */
+static void cpp_call_scope_dtors(Sym *bottom)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp || !bottom)
+        return;
+    for (s = local_stack; s != bottom; s = s->prev)
+        cpp_emit_local_dtor(s);
 }
 
 /* FEAT-4C: peek `Class::Class(` at file/block scope without consuming
@@ -779,6 +880,10 @@ static void cpp_finish_member_inlines(Sym *class_sym)
          * (See cpp_lookup_member_func for the matching lookup path.) */
         if (cpp_is_ctor_field(f)) {
             global_tok = cpp_ctor_name_tok(f->v & ~SYM_FIELD);
+            if (!global_tok)
+                global_tok = f->v & ~SYM_FIELD;  /* fallback */
+        } else if (cpp_is_dtor_field(f)) {
+            global_tok = cpp_dtor_name_tok(f->parent_class->v & ~SYM_STRUCT);
             if (!global_tok)
                 global_tok = f->v & ~SYM_FIELD;  /* fallback */
         } else {
@@ -5357,6 +5462,7 @@ do_decl:
             while (tok != '}') {
                 int skip_member_semi = 0;
                 int is_ctor_decl = 0;
+                int is_dtor_decl = 0;
                 if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED) {
                     cur_access = (tok == TOK_PUBLIC) ? ACCESS_PUBLIC :
                                  (tok == TOK_PROTECTED) ? ACCESS_PROTECTED : ACCESS_PRIVATE;
@@ -5380,7 +5486,26 @@ do_decl:
                     }
                     unget_tok(saved);
                 }
-                if (!is_ctor_decl && !parse_btype(&btype, &ad1, 0)) {
+                /* C++: `~Class(` is a destructor declaration with omitted
+                 * return type (same pattern as ctor above). */
+                if (tcc_state->cpp && is_class && tok == '~') {
+                    int saved;
+                    next();
+                    if (struct_find(tok) == s) {
+                        saved = tok;
+                        next();
+                        if (tok == '(') {
+                            is_dtor_decl = 1;
+                            btype.t = VT_VOID;
+                            btype.ref = NULL;
+                            memset(&ad1, 0, sizeof ad1);
+                        }
+                        unget_tok(saved);
+                    } else {
+                        unget_tok('~');
+                    }
+                }
+                if (!is_ctor_decl && !is_dtor_decl && !parse_btype(&btype, &ad1, 0)) {
                     if (tok == TOK_STATIC_ASSERT) {
                         do_Static_assert();
                         continue;
@@ -5398,6 +5523,12 @@ do_decl:
                     if (tok != ':') {
                         if (tok != ';')
                             type_decl(&type1, &ad1, &v, TYPE_DIRECT);
+                        if (is_dtor_decl) {
+                            int dtor_fld = cpp_dtor_field_tok(s->v & ~SYM_STRUCT);
+                            if (!dtor_fld)
+                                tcc_error("internal dtor field name failed");
+                            v = dtor_fld;
+                        }
                         if (v == 0) {
                             if ((type1.t & VT_BTYPE) != VT_STRUCT)
                                 expect("identifier");
@@ -5418,7 +5549,8 @@ do_decl:
                         }
                         /* Stage 1: member function prototypes allowed in class only; struct in Stage 2+ */
                         if (((type1.t & VT_BTYPE) == VT_FUNC && !is_class) ||
-                            (type1.t & VT_BTYPE) == VT_VOID ||
+                            ((type1.t & VT_BTYPE) == VT_VOID
+                                && !is_ctor_decl && !is_dtor_decl) ||
                             ((type1.t & VT_STORAGE) && !(is_class && (type1.t & VT_STATIC))))
                             tcc_error("'%s' �ɑ΂��閳���Ȍ^",
                                 get_tok_str(v, NULL));
@@ -5484,7 +5616,8 @@ do_decl:
                         *ps = ss;
                         ps = &ss->next;
                         {
-                            int is_ctor = is_class && v && (v == (s->v & ~SYM_STRUCT))
+                            int is_ctor = is_class && !is_dtor_decl && v
+                                && (v == (s->v & ~SYM_STRUCT))
                                 && (type1.t & VT_BTYPE) == VT_FUNC;
                             if (is_ctor && tok == ':')
                                 cpp_save_mem_init_list(ss);
@@ -7097,6 +7230,29 @@ tok_next:
             qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
             test_lvalue();
             next();
+            if (tcc_state->cpp && tok == '~') {
+                Sym *class_sym;
+                Sym *fsym;
+
+                next();
+                if (!vtop->type.ref
+                    || (vtop->type.t & VT_BTYPE) != VT_STRUCT
+                    || tok != (vtop->type.ref->v & ~SYM_STRUCT))
+                    expect("destructor name");
+                class_sym = vtop->type.ref;
+                field = cpp_find_dtor_field(class_sym);
+                if (!field)
+                    tcc_error("no destructor for class");
+                obj_type = vtop->type;
+                gaddrof();
+                cpp_member_this = *vtop;
+                vpop();
+                fsym = cpp_lookup_member_func(field, &obj_type);
+                vset(&fsym->type, fsym->r | VT_SYM, 0);
+                vtop->sym = fsym;
+                vtop->r &= ~VT_LVAL;
+                cpp_member_this_pending = 1;
+            } else {
             field = find_field(&vtop->type, tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
                 Sym *fsym;
@@ -7124,6 +7280,7 @@ tok_next:
                         vtop->r |= VT_MUSTBOUND;
 #endif
                 }
+            }
             }
             next();
         }
@@ -8101,6 +8258,8 @@ static void prev_scope(struct scope* o, int is_expr)
        tables, though.  sym_pop will do that.  */
 
        /* pop locally defined symbols */
+    if (tcc_state->cpp && !is_expr)
+        cpp_call_scope_dtors(o->lstk);
     pop_local_syms(o->lstk, is_expr);
     cur_scope = o->prev;
     --local_scope;
