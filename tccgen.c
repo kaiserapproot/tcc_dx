@@ -630,6 +630,75 @@ static void cpp_push_member_var(Sym *field)
         vtop->r |= VT_LVAL;
 }
 
+/* FEAT-4D: find embedded base subobject field in a derived class by base
+ * class name token (matches anonymous base from `class D : public Base`). */
+static Sym *cpp_find_base_field(Sym *derived_class, int base_name_tok)
+{
+    Sym *f;
+    Sym *bc;
+
+    if (!derived_class)
+        return NULL;
+    for (f = derived_class->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT)
+            continue;
+        bc = f->type.ref;
+        if (!bc)
+            continue;
+        if ((bc->v & ~SYM_STRUCT) == base_name_tok)
+            return f;
+    }
+    return NULL;
+}
+
+/* FEAT-4D: emit `Base(args)` in a derived ctor mem-initializer list as a
+ * call to __cpp_ctor_Base(&base_subobject, args).  tok is at the first
+ * token inside `(`.  Consumes through the closing `)`. */
+static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
+{
+    Sym *ctor_field;
+    Sym *ctor_global;
+    CType base_type;
+    int nb_args;
+    int na;
+    SValue base_this;
+
+    if (!base_field || !base_class || !cpp_this_sym)
+        return;
+    ctor_field = cpp_find_ctor_field(base_class);
+    if (!ctor_field)
+        tcc_error("no constructor for base class");
+    base_type.t = VT_STRUCT;
+    base_type.ref = base_class;
+    ctor_global = cpp_lookup_member_func(ctor_field, &base_type);
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    nb_args = 0;
+    while (tok != ')' && tok != TOK_EOF) {
+        expr_eq();
+        nb_args++;
+        if (tok == ',')
+            next();
+    }
+    na = nb_args;
+    cpp_push_member_var(base_field);
+    gaddrof();
+    base_this = *vtop;
+    vpop();
+    if (na == 0) {
+        vpushv(&base_this);
+        nb_args = 1;
+    } else {
+        vtop++;
+        nb_args = na + 1;
+        memmove(vtop - nb_args + 2, vtop - nb_args + 1,
+            na * sizeof(SValue));
+        vtop[-nb_args + 1] = base_this;
+    }
+    gfunc_call(nb_args);
+}
+
 static void cpp_save_default_arg(Sym *param)
 {
     TokenString *def;
@@ -9551,8 +9620,8 @@ static void gen_function(Sym* sym)
 
     /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
      * the ctor sym into `this->a = x; this->b = y;` instructions before the
-     * body runs.  Base-class initializers and unknown names are skipped for
-     * now (Stage 4 limitation). */
+     * body runs.  Base-class initializers call __cpp_ctor_Base on the
+     * embedded base subobject (FEAT-4D). */
     if (tcc_state->cpp && sym->cpp_mem_init_list
         && cpp_this_sym && sym->parent_class) {
         TokenString *init_copy = tok_str_dup_for_default(sym->cpp_mem_init_list);
@@ -9563,6 +9632,7 @@ static void gen_function(Sym* sym)
             while (tok != TOK_EOF) {
                 int member_tok;
                 Sym *member_field;
+                Sym *base_field;
 
                 if (tok < TOK_IDENT)
                     expect("identifier");
@@ -9584,15 +9654,21 @@ static void gen_function(Sym* sym)
                         vpop();
                     }
                 } else {
-                    /* Base class initializer or unknown name: skip expr. */
-                    int paren = 0;
-                    while (tok != TOK_EOF) {
-                        if (tok == '(') paren++;
-                        else if (tok == ')') {
-                            if (paren == 0) break;
-                            paren--;
+                    base_field = cpp_find_base_field(class_sym, member_tok);
+                    if (base_field && base_field->type.ref) {
+                        cpp_emit_base_ctor_call(base_field,
+                                                base_field->type.ref);
+                    } else {
+                        /* unknown name: skip expr. */
+                        int paren = 0;
+                        while (tok != TOK_EOF) {
+                            if (tok == '(') paren++;
+                            else if (tok == ')') {
+                                if (paren == 0) break;
+                                paren--;
+                            }
+                            next();
                         }
-                        next();
                     }
                 }
 
