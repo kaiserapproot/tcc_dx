@@ -5801,7 +5801,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                         }
                         unget_tok(':');
                     }
-                    type->t = stsym->type.t;
+                    type->t = stsym->type.t | (t & VT_STORAGE);
                     type->ref = stsym;
                     typespec_found = 1;
                     st = bt = -2;
