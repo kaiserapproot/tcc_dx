@@ -530,9 +530,10 @@ struct FuncAttr {
     func_noreturn : 1, /* attribute((noreturn)) */
     func_ctor   : 1, /* attribute((constructor)) */
     func_dtor   : 1, /* attribute((destructor)) */
+    func_virtual : 1, /* C++ virtual member function */
     func_args   : 8, /* PE __stdcall args */
     func_alwinl : 1, /* always_inline */
-    xxxx        : 15;
+    xxxx        : 13;
 };
 
 /* symbol management */
@@ -570,6 +571,7 @@ typedef struct Sym {
     struct TokenString *inline_func_str;
     struct TokenString *cpp_mem_init_list;
     struct Sym *parent_class; /* owning class (C++ member) */
+    int cpp_vtable_tok; /* FEAT-5A: __cpp_vtable_<Class> token, 0 if none */
 } Sym;
 
 /* section definition */
