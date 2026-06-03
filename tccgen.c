@@ -174,6 +174,7 @@ static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
+ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
 {
@@ -661,6 +662,294 @@ static void cpp_call_scope_dtors(Sym *bottom)
         return;
     for (s = local_stack; s != bottom; s = s->prev)
         cpp_emit_local_dtor(s);
+}
+
+/* FEAT-5A: anonymous embedded base subobject (class D : public Base). */
+static Sym *cpp_get_anon_base_field(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT)
+            continue;
+        if ((f->v & ~SYM_FIELD) < SYM_FIRST_ANOM)
+            continue;
+        if (f->parent_class)
+            return f;
+    }
+    return NULL;
+}
+
+static int cpp_type_has_virtual(Sym *class_sym)
+{
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) == VT_FUNC && f->type.ref
+            && f->type.ref->f.func_virtual)
+            return 1;
+    }
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_type_has_virtual(base_field->parent_class);
+    return 0;
+}
+
+static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        if ((f->v & ~SYM_FIELD) == member_tok)
+            return f;
+    }
+    return NULL;
+}
+
+static int cpp_count_virtual_slots(Sym *class_sym)
+{
+    Sym *f, *base_field;
+    int n, maxslot;
+
+    if (!class_sym)
+        return 0;
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        n = cpp_count_virtual_slots(base_field->parent_class);
+    else
+        n = 0;
+    maxslot = n;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        if (f->c + 1 > maxslot)
+            maxslot = f->c + 1;
+    }
+    return maxslot;
+}
+
+static void cpp_assign_virtual_slots(Sym *class_sym)
+{
+    Sym *base_field, *base_class, *f;
+    int nslots, member_tok;
+
+    if (!class_sym)
+        return;
+    base_field = cpp_get_anon_base_field(class_sym);
+    base_class = base_field ? base_field->parent_class : NULL;
+    nslots = base_class ? cpp_count_virtual_slots(base_class) : 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        member_tok = f->v & ~SYM_FIELD;
+        if (base_class) {
+            Sym *bf = cpp_find_virtual_field_by_name(base_class, member_tok);
+            if (bf) {
+                f->c = bf->c;
+                continue;
+            }
+        }
+        f->c = nslots++;
+    }
+}
+
+static void cpp_insert_vptr_field(Sym *class_sym)
+{
+    Sym *vptr, *first;
+    CType pt;
+
+    if (!class_sym || !cpp_type_has_virtual(class_sym))
+        return;
+    pt.t = VT_VOID | VT_PTR;
+    pt.ref = NULL;
+    vptr = sym_push(anon_sym++ | SYM_FIELD, &pt, 0, 0);
+    vptr->a.access = ACCESS_PRIVATE;
+    first = class_sym->next;
+    vptr->next = first;
+    class_sym->next = vptr;
+}
+
+static Sym *cpp_find_virtual_by_slot(Sym *class_sym, int slot)
+{
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        if (f->c == slot)
+            return f;
+    }
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_find_virtual_by_slot(base_field->parent_class, slot);
+    return NULL;
+}
+
+static Sym *cpp_lookup_virtual_impl(Sym *field)
+{
+    int v;
+    Sym *s, *class_sym;
+
+    if (!field || !field->type.ref)
+        return NULL;
+    class_sym = field->parent_class;
+    if (!class_sym)
+        return NULL;
+    if (cpp_is_ctor_field(field)) {
+        v = cpp_ctor_name_tok(field->v & ~SYM_FIELD);
+        if (!v)
+            return NULL;
+    } else if (cpp_is_dtor_field(field)) {
+        v = cpp_dtor_name_tok(class_sym->v & ~SYM_STRUCT);
+        if (!v)
+            return NULL;
+    } else {
+        v = field->v & ~SYM_FIELD;
+    }
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class == class_sym)
+            return s;
+    }
+    return NULL;
+}
+
+static void cpp_emit_vtable(Sym *class_sym)
+{
+    char buf[256];
+    TokenSym *ts;
+    Sym *vtable_sym, *field, *impl;
+    CType arr_type, fptr_type;
+    AttributeDef ad;
+    Section *sec;
+    unsigned long addr;
+    int nslots, slot, len;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    nslots = cpp_count_virtual_slots(class_sym);
+    if (nslots <= 0)
+        return;
+    len = snprintf(buf, sizeof buf, "__cpp_vtable_%s",
+                   get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return;
+    ts = tok_alloc(buf, len);
+    class_sym->cpp_vtable_tok = ts->tok;
+    fptr_type.t = VT_VOID | VT_PTR;
+    fptr_type.ref = NULL;
+    arr_type.t = VT_PTR | VT_ARRAY;
+    arr_type.ref = sym_push(SYM_FIELD, &fptr_type, 0, nslots);
+    memset(&ad, 0, sizeof ad);
+    vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
+    sec = rodata_section;
+    addr = section_add(sec, (unsigned long)nslots * PTR_SIZE, PTR_SIZE);
+    put_extern_sym(vtable_sym, sec, addr, (unsigned long)nslots * PTR_SIZE);
+    for (slot = 0; slot < nslots; slot++) {
+        field = cpp_find_virtual_by_slot(class_sym, slot);
+        if (!field)
+            continue;
+        impl = cpp_lookup_virtual_impl(field);
+        if (!impl)
+            continue;
+        greloca(sec, impl, addr + (unsigned long)slot * PTR_SIZE, R_DATA_PTR, 0);
+    }
+}
+
+static void cpp_init_local_vptr(Sym *obj_sym)
+{
+    Sym *vtable_sym;
+    CType voidp;
+
+    if (!obj_sym || !obj_sym->type.ref || !obj_sym->type.ref->cpp_vtable_tok)
+        return;
+    if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
+        return;
+    if (nocode_wanted)
+        return;
+    vtable_sym = sym_find(obj_sym->type.ref->cpp_vtable_tok);
+    if (!vtable_sym)
+        return;
+    /* Build a real void* type (mk_pointer allocates ->ref; a NULL ref would
+     * crash later passes that dereference pointed_type). */
+    voidp.t = VT_VOID;
+    voidp.ref = NULL;
+    mk_pointer(&voidp);
+    /* vstore() expects vtop[-1] = destination lvalue, vtop = source value.
+     * The vptr lives at object offset 0, so its slot address is obj_sym->c. */
+    vset(&voidp, VT_LOCAL | VT_LVAL, obj_sym->c);   /* destination */
+    vpushsym(&voidp, vtable_sym);                    /* value = &vtable */
+    vstore();
+    vpop();
+}
+
+/* Load virtual member fn from vtable[slot]; leaves a function-pointer
+ * lvalue on vtop (the standard `fp()` representation, so the call handler
+ * performs an indirect call), and stores 'this' in cpp_member_this so it is
+ * injected as the implicit first argument.
+ *
+ * Pointer levels (T = the member function type, fn-ptr = T(*)()):
+ *   fnptr_t   = T(*)()     one vtable entry
+ *   fnptr_pp  = T(**)()    the vptr (points at the fn-ptr array)
+ *   fnptr_ppp = T(***)()   'this' reinterpreted (points at the vptr slot)
+ *
+ * NB: tcc's indir() dereferences vtop->type.ref unconditionally, so every
+ * pointer type fed to it must be built with mk_pointer (a NULL ref crashes
+ * the compiler). */
+static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
+{
+    CType fnptr_t, fnptr_pp, fnptr_ppp;
+    int slot;
+
+    if (!field || !field->type.ref || !field->type.ref->f.func_virtual)
+        return;
+    slot = field->c;
+    test_lvalue();
+    gaddrof();
+    cpp_member_this = *vtop;
+    vpop();
+
+    fnptr_t = field->type;          /* T()       -> */
+    mk_pointer(&fnptr_t);           /* T(*)()       */
+    fnptr_pp = fnptr_t;
+    mk_pointer(&fnptr_pp);          /* T(**)()      */
+    fnptr_ppp = fnptr_pp;
+    mk_pointer(&fnptr_ppp);         /* T(***)()     */
+
+    /* this -> &vptr, load vptr */
+    vpushv(&cpp_member_this);
+    vtop->type = fnptr_ppp;
+    vtop->r &= ~VT_LVAL;
+    indir();                        /* lvalue T(**)() == vptr storage */
+    /* index the vtable: typed pointer arithmetic scales slot by PTR_SIZE */
+    vpushi(slot);
+    gen_op('+');                    /* T(**)() rvalue == &vtable[slot] */
+    indir();                        /* lvalue T(*)() == vtable[slot]    */
+
+    /* This is an indirect (function-pointer) call, not a named function:
+     * clear the leftover .sym copied from 'this' so the call handler's C++
+     * overload-resolution path does not dereference a stale Sym. */
+    vtop->sym = NULL;
+    cpp_member_this_pending = 1;
 }
 
 /* FEAT-4C: peek `Class::Class(` at file/block scope without consuming
@@ -2021,6 +2310,8 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_ctor = 1;
     if (fa1->func_dtor)
         fa->func_dtor = 1;
+    if (fa1->func_virtual)
+        fa->func_virtual = 1;
 }
 
 /* �������}�[�W���� */
@@ -5021,8 +5312,11 @@ static void check_fields(CType* type, int check)
                 tcc_error("�����o '%s' ���d�����Ă��܂�", get_tok_str(v, NULL));
             ts->tok ^= SYM_FIELD;
         }
-        else if ((s->type.t & VT_BTYPE) == VT_STRUCT)
+        else if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+            if (tcc_state->cpp && check && s->parent_class)
+                continue;
             check_fields(&s->type, check);
+        }
     }
 }
 
@@ -5649,6 +5943,10 @@ do_decl:
             }
             check_fields(type, 1);
             check_fields(type, 0);
+            if (is_class && tcc_state->cpp) {
+                cpp_assign_virtual_slots(s);
+                cpp_insert_vptr_field(s);
+            }
             struct_layout(type, &ad);
             if (is_class) {
                 int tag_v;
@@ -5665,6 +5963,7 @@ do_decl:
                 /* Convert in-class inline bodies into real global functions
                  * (registered via inline_fns) so member calls can link. */
                 cpp_finish_member_inlines(s);
+                cpp_emit_vtable(s);
                 cpp_cur_class = NULL;
             }
         }
@@ -5887,6 +6186,12 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
         case TOK_INLINE2:
         case TOK_INLINE3:
             t |= VT_INLINE;
+            next();
+            break;
+        case TOK_VIRTUAL:
+            if (!tcc_state->cpp)
+                tcc_error("virtual requires C++");
+            ad->f.func_virtual = 1;
             next();
             break;
         case TOK_NORETURN3:
@@ -7255,6 +7560,10 @@ tok_next:
             } else {
             field = find_field(&vtop->type, tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
+                if (field->type.ref && field->type.ref->f.func_virtual) {
+                    obj_type = vtop->type;
+                    cpp_prepare_virtual_member_call(field, &obj_type);
+                } else {
                 Sym *fsym;
 
                 obj_type = vtop->type;
@@ -7266,6 +7575,7 @@ tok_next:
                 vtop->sym = fsym;
                 vtop->r &= ~VT_LVAL;
                 cpp_member_this_pending = 1;
+                }
             } else {
                 gaddrof();
                 vtop->type = char_pointer_type;
@@ -9530,6 +9840,13 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             }
 #endif
             sym = sym_push(v, type, r, addr);
+            /* FEAT-5A: initialize the vptr of a local polymorphic object so
+             * virtual calls dispatch through a valid vtable. */
+            if (tcc_state->cpp
+                && (type->t & VT_BTYPE) == VT_STRUCT
+                && type->ref
+                && type->ref->cpp_vtable_tok)
+                cpp_init_local_vptr(sym);
             if (ad->cleanup_func) {
                 Sym* cls = sym_push2(&all_cleanups,
                     SYM_FIELD | ++cur_scope->cl.n, 0, 0);
