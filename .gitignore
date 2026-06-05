@@ -257,3 +257,4 @@ proj/iosprooj/iosbase.vsimporter/
 /_current_*.c
 /_head_*.c
 /libtcc.hex.txt
+/dev/tcc.exe
