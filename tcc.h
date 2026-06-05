@@ -530,9 +530,10 @@ struct FuncAttr {
     func_noreturn : 1, /* attribute((noreturn)) */
     func_ctor   : 1, /* attribute((constructor)) */
     func_dtor   : 1, /* attribute((destructor)) */
+    func_virtual : 1, /* C++ virtual member function */
     func_args   : 8, /* PE __stdcall args */
     func_alwinl : 1, /* always_inline */
-    xxxx        : 15;
+    xxxx        : 13;
 };
 
 /* symbol management */
@@ -570,6 +571,7 @@ typedef struct Sym {
     struct TokenString *inline_func_str;
     struct TokenString *cpp_mem_init_list;
     struct Sym *parent_class; /* owning class (C++ member) */
+    int cpp_vtable_tok; /* FEAT-5A: __cpp_vtable_<Class> token, 0 if none */
 } Sym;
 
 /* section definition */
@@ -1082,7 +1084,8 @@ struct filespec {
 #define VT_TYPEDEF 0x00004000  /* typedef definition */
 #define VT_INLINE  0x00008000  /* inline definition */
 #define VT_REFERENCE 0x00010000  /* C++ reference type */
-/* currently unused: 0x000[1248]0000  */
+#define VT_MPTR      0x00020000  /* C++ member pointer type (with VT_PTR) */
+/* currently unused: 0x000[48]0000  */
 
 #define VT_STRUCT_SHIFT 20     /* shift for bitfield shift values (32 - 2*6) */
 #define VT_STRUCT_MASK (((1U << (6+6)) - 1) << VT_STRUCT_SHIFT | VT_BITFIELD)

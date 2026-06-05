@@ -174,6 +174,7 @@ static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
+ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
 {
@@ -198,6 +199,7 @@ static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
     ty = *t;
     while ((ty.t & VT_BTYPE) == VT_PTR) {
         mangle_append_char(buf, buf_size, pos,
+            (ty.t & VT_MPTR) ? 'm' :
             (ty.t & VT_REFERENCE) ? 'r' : 'p');
         ty = *pointed_type(&ty);
     }
@@ -493,6 +495,34 @@ static int cpp_ctor_name_tok(int class_tok)
     return ts->tok;
 }
 
+/* Internal class-member token for the destructor field (distinct from the
+ * ctor field, which reuses the class name token). */
+static int cpp_dtor_field_tok(int class_tok)
+{
+    char buf[256];
+    int len;
+    TokenSym *ts;
+    len = snprintf(buf, sizeof buf, "__cpp_dtor_fld_%s",
+                   get_tok_str(class_tok, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return 0;
+    ts = tok_alloc(buf, len);
+    return ts->tok;
+}
+
+static int cpp_dtor_name_tok(int class_tok)
+{
+    char buf[256];
+    int len;
+    TokenSym *ts;
+    len = snprintf(buf, sizeof buf, "__cpp_dtor_%s",
+                   get_tok_str(class_tok, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return 0;
+    ts = tok_alloc(buf, len);
+    return ts->tok;
+}
+
 static int cpp_is_ctor_field(Sym *field)
 {
     if (!field || !field->parent_class)
@@ -501,6 +531,20 @@ static int cpp_is_ctor_field(Sym *field)
         return 0;
     return (field->v & ~SYM_FIELD)
         == (field->parent_class->v & ~SYM_STRUCT);
+}
+
+static int cpp_is_dtor_field(Sym *field)
+{
+    int fld_tok;
+
+    if (!field || !field->parent_class)
+        return 0;
+    if ((field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    fld_tok = cpp_dtor_field_tok(field->parent_class->v & ~SYM_STRUCT);
+    if (!fld_tok)
+        return 0;
+    return (field->v & ~SYM_FIELD) == fld_tok;
 }
 
 static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
@@ -514,6 +558,10 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     if (cpp_is_ctor_field(field)) {
         /* ctor lives under the mangled global token. */
         v = cpp_ctor_name_tok(field->v & ~SYM_FIELD);
+        if (!v)
+            return field;
+    } else if (cpp_is_dtor_field(field)) {
+        v = cpp_dtor_name_tok(field->parent_class->v & ~SYM_STRUCT);
         if (!v)
             return field;
     } else {
@@ -541,6 +589,612 @@ static Sym *cpp_lookup_member_field(int v, Sym *class_sym)
     return find_field(&ct, v, &cumofs);
 }
 
+/* FEAT-5B: member pointer helpers */
+static int cpp_is_member_pointer(CType *type)
+{
+    return (type->t & (VT_BTYPE | VT_MPTR)) == (VT_PTR | VT_MPTR);
+}
+
+static Sym *cpp_mptr_class(CType *type)
+{
+    if (!cpp_is_member_pointer(type) || !type->ref)
+        return NULL;
+    return type->ref->parent_class;
+}
+
+static int cpp_is_mptr_to_func(CType *type)
+{
+    if (!cpp_is_member_pointer(type))
+        return 0;
+    return (pointed_type(type)->t & VT_BTYPE) == VT_FUNC;
+}
+
+static void mk_member_pointer(CType *type, Sym *class_sym, int field_tok)
+{
+    Sym *s;
+
+    s = sym_push(SYM_FIELD, type, 0, field_tok);
+    s->parent_class = class_sym;
+    type->t = (type->t & VT_STORAGE) | VT_PTR | VT_MPTR;
+    type->ref = s;
+}
+
+/* Parse Class::* in a declarator; returns 1 if consumed. */
+static int cpp_parse_member_pointer(CType *type, CType **ret)
+{
+    int cls_tok;
+    Sym *class_sym;
+
+    if (!tcc_state->cpp || tok < TOK_IDENT)
+        return 0;
+    cls_tok = tok;
+    next();
+    if (tok != ':') {
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    if (tok != '*') {
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    class_sym = struct_find(cls_tok);
+    if (!class_sym)
+        tcc_error("unknown class in member pointer");
+    mk_member_pointer(type, class_sym, 0);
+    if (ret && *ret == type)
+        *ret = pointed_type(type);
+    return 1;
+}
+
+/* Peek/consume Class::member for &Class::member. */
+static int cpp_parse_qualified_member(int *cls_tok, int *mem_tok)
+{
+    int cls, mem;
+
+    if (!tcc_state->cpp || tok < TOK_IDENT)
+        return 0;
+    cls = tok;
+    next();
+    if (tok != ':') {
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok < TOK_IDENT) {
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    mem = tok;
+    next();
+    *cls_tok = cls;
+    *mem_tok = mem;
+    return 1;
+}
+
+static int cpp_mptr_compatible_class(CType *obj_type, Sym *mptr_class)
+{
+    Sym *s;
+
+    if (!obj_type || !mptr_class)
+        return 0;
+    if ((obj_type->t & VT_BTYPE) != VT_STRUCT || !obj_type->ref)
+        return 0;
+    if (obj_type->ref == mptr_class)
+        return 1;
+    for (s = obj_type->ref->next; s; s = s->next) {
+        if ((s->type.t & VT_BTYPE) == VT_STRUCT
+            && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)
+            && s->parent_class == mptr_class)
+            return 1;
+    }
+    return 0;
+}
+
+static void cpp_emit_mptr_dmp_access(SValue *obj, SValue *pm)
+{
+    CType mem_type;
+    int qualifiers;
+
+    if (!cpp_is_member_pointer(&pm->type) || cpp_is_mptr_to_func(&pm->type))
+        tcc_error("invalid data member pointer");
+    mem_type = *pointed_type(&pm->type);
+    qualifiers = obj->type.t & (VT_CONSTANT | VT_VOLATILE);
+    vpushv(obj);
+    test_lvalue();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushv(pm);
+    if (vtop->r & VT_LVAL)
+        gv(RC_INT);
+    vtop->type = int_type;
+    gen_op('+');
+    vtop->type = mem_type;
+    vtop->type.t |= qualifiers;
+    if (!(vtop->type.t & VT_ARRAY)) {
+        vtop->r |= VT_LVAL;
+#ifdef CONFIG_TCC_BCHECK
+        if (tcc_state->do_bounds_check)
+            vtop->r |= VT_MUSTBOUND;
+#endif
+    }
+}
+
+static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
+{
+    Sym *class_sym, *field, *fsym;
+    CType obj_type;
+    int field_tok;
+
+    if (!cpp_is_member_pointer(&pm->type) || !cpp_is_mptr_to_func(&pm->type))
+        tcc_error("invalid member function pointer");
+    class_sym = cpp_mptr_class(&pm->type);
+    field_tok = pm->type.ref ? pm->type.ref->c : 0;
+    if (!class_sym || !field_tok)
+        tcc_error("invalid member function pointer");
+    if (!cpp_mptr_compatible_class(&obj->type, class_sym))
+        tcc_error("member function pointer class mismatch");
+    field = cpp_lookup_member_field(field_tok, class_sym);
+    if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+        tcc_error("invalid member function pointer");
+    if (field->type.ref && field->type.ref->f.func_virtual)
+        tcc_error("member function pointer to virtual method not supported");
+    obj_type = obj->type;
+    fsym = cpp_lookup_member_func(field, &obj_type);
+    vset(&fsym->type, fsym->r | VT_SYM, 0);
+    vtop->sym = fsym;
+    vtop->r &= ~VT_LVAL;
+    vpushv(obj);
+    test_lvalue();
+    gaddrof();
+    cpp_member_this = *vtop;
+    vpop();
+    cpp_member_this_pending = 1;
+}
+
+/* C++: scan class_sym's member chain for the constructor field (a VT_FUNC
+ * member whose name equals the class name).  Returns the field Sym or NULL.
+ * Used by FEAT-4B to detect `Foo f(args);` ctor-call declarations. */
+static Sym *cpp_find_ctor_field(Sym *class_sym)
+{
+    Sym *f;
+    int class_name_tok;
+
+    if (!class_sym)
+        return NULL;
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        return f;
+    }
+    return NULL;
+}
+
+/* C++: scan class_sym's member chain for the destructor field. */
+static Sym *cpp_find_dtor_field(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_dtor_field(f))
+            continue;
+        return f;
+    }
+    return NULL;
+}
+
+/* FEAT-4E: emit __cpp_dtor_Class(&obj) for a stack local. */
+static void cpp_emit_local_dtor(Sym *obj_sym)
+{
+    Sym *class_sym;
+    Sym *dtor_field;
+    Sym *dtor_global;
+    CType obj_type;
+
+    if (!obj_sym || !tcc_state->cpp)
+        return;
+    if ((obj_sym->type.t & VT_BTYPE) != VT_STRUCT)
+        return;
+    if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
+        return;
+    class_sym = obj_sym->type.ref;
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (!dtor_field)
+        return;
+    obj_type.t = VT_STRUCT;
+    obj_type.ref = class_sym;
+    dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
+    vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+    vtop->sym = dtor_global;
+    vtop->r &= ~VT_LVAL;
+    vset(&obj_sym->type, obj_sym->r, obj_sym->c);
+    gaddrof();
+    gfunc_call(1);
+}
+
+/* FEAT-4E: call dtors for locals declared since bottom (reverse decl order). */
+static void cpp_call_scope_dtors(Sym *bottom)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp || !bottom)
+        return;
+    for (s = local_stack; s != bottom; s = s->prev)
+        cpp_emit_local_dtor(s);
+}
+
+/* FEAT-5A: anonymous embedded base subobject (class D : public Base). */
+static Sym *cpp_get_anon_base_field(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT)
+            continue;
+        if ((f->v & ~SYM_FIELD) < SYM_FIRST_ANOM)
+            continue;
+        if (f->parent_class)
+            return f;
+    }
+    return NULL;
+}
+
+static int cpp_type_has_virtual(Sym *class_sym)
+{
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) == VT_FUNC && f->type.ref
+            && f->type.ref->f.func_virtual)
+            return 1;
+    }
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_type_has_virtual(base_field->parent_class);
+    return 0;
+}
+
+static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        if ((f->v & ~SYM_FIELD) == member_tok)
+            return f;
+    }
+    return NULL;
+}
+
+static int cpp_count_virtual_slots(Sym *class_sym)
+{
+    Sym *f, *base_field;
+    int n, maxslot;
+
+    if (!class_sym)
+        return 0;
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        n = cpp_count_virtual_slots(base_field->parent_class);
+    else
+        n = 0;
+    maxslot = n;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        if (f->c + 1 > maxslot)
+            maxslot = f->c + 1;
+    }
+    return maxslot;
+}
+
+static void cpp_assign_virtual_slots(Sym *class_sym)
+{
+    Sym *base_field, *base_class, *f;
+    int nslots, member_tok;
+
+    if (!class_sym)
+        return;
+    base_field = cpp_get_anon_base_field(class_sym);
+    base_class = base_field ? base_field->parent_class : NULL;
+    nslots = base_class ? cpp_count_virtual_slots(base_class) : 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        member_tok = f->v & ~SYM_FIELD;
+        if (base_class) {
+            Sym *bf = cpp_find_virtual_field_by_name(base_class, member_tok);
+            if (bf) {
+                f->c = bf->c;
+                continue;
+            }
+        }
+        f->c = nslots++;
+    }
+}
+
+static void cpp_insert_vptr_field(Sym *class_sym)
+{
+    Sym *vptr, *first;
+    CType pt;
+
+    if (!class_sym || !cpp_type_has_virtual(class_sym))
+        return;
+    pt.t = VT_VOID | VT_PTR;
+    pt.ref = NULL;
+    vptr = sym_push(anon_sym++ | SYM_FIELD, &pt, 0, 0);
+    vptr->a.access = ACCESS_PRIVATE;
+    first = class_sym->next;
+    vptr->next = first;
+    class_sym->next = vptr;
+}
+
+static Sym *cpp_find_virtual_by_slot(Sym *class_sym, int slot)
+{
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return NULL;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        if (f->c == slot)
+            return f;
+    }
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_find_virtual_by_slot(base_field->parent_class, slot);
+    return NULL;
+}
+
+static Sym *cpp_lookup_virtual_impl(Sym *field)
+{
+    int v;
+    Sym *s, *class_sym;
+
+    if (!field || !field->type.ref)
+        return NULL;
+    class_sym = field->parent_class;
+    if (!class_sym)
+        return NULL;
+    if (cpp_is_ctor_field(field)) {
+        v = cpp_ctor_name_tok(field->v & ~SYM_FIELD);
+        if (!v)
+            return NULL;
+    } else if (cpp_is_dtor_field(field)) {
+        v = cpp_dtor_name_tok(class_sym->v & ~SYM_STRUCT);
+        if (!v)
+            return NULL;
+    } else {
+        v = field->v & ~SYM_FIELD;
+    }
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class == class_sym)
+            return s;
+    }
+    return NULL;
+}
+
+static void cpp_emit_vtable(Sym *class_sym)
+{
+    char buf[256];
+    TokenSym *ts;
+    Sym *vtable_sym, *field, *impl;
+    CType arr_type, fptr_type;
+    AttributeDef ad;
+    Section *sec;
+    unsigned long addr;
+    int nslots, slot, len;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    nslots = cpp_count_virtual_slots(class_sym);
+    if (nslots <= 0)
+        return;
+    len = snprintf(buf, sizeof buf, "__cpp_vtable_%s",
+                   get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return;
+    ts = tok_alloc(buf, len);
+    class_sym->cpp_vtable_tok = ts->tok;
+    fptr_type.t = VT_VOID | VT_PTR;
+    fptr_type.ref = NULL;
+    arr_type.t = VT_PTR | VT_ARRAY;
+    arr_type.ref = sym_push(SYM_FIELD, &fptr_type, 0, nslots);
+    memset(&ad, 0, sizeof ad);
+    vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
+    sec = rodata_section;
+    addr = section_add(sec, (unsigned long)nslots * PTR_SIZE, PTR_SIZE);
+    put_extern_sym(vtable_sym, sec, addr, (unsigned long)nslots * PTR_SIZE);
+    for (slot = 0; slot < nslots; slot++) {
+        field = cpp_find_virtual_by_slot(class_sym, slot);
+        if (!field)
+            continue;
+        impl = cpp_lookup_virtual_impl(field);
+        if (!impl)
+            continue;
+        greloca(sec, impl, addr + (unsigned long)slot * PTR_SIZE, R_DATA_PTR, 0);
+    }
+}
+
+static void cpp_init_local_vptr(Sym *obj_sym)
+{
+    Sym *vtable_sym;
+    CType voidp;
+
+    if (!obj_sym || !obj_sym->type.ref || !obj_sym->type.ref->cpp_vtable_tok)
+        return;
+    if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
+        return;
+    if (nocode_wanted)
+        return;
+    vtable_sym = sym_find(obj_sym->type.ref->cpp_vtable_tok);
+    if (!vtable_sym)
+        return;
+    /* Build a real void* type (mk_pointer allocates ->ref; a NULL ref would
+     * crash later passes that dereference pointed_type). */
+    voidp.t = VT_VOID;
+    voidp.ref = NULL;
+    mk_pointer(&voidp);
+    /* vstore() expects vtop[-1] = destination lvalue, vtop = source value.
+     * The vptr lives at object offset 0, so its slot address is obj_sym->c. */
+    vset(&voidp, VT_LOCAL | VT_LVAL, obj_sym->c);   /* destination */
+    vpushsym(&voidp, vtable_sym);                    /* value = &vtable */
+    vstore();
+    vpop();
+}
+
+/* FEAT-5A Phase 4: static vptr init for global/static polymorphic objects. */
+static void cpp_init_global_vptr(Sym *obj_sym, Section *sec, unsigned long addr)
+{
+    Sym *vtable_sym;
+
+    if (!obj_sym || !obj_sym->type.ref || !obj_sym->type.ref->cpp_vtable_tok)
+        return;
+    if (!sec || sec == common_section || NODATA_WANTED)
+        return;
+    vtable_sym = sym_find(obj_sym->type.ref->cpp_vtable_tok);
+    if (!vtable_sym)
+        return;
+    greloca(sec, vtable_sym, addr, R_DATA_PTR, 0);
+}
+
+/* Load virtual member fn from vtable[slot]; leaves a function-pointer
+ * lvalue on vtop (the standard `fp()` representation, so the call handler
+ * performs an indirect call), and stores 'this' in cpp_member_this so it is
+ * injected as the implicit first argument.
+ *
+ * Pointer levels (T = the member function type, fn-ptr = T(*)()):
+ *   fnptr_t   = T(*)()     one vtable entry
+ *   fnptr_pp  = T(**)()    the vptr (points at the fn-ptr array)
+ *   fnptr_ppp = T(***)()   'this' reinterpreted (points at the vptr slot)
+ *
+ * NB: tcc's indir() dereferences vtop->type.ref unconditionally, so every
+ * pointer type fed to it must be built with mk_pointer (a NULL ref crashes
+ * the compiler). */
+static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
+{
+    CType fnptr_t, fnptr_pp, fnptr_ppp;
+    int slot;
+
+    if (!field || !field->type.ref || !field->type.ref->f.func_virtual)
+        return;
+    slot = field->c;
+    test_lvalue();
+    gaddrof();
+    cpp_member_this = *vtop;
+    vpop();
+
+    fnptr_t = field->type;          /* T()       -> */
+    mk_pointer(&fnptr_t);           /* T(*)()       */
+    fnptr_pp = fnptr_t;
+    mk_pointer(&fnptr_pp);          /* T(**)()      */
+    fnptr_ppp = fnptr_pp;
+    mk_pointer(&fnptr_ppp);         /* T(***)()     */
+
+    /* this -> &vptr, load vptr */
+    vpushv(&cpp_member_this);
+    vtop->type = fnptr_ppp;
+    vtop->r &= ~VT_LVAL;
+    indir();                        /* lvalue T(**)() == vptr storage */
+    /* index the vtable: typed pointer arithmetic scales slot by PTR_SIZE */
+    vpushi(slot);
+    gen_op('+');                    /* T(**)() rvalue == &vtable[slot] */
+    indir();                        /* lvalue T(*)() == vtable[slot]    */
+
+    /* This is an indirect (function-pointer) call, not a named function:
+     * clear the leftover .sym copied from 'this' so the call handler's C++
+     * overload-resolution path does not dereference a stale Sym. */
+    vtop->sym = NULL;
+    cpp_member_this_pending = 1;
+}
+
+/* FEAT-4C: peek `Class::Class(` at file/block scope without consuming
+ * the stream.  Returns 1 and sets *class_tok when matched. */
+static int cpp_peek_out_of_class_ctor(int *class_tok)
+{
+    int cls, mem;
+
+    if (!tcc_state->cpp || tok < TOK_IDENT || !class_tok)
+        return 0;
+    cls = tok;
+    if (!struct_find(cls))
+        return 0;
+    next();
+    if (tok != ':') {
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    mem = tok;
+    if (mem != cls) {
+        unget_tok(mem);
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok != '(') {
+        unget_tok(mem);
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    unget_tok(mem);
+    unget_tok(':');
+    unget_tok(':');
+    unget_tok(cls);
+    *class_tok = cls;
+    return 1;
+}
+
 static void cpp_push_member_var(Sym *field)
 {
     int cumofs, qualifiers;
@@ -560,6 +1214,75 @@ static void cpp_push_member_var(Sym *field)
     vtop->type.t |= qualifiers;
     if (!(vtop->type.t & VT_ARRAY))
         vtop->r |= VT_LVAL;
+}
+
+/* FEAT-4D: find embedded base subobject field in a derived class by base
+ * class name token (matches anonymous base from `class D : public Base`). */
+static Sym *cpp_find_base_field(Sym *derived_class, int base_name_tok)
+{
+    Sym *f;
+    Sym *bc;
+
+    if (!derived_class)
+        return NULL;
+    for (f = derived_class->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT)
+            continue;
+        bc = f->type.ref;
+        if (!bc)
+            continue;
+        if ((bc->v & ~SYM_STRUCT) == base_name_tok)
+            return f;
+    }
+    return NULL;
+}
+
+/* FEAT-4D: emit `Base(args)` in a derived ctor mem-initializer list as a
+ * call to __cpp_ctor_Base(&base_subobject, args).  tok is at the first
+ * token inside `(`.  Consumes through the closing `)`. */
+static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
+{
+    Sym *ctor_field;
+    Sym *ctor_global;
+    CType base_type;
+    int nb_args;
+    int na;
+    SValue base_this;
+
+    if (!base_field || !base_class || !cpp_this_sym)
+        return;
+    ctor_field = cpp_find_ctor_field(base_class);
+    if (!ctor_field)
+        tcc_error("no constructor for base class");
+    base_type.t = VT_STRUCT;
+    base_type.ref = base_class;
+    ctor_global = cpp_lookup_member_func(ctor_field, &base_type);
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    nb_args = 0;
+    while (tok != ')' && tok != TOK_EOF) {
+        expr_eq();
+        nb_args++;
+        if (tok == ',')
+            next();
+    }
+    na = nb_args;
+    cpp_push_member_var(base_field);
+    gaddrof();
+    base_this = *vtop;
+    vpop();
+    if (na == 0) {
+        vpushv(&base_this);
+        nb_args = 1;
+    } else {
+        vtop++;
+        nb_args = na + 1;
+        memmove(vtop - nb_args + 2, vtop - nb_args + 1,
+            na * sizeof(SValue));
+        vtop[-nb_args + 1] = base_this;
+    }
+    gfunc_call(nb_args);
 }
 
 static void cpp_save_default_arg(Sym *param)
@@ -642,6 +1365,10 @@ static void cpp_finish_member_inlines(Sym *class_sym)
          * (See cpp_lookup_member_func for the matching lookup path.) */
         if (cpp_is_ctor_field(f)) {
             global_tok = cpp_ctor_name_tok(f->v & ~SYM_FIELD);
+            if (!global_tok)
+                global_tok = f->v & ~SYM_FIELD;  /* fallback */
+        } else if (cpp_is_dtor_field(f)) {
+            global_tok = cpp_dtor_name_tok(f->parent_class->v & ~SYM_STRUCT);
             if (!global_tok)
                 global_tok = f->v & ~SYM_FIELD;  /* fallback */
         } else {
@@ -1779,6 +2506,8 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_ctor = 1;
     if (fa1->func_dtor)
         fa->func_dtor = 1;
+    if (fa1->func_virtual)
+        fa->func_virtual = 1;
 }
 
 /* �������}�[�W���� */
@@ -3459,6 +4188,15 @@ static int compare_types(CType* type1, CType* type2, int unqualified)
     /* test more complicated cases */
     bt1 = t1 & VT_BTYPE;
     if (bt1 == VT_PTR) {
+        if ((t1 & VT_MPTR) != (t2 & VT_MPTR))
+            return 0;
+        if (t1 & VT_MPTR) {
+            Sym *c1, *c2;
+            c1 = type1->ref ? type1->ref->parent_class : NULL;
+            c2 = type2->ref ? type2->ref->parent_class : NULL;
+            if (c1 != c2)
+                return 0;
+        }
         type1 = pointed_type(type1);
         type2 = pointed_type(type2);
         return is_compatible_types(type1, type2);
@@ -4235,6 +4973,11 @@ static void verify_assign_cast(CType* dt)
             type2 = st; /* a function is implicitly a function pointer */
         else
             goto error;
+        /* FEAT-5B: propagate PMF field token before compatible-types break */
+        if ((dt->t & VT_MPTR) && (st->t & VT_MPTR)
+            && cpp_is_mptr_to_func(dt) && st->ref && st->ref->c
+            && dt->ref && !dt->ref->c)
+            dt->ref->c = st->ref->c;
         if (is_compatible_types(type1, type2))
             break;
         for (qualwarn = lvl = 0;; ++lvl) {
@@ -4306,6 +5049,12 @@ ST_FUNC void vstore(void)
     sbt = vtop->type.t & VT_BTYPE;
     dbt = ft & VT_BTYPE;
     verify_assign_cast(&vtop[-1].type);
+    if (vtop[-1].sym && (vtop[-1].type.t & VT_MPTR)
+        && vtop[-1].type.ref && vtop->type.ref && vtop->type.ref->c
+        && vtop[-1].type.ref->c != vtop->type.ref->c) {
+        vtop[-1].type.ref->c = vtop->type.ref->c;
+        vtop[-1].sym->type.ref->c = vtop->type.ref->c;
+    }
 
     if (sbt == VT_STRUCT) {
         /* if structure, only generate pointer */
@@ -4772,15 +5521,26 @@ static void check_fields(CType* type, int check)
     Sym* s = type->ref;
 
     while ((s = s->next) != NULL) {
-        int v = s->v & ~SYM_FIELD;
+        int v;
+        /* C++: ctors/dtors are VT_FUNC members named after the class.
+         * XORing SYM_FIELD onto that class token breaks later uses of
+         * the class as a type (e.g. `Base *p` after `class D : public B`). */
+        if (tcc_state->cpp && (s->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        v = s->v & ~SYM_FIELD;
         if (v < SYM_FIRST_ANOM) {
             TokenSym* ts = table_ident[v - TOK_IDENT];
             if (check && (ts->tok & SYM_FIELD))
                 tcc_error("�����o '%s' ���d�����Ă��܂�", get_tok_str(v, NULL));
             ts->tok ^= SYM_FIELD;
         }
-        else if ((s->type.t & VT_BTYPE) == VT_STRUCT)
+        else if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+            /* C++: embedded base subobjects were validated when the base
+             * class was defined; do not recurse into them again. */
+            if (tcc_state->cpp && s->parent_class)
+                continue;
             check_fields(&s->type, check);
+        }
     }
 }
 
@@ -5220,6 +5980,7 @@ do_decl:
             while (tok != '}') {
                 int skip_member_semi = 0;
                 int is_ctor_decl = 0;
+                int is_dtor_decl = 0;
                 if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED) {
                     cur_access = (tok == TOK_PUBLIC) ? ACCESS_PUBLIC :
                                  (tok == TOK_PROTECTED) ? ACCESS_PROTECTED : ACCESS_PRIVATE;
@@ -5243,7 +6004,26 @@ do_decl:
                     }
                     unget_tok(saved);
                 }
-                if (!is_ctor_decl && !parse_btype(&btype, &ad1, 0)) {
+                /* C++: `~Class(` is a destructor declaration with omitted
+                 * return type (same pattern as ctor above). */
+                if (tcc_state->cpp && is_class && tok == '~') {
+                    int saved;
+                    next();
+                    if (struct_find(tok) == s) {
+                        saved = tok;
+                        next();
+                        if (tok == '(') {
+                            is_dtor_decl = 1;
+                            btype.t = VT_VOID;
+                            btype.ref = NULL;
+                            memset(&ad1, 0, sizeof ad1);
+                        }
+                        unget_tok(saved);
+                    } else {
+                        unget_tok('~');
+                    }
+                }
+                if (!is_ctor_decl && !is_dtor_decl && !parse_btype(&btype, &ad1, 0)) {
                     if (tok == TOK_STATIC_ASSERT) {
                         do_Static_assert();
                         continue;
@@ -5261,6 +6041,12 @@ do_decl:
                     if (tok != ':') {
                         if (tok != ';')
                             type_decl(&type1, &ad1, &v, TYPE_DIRECT);
+                        if (is_dtor_decl) {
+                            int dtor_fld = cpp_dtor_field_tok(s->v & ~SYM_STRUCT);
+                            if (!dtor_fld)
+                                tcc_error("internal dtor field name failed");
+                            v = dtor_fld;
+                        }
                         if (v == 0) {
                             if ((type1.t & VT_BTYPE) != VT_STRUCT)
                                 expect("identifier");
@@ -5281,7 +6067,8 @@ do_decl:
                         }
                         /* Stage 1: member function prototypes allowed in class only; struct in Stage 2+ */
                         if (((type1.t & VT_BTYPE) == VT_FUNC && !is_class) ||
-                            (type1.t & VT_BTYPE) == VT_VOID ||
+                            ((type1.t & VT_BTYPE) == VT_VOID
+                                && !is_ctor_decl && !is_dtor_decl) ||
                             ((type1.t & VT_STORAGE) && !(is_class && (type1.t & VT_STATIC))))
                             tcc_error("'%s' �ɑ΂��閳���Ȍ^",
                                 get_tok_str(v, NULL));
@@ -5347,7 +6134,8 @@ do_decl:
                         *ps = ss;
                         ps = &ss->next;
                         {
-                            int is_ctor = is_class && v && (v == (s->v & ~SYM_STRUCT))
+                            int is_ctor = is_class && !is_dtor_decl && v
+                                && (v == (s->v & ~SYM_STRUCT))
                                 && (type1.t & VT_BTYPE) == VT_FUNC;
                             if (is_ctor && tok == ':')
                                 cpp_save_mem_init_list(ss);
@@ -5379,6 +6167,10 @@ do_decl:
             }
             check_fields(type, 1);
             check_fields(type, 0);
+            if (is_class && tcc_state->cpp) {
+                cpp_assign_virtual_slots(s);
+                cpp_insert_vptr_field(s);
+            }
             struct_layout(type, &ad);
             if (is_class) {
                 int tag_v;
@@ -5395,6 +6187,7 @@ do_decl:
                 /* Convert in-class inline bodies into real global functions
                  * (registered via inline_fns) so member calls can link. */
                 cpp_finish_member_inlines(s);
+                cpp_emit_vtable(s);
                 cpp_cur_class = NULL;
             }
         }
@@ -5619,6 +6412,12 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             t |= VT_INLINE;
             next();
             break;
+        case TOK_VIRTUAL:
+            if (!tcc_state->cpp)
+                tcc_error("virtual requires C++");
+            ad->f.func_virtual = 1;
+            next();
+            break;
         case TOK_NORETURN3:
             next();
             ad->f.func_noreturn = 1;
@@ -5650,7 +6449,20 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 goto the_end;
             s = sym_find(tok);
             if (tcc_state->cpp) {
-                Sym *stsym = struct_find(tok);
+                int cls_tok_lookup = tok & ~SYM_FIELD;
+                Sym *stsym = struct_find(cls_tok_lookup);
+                if (!stsym && s) {
+                    Sym *ts;
+                    for (ts = s; ts; ts = ts->prev_tok) {
+                        if (ts->type.t & VT_TYPEDEF && ts->type.ref)
+                            stsym = ts->type.ref;
+                        else if ((ts->v & SYM_STRUCT)
+                            && (ts->type.t & VT_BTYPE) == VT_STRUCT)
+                            stsym = ts;
+                        if (stsym)
+                            break;
+                    }
+                }
                 if (stsym && (stsym->type.t & VT_BTYPE) == VT_STRUCT) {
                     int cls_tok = tok;
                     next();
@@ -5664,7 +6476,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                         }
                         unget_tok(':');
                     }
-                    type->t = stsym->type.t;
+                    type->t = stsym->type.t | (t & VT_STORAGE);
                     type->ref = stsym;
                     typespec_found = 1;
                     st = bt = -2;
@@ -5990,6 +6802,8 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
     type->t &= ~VT_STORAGE;
     post = ret = type;
 
+    while (tcc_state->cpp && cpp_parse_member_pointer(type, &ret))
+        ;
     while (tok == '&') {
         if (!tcc_state->cpp)
             tcc_error("reference type requires C++");
@@ -6516,6 +7330,38 @@ tok_next:
         break;
     case '&':
         next();
+        if (tcc_state->cpp) {
+            int cls_tok, mem_tok;
+            Sym *class_sym, *field, *fsym;
+            CType ct, mpt;
+            int cumofs;
+
+            if (cpp_parse_qualified_member(&cls_tok, &mem_tok)) {
+                class_sym = struct_find(cls_tok);
+                if (!class_sym)
+                    tcc_error("unknown class in member pointer");
+                ct.t = VT_STRUCT;
+                ct.ref = class_sym;
+                field = find_field(&ct, mem_tok, &cumofs);
+                if ((field->type.t & VT_BTYPE) == VT_FUNC) {
+                    if (field->type.ref && field->type.ref->f.func_virtual)
+                        tcc_error("member function pointer to virtual method not supported");
+                    fsym = cpp_lookup_member_func(field, &ct);
+                    mpt = field->type;
+                    mk_member_pointer(&mpt, class_sym, mem_tok);
+                    vset(&mpt, fsym->r | VT_SYM, 0);
+                    vtop->sym = fsym;
+                    vtop->c.i = 0;
+                    vtop->r &= ~VT_LVAL;
+                } else {
+                    mpt = field->type;
+                    mk_member_pointer(&mpt, class_sym, mem_tok);
+                    vset(&mpt, VT_CONST, 0);
+                    vtop->c.i = cumofs;
+                }
+                break;
+            }
+        }
         unary();
         /* functions names must be treated as function pointers,
            except for unary '&' and sizeof. Since we consider that
@@ -6960,8 +7806,53 @@ tok_next:
             qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
             test_lvalue();
             next();
+            if (tcc_state->cpp && tok == '*') {
+                SValue obj, pm;
+
+                next();
+                obj = *vtop;
+                vpop();
+                unary();
+                pm = *vtop;
+                vpop();
+                if (!cpp_is_member_pointer(&pm.type))
+                    tcc_error("invalid member pointer");
+                if (!cpp_mptr_compatible_class(&obj.type, cpp_mptr_class(&pm.type)))
+                    tcc_error("member pointer class mismatch");
+                if (cpp_is_mptr_to_func(&pm.type))
+                    cpp_emit_mptr_pmf_invoke(&obj, &pm);
+                else
+                    cpp_emit_mptr_dmp_access(&obj, &pm);
+            } else if (tcc_state->cpp && tok == '~') {
+                Sym *class_sym;
+                Sym *fsym;
+
+                next();
+                if (!vtop->type.ref
+                    || (vtop->type.t & VT_BTYPE) != VT_STRUCT
+                    || tok != (vtop->type.ref->v & ~SYM_STRUCT))
+                    expect("destructor name");
+                class_sym = vtop->type.ref;
+                field = cpp_find_dtor_field(class_sym);
+                if (!field)
+                    tcc_error("no destructor for class");
+                obj_type = vtop->type;
+                gaddrof();
+                cpp_member_this = *vtop;
+                vpop();
+                fsym = cpp_lookup_member_func(field, &obj_type);
+                vset(&fsym->type, fsym->r | VT_SYM, 0);
+                vtop->sym = fsym;
+                vtop->r &= ~VT_LVAL;
+                cpp_member_this_pending = 1;
+                next();
+            } else {
             field = find_field(&vtop->type, tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
+                if (field->type.ref && field->type.ref->f.func_virtual) {
+                    obj_type = vtop->type;
+                    cpp_prepare_virtual_member_call(field, &obj_type);
+                } else {
                 Sym *fsym;
 
                 obj_type = vtop->type;
@@ -6973,6 +7864,7 @@ tok_next:
                 vtop->sym = fsym;
                 vtop->r &= ~VT_LVAL;
                 cpp_member_this_pending = 1;
+                }
             } else {
                 gaddrof();
                 vtop->type = char_pointer_type;
@@ -6989,6 +7881,7 @@ tok_next:
                 }
             }
             next();
+            }
         }
         else if (tcc_state->cpp && tok == ':') {
             Sym *class_sym, *ss;
@@ -7964,6 +8857,8 @@ static void prev_scope(struct scope* o, int is_expr)
        tables, though.  sym_pop will do that.  */
 
        /* pop locally defined symbols */
+    if (tcc_state->cpp && !is_expr)
+        cpp_call_scope_dtors(o->lstk);
     pop_local_syms(o->lstk, is_expr);
     cur_scope = o->prev;
     --local_scope;
@@ -9119,6 +10014,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
     int bcheck = tcc_state->do_bounds_check && !NODATA_WANTED;
 #endif
     init_params p = { 0 };
+    int cpp_needs_vptr = 0;
 
     /* Always allocate static or global variables */
     if (v && (r & VT_VALMASK) == VT_CONST)
@@ -9234,6 +10130,13 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             }
 #endif
             sym = sym_push(v, type, r, addr);
+            /* FEAT-5A: initialize the vptr of a local polymorphic object so
+             * virtual calls dispatch through a valid vtable. */
+            if (tcc_state->cpp
+                && (type->t & VT_BTYPE) == VT_STRUCT
+                && type->ref
+                && type->ref->cpp_vtable_tok)
+                cpp_init_local_vptr(sym);
             if (ad->cleanup_func) {
                 Sym* cls = sym_push2(&all_cleanups,
                     SYM_FIELD | ++cur_scope->cl.n, 0, 0);
@@ -9252,6 +10155,9 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
     }
     else {
         sym = NULL;
+        cpp_needs_vptr = tcc_state->cpp && v && global
+            && (type->t & VT_BTYPE) == VT_STRUCT && type->ref
+            && type->ref->cpp_vtable_tok;
         if (v && global) {
             /* see if the symbol was already defined */
             sym = sym_find(v);
@@ -9280,7 +10186,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             if (tp->t & VT_CONSTANT) {
                 sec = rodata_section;
             }
-            else if (has_init) {
+            else if (has_init || cpp_needs_vptr) {
                 sec = data_section;
                 /*if (g_debug & 4)
                     tcc_warning("rw data: %s", get_tok_str(v, 0));*/
@@ -9309,6 +10215,14 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             }
             /* update symbol definition */
             put_extern_sym(sym, sec, addr, size);
+            /* FEAT-5A Phase 4: wire vptr slot for global polymorphic objects.
+             * Phase 4: vptr reloc in data section (needs_vptr forces .data). */
+            if (tcc_state->cpp
+                && (type->t & VT_BTYPE) == VT_STRUCT
+                && type->ref
+                && type->ref->cpp_vtable_tok) {
+                cpp_init_global_vptr(sym, sec, addr);
+            }
         }
         else {
             /* push global reference */
@@ -9483,8 +10397,8 @@ static void gen_function(Sym* sym)
 
     /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
      * the ctor sym into `this->a = x; this->b = y;` instructions before the
-     * body runs.  Base-class initializers and unknown names are skipped for
-     * now (Stage 4 limitation). */
+     * body runs.  Base-class initializers call __cpp_ctor_Base on the
+     * embedded base subobject (FEAT-4D). */
     if (tcc_state->cpp && sym->cpp_mem_init_list
         && cpp_this_sym && sym->parent_class) {
         TokenString *init_copy = tok_str_dup_for_default(sym->cpp_mem_init_list);
@@ -9495,6 +10409,7 @@ static void gen_function(Sym* sym)
             while (tok != TOK_EOF) {
                 int member_tok;
                 Sym *member_field;
+                Sym *base_field;
 
                 if (tok < TOK_IDENT)
                     expect("identifier");
@@ -9516,15 +10431,21 @@ static void gen_function(Sym* sym)
                         vpop();
                     }
                 } else {
-                    /* Base class initializer or unknown name: skip expr. */
-                    int paren = 0;
-                    while (tok != TOK_EOF) {
-                        if (tok == '(') paren++;
-                        else if (tok == ')') {
-                            if (paren == 0) break;
-                            paren--;
+                    base_field = cpp_find_base_field(class_sym, member_tok);
+                    if (base_field && base_field->type.ref) {
+                        cpp_emit_base_ctor_call(base_field,
+                                                base_field->type.ref);
+                    } else {
+                        /* unknown name: skip expr. */
+                        int paren = 0;
+                        while (tok != TOK_EOF) {
+                            if (tok == '(') paren++;
+                            else if (tok == ')') {
+                                if (paren == 0) break;
+                                paren--;
+                            }
+                            next();
                         }
-                        next();
                     }
                 }
 
@@ -9650,7 +10571,7 @@ static void do_Static_assert(void)
    or VT_JMP if parsing c99 for decl: for (int i = 0, ...) */
 static int decl(int l)
 {
-    int v, has_init, r, oldint;
+    int v, has_init, r, oldint, ooc_cls;
     CType type, btype;
     Sym* sym;
     AttributeDef ad, adbase;
@@ -9700,7 +10621,15 @@ static int decl(int l)
         }
 
         oldint = 0;
-        if (!parse_btype(&btype, &adbase, l == VT_LOCAL)) {
+        ooc_cls = 0;
+        if (tcc_state->cpp && cpp_peek_out_of_class_ctor(&ooc_cls)) {
+            btype.t = VT_VOID;
+            btype.ref = NULL;
+            memset(&adbase, 0, sizeof adbase);
+            cpp_qualified_class = struct_find(ooc_cls);
+            if (!cpp_qualified_class)
+                tcc_error("unknown class in qualified name");
+        } else if (!parse_btype(&btype, &adbase, l == VT_LOCAL)) {
             if (l == VT_JMP)
                 return 0;
             /* skip redundant ';' if not in old parameter decl scope */
@@ -9786,6 +10715,54 @@ static int decl(int l)
         while (1) { /* iterate thru each declaration */
             type = btype;
             ad = adbase;
+            /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
+               Only in C++ mode, when the base type is a class with a
+               constructor, we are in a local scope, and an identifier is
+               directly followed by '('. The variable is allocated like a
+               plain `Foo f;` and `Foo f(args)` is rewritten into the
+               existing member-call path `f.Foo(args)` via token unget. */
+            if (tcc_state->cpp
+                && l == VT_LOCAL
+                && (btype.t & VT_BTYPE) == VT_STRUCT
+                && btype.ref
+                && tok >= TOK_UIDENT
+                && cpp_find_ctor_field(btype.ref)) {
+                int saved_var_tok = tok;
+                next();
+                if (tok == '(') {
+                    next(); /* peek first token inside the parens */
+                    if (tok != ')') {
+                        /* `Foo f(args);` -> `f.Foo(args);` */
+                        Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                        int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                        decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                                               0, saved_var_tok, 0);
+                        /* Rebuild the stream `var . Ctor ( <args...> )`.
+                           unget is LIFO and saves the current tok (the first
+                           argument), so push in reverse so next() yields
+                           var_tok, '.', ctor_tok, '(', first_arg, ... */
+                        unget_tok('(');
+                        unget_tok(ctor_tok_v);
+                        unget_tok('.');
+                        unget_tok(saved_var_tok);
+                        expr_eq();
+                        vpop();
+                        if (tok == ',') {
+                            next();
+                            continue;
+                        }
+                        skip(';');
+                        break;
+                    }
+                    /* `Foo f();` is a function declaration (most vexing
+                       parse): restore the stream and fall through. */
+                    unget_tok('(');
+                    unget_tok(saved_var_tok);
+                } else {
+                    unget_tok(saved_var_tok);
+                }
+            }
+
             type_decl(&type, &ad, &v, TYPE_DIRECT);
 #if 0
             {
@@ -9850,7 +10827,13 @@ static int decl(int l)
                 }
             }
 #endif
-            if (tok == '{') {
+            if (tok == '{'
+                || (tcc_state->cpp && tok == ':'
+                    && (type.t & VT_BTYPE) == VT_FUNC
+                    && cpp_qualified_class)) {
+                Sym *qclass;
+                int sym_tok;
+
                 if (l != VT_CONST)
                     tcc_error("���[�J���֐����g�p�ł��܂���");
                 if ((type.t & VT_BTYPE) != VT_FUNC)
@@ -9871,14 +10854,24 @@ static int decl(int l)
 
                 /* put function symbol */
                 type.t &= ~VT_EXTERN;
-                sym = external_sym(v, &type, 0, &ad);
+                qclass = cpp_qualified_class;
+                sym_tok = v;
+                if (qclass
+                    && (v & ~SYM_FIELD) == (qclass->v & ~SYM_STRUCT)) {
+                    int ct = cpp_ctor_name_tok(v & ~SYM_FIELD);
+                    if (ct)
+                        sym_tok = ct;
+                }
+                sym = external_sym(sym_tok, &type, 0, &ad);
                 if ((type.t & VT_BTYPE) == VT_FUNC)
                     cpp_set_func_mangle_label(sym, &type);
-                if (cpp_qualified_class) {
-                    sym->parent_class = cpp_qualified_class;
+                if (qclass) {
+                    sym->parent_class = qclass;
                     cpp_inherit_decl_defaults(sym);
                     cpp_qualified_class = NULL;
                 }
+                if (tok == ':')
+                    cpp_save_mem_init_list(sym);
 
                 /* static inline functions are just recorded as a kind
                    of macro. Their code will be emitted at the end of
