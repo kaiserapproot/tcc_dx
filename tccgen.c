@@ -5594,7 +5594,7 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
         if (v < TOK_UIDENT)
             expect("field name");
         if (class_sym->c < 0)
-            tcc_error("�s���S�^ '%s' �̎Q�Ɖ���",
+            tcc_error("incomplete type '%s'",
                 get_tok_str(class_sym->v & ~SYM_STRUCT, 0));
     }
     obj_const = (type->t & VT_CONSTANT) ? 1 : 0;
@@ -5604,10 +5604,13 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
             if ((s->type.t & VT_BTYPE) == VT_FUNC) {
-                if (cpp_field_is_const(s))
-                    const_match = s;
-                else
-                    nonconst_match = s;
+                if (cpp_field_is_const(s)) {
+                    if (!const_match)
+                        const_match = s;
+                } else {
+                    if (!nonconst_match)
+                        nonconst_match = s;
+                }
             } else {
                 *cumofs = s->c;
                 return s;
@@ -5618,7 +5621,9 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
             && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
             ret = cpp_find_field_for_call(&s->type, v1, cumofs);
             if (ret) {
-                *cumofs += s->c;
+                /* cumofs is unused for VT_FUNC calls; only adjust for data members */
+                if ((ret->type.t & VT_BTYPE) != VT_FUNC)
+                    *cumofs += s->c;
                 return ret;
             }
         }
@@ -5627,7 +5632,7 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
     if (ret)
         return ret;
     if (!(v & SYM_FIELD))
-        tcc_error("�t�B�[���h��������܂���: %s", get_tok_str(v, NULL));
+        tcc_error("field not found: %s", get_tok_str(v, NULL));
     return NULL;
 }
 
