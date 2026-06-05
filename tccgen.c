@@ -262,6 +262,10 @@ static int cpp_build_func_mangle(int v, CType *type, char *mbuf, int buf_size)
             break;
         mangle_append_type(&arg->type, mbuf, buf_size, &pos);
     }
+    if (type->ref->f.func_const) {
+        mangle_append_char(mbuf, buf_size, &pos, '_');
+        mangle_append_char(mbuf, buf_size, &pos, 'C');
+    }
     mangle_clamp_pos(buf_size, &pos);
     mbuf[pos] = '\0';
     return pos;
@@ -621,11 +625,19 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     } else {
         v = field->v & ~SYM_FIELD;
     }
-    for (s = sym_find(v); s; s = s->prev_tok) {
-        if ((s->type.t & VT_BTYPE) != VT_FUNC)
-            continue;
-        if (s->parent_class == class_sym)
+    {
+        int want_const;
+
+        want_const = field->type.ref && field->type.ref->f.func_const;
+        for (s = sym_find(v); s; s = s->prev_tok) {
+            if ((s->type.t & VT_BTYPE) != VT_FUNC)
+                continue;
+            if (s->parent_class != class_sym)
+                continue;
+            if (!!(s->type.ref && s->type.ref->f.func_const) != !!want_const)
+                continue;
             return s;
+        }
     }
     return field;
 }
@@ -2562,6 +2574,8 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_dtor = 1;
     if (fa1->func_virtual)
         fa->func_virtual = 1;
+    if (fa1->func_const)
+        fa->func_const = 1;
 }
 
 /* �������}�[�W���� */
@@ -4185,6 +4199,8 @@ static int is_compatible_func(CType* type1, CType* type2)
     s2 = type2->ref;
     if (s1->f.func_call != s2->f.func_call)
         return 0;
+    if (s1->f.func_const != s2->f.func_const)
+        return 0;
     if (s1->f.func_type != s2->f.func_type
         && s1->f.func_type != FUNC_OLD
         && s2->f.func_type != FUNC_OLD)
@@ -5537,6 +5553,84 @@ redo:
     goto redo;
 }
 
+static int cpp_field_is_const(Sym *field)
+{
+    return field && field->type.ref && field->type.ref->f.func_const;
+}
+
+static Sym *cpp_pick_func_field(Sym *const_match, Sym *nonconst_match,
+                                int obj_const, int *cumofs)
+{
+    if (obj_const) {
+        if (const_match) {
+            *cumofs = const_match->c;
+            return const_match;
+        }
+        tcc_error("const object requires const member function");
+    }
+    if (nonconst_match) {
+        *cumofs = nonconst_match->c;
+        return nonconst_match;
+    }
+    if (const_match) {
+        *cumofs = const_match->c;
+        return const_match;
+    }
+    return NULL;
+}
+
+/* C++: find class member for call; resolves get() vs get() const overloads. */
+static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
+{
+    Sym *s, *class_sym;
+    Sym *const_match, *nonconst_match, *ret;
+    int v1, obj_const;
+
+    class_sym = type->ref;
+    v1 = v | SYM_FIELD;
+    if (!(v & SYM_FIELD)) {
+        if ((type->t & VT_BTYPE) != VT_STRUCT)
+            expect("struct or union");
+        if (v < TOK_UIDENT)
+            expect("field name");
+        if (class_sym->c < 0)
+            tcc_error("�s���S�^ '%s' �̎Q�Ɖ���",
+                get_tok_str(class_sym->v & ~SYM_STRUCT, 0));
+    }
+    obj_const = (type->t & VT_CONSTANT) ? 1 : 0;
+    const_match = NULL;
+    nonconst_match = NULL;
+    s = class_sym;
+    while ((s = s->next) != NULL) {
+        if (s->v == v1) {
+            if ((s->type.t & VT_BTYPE) == VT_FUNC) {
+                if (cpp_field_is_const(s))
+                    const_match = s;
+                else
+                    nonconst_match = s;
+            } else {
+                *cumofs = s->c;
+                return s;
+            }
+            continue;
+        }
+        if ((s->type.t & VT_BTYPE) == VT_STRUCT
+            && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
+            ret = cpp_find_field_for_call(&s->type, v1, cumofs);
+            if (ret) {
+                *cumofs += s->c;
+                return ret;
+            }
+        }
+    }
+    ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
+    if (ret)
+        return ret;
+    if (!(v & SYM_FIELD))
+        tcc_error("�t�B�[���h��������܂���: %s", get_tok_str(v, NULL));
+    return NULL;
+}
+
 static Sym* find_field(CType* type, int v, int* cumofs)
 {
     Sym* s = type->ref;
@@ -5704,7 +5798,7 @@ static int cpp_try_member_binop(int op_tok)
 
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
-    field = find_field(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs);
+    field = cpp_find_field_for_call(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs);
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         return 0;
     if (field->type.ref && field->type.ref->f.func_virtual)
@@ -6846,6 +6940,11 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
             /* if no parameters, then old type prototype */
             l = FUNC_OLD;
         skip(')');
+        if (tcc_state->cpp
+            && (tok == TOK_CONST1 || tok == TOK_CONST2 || tok == TOK_CONST3)) {
+            next();
+            ad->f.func_const = 1;
+        }
         /* remove parameter symbols from token table, keep on stack */
         if (first) {
             sym_pop(local_stack ? &local_stack : &global_stack, first->prev, 1);
@@ -8066,7 +8165,7 @@ tok_next:
                 mem_tok = cpp_operator_field_tok(cpp_parse_operator_token());
                 operator_name = 1;
             }
-            field = find_field(&vtop->type, mem_tok, &cumofs);
+            field = cpp_find_field_for_call(&vtop->type, mem_tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
                 if (field->type.ref && field->type.ref->f.func_virtual) {
                     obj_type = vtop->type;
@@ -10575,6 +10674,8 @@ static void gen_function(Sym* sym)
         CType pt;
 
         pt.t = VT_PTR;
+        if (sym->type.ref->f.func_const)
+            pt.t |= VT_CONSTANT;
         pt.ref = sym->parent_class;
         this_param = sym_malloc();
         this_param->v = TOK_THIS;
