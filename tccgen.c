@@ -523,6 +523,60 @@ static int cpp_dtor_name_tok(int class_tok)
     return ts->tok;
 }
 
+/* FEAT-6A: operator overload helpers */
+static const char *cpp_operator_suffix(int op_tok)
+{
+    switch (op_tok) {
+    case '+': return "plus";
+    case '-': return "minus";
+    case '*': return "mul";
+    case '/': return "div";
+    default:
+        return NULL;
+    }
+}
+
+static int cpp_operator_field_tok(int op_tok)
+{
+    char buf[64];
+    int len;
+    TokenSym *ts;
+    const char *suffix;
+
+    suffix = cpp_operator_suffix(op_tok);
+    if (!suffix)
+        return 0;
+    len = snprintf(buf, sizeof buf, "__cpp_op_%s", suffix);
+    if (len <= 0 || len >= (int)sizeof buf)
+        return 0;
+    ts = tok_alloc(buf, len);
+    return ts->tok;
+}
+
+static int cpp_parse_operator_token(void)
+{
+    int op;
+
+    op = tok;
+    if (!cpp_operator_suffix(op))
+        tcc_error("unsupported operator");
+    next();
+    return op;
+}
+
+static void cpp_parse_operator_decl_name(int *v)
+{
+    int op;
+
+    if (tok != TOK_OPERATOR)
+        tcc_error("operator expected");
+    next();
+    op = cpp_parse_operator_token();
+    *v = cpp_operator_field_tok(op);
+    if (!*v)
+        tcc_error("unsupported operator");
+}
+
 static int cpp_is_ctor_field(Sym *field)
 {
     if (!field || !field->parent_class)
@@ -5516,6 +5570,153 @@ static Sym* find_field(CType* type, int v, int* cumofs)
     return s;
 }
 
+/* Prepare non-virtual member call: obj lvalue on vtop -> func on vtop. */
+static Sym *cpp_prepare_member_func_call(Sym *field)
+{
+    CType obj_type;
+    Sym *fsym;
+
+    obj_type = vtop->type;
+    test_lvalue();
+    gaddrof();
+    cpp_member_this = *vtop;
+    vpop();
+    fsym = cpp_lookup_member_func(field, &obj_type);
+    vset(&fsym->type, fsym->r | VT_SYM, 0);
+    vtop->sym = fsym;
+    vtop->r &= ~VT_LVAL;
+    return fsym->type.ref;
+}
+
+/* Complete member call: func on vtop, user args in array. */
+static void cpp_finish_member_call(Sym *s, SValue *user_args, int nb_user_args)
+{
+    SValue ret;
+    Sym *sa;
+    int nb_args, na, ret_nregs, ret_align, regsize, variadic, n, r, i;
+    int size, align, t;
+
+    nb_args = 0;
+    ret.r2 = VT_CONST;
+    if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+        variadic = (s->f.func_type == FUNC_ELLIPSIS);
+        ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
+            &ret_align, &regsize);
+        if (ret_nregs <= 0) {
+            size = type_size(&s->type, &align);
+            loc = (loc - size) & -align;
+            ret.type = s->type;
+            ret.r = VT_LOCAL | VT_LVAL;
+            vseti(VT_LOCAL, loc);
+#ifdef CONFIG_TCC_BCHECK
+            if (tcc_state->do_bounds_check)
+                --loc;
+#endif
+            ret.c = vtop->c;
+            if (ret_nregs < 0)
+                vpop();
+            else
+                nb_args++;
+        }
+    } else {
+        ret_nregs = 1;
+        ret.type = s->type;
+    }
+
+    if (ret_nregs > 0) {
+        ret.c.i = 0;
+        PUT_R_RET(&ret, ret.type.t);
+    }
+
+    sa = s->next;
+    for (i = 0; i < nb_user_args; i++) {
+        vpushv(&user_args[i]);
+        gfunc_param_typed(s, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    nb_args += nb_user_args;
+
+    vcheck_cmp();
+    na = nb_args;
+    vtop++;
+    nb_args++;
+    memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
+    vtop[-nb_args + 1] = cpp_member_this;
+    gfunc_call(nb_args);
+
+    if (ret_nregs < 0) {
+        vsetc(&ret.type, ret.r, &ret.c);
+#ifdef TCC_TARGET_RISCV64
+        arch_transfer_ret_regs(1);
+#endif
+    } else {
+        n = ret_nregs;
+        while (n > 1) {
+            int rc = reg_classes[ret.r] & ~(RC_INT | RC_FLOAT);
+            rc <<= --n;
+            for (r = 0; r < NB_REGS; ++r)
+                if (reg_classes[r] & rc)
+                    break;
+            vsetc(&ret.type, r, &ret.c);
+        }
+        vsetc(&ret.type, ret.r, &ret.c);
+        vtop->r2 = ret.r2;
+
+        if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
+            int addr, offset;
+
+            size = type_size(&s->type, &align);
+            size = (size + regsize - 1) & -regsize;
+            if (ret_align > align)
+                align = ret_align;
+            loc = (loc - size) & -align;
+            addr = loc;
+            offset = 0;
+            for (;;) {
+                vset(&ret.type, VT_LOCAL | VT_LVAL, addr + offset);
+                vswap();
+                vstore();
+                vtop--;
+                if (--ret_nregs == 0)
+                    break;
+                offset += regsize;
+            }
+            vset(&s->type, VT_LOCAL | VT_LVAL, addr);
+        }
+
+        t = s->type.t & VT_BTYPE;
+        if (t == VT_BYTE || t == VT_SHORT || t == VT_BOOL) {
+#ifdef PROMOTE_RET
+            vtop->r |= BFVAL(VT_MUSTCAST, 1);
+#else
+            vtop->type.t = VT_INT;
+#endif
+        }
+    }
+}
+
+static int cpp_try_member_binop(int op_tok)
+{
+    Sym *field, *s;
+    SValue rhs;
+    int cumofs;
+
+    if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    field = find_field(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs);
+    if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    if (field->type.ref && field->type.ref->f.func_virtual)
+        return 0;
+
+    rhs = vtop[0];
+    vpop();
+    s = cpp_prepare_member_func_call(field);
+    cpp_finish_member_call(s, &rhs, 1);
+    return 1;
+}
+
 static void check_fields(CType* type, int check)
 {
     Sym* s = type->ref;
@@ -6877,11 +7078,20 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
         else
             goto abstract;
     }
+    else if (tcc_state->cpp && tok == TOK_OPERATOR && (td & TYPE_DIRECT)) {
+        cpp_parse_operator_decl_name(v);
+    }
     else if (tok >= TOK_IDENT && (td & TYPE_DIRECT)) {
         /* type identifier */
         *v = tok;
         next();
         parse_cpp_scope_qualifier(v);
+        if (tcc_state->cpp && *v == TOK_OPERATOR) {
+            if (tok == TOK_OPERATOR)
+                cpp_parse_operator_decl_name(v);
+            else
+                *v = cpp_operator_field_tok(cpp_parse_operator_token());
+        }
     }
     else {
     abstract:
@@ -7847,22 +8057,22 @@ tok_next:
                 cpp_member_this_pending = 1;
                 next();
             } else {
-            field = find_field(&vtop->type, tok, &cumofs);
+            int mem_tok, operator_name;
+
+            mem_tok = tok;
+            operator_name = 0;
+            if (tcc_state->cpp && tok == TOK_OPERATOR) {
+                next();
+                mem_tok = cpp_operator_field_tok(cpp_parse_operator_token());
+                operator_name = 1;
+            }
+            field = find_field(&vtop->type, mem_tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
                 if (field->type.ref && field->type.ref->f.func_virtual) {
                     obj_type = vtop->type;
                     cpp_prepare_virtual_member_call(field, &obj_type);
                 } else {
-                Sym *fsym;
-
-                obj_type = vtop->type;
-                gaddrof();
-                cpp_member_this = *vtop;
-                vpop();
-                fsym = cpp_lookup_member_func(field, &obj_type);
-                vset(&fsym->type, fsym->r | VT_SYM, 0);
-                vtop->sym = fsym;
-                vtop->r &= ~VT_LVAL;
+                cpp_prepare_member_func_call(field);
                 cpp_member_this_pending = 1;
                 }
             } else {
@@ -7880,7 +8090,8 @@ tok_next:
 #endif
                 }
             }
-            next();
+            if (!operator_name)
+                next();
             }
         }
         else if (tcc_state->cpp && tok == ':') {
@@ -8298,7 +8509,8 @@ static void expr_infix(int p)
             unary();
             if (precedence(tok) > p2)
                 expr_infix(p2 + 1);
-            gen_op(t);
+            if (!cpp_try_member_binop(t))
+                gen_op(t);
         }
         t = tok;
     }
