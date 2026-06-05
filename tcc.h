@@ -531,9 +531,10 @@ struct FuncAttr {
     func_ctor   : 1, /* attribute((constructor)) */
     func_dtor   : 1, /* attribute((destructor)) */
     func_virtual : 1, /* C++ virtual member function */
+    func_const  : 1, /* C++ const member function */
     func_args   : 8, /* PE __stdcall args */
     func_alwinl : 1, /* always_inline */
-    xxxx        : 13;
+    xxxx        : 12;
 };
 
 /* symbol management */
