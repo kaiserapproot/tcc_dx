@@ -902,6 +902,21 @@ static void cpp_init_local_vptr(Sym *obj_sym)
     vpop();
 }
 
+/* FEAT-5A Phase 4: static vptr init for global/static polymorphic objects. */
+static void cpp_init_global_vptr(Sym *obj_sym, Section *sec, unsigned long addr)
+{
+    Sym *vtable_sym;
+
+    if (!obj_sym || !obj_sym->type.ref || !obj_sym->type.ref->cpp_vtable_tok)
+        return;
+    if (!sec || sec == common_section || NODATA_WANTED)
+        return;
+    vtable_sym = sym_find(obj_sym->type.ref->cpp_vtable_tok);
+    if (!vtable_sym)
+        return;
+    greloca(sec, vtable_sym, addr, R_DATA_PTR, 0);
+}
+
 /* Load virtual member fn from vtable[slot]; leaves a function-pointer
  * lvalue on vtop (the standard `fp()` representation, so the call handler
  * performs an indirect call), and stores 'this' in cpp_member_this so it is
@@ -5305,7 +5320,13 @@ static void check_fields(CType* type, int check)
     Sym* s = type->ref;
 
     while ((s = s->next) != NULL) {
-        int v = s->v & ~SYM_FIELD;
+        int v;
+        /* C++: ctors/dtors are VT_FUNC members named after the class.
+         * XORing SYM_FIELD onto that class token breaks later uses of
+         * the class as a type (e.g. `Base *p` after `class D : public B`). */
+        if (tcc_state->cpp && (s->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        v = s->v & ~SYM_FIELD;
         if (v < SYM_FIRST_ANOM) {
             TokenSym* ts = table_ident[v - TOK_IDENT];
             if (check && (ts->tok & SYM_FIELD))
@@ -5313,7 +5334,9 @@ static void check_fields(CType* type, int check)
             ts->tok ^= SYM_FIELD;
         }
         else if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
-            if (tcc_state->cpp && check && s->parent_class)
+            /* C++: embedded base subobjects were validated when the base
+             * class was defined; do not recurse into them again. */
+            if (tcc_state->cpp && s->parent_class)
                 continue;
             check_fields(&s->type, check);
         }
@@ -6225,7 +6248,20 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 goto the_end;
             s = sym_find(tok);
             if (tcc_state->cpp) {
-                Sym *stsym = struct_find(tok);
+                int cls_tok_lookup = tok & ~SYM_FIELD;
+                Sym *stsym = struct_find(cls_tok_lookup);
+                if (!stsym && s) {
+                    Sym *ts;
+                    for (ts = s; ts; ts = ts->prev_tok) {
+                        if (ts->type.t & VT_TYPEDEF && ts->type.ref)
+                            stsym = ts->type.ref;
+                        else if ((ts->v & SYM_STRUCT)
+                            && (ts->type.t & VT_BTYPE) == VT_STRUCT)
+                            stsym = ts;
+                        if (stsym)
+                            break;
+                    }
+                }
                 if (stsym && (stsym->type.t & VT_BTYPE) == VT_STRUCT) {
                     int cls_tok = tok;
                     next();
@@ -9725,6 +9761,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
     int bcheck = tcc_state->do_bounds_check && !NODATA_WANTED;
 #endif
     init_params p = { 0 };
+    int cpp_needs_vptr = 0;
 
     /* Always allocate static or global variables */
     if (v && (r & VT_VALMASK) == VT_CONST)
@@ -9865,6 +9902,9 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
     }
     else {
         sym = NULL;
+        cpp_needs_vptr = tcc_state->cpp && v && global
+            && (type->t & VT_BTYPE) == VT_STRUCT && type->ref
+            && type->ref->cpp_vtable_tok;
         if (v && global) {
             /* see if the symbol was already defined */
             sym = sym_find(v);
@@ -9893,7 +9933,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             if (tp->t & VT_CONSTANT) {
                 sec = rodata_section;
             }
-            else if (has_init) {
+            else if (has_init || cpp_needs_vptr) {
                 sec = data_section;
                 /*if (g_debug & 4)
                     tcc_warning("rw data: %s", get_tok_str(v, 0));*/
@@ -9922,6 +9962,14 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             }
             /* update symbol definition */
             put_extern_sym(sym, sec, addr, size);
+            /* FEAT-5A Phase 4: wire vptr slot for global polymorphic objects.
+             * Phase 4: vptr reloc in data section (needs_vptr forces .data). */
+            if (tcc_state->cpp
+                && (type->t & VT_BTYPE) == VT_STRUCT
+                && type->ref
+                && type->ref->cpp_vtable_tok) {
+                cpp_init_global_vptr(sym, sec, addr);
+            }
         }
         else {
             /* push global reference */
