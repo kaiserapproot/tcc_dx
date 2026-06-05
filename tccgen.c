@@ -199,6 +199,7 @@ static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
     ty = *t;
     while ((ty.t & VT_BTYPE) == VT_PTR) {
         mangle_append_char(buf, buf_size, pos,
+            (ty.t & VT_MPTR) ? 'm' :
             (ty.t & VT_REFERENCE) ? 'r' : 'p');
         ty = *pointed_type(&ty);
     }
@@ -586,6 +587,186 @@ static Sym *cpp_lookup_member_field(int v, Sym *class_sym)
     ct.t = VT_STRUCT;
     ct.ref = class_sym;
     return find_field(&ct, v, &cumofs);
+}
+
+/* FEAT-5B: member pointer helpers */
+static int cpp_is_member_pointer(CType *type)
+{
+    return (type->t & (VT_BTYPE | VT_MPTR)) == (VT_PTR | VT_MPTR);
+}
+
+static Sym *cpp_mptr_class(CType *type)
+{
+    if (!cpp_is_member_pointer(type) || !type->ref)
+        return NULL;
+    return type->ref->parent_class;
+}
+
+static int cpp_is_mptr_to_func(CType *type)
+{
+    if (!cpp_is_member_pointer(type))
+        return 0;
+    return (pointed_type(type)->t & VT_BTYPE) == VT_FUNC;
+}
+
+static void mk_member_pointer(CType *type, Sym *class_sym, int field_tok)
+{
+    Sym *s;
+
+    s = sym_push(SYM_FIELD, type, 0, field_tok);
+    s->parent_class = class_sym;
+    type->t = (type->t & VT_STORAGE) | VT_PTR | VT_MPTR;
+    type->ref = s;
+}
+
+/* Parse Class::* in a declarator; returns 1 if consumed. */
+static int cpp_parse_member_pointer(CType *type, CType **ret)
+{
+    int cls_tok;
+    Sym *class_sym;
+
+    if (!tcc_state->cpp || tok < TOK_IDENT)
+        return 0;
+    cls_tok = tok;
+    next();
+    if (tok != ':') {
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    if (tok != '*') {
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return 0;
+    }
+    next();
+    class_sym = struct_find(cls_tok);
+    if (!class_sym)
+        tcc_error("unknown class in member pointer");
+    mk_member_pointer(type, class_sym, 0);
+    if (ret && *ret == type)
+        *ret = pointed_type(type);
+    return 1;
+}
+
+/* Peek/consume Class::member for &Class::member. */
+static int cpp_parse_qualified_member(int *cls_tok, int *mem_tok)
+{
+    int cls, mem;
+
+    if (!tcc_state->cpp || tok < TOK_IDENT)
+        return 0;
+    cls = tok;
+    next();
+    if (tok != ':') {
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    next();
+    if (tok < TOK_IDENT) {
+        unget_tok(':');
+        unget_tok(':');
+        unget_tok(cls);
+        return 0;
+    }
+    mem = tok;
+    next();
+    *cls_tok = cls;
+    *mem_tok = mem;
+    return 1;
+}
+
+static int cpp_mptr_compatible_class(CType *obj_type, Sym *mptr_class)
+{
+    Sym *s;
+
+    if (!obj_type || !mptr_class)
+        return 0;
+    if ((obj_type->t & VT_BTYPE) != VT_STRUCT || !obj_type->ref)
+        return 0;
+    if (obj_type->ref == mptr_class)
+        return 1;
+    for (s = obj_type->ref->next; s; s = s->next) {
+        if ((s->type.t & VT_BTYPE) == VT_STRUCT
+            && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)
+            && s->parent_class == mptr_class)
+            return 1;
+    }
+    return 0;
+}
+
+static void cpp_emit_mptr_dmp_access(SValue *obj, SValue *pm)
+{
+    CType mem_type;
+    int qualifiers;
+
+    if (!cpp_is_member_pointer(&pm->type) || cpp_is_mptr_to_func(&pm->type))
+        tcc_error("invalid data member pointer");
+    mem_type = *pointed_type(&pm->type);
+    qualifiers = obj->type.t & (VT_CONSTANT | VT_VOLATILE);
+    vpushv(obj);
+    test_lvalue();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushv(pm);
+    if (vtop->r & VT_LVAL)
+        gv(RC_INT);
+    vtop->type = int_type;
+    gen_op('+');
+    vtop->type = mem_type;
+    vtop->type.t |= qualifiers;
+    if (!(vtop->type.t & VT_ARRAY)) {
+        vtop->r |= VT_LVAL;
+#ifdef CONFIG_TCC_BCHECK
+        if (tcc_state->do_bounds_check)
+            vtop->r |= VT_MUSTBOUND;
+#endif
+    }
+}
+
+static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
+{
+    Sym *class_sym, *field, *fsym;
+    CType obj_type;
+    int field_tok;
+
+    if (!cpp_is_member_pointer(&pm->type) || !cpp_is_mptr_to_func(&pm->type))
+        tcc_error("invalid member function pointer");
+    class_sym = cpp_mptr_class(&pm->type);
+    field_tok = pm->type.ref ? pm->type.ref->c : 0;
+    if (!class_sym || !field_tok)
+        tcc_error("invalid member function pointer");
+    if (!cpp_mptr_compatible_class(&obj->type, class_sym))
+        tcc_error("member function pointer class mismatch");
+    field = cpp_lookup_member_field(field_tok, class_sym);
+    if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+        tcc_error("invalid member function pointer");
+    if (field->type.ref && field->type.ref->f.func_virtual)
+        tcc_error("member function pointer to virtual method not supported");
+    obj_type = obj->type;
+    fsym = cpp_lookup_member_func(field, &obj_type);
+    vset(&fsym->type, fsym->r | VT_SYM, 0);
+    vtop->sym = fsym;
+    vtop->r &= ~VT_LVAL;
+    vpushv(obj);
+    test_lvalue();
+    gaddrof();
+    cpp_member_this = *vtop;
+    vpop();
+    cpp_member_this_pending = 1;
 }
 
 /* C++: scan class_sym's member chain for the constructor field (a VT_FUNC
@@ -4007,6 +4188,15 @@ static int compare_types(CType* type1, CType* type2, int unqualified)
     /* test more complicated cases */
     bt1 = t1 & VT_BTYPE;
     if (bt1 == VT_PTR) {
+        if ((t1 & VT_MPTR) != (t2 & VT_MPTR))
+            return 0;
+        if (t1 & VT_MPTR) {
+            Sym *c1, *c2;
+            c1 = type1->ref ? type1->ref->parent_class : NULL;
+            c2 = type2->ref ? type2->ref->parent_class : NULL;
+            if (c1 != c2)
+                return 0;
+        }
         type1 = pointed_type(type1);
         type2 = pointed_type(type2);
         return is_compatible_types(type1, type2);
@@ -4783,6 +4973,11 @@ static void verify_assign_cast(CType* dt)
             type2 = st; /* a function is implicitly a function pointer */
         else
             goto error;
+        /* FEAT-5B: propagate PMF field token before compatible-types break */
+        if ((dt->t & VT_MPTR) && (st->t & VT_MPTR)
+            && cpp_is_mptr_to_func(dt) && st->ref && st->ref->c
+            && dt->ref && !dt->ref->c)
+            dt->ref->c = st->ref->c;
         if (is_compatible_types(type1, type2))
             break;
         for (qualwarn = lvl = 0;; ++lvl) {
@@ -4854,6 +5049,12 @@ ST_FUNC void vstore(void)
     sbt = vtop->type.t & VT_BTYPE;
     dbt = ft & VT_BTYPE;
     verify_assign_cast(&vtop[-1].type);
+    if (vtop[-1].sym && (vtop[-1].type.t & VT_MPTR)
+        && vtop[-1].type.ref && vtop->type.ref && vtop->type.ref->c
+        && vtop[-1].type.ref->c != vtop->type.ref->c) {
+        vtop[-1].type.ref->c = vtop->type.ref->c;
+        vtop[-1].sym->type.ref->c = vtop->type.ref->c;
+    }
 
     if (sbt == VT_STRUCT) {
         /* if structure, only generate pointer */
@@ -6601,6 +6802,8 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
     type->t &= ~VT_STORAGE;
     post = ret = type;
 
+    while (tcc_state->cpp && cpp_parse_member_pointer(type, &ret))
+        ;
     while (tok == '&') {
         if (!tcc_state->cpp)
             tcc_error("reference type requires C++");
@@ -7127,6 +7330,38 @@ tok_next:
         break;
     case '&':
         next();
+        if (tcc_state->cpp) {
+            int cls_tok, mem_tok;
+            Sym *class_sym, *field, *fsym;
+            CType ct, mpt;
+            int cumofs;
+
+            if (cpp_parse_qualified_member(&cls_tok, &mem_tok)) {
+                class_sym = struct_find(cls_tok);
+                if (!class_sym)
+                    tcc_error("unknown class in member pointer");
+                ct.t = VT_STRUCT;
+                ct.ref = class_sym;
+                field = find_field(&ct, mem_tok, &cumofs);
+                if ((field->type.t & VT_BTYPE) == VT_FUNC) {
+                    if (field->type.ref && field->type.ref->f.func_virtual)
+                        tcc_error("member function pointer to virtual method not supported");
+                    fsym = cpp_lookup_member_func(field, &ct);
+                    mpt = field->type;
+                    mk_member_pointer(&mpt, class_sym, mem_tok);
+                    vset(&mpt, fsym->r | VT_SYM, 0);
+                    vtop->sym = fsym;
+                    vtop->c.i = 0;
+                    vtop->r &= ~VT_LVAL;
+                } else {
+                    mpt = field->type;
+                    mk_member_pointer(&mpt, class_sym, mem_tok);
+                    vset(&mpt, VT_CONST, 0);
+                    vtop->c.i = cumofs;
+                }
+                break;
+            }
+        }
         unary();
         /* functions names must be treated as function pointers,
            except for unary '&' and sizeof. Since we consider that
@@ -7571,7 +7806,24 @@ tok_next:
             qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
             test_lvalue();
             next();
-            if (tcc_state->cpp && tok == '~') {
+            if (tcc_state->cpp && tok == '*') {
+                SValue obj, pm;
+
+                next();
+                obj = *vtop;
+                vpop();
+                unary();
+                pm = *vtop;
+                vpop();
+                if (!cpp_is_member_pointer(&pm.type))
+                    tcc_error("invalid member pointer");
+                if (!cpp_mptr_compatible_class(&obj.type, cpp_mptr_class(&pm.type)))
+                    tcc_error("member pointer class mismatch");
+                if (cpp_is_mptr_to_func(&pm.type))
+                    cpp_emit_mptr_pmf_invoke(&obj, &pm);
+                else
+                    cpp_emit_mptr_dmp_access(&obj, &pm);
+            } else if (tcc_state->cpp && tok == '~') {
                 Sym *class_sym;
                 Sym *fsym;
 
@@ -7593,6 +7845,7 @@ tok_next:
                 vtop->sym = fsym;
                 vtop->r &= ~VT_LVAL;
                 cpp_member_this_pending = 1;
+                next();
             } else {
             field = find_field(&vtop->type, tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
@@ -7627,8 +7880,8 @@ tok_next:
 #endif
                 }
             }
-            }
             next();
+            }
         }
         else if (tcc_state->cpp && tok == ':') {
             Sym *class_sym, *ss;
