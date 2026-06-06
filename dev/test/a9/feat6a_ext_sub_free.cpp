@@ -3,8 +3,11 @@ public:
     int x, y;
 };
 
+/* TCC extension: non-member operator[] (ISO C++98 requires member). */
 int& operator[](Vec2& v, int i) {
-    return i ? v.y : v.x;
+    if (i)
+        return v.y;
+    return v.x;
 }
 
 int main() {

@@ -5,7 +5,9 @@ public:
 };
 
 const int& Vec2::operator[](int i) const {
-    return i ? y : x;
+    if (i)
+        return y;
+    return x;
 }
 
 int main() {
@@ -13,5 +15,5 @@ int main() {
     v.x = 5;
     v.y = 7;
     const Vec2 cv = v;
-    return cv.x + cv.y - 12;
+    return cv[0] + cv[1] - 12;
 }
