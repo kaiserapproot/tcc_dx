@@ -163,6 +163,7 @@ static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
 static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
+static int is_integer_btype(int bt);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -4651,10 +4652,29 @@ static void gen_cast(CType* type)
 {
     int sbt, dbt, sf, df, c;
     int dbt_bt, sbt_bt, ds, ss, bits, trunc;
+    CType *pt;
 
     /* special delayed cast for char/short */
     if (vtop->r & VT_MUSTCAST)
         force_charshort_cast();
+
+    /* C++: bind struct argument to reference parameter */
+    if (tcc_state->cpp && (type->t & VT_REFERENCE)
+        && (vtop->type.t & VT_BTYPE) == VT_STRUCT) {
+        pt = pointed_type(type);
+        if (is_compatible_unqualified_types(pt, &vtop->type)) {
+            if (!(vtop->r & VT_LVAL)
+                && (vtop->r & VT_VALMASK) == VT_LOCAL)
+                vtop->r |= VT_LVAL;
+            if (vtop->r & VT_LVAL)
+                gaddrof();
+            else
+                tcc_error("struct rvalue cannot bind to reference");
+            vtop->type = *type;
+            vtop->r &= ~VT_LVAL;
+            return;
+        }
+    }
 
     /* bitfields first get cast to ints */
     if (vtop->type.t & VT_BITFIELD)
@@ -5041,6 +5061,9 @@ static void verify_assign_cast(CType* dt)
             type2 = pointed_type(st);
         else if (sbt == VT_FUNC)
             type2 = st; /* a function is implicitly a function pointer */
+        else if ((dt->t & VT_REFERENCE) && sbt == VT_STRUCT
+            && is_compatible_unqualified_types(type1, st))
+            break;
         else
             goto error;
         /* FEAT-5B: propagate PMF field token before compatible-types break */
@@ -6333,7 +6356,7 @@ do_decl:
                 }
                 while (1) {
                     if (flexible)
-                        tcc_error("�ϒ��z�񃁃��o '%s' ���\���̖̂����ɂ���܂���",
+                        tcc_error("flexible array member cannot follow unnamed struct: %s",
                             get_tok_str(v, NULL));
                     bit_size = -1;
                     v = 0;
@@ -6838,9 +6861,15 @@ the_end:
    function pointer) */
 static inline void convert_parameter_type(CType* pt)
 {
+    int keep_const;
+
     /* remove const and volatile qualifiers (XXX: const could be used
-       to indicate a const function parameter */
+       to indicate a const function parameter); keep const on C++ refs */
+    keep_const = (tcc_state->cpp && (pt->t & VT_REFERENCE))
+        ? (pt->t & VT_CONSTANT) : 0;
     pt->t &= ~(VT_CONSTANT | VT_VOLATILE);
+    if (keep_const)
+        pt->t |= VT_CONSTANT;
     /* array must be transformed to pointer according to ANSI C */
     pt->t &= ~(VT_ARRAY | VT_VLA);
     if ((pt->t & VT_BTYPE) == VT_FUNC) {
@@ -7260,7 +7289,8 @@ static void gfunc_param_typed(Sym* func, Sym* arg)
     }
     else {
         type = arg->type;
-        type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
+        if (!(type.t & VT_REFERENCE))
+            type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
         gen_assign_cast(&type);
     }
 }
@@ -8116,6 +8146,9 @@ tok_next:
             Sym *field;
 
             if (tok == TOK_ARROW)
+                indir();
+            /* C++: '.' on a reference is like '->' (deref then member) */
+            else if (tcc_state->cpp && (vtop->type.t & VT_REFERENCE))
                 indir();
             qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
             test_lvalue();
