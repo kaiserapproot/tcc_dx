@@ -1,0 +1,364 @@
+**********************************************************************
+** Visual Studio 2022 Developer Command Prompt v17.14.31
+** Copyright (c) 2025 Microsoft Corporation
+**********************************************************************
+========================================
+Building tcc.vcxproj x64 Release
+========================================
+MSBuild のバージョン 17.14.40+3e7442088 (.NET Framework)
+2026/06/06 6:23:49 にビルドを開始しました。
+
+ノード 1 上のプロジェクト "E:\work\work_github\tpp\tcc_dx\tcc.vcxproj" (既定のターゲット)。
+PrepareForBuild:
+  構造化出力が有効になっています。コンパイラ診断の書式設定にはエラー階層が反映されます。詳細については、https://aka.ms/cpp/structured-output を参照してください。
+InitializeBuildStatus:
+  "AlwaysCreate" が指定されたため "tcc\x64\Release\tcc.tlog\unsuccessfulbuild" を作成しています。
+  "tcc\x64\Release\tcc.tlog\unsuccessfulbuild" のタッチ タスクを実行しています。
+ClCompile:
+  C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\bin\HostX64\x64\CL.exe /c /Zi /nologo /W3 /WX- /diagnostics:column /sdl /O2 /Oi /GL /D NDEBUG /D _CONSOLE /D _MBCS /D TCC_TARGET_PE /D TCC_TARGET_X86_64 /D _CRT_SECURE_NO_WARNINGS /D ONE_SOURCE=0 /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /permissive- /Fo"tcc\x64\Release\\" /Fd"tcc\x64\Release\vc143.pdb" /external:W3 /Gd /TC /FC /errorReport:queue "i386-asm.c" libtcc.c tcc.c tccasm.c tccdbg.c tccelf.c tccgen.c tccpe.c tccpp.c tccrun.c "x86_64-gen.c" "x86_64-link.c"
+  i386-asm.c
+  libtcc.c
+  tcc.c
+  tccasm.c
+  tccdbg.c
+  tccelf.c
+  tccgen.c
+E:\work\work_github\tpp\tcc_dx\tccgen.c(1,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(320,40): warning C4013: 関数 'is_integer_btype' は定義されていません。int 型の値を返す外部関数と見なします。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(960,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(1916,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(2815,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(3677,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(4508,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(5441,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(6317,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(6358,35): warning C4129: '0xe3': 認識できない文字エスケープ シーケンスです [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(7075,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(8026,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(8959,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(9935,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(10717,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  tccpe.c
+  tccpp.c
+  tccrun.c
+  x86_64-gen.c
+  x86_64-link.c
+Link:
+  C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\bin\HostX64\x64\link.exe /ERRORREPORT:QUEUE /OUT:"E:\work\work_github\tpp\tcc_dx\x64\Release\tcc.exe" /NOLOGO kernel32.lib user32.lib gdi32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"E:\work\work_github\tpp\tcc_dx\x64\Release\tcc.pdb" /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG:incremental /LTCGOUT:"tcc\x64\Release\tcc.iobj" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"E:\work\work_github\tpp\tcc_dx\x64\Release\tcc.lib" /MACHINE:X64 "tcc\x64\Release\i386-asm.obj"
+  tcc\x64\Release\libtcc.obj
+  tcc\x64\Release\tcc.obj
+  tcc\x64\Release\tccasm.obj
+  tcc\x64\Release\tccdbg.obj
+  tcc\x64\Release\tccelf.obj
+  tcc\x64\Release\tccgen.obj
+  tcc\x64\Release\tccpe.obj
+  tcc\x64\Release\tccpp.obj
+  tcc\x64\Release\tccrun.obj
+  "tcc\x64\Release\x86_64-gen.obj"
+  "tcc\x64\Release\x86_64-link.obj"
+  コード生成しています。
+  Previous IPDB was built with incompatible compiler, fall back to full compilation.
+  All 760 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  コード生成が終了しました。
+  tcc.vcxproj -> E:\work\work_github\tpp\tcc_dx\x64\Release\tcc.exe
+FinalizeBuildStatus:
+  ファイル "tcc\x64\Release\tcc.tlog\unsuccessfulbuild" を削除しています。
+  "tcc\x64\Release\tcc.tlog\tcc.lastbuildstate" のタッチ タスクを実行しています。
+プロジェクト "E:\work\work_github\tpp\tcc_dx\tcc.vcxproj" (既定のターゲット) のビルドが完了しました。
+
+ビルドに成功しました。
+
+"E:\work\work_github\tpp\tcc_dx\tcc.vcxproj" (既定のターゲット) (1) ->
+(ClCompile ターゲット) -> 
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(1,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(320,40): warning C4013: 関数 'is_integer_btype' は定義されていません。int 型の値を返す外部関数と見なします。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(960,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(1916,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(2815,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(3677,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(4508,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(5441,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(6317,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(6358,35): warning C4129: '0xe3': 認識できない文字エスケープ シーケンスです [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(7075,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(8026,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(8959,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(9935,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(10717,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+
+    15 個の警告
+    0 エラー
+
+経過時間 00:00:08.90
+========================================
+Building tcc.vcxproj Win32 Debug
+========================================
+MSBuild のバージョン 17.14.40+3e7442088 (.NET Framework)
+2026/06/06 6:23:58 にビルドを開始しました。
+
+ノード 1 上のプロジェクト "E:\work\work_github\tpp\tcc_dx\tcc.vcxproj" (既定のターゲット)。
+PrepareForBuild:
+  構造化出力が有効になっています。コンパイラ診断の書式設定にはエラー階層が反映されます。詳細については、https://aka.ms/cpp/structured-output を参照してください。
+InitializeBuildStatus:
+  "AlwaysCreate" が指定されたため "tcc\Debug\tcc.tlog\unsuccessfulbuild" を作成しています。
+  "tcc\Debug\tcc.tlog\unsuccessfulbuild" のタッチ タスクを実行しています。
+ClCompile:
+  C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\bin\HostX86\x86\CL.exe /c /ZI /JMC /nologo /W3 /WX- /diagnostics:column /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D TCC_TARGET_PE /D TCC_TARGET_X86_64 /D _CRT_SECURE_NO_WARNINGS /D ONE_SOURCE=0 /D _UNICODE /D UNICODE /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /permissive- /Fo"tcc\Debug\\" /Fd"tcc\Debug\vc143.pdb" /external:W3 /Gd /TC /analyze- /FC /errorReport:queue "i386-asm.c" libtcc.c tcc.c tccasm.c tccdbg.c tccelf.c tccgen.c tccpe.c tccpp.c tccrun.c "x86_64-gen.c" "x86_64-link.c"
+  i386-asm.c
+  libtcc.c
+  tcc.c
+  tccasm.c
+E:\work\work_github\tpp\tcc_dx\tcctools.c(419,26): warning C4133: '関数': 'const char *' と 'LPCWSTR' の間で型に互換性がありません。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  (ソース ファイル 'tcc.c' をコンパイルしています)
+  
+E:\work\work_github\tpp\tcc_dx\tcctools.c(419,32): warning C4133: '関数': 'char [5]' と 'LPCWSTR' の間で型に互換性がありません。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  (ソース ファイル 'tcc.c' をコンパイルしています)
+  
+E:\work\work_github\tpp\tcc_dx\tcctools.c(419,53): warning C4133: '関数': 'char [260]' と 'LPWSTR' の間で型に互換性がありません。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  (ソース ファイル 'tcc.c' をコンパイルしています)
+  
+  tccdbg.c
+  tccelf.c
+  tccgen.c
+E:\work\work_github\tpp\tcc_dx\tccgen.c(1,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(320,40): warning C4013: 関数 'is_integer_btype' は定義されていません。int 型の値を返す外部関数と見なします。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(960,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(1916,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(2815,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(3677,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(4508,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(5441,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(6317,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(6358,35): warning C4129: '0xe3': 認識できない文字エスケープ シーケンスです [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(7075,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(8026,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(8959,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(9935,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+E:\work\work_github\tpp\tcc_dx\tccgen.c(10717,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  tccpe.c
+  tccpp.c
+  tccrun.c
+  x86_64-gen.c
+  x86_64-link.c
+  コードを生成中...
+Link:
+  C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.42.34433\bin\HostX86\x86\link.exe /ERRORREPORT:QUEUE /OUT:"E:\work\work_github\tpp\tcc_dx\Debug\tcc.exe" /INCREMENTAL /ILK:"tcc\Debug\tcc.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"E:\work\work_github\tpp\tcc_dx\Debug\tcc.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"E:\work\work_github\tpp\tcc_dx\Debug\tcc.lib" /MACHINE:X86 "tcc\Debug\i386-asm.obj"
+  tcc\Debug\libtcc.obj
+  tcc\Debug\tcc.obj
+  tcc\Debug\tccasm.obj
+  tcc\Debug\tccdbg.obj
+  tcc\Debug\tccelf.obj
+  tcc\Debug\tccgen.obj
+  tcc\Debug\tccpe.obj
+  tcc\Debug\tccpp.obj
+  tcc\Debug\tccrun.obj
+  "tcc\Debug\x86_64-gen.obj"
+  "tcc\Debug\x86_64-link.obj"
+  tcc.vcxproj -> E:\work\work_github\tpp\tcc_dx\Debug\tcc.exe
+FinalizeBuildStatus:
+  ファイル "tcc\Debug\tcc.tlog\unsuccessfulbuild" を削除しています。
+  "tcc\Debug\tcc.tlog\tcc.lastbuildstate" のタッチ タスクを実行しています。
+プロジェクト "E:\work\work_github\tpp\tcc_dx\tcc.vcxproj" (既定のターゲット) のビルドが完了しました。
+
+ビルドに成功しました。
+
+"E:\work\work_github\tpp\tcc_dx\tcc.vcxproj" (既定のターゲット) (1) ->
+(ClCompile ターゲット) -> 
+  E:\work\work_github\tpp\tcc_dx\tcctools.c(419,26): warning C4133: '関数': 'const char *' と 'LPCWSTR' の間で型に互換性がありません。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tcctools.c(419,32): warning C4133: '関数': 'char [5]' と 'LPCWSTR' の間で型に互換性がありません。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tcctools.c(419,53): warning C4133: '関数': 'char [260]' と 'LPWSTR' の間で型に互換性がありません。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(1,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(320,40): warning C4013: 関数 'is_integer_btype' は定義されていません。int 型の値を返す外部関数と見なします。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(960,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(1916,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(2815,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(3677,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(4508,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(5441,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(6317,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(6358,35): warning C4129: '0xe3': 認識できない文字エスケープ シーケンスです [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(7075,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(8026,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(8959,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(9935,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+  E:\work\work_github\tpp\tcc_dx\tccgen.c(10717,1): warning C4819: ファイルは、現在のコード ページ (932) で表示できない文字を含んでいます。データの損失を防ぐために、ファイルを Unicode 形式で保存してください。 [E:\work\work_github\tpp\tcc_dx\tcc.vcxproj]
+
+    18 個の警告
+    0 エラー
+
+経過時間 00:00:06.47
+========================================
+Copying Release tcc.exe to dev folder...
+========================================
+        1 �̃t�@�C�����R�s�[���܂����B
+========================================
+Smoke tests
+========================================
+tcc version 0.9.28rc (x86_64 Windows)
+========================================
+Regression: repro_double6
+========================================
+a=-15.960000 b=15.960000 c=-1.815000 d=21.025000 e=-45.720001 f=45.639999
+========================================
+CUnit build
+========================================
+MSBuild のバージョン 17.14.40+3e7442088 (.NET Framework)
+2026/06/06 6:24:05 にビルドを開始しました。
+
+ノード 1 上のプロジェクト "E:\work\work_github\tpp\tcc_dx\test\vs_test\con_c_vs_test.vcxproj" (既定のターゲット)。
+PrepareForBuild:
+  構造化出力が有効になっています。コンパイラ診断の書式設定にはエラー階層が反映されます。詳細については、https://aka.ms/cpp/structured-output を参照してください。
+InitializeBuildStatus:
+  "AlwaysCreate" が指定されたため "con_c_vs_test\x64\Debug Unicode\con_c_vs_test.tlog\unsuccessfulbuild" を作成しています。
+  "con_c_vs_test\x64\Debug Unicode\con_c_vs_test.tlog\unsuccessfulbuild" のタッチ タスクを実行しています。
+ClCompile:
+  すべての出力が最新のものです。
+Link:
+  すべての出力が最新のものです。
+  con_c_vs_test.vcxproj -> E:\work\work_github\tpp\tcc_dx\test\vs_test\x64\Debug Unicode\con_c_vs_test.exe
+FinalizeBuildStatus:
+  ファイル "con_c_vs_test\x64\Debug Unicode\con_c_vs_test.tlog\unsuccessfulbuild" を削除しています。
+  "con_c_vs_test\x64\Debug Unicode\con_c_vs_test.tlog\con_c_vs_test.lastbuildstate" のタッチ タスクを実行しています。
+プロジェクト "E:\work\work_github\tpp\tcc_dx\test\vs_test\con_c_vs_test.vcxproj" (既定のターゲット) のビルドが完了しました。
+
+ビルドに成功しました。
+    0 個の警告
+    0 エラー
+
+経過時間 00:00:00.78
+
+
+     CUnit - A unit testing framework for C - Version 2.1-2
+     http://cunit.sourceforge.net/
+
+
+Suite: C Foundation Tests
+  Test: no __cplusplus in C mode ...passed
+  Test: class as identifier ...passed
+Suite: Stage2 TCC compile
+  Test: overload.cpp compiles ...passed
+  Test: ref_param.cpp compiles ...passed
+  Test: qualified.cpp compiles ...passed
+Suite: Stage3 TCC compile
+  Test: member_call.cpp compiles ...passed
+  Test: default_arg.cpp compiles ...passed
+  Test: inline_member.cpp compiles ...passed
+  Test: typedef_class.cpp compiles ...passed
+  Test: class_inline_body.cpp compiles ...passed
+Suite: Stage4 TCC compile
+  Test: inherit_single.cpp compiles ...passed
+  Test: inherit_method.cpp compiles ...passed
+  Test: inherit_sizeof.cpp compiles ...passed
+  Test: static_member.cpp compiles ...passed
+
+ ���s�܂Ƃ�:    ���     �v   ���s   ����   ���s ���e�X�g
+              suites      4      4      4      0        0
+               tests     14     14     14      0        0
+             asserts     14     14     14      0     �Ȃ�
+
+    ���v���� =    0.627 seconds
+========================================
+L1 tests: run_all.bat
+========================================
+=== smoke\empty.c ===
+=== smoke\hello.c ===
+=== smoke\empty.cpp ===
+=== a2\bar.c ===
+=== a2\keyword_gate.c ===
+=== a2\repeated_ident.c ===
+=== a2\foo.cpp ===
+=== a2\keyword_lex.cpp ===
+=== a3\cplusplus.c ===
+=== a3\cplusplus.cpp ===
+=== a4\extern_c_block.cpp ===
+=== a5\class_inline_body.cpp ===
+=== a5\class_min.cpp ===
+=== a5\keyword_gate.cpp ===
+=== a6\extern_c_decl.cpp ===
+=== a6\overload.cpp ===
+=== a6\qualified.cpp ===
+=== a6\ref_param.cpp ===
+a6/ref_param.cpp:1: warning: �E�L�E��E��E�X�E�g�E�Ȃ��E�Ő��E��E��E��E��E��E�|�E�C�E��E��E�^�E��E��E��E��E��E�܂�
+a6/ref_param.cpp:2: warning: �E�L�E��E��E�X�E�g�E�Ȃ��E�Ő��E��E��E��E��E��E�|�E�C�E��E��E�^�E��E��E��E��E��E�܂�
+a6/ref_param.cpp:2: warning: �E�|�E�C�E��E��E�^�E�Ɛ��E��E��E�̃T�E�C�E�Y�E��E��E�قȂ�Ԃ̃L�E��E��E�X�E�g�E�ł�
+=== a8\ctor_init.cpp ===
+=== a8\ctor_init_inline.cpp ===
+=== a8\ctor_init_two.cpp ===
+=== a8\ctor_noarg.cpp ===
+=== a8\feat4b_basic.cpp ===
+=== a8\feat4b_multi_decl.cpp ===
+=== a8\feat4b_no_ctor.cpp ===
+=== a8\feat4b_two_args.cpp ===
+=== a8\feat4c_basic.cpp ===
+=== a8\feat4c_no_init.cpp ===
+=== a8\feat4c_two_args.cpp ===
+=== a8\feat4d_base_body.cpp ===
+=== a8\feat4d_base_init.cpp ===
+=== a8\feat4e_basic.cpp ===
+=== a8\feat4e_explicit.cpp ===
+=== a8\feat4e_nested.cpp ===
+=== a8\feat5a_basic.cpp ===
+=== a8\feat5a_call.cpp ===
+=== a8\feat5a_class_only.cpp ===
+=== a8\feat5a_global.cpp ===
+=== a8\feat5a_local.cpp ===
+=== a8\feat5a_override.cpp ===
+=== a8\feat5a_ptr.cpp ===
+=== a8\feat5b_dmp_access.cpp ===
+=== a8\feat5b_dmp_addr.cpp ===
+=== a8\feat5b_pmf_call.cpp ===
+=== a8\feat5b_pmf_inherit.cpp ===
+=== a8\inherit_method.cpp ===
+=== a8\inherit_single.cpp ===
+=== a8\inherit_sizeof.cpp ===
+=== a8\sm2.cpp ===
+=== a8\sm3.cpp ===
+a8/sm3.cpp:5: error: expected member name after ::
+=== a8\sm4.cpp ===
+=== a8\sm5.cpp ===
+=== a8\sm6.cpp ===
+a8/sm6.cpp:2: error: 'Counter' �E�͐錾�E��E��E��E�Ă��E�܂��E��E�
+=== a8\static_member.cpp ===
+=== a8\t_assign.cpp ===
+a8/t_assign.cpp:1: warning: �E�^�E�͊��E��E��E� int �E�ɂȂ�܂�
+a8/t_assign.cpp:1: error: ';' ���K�v�ł��i"Counter" ��������܂����j
+=== a8\t_assign2.cpp ===
+=== a8\t_assign3.cpp ===
+=== a8\t_assign4.cpp ===
+=== a8\t_bget.cpp ===
+=== a8\t_dget.cpp ===
+=== a8\t_expr.cpp ===
+=== a8\t_expr2.cpp ===
+=== a8\t_expr3.cpp ===
+=== a8\t_init.cpp ===
+=== a8\t_min.cpp ===
+=== a8\t_ret.cpp ===
+=== a8\t_s0.cpp ===
+=== a8\t_s1.cpp ===
+=== a8\t_s2.cpp ===
+=== a9\feat6a_big_struct.cpp ===
+=== a9\feat6a_call.cpp ===
+=== a9\feat6a_int_method.cpp ===
+=== a9\feat6a_min.cpp ===
+=== a9\feat6a_op_plus.cpp ===
+=== a9\feat6a_ref_arg.cpp ===
+=== a9\feat6a_struct_free.cpp ===
+=== a9\feat6a_vec2.cpp ===
+=== a9\feat6a_vec2_binop.cpp ===
+=== a9\feat6a_vec2_copy.cpp ===
+=== a9\feat6a_vec2_discard.cpp ===
+=== a9\feat6a_vec2_dotx.cpp ===
+=== a9\feat6a_vec2_explicit.cpp ===
+=== a9\feat6a_vec2_int.cpp ===
+=== a9\feat6a_vec2_method.cpp ===
+=== a9\feat6a_vec2_nostore.cpp ===
+=== a9\feat6b_const_obj.cpp ===
+=== a9\feat6b_defn.cpp ===
+=== a9\feat6b_overload.cpp ===
+=== a9\feat6b_overload_rev.cpp ===
+=== a9\feat6b_this.cpp ===
+=== a7\member_call.cpp ===
+=== a7\default_arg.cpp ===
+=== a7\inline_member.cpp ===
+=== a7\typedef_class.cpp ===
+=== a2\mixed_link.bat ===
