@@ -291,6 +291,9 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
     int p_bt, a_bt;
     CType *pt;
 
+    /* Shared by cpp_resolve_func_call / cpp_resolve_free_func_call.
+     * Struct lvalue may bind to T& / const T& (score 10); this extends
+     * cpp_resolve_func_call beyond is_compatible_types exact-match only. */
     if (is_compatible_types(param, arg)) {
         *score_out = 10;
         return 1;
@@ -4736,9 +4739,8 @@ static void gen_cast(CType* type)
     if (vtop->r & VT_MUSTCAST)
         force_charshort_cast();
 
-    /* C++: bind struct argument to reference parameter */
-    if (tcc_state->cpp && (type->t & VT_REFERENCE)
-        && (vtop->type.t & VT_BTYPE) == VT_STRUCT) {
+    /* C++: bind lvalue to reference (param / return) */
+    if (tcc_state->cpp && (type->t & VT_REFERENCE) && (vtop->r & VT_LVAL)) {
         pt = pointed_type(type);
         if (is_compatible_unqualified_types(pt, &vtop->type)) {
             if (!(vtop->r & VT_LVAL)
@@ -4747,11 +4749,20 @@ static void gen_cast(CType* type)
             if (vtop->r & VT_LVAL)
                 gaddrof();
             else
-                tcc_error("struct rvalue cannot bind to reference");
+                tcc_error("rvalue cannot bind to reference");
             vtop->type = *type;
             vtop->r &= ~VT_LVAL;
             return;
         }
+    }
+
+    /* C++: assignment through reference stores the pointed-to type */
+    if (tcc_state->cpp && (type->t & VT_REFERENCE) && !(vtop->r & VT_LVAL)) {
+        CType pt;
+
+        pt = *pointed_type(type);
+        gen_cast(&pt);
+        return;
     }
 
     /* bitfields first get cast to ints */
@@ -5129,19 +5140,18 @@ static void verify_assign_cast(CType* dt)
         /* '0' can also be a pointer */
         if (is_null_pointer(vtop))
             break;
+        type1 = pointed_type(dt);
+        if ((dt->t & VT_REFERENCE) && is_compatible_unqualified_types(type1, st))
+            break;
         /* accept implicit pointer to integer cast with warning */
         if (is_integer_btype(sbt)) {
             tcc_warning("�L���X�g�Ȃ��Ő�������|�C���^������܂�");
             break;
         }
-        type1 = pointed_type(dt);
         if (sbt == VT_PTR)
             type2 = pointed_type(st);
         else if (sbt == VT_FUNC)
             type2 = st; /* a function is implicitly a function pointer */
-        else if ((dt->t & VT_REFERENCE) && sbt == VT_STRUCT
-            && is_compatible_unqualified_types(type1, st))
-            break;
         else
             goto error;
         /* FEAT-5B: propagate PMF field token before compatible-types break */
@@ -5344,7 +5354,16 @@ ST_FUNC void vstore(void)
             delayed_cast = 1;
         }
         else {
-            gen_cast(&vtop[-1].type);
+            if (tcc_state->cpp && (vtop[-1].type.t & VT_REFERENCE)) {
+                CType pt;
+
+                pt = *pointed_type(&vtop[-1].type);
+                gen_cast(&pt);
+                dbt = pt.t & VT_BTYPE;
+            }
+            else {
+                gen_cast(&vtop[-1].type);
+            }
         }
 
 #ifdef CONFIG_TCC_BCHECK
@@ -6091,6 +6110,7 @@ static int cpp_try_free_binop(int op_tok)
     vpushv(&right);
     resolved = cpp_resolve_free_func_call(v, 2);
     if (!resolved) {
+        /* Restore stack for gen_op(); copied SValues keep r/lval as-is. */
         vpop();
         vpop();
         vpushv(&left);
@@ -6123,10 +6143,13 @@ static int cpp_try_cpp_subscript(void)
     field = cpp_find_operator_member(&vtop->type, v, &cumofs);
     if (field && (field->type.t & VT_BTYPE) == VT_FUNC
         && !(field->type.ref && field->type.ref->f.func_virtual)) {
+        obj = *vtop;
+        vpop();
         next();
         gexpr();
         index = *vtop;
         vpop();
+        vpushv(&obj);
         s = cpp_prepare_member_func_call(field);
         cpp_finish_member_call(s, &index, 1);
         skip(']');
@@ -6151,8 +6174,7 @@ static int cpp_try_cpp_subscript(void)
     if (!resolved) {
         vpop();
         vpop();
-        vpushv(&obj);
-        return 0;
+        tcc_error("no matching non-member operator[]");
     }
 
     vpop();
@@ -6515,7 +6537,7 @@ static void struct_decl(CType* type, int u, int is_class)
                 goto do_decl;
             if (u == VT_ENUM && IS_ENUM(s->type.t)) /* XXX: check integral types */
                 goto do_decl;
-            tcc_error("�Ē�`: '%s'", get_tok_str(v, NULL));
+            tcc_error("redefinition of '%s'", get_tok_str(v, NULL));
         }
     }
     else {
@@ -6564,7 +6586,7 @@ do_decl:
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
-            tcc_error("struct/union/enum �͊��ɒ�`����Ă��܂�");
+            tcc_error("struct/union/enum already defined");
         s->c = -2;
         /* cannot be empty */
         /* non empty enums are not allowed */
@@ -6585,7 +6607,7 @@ do_decl:
                     expect("identifier");
                 ss = sym_find(v);
                 if (ss && !local_stack)
-                    tcc_error("�񋓎q '%s' �̍Ē�`",
+                    tcc_error("redefinition of enumerator '%s'",
                         get_tok_str(v, NULL));
                 next();
                 if (tok == '=') {
