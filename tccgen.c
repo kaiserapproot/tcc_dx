@@ -163,6 +163,7 @@ static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
 static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
+static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg);
 static int is_integer_btype(int bt);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
@@ -4728,12 +4729,30 @@ static void gen_cast_s(int t)
     gen_cast(&type);
 }
 
+/* C++: may an lvalue bind directly to T& / const T& (param, return)? */
+static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg)
+{
+    CType *pt;
+
+    pt = pointed_type(ref);
+    if ((arg->t & VT_BTYPE) == VT_STRUCT)
+        return is_compatible_unqualified_types(pt, arg);
+    if ((pt->t & VT_BTYPE) != (arg->t & VT_BTYPE))
+        return 0;
+    if ((pt->t & VT_UNSIGNED) != (arg->t & VT_UNSIGNED))
+        return 0;
+    if ((arg->t & VT_CONSTANT) && !(pt->t & VT_CONSTANT))
+        return 0;
+    return 1;
+}
+
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
 static void gen_cast(CType* type)
 {
     int sbt, dbt, sf, df, c;
     int dbt_bt, sbt_bt, ds, ss, bits, trunc;
     CType *pt;
+    CType ref_pt;
 
     /* special delayed cast for char/short */
     if (vtop->r & VT_MUSTCAST)
@@ -4741,8 +4760,7 @@ static void gen_cast(CType* type)
 
     /* C++: bind lvalue to reference (param / return) */
     if (tcc_state->cpp && (type->t & VT_REFERENCE) && (vtop->r & VT_LVAL)) {
-        pt = pointed_type(type);
-        if (is_compatible_unqualified_types(pt, &vtop->type)) {
+        if (cpp_can_bind_lvalue_to_reference(type, &vtop->type)) {
             if (!(vtop->r & VT_LVAL)
                 && (vtop->r & VT_VALMASK) == VT_LOCAL)
                 vtop->r |= VT_LVAL;
@@ -4758,11 +4776,11 @@ static void gen_cast(CType* type)
 
     /* C++: assignment through reference stores the pointed-to type */
     if (tcc_state->cpp && (type->t & VT_REFERENCE) && !(vtop->r & VT_LVAL)) {
-        CType pt;
-
-        pt = *pointed_type(type);
-        gen_cast(&pt);
-        return;
+        ref_pt = *pointed_type(type);
+        if (!(ref_pt.t & VT_REFERENCE)) {
+            gen_cast(&ref_pt);
+            return;
+        }
     }
 
     /* bitfields first get cast to ints */
@@ -5141,7 +5159,8 @@ static void verify_assign_cast(CType* dt)
         if (is_null_pointer(vtop))
             break;
         type1 = pointed_type(dt);
-        if ((dt->t & VT_REFERENCE) && is_compatible_unqualified_types(type1, st))
+        if ((dt->t & VT_REFERENCE) && sbt != VT_PTR && sbt != VT_FUNC
+            && cpp_can_bind_lvalue_to_reference(dt, st))
             break;
         /* accept implicit pointer to integer cast with warning */
         if (is_integer_btype(sbt)) {
@@ -6174,7 +6193,7 @@ static int cpp_try_cpp_subscript(void)
     if (!resolved) {
         vpop();
         vpop();
-        tcc_error("no matching non-member operator[]");
+        tcc_error("operator[] not found for this type");
     }
 
     vpop();
