@@ -286,6 +286,37 @@ static int cpp_build_call_mangle(int v, int nb_args, char *mbuf, int buf_size)
     return pos;
 }
 
+static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
+{
+    int p_bt, a_bt;
+    CType *pt;
+
+    if (is_compatible_types(param, arg)) {
+        *score_out = 10;
+        return 1;
+    }
+    if (tcc_state->cpp && (param->t & VT_REFERENCE)
+        && (arg->t & VT_BTYPE) == VT_STRUCT) {
+        pt = pointed_type(param);
+        if (is_compatible_unqualified_types(pt, arg)) {
+            *score_out = 10;
+            return 1;
+        }
+    }
+    p_bt = param->t & VT_BTYPE;
+    a_bt = arg->t & VT_BTYPE;
+    if ((is_float(p_bt) || is_integer_btype(p_bt)) &&
+        (is_float(a_bt) || is_integer_btype(a_bt))) {
+        *score_out = 1;
+        return 1;
+    }
+    if (p_bt == VT_PTR && a_bt == VT_PTR) {
+        *score_out = 1;
+        return 1;
+    }
+    return 0;
+}
+
 static Sym *cpp_resolve_func_call(int v, int nb_args)
 {
     Sym *s, *best = NULL;
@@ -304,7 +335,7 @@ static Sym *cpp_resolve_func_call(int v, int nb_args)
         p = s->type.ref->next;
         for (i = 0; i < nb_args; i++) {
             CType *arg_type = &vtop[-nb_args + 1 + i].type;
-            int p_bt, a_bt;
+            int arg_score;
 
             if (!p || p->type.t == VT_VOID) {
                 if (s->type.ref->f.func_type == FUNC_ELLIPSIS)
@@ -313,20 +344,11 @@ static Sym *cpp_resolve_func_call(int v, int nb_args)
                 break;
             }
 
-            if (is_compatible_types(&p->type, arg_type)) {
-                score += 10;
+            if (cpp_arg_matches_param(&p->type, arg_type, &arg_score)) {
+                score += arg_score;
             } else {
-                p_bt = p->type.t & VT_BTYPE;
-                a_bt = arg_type->t & VT_BTYPE;
-                if ((is_float(p_bt) || is_integer_btype(p_bt)) &&
-                    (is_float(a_bt) || is_integer_btype(a_bt))) {
-                    score += 1;
-                } else if (p_bt == VT_PTR && a_bt == VT_PTR) {
-                    score += 1;
-                } else {
-                    match = 0;
-                    break;
-                }
+                match = 0;
+                break;
             }
             p = p->next;
         }
@@ -343,6 +365,56 @@ static Sym *cpp_resolve_func_call(int v, int nb_args)
     if (best)
         return best;
     return sym_find(v);
+}
+
+static Sym *cpp_resolve_free_func_call(int v, int nb_args)
+{
+    Sym *s, *best = NULL;
+    int best_score = -1;
+
+    if (!tcc_state->cpp || tcc_state->extern_c)
+        return NULL;
+
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        Sym *p;
+        int i, score = 0, match = 1;
+
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class)
+            continue;
+
+        p = s->type.ref->next;
+        for (i = 0; i < nb_args; i++) {
+            CType *arg_type = &vtop[-nb_args + 1 + i].type;
+            int arg_score;
+
+            if (!p || p->type.t == VT_VOID) {
+                if (s->type.ref->f.func_type == FUNC_ELLIPSIS)
+                    break;
+                match = 0;
+                break;
+            }
+
+            if (cpp_arg_matches_param(&p->type, arg_type, &arg_score)) {
+                score += arg_score;
+            } else {
+                match = 0;
+                break;
+            }
+            p = p->next;
+        }
+
+        if (match && p && p->type.t != VT_VOID)
+            match = 0;
+
+        if (match && score > best_score) {
+            best_score = score;
+            best = s;
+        }
+    }
+
+    return best;
 }
 
 static void cpp_set_func_mangle_label(Sym *sym, CType *type)
@@ -536,6 +608,7 @@ static const char *cpp_operator_suffix(int op_tok)
     case '-': return "minus";
     case '*': return "mul";
     case '/': return "div";
+    case '[': return "index";
     default:
         return NULL;
     }
@@ -562,6 +635,11 @@ static int cpp_parse_operator_token(void)
 {
     int op;
 
+    if (tok == '[') {
+        next();
+        skip(']');
+        return '[';
+    }
     op = tok;
     if (!cpp_operator_suffix(op))
         tcc_error("unsupported operator");
@@ -5602,6 +5680,68 @@ static Sym *cpp_pick_func_field(Sym *const_match, Sym *nonconst_match,
     return NULL;
 }
 
+/* C++: find operator member without error (for implicit binop/subscript). */
+static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
+{
+    Sym *s, *class_sym;
+    Sym *const_match, *nonconst_match, *ret;
+    int v1, obj_const;
+
+    if ((type->t & VT_BTYPE) != VT_STRUCT || !type->ref)
+        return NULL;
+    class_sym = type->ref;
+    if (class_sym->c < 0)
+        return NULL;
+    v1 = v | SYM_FIELD;
+    obj_const = (type->t & VT_CONSTANT) ? 1 : 0;
+    const_match = NULL;
+    nonconst_match = NULL;
+    s = class_sym;
+    while ((s = s->next) != NULL) {
+        if (s->v == v1) {
+            if ((s->type.t & VT_BTYPE) == VT_FUNC) {
+                if (cpp_field_is_const(s)) {
+                    if (!const_match)
+                        const_match = s;
+                } else {
+                    if (!nonconst_match)
+                        nonconst_match = s;
+                }
+            } else {
+                *cumofs = s->c;
+                return s;
+            }
+            continue;
+        }
+        if ((s->type.t & VT_BTYPE) == VT_STRUCT
+            && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
+            ret = cpp_find_operator_member(&s->type, v1, cumofs);
+            if (ret) {
+                if ((ret->type.t & VT_BTYPE) != VT_FUNC)
+                    *cumofs += s->c;
+                return ret;
+            }
+        }
+    }
+    ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
+    if (ret)
+        return ret;
+    return NULL;
+}
+
+static int cpp_has_free_func(int v)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp)
+        return 0;
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) == VT_FUNC && !s->parent_class)
+            return 1;
+    }
+    return 0;
+}
+
 /* C++: find class member for call; resolves get() vs get() const overloads. */
 static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
 {
@@ -5815,7 +5955,215 @@ static void cpp_finish_member_call(Sym *s, SValue *user_args, int nb_user_args)
             vtop->type.t = VT_INT;
 #endif
         }
+        if (s->type.t & VT_REFERENCE)
+            indir();
     }
+}
+
+/* Complete free (non-member) call: func on vtop, user args in array. */
+static void cpp_finish_free_call(Sym *s, SValue *user_args, int nb_user_args)
+{
+    SValue ret;
+    Sym *sa;
+    int nb_args, ret_nregs, ret_align, regsize, variadic, n, r, i;
+    int size, align, t;
+
+    nb_args = 0;
+    ret.r2 = VT_CONST;
+    if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+        variadic = (s->f.func_type == FUNC_ELLIPSIS);
+        ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
+            &ret_align, &regsize);
+        if (ret_nregs <= 0) {
+            size = type_size(&s->type, &align);
+            loc = (loc - size) & -align;
+            ret.type = s->type;
+            ret.r = VT_LOCAL | VT_LVAL;
+            vseti(VT_LOCAL, loc);
+#ifdef CONFIG_TCC_BCHECK
+            if (tcc_state->do_bounds_check)
+                --loc;
+#endif
+            ret.c = vtop->c;
+            if (ret_nregs < 0)
+                vpop();
+            else
+                nb_args++;
+        }
+    } else {
+        ret_nregs = 1;
+        ret.type = s->type;
+    }
+
+    if (ret_nregs > 0) {
+        ret.c.i = 0;
+        PUT_R_RET(&ret, ret.type.t);
+    }
+
+    sa = s->next;
+    for (i = 0; i < nb_user_args; i++) {
+        vpushv(&user_args[i]);
+        gfunc_param_typed(s, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    nb_args += nb_user_args;
+
+    vcheck_cmp();
+    gfunc_call(nb_args);
+
+    if (ret_nregs < 0) {
+        vsetc(&ret.type, ret.r, &ret.c);
+#ifdef TCC_TARGET_RISCV64
+        arch_transfer_ret_regs(1);
+#endif
+    } else {
+        n = ret_nregs;
+        while (n > 1) {
+            int rc = reg_classes[ret.r] & ~(RC_INT | RC_FLOAT);
+            rc <<= --n;
+            for (r = 0; r < NB_REGS; ++r)
+                if (reg_classes[r] & rc)
+                    break;
+            vsetc(&ret.type, r, &ret.c);
+        }
+        vsetc(&ret.type, ret.r, &ret.c);
+        vtop->r2 = ret.r2;
+
+        if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
+            int addr, offset;
+
+            size = type_size(&s->type, &align);
+            size = (size + regsize - 1) & -regsize;
+            if (ret_align > align)
+                align = ret_align;
+            loc = (loc - size) & -align;
+            addr = loc;
+            offset = 0;
+            for (;;) {
+                vset(&ret.type, VT_LOCAL | VT_LVAL, addr + offset);
+                vswap();
+                vstore();
+                vtop--;
+                if (--ret_nregs == 0)
+                    break;
+                offset += regsize;
+            }
+            vset(&s->type, VT_LOCAL | VT_LVAL, addr);
+        }
+
+        t = s->type.t & VT_BTYPE;
+        if (t == VT_BYTE || t == VT_SHORT || t == VT_BOOL) {
+#ifdef PROMOTE_RET
+            vtop->r |= BFVAL(VT_MUSTCAST, 1);
+#else
+            vtop->type.t = VT_INT;
+#endif
+        }
+        if (s->type.t & VT_REFERENCE)
+            indir();
+    }
+}
+
+static int cpp_try_free_binop(int op_tok)
+{
+    Sym *resolved, *s;
+    SValue left, right, user_args[2];
+    int v;
+
+    if (!tcc_state->cpp)
+        return 0;
+    v = cpp_operator_field_tok(op_tok);
+    if (!v || !cpp_has_free_func(v))
+        return 0;
+    if ((vtop[-1].type.t & VT_BTYPE) != VT_STRUCT
+        && (vtop[0].type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+
+    right = vtop[0];
+    left = vtop[-1];
+    vpop();
+    vpop();
+
+    user_args[0] = left;
+    user_args[1] = right;
+    vpushv(&left);
+    vpushv(&right);
+    resolved = cpp_resolve_free_func_call(v, 2);
+    if (!resolved) {
+        vpop();
+        vpop();
+        vpushv(&left);
+        vpushv(&right);
+        return 0;
+    }
+
+    vpop();
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    s = resolved->type.ref;
+    cpp_finish_free_call(s, user_args, 2);
+    return 1;
+}
+
+static int cpp_try_cpp_subscript(void)
+{
+    Sym *field, *resolved, *s;
+    SValue obj, index, user_args[2];
+    int cumofs, v;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT || !vtop->type.ref)
+        return 0;
+    v = cpp_operator_field_tok('[');
+    if (!v)
+        return 0;
+
+    field = cpp_find_operator_member(&vtop->type, v, &cumofs);
+    if (field && (field->type.t & VT_BTYPE) == VT_FUNC
+        && !(field->type.ref && field->type.ref->f.func_virtual)) {
+        next();
+        gexpr();
+        index = *vtop;
+        vpop();
+        s = cpp_prepare_member_func_call(field);
+        cpp_finish_member_call(s, &index, 1);
+        skip(']');
+        return 1;
+    }
+
+    if (!cpp_has_free_func(v))
+        return 0;
+
+    obj = *vtop;
+    vpop();
+    next();
+    gexpr();
+    index = *vtop;
+    vpop();
+
+    user_args[0] = obj;
+    user_args[1] = index;
+    vpushv(&obj);
+    vpushv(&index);
+    resolved = cpp_resolve_free_func_call(v, 2);
+    if (!resolved) {
+        vpop();
+        vpop();
+        vpushv(&obj);
+        return 0;
+    }
+
+    vpop();
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    s = resolved->type.ref;
+    cpp_finish_free_call(s, user_args, 2);
+    skip(']');
+    return 1;
 }
 
 static int cpp_try_member_binop(int op_tok)
@@ -5826,7 +6174,7 @@ static int cpp_try_member_binop(int op_tok)
 
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
-    field = cpp_find_field_for_call(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs);
+    field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs);
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         return 0;
     if (field->type.ref && field->type.ref->f.func_virtual)
@@ -8264,11 +8612,13 @@ tok_next:
                 vtop->c.i = 0;
         }
         else if (tok == '[') {
-            next();
-            gexpr();
-            gen_op('+');
-            indir();
-            skip(']');
+            if (!cpp_try_cpp_subscript()) {
+                next();
+                gexpr();
+                gen_op('+');
+                indir();
+                skip(']');
+            }
         }
         else if (tok == '(') {
             SValue ret;
@@ -8477,6 +8827,8 @@ tok_next:
                     vtop->type.t = VT_INT;
 #endif
                 }
+                if (s->type.t & VT_REFERENCE)
+                    indir();
             }
             if (s->f.func_noreturn) {
                 if (debug_modes)
@@ -8647,7 +8999,8 @@ static void expr_infix(int p)
             if (precedence(tok) > p2)
                 expr_infix(p2 + 1);
             if (!cpp_try_member_binop(t))
-                gen_op(t);
+                if (!cpp_try_free_binop(t))
+                    gen_op(t);
         }
         t = tok;
     }
@@ -8975,6 +9328,14 @@ static void gfunc_return(CType* func_type)
             gv(rc);
             vtop -= ret_nregs - 1;
         }
+    }
+    else if (func_type->t & VT_REFERENCE) {
+        if (vtop->r & VT_LVAL) {
+            gaddrof();
+            if (!(vtop->type.t & VT_REFERENCE))
+                mk_pointer(&vtop->type);
+        }
+        gv(RC_RET(VT_PTR));
     }
     else {
         gv(RC_RET(func_type->t));
