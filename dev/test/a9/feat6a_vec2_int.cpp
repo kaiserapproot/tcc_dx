@@ -12,9 +12,9 @@ Vec2 Vec2::operator+(Vec2 o) {
 }
 
 int main() {
-    Vec2 a, b, c;
+    Vec2 a, b;
     a.x = 1; a.y = 2;
     b.x = 3; b.y = 4;
-    c = a + b;
-    return c.x + c.y - 10;
+    /* struct return + by-value arg, no assignment to local */
+    return (a + b).x + (a + b).y - 10;
 }
