@@ -5,7 +5,9 @@ public:
 };
 
 int& Vec2::operator[](int i) {
-    return i ? y : x;
+    if (i)
+        return y;
+    return x;
 }
 
 int main() {
