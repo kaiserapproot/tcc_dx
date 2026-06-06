@@ -163,6 +163,7 @@ static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
 static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
+static int is_integer_btype(int bt);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -6355,7 +6356,7 @@ do_decl:
                 }
                 while (1) {
                     if (flexible)
-                        tcc_error("�ϒ��z�񃁃��o '%s' ���\���̖̂����ɂ���܂���",
+                        tcc_error("flexible array member cannot follow unnamed struct: %s",
                             get_tok_str(v, NULL));
                     bit_size = -1;
                     v = 0;
@@ -6863,7 +6864,7 @@ static inline void convert_parameter_type(CType* pt)
     int keep_const;
 
     /* remove const and volatile qualifiers (XXX: const could be used
-       to indicate a const function parameter */
+       to indicate a const function parameter); keep const on C++ refs */
     keep_const = (tcc_state->cpp && (pt->t & VT_REFERENCE))
         ? (pt->t & VT_CONSTANT) : 0;
     pt->t &= ~(VT_CONSTANT | VT_VOLATILE);
@@ -8146,6 +8147,7 @@ tok_next:
 
             if (tok == TOK_ARROW)
                 indir();
+            /* C++: '.' on a reference is like '->' (deref then member) */
             else if (tcc_state->cpp && (vtop->type.t & VT_REFERENCE))
                 indir();
             qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
