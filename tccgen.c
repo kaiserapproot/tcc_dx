@@ -613,6 +613,11 @@ static const char *cpp_operator_suffix(int op_tok)
     case '*': return "mul";
     case '/': return "div";
     case '[': return "index";
+    case '=': return "assign";
+    case TOK_A_ADD: return "plus_assign";
+    case TOK_A_SUB: return "minus_assign";
+    case TOK_A_MUL: return "mul_assign";
+    case TOK_A_DIV: return "div_assign";
     default:
         return NULL;
     }
@@ -9248,8 +9253,21 @@ static void expr_eq(void)
         next();
         if (t == '=') {
             expr_eq();
+            /* C++: member operator= (falls back to plain store) */
+            if (cpp_try_member_binop(t))
+                return;
         }
         else {
+            /* C++: struct compound assignment via operator+= etc.
+               Plain C structs reject gen_op below, so no regression. */
+            if (tcc_state->cpp && (vtop->type.t & VT_BTYPE) == VT_STRUCT) {
+                expr_eq();
+                if (!cpp_try_member_binop(t))
+                    if (!cpp_try_free_binop(t))
+                        tcc_error("no operator%s defined for this type",
+                                  get_tok_str(t, NULL));
+                return;
+            }
             vdup();
             expr_eq();
             gen_op(TOK_ASSIGN_OP(t));
