@@ -322,7 +322,7 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
     return 0;
 }
 
-static Sym *cpp_resolve_func_call(int v, int nb_args)
+static Sym *cpp_resolve_func_call(int v, int nb_args, Sym *cur)
 {
     Sym *s, *best = NULL;
     int best_score = -1;
@@ -336,6 +336,15 @@ static Sym *cpp_resolve_func_call(int v, int nb_args)
 
         if ((s->type.t & VT_BTYPE) != VT_FUNC)
             continue;
+        /* BUG-7: re-resolution must not cross class boundaries nor
+           drop the const-ness already chosen by member lookup */
+        if (cur) {
+            if (s->parent_class != cur->parent_class)
+                continue;
+            if (!!(s->type.ref && s->type.ref->f.func_const)
+                != !!(cur->type.ref && cur->type.ref->f.func_const))
+                continue;
+        }
 
         p = s->type.ref->next;
         for (i = 0; i < nb_args; i++) {
@@ -7287,7 +7296,10 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                         }
                         unget_tok(':');
                     }
-                    type->t = stsym->type.t | (t & VT_STORAGE);
+                    /* keep qualifiers: `const Foo cf` must stay const so
+                       const member overloads resolve correctly (BUG-7) */
+                    type->t = stsym->type.t
+                        | (t & (VT_STORAGE | VT_CONSTANT | VT_VOLATILE));
                     type->ref = stsym;
                     typespec_found = 1;
                     st = bt = -2;
@@ -8887,7 +8899,8 @@ tok_next:
             if (tcc_state->cpp && !tcc_state->extern_c && nb_args >= 0
                 && vtop[-nb_args].sym
                 && (vtop[-nb_args].type.t & VT_BTYPE) == VT_FUNC) {
-                Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args);
+                Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
+                                                      vtop[-nb_args].sym);
                 if (resolved) {
                     vtop[-nb_args].sym = resolved;
                     vtop[-nb_args].type.ref = resolved->type.ref;
