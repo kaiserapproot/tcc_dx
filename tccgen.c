@@ -322,6 +322,32 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
     return 0;
 }
 
+/* C++: does the bound function sym belong to an overload set (>= 2
+   candidates with same class and const-ness)?  Used to defer argument
+   conversion until the overload is resolved from the raw arg types. */
+static int cpp_call_has_overloads(Sym *cur)
+{
+    Sym *s;
+    int n;
+
+    if (!cur || (cur->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    n = 0;
+    for (s = sym_find(cur->v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class != cur->parent_class)
+            continue;
+        if (!!(s->type.ref && s->type.ref->f.func_const)
+            != !!(cur->type.ref && cur->type.ref->f.func_const))
+            continue;
+        n++;
+        if (n >= 2)
+            return 1;
+    }
+    return 0;
+}
+
 static Sym *cpp_resolve_func_call(int v, int nb_args, Sym *cur)
 {
     Sym *s, *best = NULL;
@@ -730,6 +756,21 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     {
         int want_const;
 
+        /* pass 1: full signature match (is_compatible_func via
+           is_compatible_types covers return type, param types and
+           func_const), so same-arity overloads with different param
+           types bind to the right global */
+        for (s = sym_find(v); s; s = s->prev_tok) {
+            if ((s->type.t & VT_BTYPE) != VT_FUNC)
+                continue;
+            if (s->parent_class != class_sym)
+                continue;
+            if (is_compatible_types(&s->type, &field->type))
+                return s;
+        }
+        /* pass 2 (fallback): const + arity filter for syms whose type
+           does not compare equal to the field (e.g. internal ctor/dtor
+           protos) */
         want_const = field->type.ref && field->type.ref->f.func_const;
         for (s = sym_find(v); s; s = s->prev_tok) {
             if ((s->type.t & VT_BTYPE) != VT_FUNC)
@@ -8785,6 +8826,7 @@ tok_next:
             SValue ret;
             Sym* sa;
             int nb_args, ret_nregs, ret_align, regsize, variadic;
+            int cpp_defer, cpp_i;
             TokenString* p, * p2;
 
             /* function call  */
@@ -8805,6 +8847,17 @@ tok_next:
             }
             /* get return type */
             s = vtop->type.ref;
+            /* C++: when the callee belongs to an overload set, defer the
+               per-arg conversion so the overload can be resolved from the
+               raw argument types (otherwise args get cast to the params
+               of the initially bound overload before re-resolution).
+               Struct returns (sret slot) and reverse_funcargs keep the
+               eager behavior. */
+            cpp_defer = tcc_state->cpp && !tcc_state->extern_c
+                && !tcc_state->reverse_funcargs
+                && (vtop->r & VT_SYM) && vtop->sym
+                && (s->type.t & VT_BTYPE) != VT_STRUCT
+                && cpp_call_has_overloads(vtop->sym);
             next();
             sa = s->next; /* first parameter */
             nb_args = regsize = 0;
@@ -8864,7 +8917,8 @@ tok_next:
                     }
                     else {
                         expr_eq();
-                        gfunc_param_typed(s, sa);
+                        if (!cpp_defer)
+                            gfunc_param_typed(s, sa);
                     }
                     nb_args++;
                     if (sa)
@@ -8874,10 +8928,12 @@ tok_next:
                     skip(',');
                 }
             }
-            if (sa && tcc_state->cpp)
-                cpp_apply_default_args(s, &nb_args, &sa);
-            else if (sa)
-                tcc_error("too few arguments to function");
+            if (!cpp_defer) {
+                if (sa && tcc_state->cpp)
+                    cpp_apply_default_args(s, &nb_args, &sa);
+                else if (sa)
+                    tcc_error("too few arguments to function");
+            }
 
             if (p) { /* with reverse_funcargs */
                 for (n = 0; p; p = p2, ++n) {
@@ -8906,6 +8962,20 @@ tok_next:
                     vtop[-nb_args].type.ref = resolved->type.ref;
                     s = resolved->type.ref;
                 }
+            }
+            if (cpp_defer) {
+                /* now that the overload is resolved, convert each arg in
+                   place (vrotb(nb_args) brings the deepest arg to the top;
+                   nb_args rotations restore the original order) */
+                sa = s->next;
+                for (cpp_i = 0; cpp_i < nb_args; cpp_i++) {
+                    vrotb(nb_args);
+                    gfunc_param_typed(s, sa);
+                    if (sa)
+                        sa = sa->next;
+                }
+                if (sa)
+                    cpp_apply_default_args(s, &nb_args, &sa);
             }
             if (cpp_member_this_pending) {
                 int na = nb_args;
