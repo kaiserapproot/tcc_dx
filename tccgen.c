@@ -11118,8 +11118,14 @@ static void gen_function(Sym* sym)
             pt.t |= VT_CONSTANT;
         pt.ref = sym->parent_class;
         this_param = sym_malloc();
+        /* sym_malloc() recycles pool memory without zeroing; r/c would
+           otherwise carry stale data (BUG-6).  They are placeholders
+           only: the authoritative `this` storage is the local pushed by
+           gfunc_prolog, see below. */
         this_param->v = TOK_THIS;
         this_param->type = pt;
+        this_param->r = 0;
+        this_param->c = 0;
         saved_param_next = sym->type.ref->next;
         this_param->next = saved_param_next;
         sym->type.ref->next = this_param;
@@ -11143,6 +11149,20 @@ static void gen_function(Sym* sym)
     nb_temp_local_vars = 0;
     gfunc_prolog(sym);
     tcc_debug_prolog_epilog(tcc_state, 0);
+
+    /* gfunc_prolog pushed every entry of sym->type.ref->next (including
+     * the injected `this`) on local_stack with its real storage (r/c).
+     * this_param itself is only a type-list entry without storage, so
+     * member accesses must go through the prolog-created local (BUG-6).
+     * Precondition: this runs right after gfunc_prolog and before the
+     * body is parsed, so sym_find(TOK_THIS) can only resolve to the
+     * parameter just pushed -- no shadowing is possible yet. */
+    if (this_param) {
+        Sym *this_local = sym_find(TOK_THIS);
+        if (!this_local)
+            tcc_error("internal error: 'this' parameter not pushed by prolog");
+        cpp_this_sym = this_local;
+    }
 
     local_scope = 0;
     rsym = 0;
