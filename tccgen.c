@@ -11113,10 +11113,16 @@ static void gen_function(Sym* sym)
     if (sym->parent_class && tcc_state->cpp && !(sym->type.t & VT_STATIC)) {
         CType pt;
 
-        pt.t = VT_PTR;
+        /* Build `this` as a real pointer type via mk_pointer so that
+           pointed_type() yields {VT_STRUCT, ref=class}.  Pointing ref
+           directly at the class tag sym made pointed_type() return the
+           tag's own type whose ref is NULL (struct_decl), crashing any
+           field walk after indir() (`this->x`, `*this`) (BUG-8). */
+        pt.t = VT_STRUCT;
+        pt.ref = sym->parent_class;
+        mk_pointer(&pt);
         if (sym->type.ref->f.func_const)
             pt.t |= VT_CONSTANT;
-        pt.ref = sym->parent_class;
         this_param = sym_malloc();
         /* sym_malloc() recycles pool memory without zeroing; r/c would
            otherwise carry stale data (BUG-6).  They are placeholders
