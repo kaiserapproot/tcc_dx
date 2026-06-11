@@ -11144,6 +11144,17 @@ static void gen_function(Sym* sym)
     gfunc_prolog(sym);
     tcc_debug_prolog_epilog(tcc_state, 0);
 
+    /* gfunc_prolog pushed every parameter (including the injected `this`)
+     * on local_stack with its real storage (r/c).  this_param itself comes
+     * from sym_malloc() and its r/c are stale pool garbage, so member
+     * accesses through cpp_this_sym would read `this` from a random
+     * register.  Point cpp_this_sym at the prolog-created local instead. */
+    if (this_param) {
+        Sym *this_local = sym_find(TOK_THIS);
+        if (this_local)
+            cpp_this_sym = this_local;
+    }
+
     local_scope = 0;
     rsym = 0;
     func_vla_arg(sym);
