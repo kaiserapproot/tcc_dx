@@ -176,6 +176,7 @@ static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
+static int cpp_func_param_count(Sym *field);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
@@ -618,6 +619,10 @@ static const char *cpp_operator_suffix(int op_tok)
     case TOK_A_SUB: return "minus_assign";
     case TOK_A_MUL: return "mul_assign";
     case TOK_A_DIV: return "div_assign";
+    case '!': return "not";
+    case '~': return "compl";
+    case TOK_INC: return "inc";
+    case TOK_DEC: return "dec";
     default:
         return NULL;
     }
@@ -723,6 +728,10 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
             if (s->parent_class != class_sym)
                 continue;
             if (!!(s->type.ref && s->type.ref->f.func_const) != !!want_const)
+                continue;
+            /* arity overloads (e.g. unary vs binary operator-) share the
+               same token; pick the global matching the field's arity */
+            if (cpp_func_param_count(s) != cpp_func_param_count(field))
                 continue;
             return s;
         }
@@ -5723,11 +5732,27 @@ static Sym *cpp_pick_func_field(Sym *const_match, Sym *nonconst_match,
     return NULL;
 }
 
-/* C++: find operator member without error (for implicit binop/subscript). */
-static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
+/* C++: number of declared parameters of a member function field
+   (hidden `this` is not part of the field's param list). */
+static int cpp_func_param_count(Sym *field)
+{
+    Sym *sa;
+    int n;
+
+    n = 0;
+    for (sa = field->type.ref ? field->type.ref->next : NULL; sa; sa = sa->next)
+        n++;
+    return n;
+}
+
+/* C++: find operator member without error (for implicit binop/subscript/unop).
+   want_args selects by declared arity (e.g. unary vs binary operator-);
+   pass -1 to accept any.  Falls back to any-arity when nothing matches. */
+static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs, int want_args)
 {
     Sym *s, *class_sym;
     Sym *const_match, *nonconst_match, *ret;
+    Sym *any_const_match, *any_nonconst_match;
     int v1, obj_const;
 
     if ((type->t & VT_BTYPE) != VT_STRUCT || !type->ref)
@@ -5739,16 +5764,24 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
     obj_const = (type->t & VT_CONSTANT) ? 1 : 0;
     const_match = NULL;
     nonconst_match = NULL;
+    any_const_match = NULL;
+    any_nonconst_match = NULL;
     s = class_sym;
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
             if ((s->type.t & VT_BTYPE) == VT_FUNC) {
+                int arity_ok = (want_args < 0
+                                || cpp_func_param_count(s) == want_args);
                 if (cpp_field_is_const(s)) {
-                    if (!const_match)
+                    if (arity_ok && !const_match)
                         const_match = s;
+                    if (!any_const_match)
+                        any_const_match = s;
                 } else {
-                    if (!nonconst_match)
+                    if (arity_ok && !nonconst_match)
                         nonconst_match = s;
+                    if (!any_nonconst_match)
+                        any_nonconst_match = s;
                 }
             } else {
                 *cumofs = s->c;
@@ -5758,7 +5791,7 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
         }
         if ((s->type.t & VT_BTYPE) == VT_STRUCT
             && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
-            ret = cpp_find_operator_member(&s->type, v1, cumofs);
+            ret = cpp_find_operator_member(&s->type, v1, cumofs, want_args);
             if (ret) {
                 if ((ret->type.t & VT_BTYPE) != VT_FUNC)
                     *cumofs += s->c;
@@ -5767,6 +5800,10 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
         }
     }
     ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
+    if (ret)
+        return ret;
+    /* no exact-arity candidate: keep pre-arity behavior (default args etc.) */
+    ret = cpp_pick_func_field(any_const_match, any_nonconst_match, obj_const, cumofs);
     if (ret)
         return ret;
     return NULL;
@@ -6164,7 +6201,7 @@ static int cpp_try_cpp_subscript(void)
     if (!v)
         return 0;
 
-    field = cpp_find_operator_member(&vtop->type, v, &cumofs);
+    field = cpp_find_operator_member(&vtop->type, v, &cumofs, 1);
     if (field && (field->type.t & VT_BTYPE) == VT_FUNC
         && !(field->type.ref && field->type.ref->f.func_virtual)) {
         obj = *vtop;
@@ -6212,6 +6249,63 @@ static int cpp_try_cpp_subscript(void)
     return 1;
 }
 
+/* FEAT-6A-ext3: unary operator on a struct operand (vtop).
+   Member (0-arg) form; returns 0 to let the caller try the free form
+   or the plain C path. */
+static int cpp_try_member_unop(int op_tok)
+{
+    Sym *field, *s;
+    int cumofs;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    field = cpp_find_operator_member(&vtop->type, cpp_operator_field_tok(op_tok), &cumofs, 0);
+    if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    /* any-arity fallback may hand back a binary form; reject it here */
+    if (cpp_func_param_count(field) != 0)
+        return 0;
+    if (field->type.ref && field->type.ref->f.func_virtual)
+        return 0;
+    s = cpp_prepare_member_func_call(field);
+    cpp_finish_member_call(s, NULL, 0);
+    return 1;
+}
+
+/* FEAT-6A-ext3: free unary operator(operand) fallback. */
+static int cpp_try_free_unop(int op_tok)
+{
+    Sym *resolved, *s;
+    SValue operand, user_args[1];
+    int v;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    v = cpp_operator_field_tok(op_tok);
+    if (!v || !cpp_has_free_func(v))
+        return 0;
+
+    operand = *vtop;
+    vpop();
+    user_args[0] = operand;
+    vpushv(&operand);
+    resolved = cpp_resolve_free_func_call(v, 1);
+    if (!resolved) {
+        /* restore stack for the plain C path */
+        vpop();
+        vpushv(&operand);
+        return 0;
+    }
+
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    s = resolved->type.ref;
+    cpp_finish_free_call(s, user_args, 1);
+    return 1;
+}
+
 static int cpp_try_member_binop(int op_tok)
 {
     Sym *field, *s;
@@ -6220,7 +6314,7 @@ static int cpp_try_member_binop(int op_tok)
 
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
-    field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs);
+    field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs, 1);
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         return 0;
     if (field->type.ref && field->type.ref->f.func_virtual)
@@ -7365,8 +7459,11 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
             }
         }
         else
-            /* if no parameters, then old type prototype */
-            l = FUNC_OLD;
+            /* if no parameters, then old type prototype.
+               C++: () is a real empty prototype, i.e. (void); keeping
+               FUNC_OLD would make 0-arg and 1-arg overloads (e.g. unary
+               vs binary operator-) "compatible" and break overloading. */
+            l = tcc_state->cpp ? FUNC_NEW : FUNC_OLD;
         skip(')');
         if (tcc_state->cpp
             && (tok == TOK_CONST1 || tok == TOK_CONST2 || tok == TOK_CONST3)) {
@@ -8117,13 +8214,16 @@ tok_next:
     case '!':
         next();
         unary();
-        gen_test_zero(TOK_EQ);
+        if (!cpp_try_member_unop('!') && !cpp_try_free_unop('!'))
+            gen_test_zero(TOK_EQ);
         break;
     case '~':
         next();
         unary();
-        vpushi(-1);
-        gen_op('^');
+        if (!cpp_try_member_unop('~') && !cpp_try_free_unop('~')) {
+            vpushi(-1);
+            gen_op('^');
+        }
         break;
     case '+':
         next();
@@ -8346,11 +8446,14 @@ tok_next:
         t = tok;
         next();
         unary();
-        inc(0, t);
+        if (!cpp_try_member_unop(t) && !cpp_try_free_unop(t))
+            inc(0, t);
         break;
     case '-':
         next();
         unary();
+        if (cpp_try_member_unop('-') || cpp_try_free_unop('-'))
+            break;
         if (is_float(vtop->type.t)) {
             gen_opif(TOK_NEG);
         }
