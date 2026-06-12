@@ -176,6 +176,8 @@ static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
+static int cpp_func_param_count(Sym *field);
+static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
@@ -321,7 +323,33 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
     return 0;
 }
 
-static Sym *cpp_resolve_func_call(int v, int nb_args)
+/* C++: does the bound function sym belong to an overload set (>= 2
+   candidates with same class and const-ness)?  Used to defer argument
+   conversion until the overload is resolved from the raw arg types. */
+static int cpp_call_has_overloads(Sym *cur)
+{
+    Sym *s;
+    int n;
+
+    if (!cur || (cur->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    n = 0;
+    for (s = sym_find(cur->v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class != cur->parent_class)
+            continue;
+        if (!!(s->type.ref && s->type.ref->f.func_const)
+            != !!(cur->type.ref && cur->type.ref->f.func_const))
+            continue;
+        n++;
+        if (n >= 2)
+            return 1;
+    }
+    return 0;
+}
+
+static Sym *cpp_resolve_func_call(int v, int nb_args, Sym *cur)
 {
     Sym *s, *best = NULL;
     int best_score = -1;
@@ -335,6 +363,15 @@ static Sym *cpp_resolve_func_call(int v, int nb_args)
 
         if ((s->type.t & VT_BTYPE) != VT_FUNC)
             continue;
+        /* BUG-7: re-resolution must not cross class boundaries nor
+           drop the const-ness already chosen by member lookup */
+        if (cur) {
+            if (s->parent_class != cur->parent_class)
+                continue;
+            if (!!(s->type.ref && s->type.ref->f.func_const)
+                != !!(cur->type.ref && cur->type.ref->f.func_const))
+                continue;
+        }
 
         p = s->type.ref->next;
         for (i = 0; i < nb_args; i++) {
@@ -613,6 +650,15 @@ static const char *cpp_operator_suffix(int op_tok)
     case '*': return "mul";
     case '/': return "div";
     case '[': return "index";
+    case '=': return "assign";
+    case TOK_A_ADD: return "plus_assign";
+    case TOK_A_SUB: return "minus_assign";
+    case TOK_A_MUL: return "mul_assign";
+    case TOK_A_DIV: return "div_assign";
+    case '!': return "not";
+    case '~': return "compl";
+    case TOK_INC: return "inc";
+    case TOK_DEC: return "dec";
     default:
         return NULL;
     }
@@ -711,6 +757,21 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     {
         int want_const;
 
+        /* pass 1: full signature match (is_compatible_func via
+           is_compatible_types covers return type, param types and
+           func_const), so same-arity overloads with different param
+           types bind to the right global */
+        for (s = sym_find(v); s; s = s->prev_tok) {
+            if ((s->type.t & VT_BTYPE) != VT_FUNC)
+                continue;
+            if (s->parent_class != class_sym)
+                continue;
+            if (is_compatible_types(&s->type, &field->type))
+                return s;
+        }
+        /* pass 2 (fallback): const + arity filter for syms whose type
+           does not compare equal to the field (e.g. internal ctor/dtor
+           protos) */
         want_const = field->type.ref && field->type.ref->f.func_const;
         for (s = sym_find(v); s; s = s->prev_tok) {
             if ((s->type.t & VT_BTYPE) != VT_FUNC)
@@ -718,6 +779,10 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
             if (s->parent_class != class_sym)
                 continue;
             if (!!(s->type.ref && s->type.ref->f.func_const) != !!want_const)
+                continue;
+            /* arity overloads (e.g. unary vs binary operator-) share the
+               same token; pick the global matching the field's arity */
+            if (cpp_func_param_count(s) != cpp_func_param_count(field))
                 continue;
             return s;
         }
@@ -937,6 +1002,27 @@ static Sym *cpp_find_ctor_field(Sym *class_sym)
         return f;
     }
     return NULL;
+}
+
+/* FEAT-4F: does the class declare a 0-arg (default) constructor?
+   Used to decide whether `Foo f;` should call the ctor implicitly. */
+static int cpp_class_has_default_ctor(Sym *class_sym)
+{
+    Sym *f;
+    int class_name_tok;
+
+    if (!class_sym)
+        return 0;
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (cpp_func_param_count(f) == 0)
+            return 1;
+    }
+    return 0;
 }
 
 /* C++: scan class_sym's member chain for the destructor field. */
@@ -1393,9 +1479,12 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
 {
     Sym *ctor_field;
     Sym *ctor_global;
+    Sym *resolved;
+    Sym *sa;
     CType base_type;
     int nb_args;
     int na;
+    int i;
     SValue base_this;
 
     if (!base_field || !base_class || !cpp_this_sym)
@@ -1417,6 +1506,28 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
             next();
     }
     na = nb_args;
+    /* resolve the ctor overload from the raw argument types (the initial
+       bind above only sees the first ctor field), then convert each arg
+       to the resolved prototype: args are the top na entries (func below),
+       so na rotations of vrotb(na) visit each arg once and restore the
+       original order */
+    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
     cpp_push_member_var(base_field);
     gaddrof();
     base_this = *vtop;
@@ -5718,11 +5829,27 @@ static Sym *cpp_pick_func_field(Sym *const_match, Sym *nonconst_match,
     return NULL;
 }
 
-/* C++: find operator member without error (for implicit binop/subscript). */
-static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
+/* C++: number of declared parameters of a member function field
+   (hidden `this` is not part of the field's param list). */
+static int cpp_func_param_count(Sym *field)
+{
+    Sym *sa;
+    int n;
+
+    n = 0;
+    for (sa = field->type.ref ? field->type.ref->next : NULL; sa; sa = sa->next)
+        n++;
+    return n;
+}
+
+/* C++: find operator member without error (for implicit binop/subscript/unop).
+   want_args selects by declared arity (e.g. unary vs binary operator-);
+   pass -1 to accept any.  Falls back to any-arity when nothing matches. */
+static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs, int want_args)
 {
     Sym *s, *class_sym;
     Sym *const_match, *nonconst_match, *ret;
+    Sym *any_const_match, *any_nonconst_match;
     int v1, obj_const;
 
     if ((type->t & VT_BTYPE) != VT_STRUCT || !type->ref)
@@ -5734,16 +5861,24 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
     obj_const = (type->t & VT_CONSTANT) ? 1 : 0;
     const_match = NULL;
     nonconst_match = NULL;
+    any_const_match = NULL;
+    any_nonconst_match = NULL;
     s = class_sym;
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
             if ((s->type.t & VT_BTYPE) == VT_FUNC) {
+                int arity_ok = (want_args < 0
+                                || cpp_func_param_count(s) == want_args);
                 if (cpp_field_is_const(s)) {
-                    if (!const_match)
+                    if (arity_ok && !const_match)
                         const_match = s;
+                    if (!any_const_match)
+                        any_const_match = s;
                 } else {
-                    if (!nonconst_match)
+                    if (arity_ok && !nonconst_match)
                         nonconst_match = s;
+                    if (!any_nonconst_match)
+                        any_nonconst_match = s;
                 }
             } else {
                 *cumofs = s->c;
@@ -5753,7 +5888,7 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
         }
         if ((s->type.t & VT_BTYPE) == VT_STRUCT
             && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
-            ret = cpp_find_operator_member(&s->type, v1, cumofs);
+            ret = cpp_find_operator_member(&s->type, v1, cumofs, want_args);
             if (ret) {
                 if ((ret->type.t & VT_BTYPE) != VT_FUNC)
                     *cumofs += s->c;
@@ -5762,6 +5897,10 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs)
         }
     }
     ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
+    if (ret)
+        return ret;
+    /* no exact-arity candidate: keep pre-arity behavior (default args etc.) */
+    ret = cpp_pick_func_field(any_const_match, any_nonconst_match, obj_const, cumofs);
     if (ret)
         return ret;
     return NULL;
@@ -6159,7 +6298,7 @@ static int cpp_try_cpp_subscript(void)
     if (!v)
         return 0;
 
-    field = cpp_find_operator_member(&vtop->type, v, &cumofs);
+    field = cpp_find_operator_member(&vtop->type, v, &cumofs, 1);
     if (field && (field->type.t & VT_BTYPE) == VT_FUNC
         && !(field->type.ref && field->type.ref->f.func_virtual)) {
         obj = *vtop;
@@ -6207,6 +6346,63 @@ static int cpp_try_cpp_subscript(void)
     return 1;
 }
 
+/* FEAT-6A-ext3: unary operator on a struct operand (vtop).
+   Member (0-arg) form; returns 0 to let the caller try the free form
+   or the plain C path. */
+static int cpp_try_member_unop(int op_tok)
+{
+    Sym *field, *s;
+    int cumofs;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    field = cpp_find_operator_member(&vtop->type, cpp_operator_field_tok(op_tok), &cumofs, 0);
+    if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    /* any-arity fallback may hand back a binary form; reject it here */
+    if (cpp_func_param_count(field) != 0)
+        return 0;
+    if (field->type.ref && field->type.ref->f.func_virtual)
+        return 0;
+    s = cpp_prepare_member_func_call(field);
+    cpp_finish_member_call(s, NULL, 0);
+    return 1;
+}
+
+/* FEAT-6A-ext3: free unary operator(operand) fallback. */
+static int cpp_try_free_unop(int op_tok)
+{
+    Sym *resolved, *s;
+    SValue operand, user_args[1];
+    int v;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    v = cpp_operator_field_tok(op_tok);
+    if (!v || !cpp_has_free_func(v))
+        return 0;
+
+    operand = *vtop;
+    vpop();
+    user_args[0] = operand;
+    vpushv(&operand);
+    resolved = cpp_resolve_free_func_call(v, 1);
+    if (!resolved) {
+        /* restore stack for the plain C path */
+        vpop();
+        vpushv(&operand);
+        return 0;
+    }
+
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    s = resolved->type.ref;
+    cpp_finish_free_call(s, user_args, 1);
+    return 1;
+}
+
 static int cpp_try_member_binop(int op_tok)
 {
     Sym *field, *s;
@@ -6215,7 +6411,7 @@ static int cpp_try_member_binop(int op_tok)
 
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
-    field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs);
+    field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs, 1);
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         return 0;
     if (field->type.ref && field->type.ref->f.func_virtual)
@@ -7188,7 +7384,10 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                         }
                         unget_tok(':');
                     }
-                    type->t = stsym->type.t | (t & VT_STORAGE);
+                    /* keep qualifiers: `const Foo cf` must stay const so
+                       const member overloads resolve correctly (BUG-7) */
+                    type->t = stsym->type.t
+                        | (t & (VT_STORAGE | VT_CONSTANT | VT_VOLATILE));
                     type->ref = stsym;
                     typespec_found = 1;
                     st = bt = -2;
@@ -7360,8 +7559,11 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
             }
         }
         else
-            /* if no parameters, then old type prototype */
-            l = FUNC_OLD;
+            /* if no parameters, then old type prototype.
+               C++: () is a real empty prototype, i.e. (void); keeping
+               FUNC_OLD would make 0-arg and 1-arg overloads (e.g. unary
+               vs binary operator-) "compatible" and break overloading. */
+            l = tcc_state->cpp ? FUNC_NEW : FUNC_OLD;
         skip(')');
         if (tcc_state->cpp
             && (tok == TOK_CONST1 || tok == TOK_CONST2 || tok == TOK_CONST3)) {
@@ -8112,13 +8314,16 @@ tok_next:
     case '!':
         next();
         unary();
-        gen_test_zero(TOK_EQ);
+        if (!cpp_try_member_unop('!') && !cpp_try_free_unop('!'))
+            gen_test_zero(TOK_EQ);
         break;
     case '~':
         next();
         unary();
-        vpushi(-1);
-        gen_op('^');
+        if (!cpp_try_member_unop('~') && !cpp_try_free_unop('~')) {
+            vpushi(-1);
+            gen_op('^');
+        }
         break;
     case '+':
         next();
@@ -8341,11 +8546,14 @@ tok_next:
         t = tok;
         next();
         unary();
-        inc(0, t);
+        if (!cpp_try_member_unop(t) && !cpp_try_free_unop(t))
+            inc(0, t);
         break;
     case '-':
         next();
         unary();
+        if (cpp_try_member_unop('-') || cpp_try_free_unop('-'))
+            break;
         if (is_float(vtop->type.t)) {
             gen_opif(TOK_NEG);
         }
@@ -8520,6 +8728,13 @@ tok_next:
         else if (r == VT_CONST && IS_ENUM_VAL(s->type.t)) {
             vtop->c.i = s->enum_val;
         }
+
+        /* C++ BUG-9: a reference variable always denotes its referent;
+           dereference at use.  Function symbols keep VT_REFERENCE to
+           mean "returns a reference", so exclude them. */
+        if (tcc_state->cpp && (s->type.t & VT_REFERENCE)
+            && (s->type.t & VT_BTYPE) != VT_FUNC)
+            indir();
         break;
     }
 
@@ -8665,6 +8880,7 @@ tok_next:
             SValue ret;
             Sym* sa;
             int nb_args, ret_nregs, ret_align, regsize, variadic;
+            int cpp_defer, cpp_i;
             TokenString* p, * p2;
 
             /* function call  */
@@ -8685,6 +8901,17 @@ tok_next:
             }
             /* get return type */
             s = vtop->type.ref;
+            /* C++: when the callee belongs to an overload set, defer the
+               per-arg conversion so the overload can be resolved from the
+               raw argument types (otherwise args get cast to the params
+               of the initially bound overload before re-resolution).
+               Struct returns (sret slot) and reverse_funcargs keep the
+               eager behavior. */
+            cpp_defer = tcc_state->cpp && !tcc_state->extern_c
+                && !tcc_state->reverse_funcargs
+                && (vtop->r & VT_SYM) && vtop->sym
+                && (s->type.t & VT_BTYPE) != VT_STRUCT
+                && cpp_call_has_overloads(vtop->sym);
             next();
             sa = s->next; /* first parameter */
             nb_args = regsize = 0;
@@ -8744,7 +8971,8 @@ tok_next:
                     }
                     else {
                         expr_eq();
-                        gfunc_param_typed(s, sa);
+                        if (!cpp_defer)
+                            gfunc_param_typed(s, sa);
                     }
                     nb_args++;
                     if (sa)
@@ -8754,10 +8982,12 @@ tok_next:
                     skip(',');
                 }
             }
-            if (sa && tcc_state->cpp)
-                cpp_apply_default_args(s, &nb_args, &sa);
-            else if (sa)
-                tcc_error("too few arguments to function");
+            if (!cpp_defer) {
+                if (sa && tcc_state->cpp)
+                    cpp_apply_default_args(s, &nb_args, &sa);
+                else if (sa)
+                    tcc_error("too few arguments to function");
+            }
 
             if (p) { /* with reverse_funcargs */
                 for (n = 0; p; p = p2, ++n) {
@@ -8779,12 +9009,27 @@ tok_next:
             if (tcc_state->cpp && !tcc_state->extern_c && nb_args >= 0
                 && vtop[-nb_args].sym
                 && (vtop[-nb_args].type.t & VT_BTYPE) == VT_FUNC) {
-                Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args);
+                Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
+                                                      vtop[-nb_args].sym);
                 if (resolved) {
                     vtop[-nb_args].sym = resolved;
                     vtop[-nb_args].type.ref = resolved->type.ref;
                     s = resolved->type.ref;
                 }
+            }
+            if (cpp_defer) {
+                /* now that the overload is resolved, convert each arg in
+                   place (vrotb(nb_args) brings the deepest arg to the top;
+                   nb_args rotations restore the original order) */
+                sa = s->next;
+                for (cpp_i = 0; cpp_i < nb_args; cpp_i++) {
+                    vrotb(nb_args);
+                    gfunc_param_typed(s, sa);
+                    if (sa)
+                        sa = sa->next;
+                }
+                if (sa)
+                    cpp_apply_default_args(s, &nb_args, &sa);
             }
             if (cpp_member_this_pending) {
                 int na = nb_args;
@@ -9248,8 +9493,21 @@ static void expr_eq(void)
         next();
         if (t == '=') {
             expr_eq();
+            /* C++: member operator= (falls back to plain store) */
+            if (cpp_try_member_binop(t))
+                return;
         }
         else {
+            /* C++: struct compound assignment via operator+= etc.
+               Plain C structs reject gen_op below, so no regression. */
+            if (tcc_state->cpp && (vtop->type.t & VT_BTYPE) == VT_STRUCT) {
+                expr_eq();
+                if (!cpp_try_member_binop(t))
+                    if (!cpp_try_free_binop(t))
+                        tcc_error("no operator%s defined for this type",
+                                  get_tok_str(t, NULL));
+                return;
+            }
             vdup();
             expr_eq();
             gen_op(TOK_ASSIGN_OP(t));
@@ -10506,6 +10764,23 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
         vtop--;
     }
     else {
+        /* C++ BUG-9: a reference declaration binds to the initializer
+           lvalue, i.e. stores its ADDRESS.  Without this the value was
+           stored into the pointer slot (scalar) or memcpy'd over it
+           (struct), so later accesses dereferenced garbage. */
+        if (tcc_state->cpp && (dtype.t & VT_REFERENCE)) {
+            if ((vtop->r & VT_LVAL)
+                && cpp_can_bind_lvalue_to_reference(&dtype, &vtop->type)) {
+                gaddrof();
+                vtop->type = dtype;
+                /* plain pointer store; keeping VT_REFERENCE on the dest
+                   would trigger the assign-through-reference path */
+                vtop->type.t &= ~VT_REFERENCE;
+                dtype.t &= ~VT_REFERENCE;
+            } else {
+                tcc_error("cannot bind reference to this initializer");
+            }
+        }
         vset(&dtype, VT_LOCAL | VT_LVAL, c);
         vswap();
         vstore();
@@ -11113,10 +11388,16 @@ static void gen_function(Sym* sym)
     if (sym->parent_class && tcc_state->cpp && !(sym->type.t & VT_STATIC)) {
         CType pt;
 
-        pt.t = VT_PTR;
+        /* Build `this` as a real pointer type via mk_pointer so that
+           pointed_type() yields {VT_STRUCT, ref=class}.  Pointing ref
+           directly at the class tag sym made pointed_type() return the
+           tag's own type whose ref is NULL (struct_decl), crashing any
+           field walk after indir() (`this->x`, `*this`) (BUG-8). */
+        pt.t = VT_STRUCT;
+        pt.ref = sym->parent_class;
+        mk_pointer(&pt);
         if (sym->type.ref->f.func_const)
             pt.t |= VT_CONSTANT;
-        pt.ref = sym->parent_class;
         this_param = sym_malloc();
         /* sym_malloc() recycles pool memory without zeroing; r/c would
            otherwise carry stale data (BUG-6).  They are placeholders
@@ -11531,6 +11812,29 @@ static int decl(int l)
                        parse): restore the stream and fall through. */
                     unget_tok('(');
                     unget_tok(saved_var_tok);
+                } else if ((tok == ';' || tok == ',')
+                           && !(btype.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+                           && cpp_class_has_default_ctor(btype.ref)) {
+                    /* FEAT-4F: `Foo f;` with a user default ctor is
+                       rewritten into `f.Foo()` (same unget trick as 4B;
+                       the current ';' or ',' stays after the ')'). */
+                    Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                    int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                    decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                                           0, saved_var_tok, 0);
+                    unget_tok(')');
+                    unget_tok('(');
+                    unget_tok(ctor_tok_v);
+                    unget_tok('.');
+                    unget_tok(saved_var_tok);
+                    expr_eq();
+                    vpop();
+                    if (tok == ',') {
+                        next();
+                        continue;
+                    }
+                    skip(';');
+                    break;
                 } else {
                     unget_tok(saved_var_tok);
                 }
