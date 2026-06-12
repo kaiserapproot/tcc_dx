@@ -8728,6 +8728,13 @@ tok_next:
         else if (r == VT_CONST && IS_ENUM_VAL(s->type.t)) {
             vtop->c.i = s->enum_val;
         }
+
+        /* C++ BUG-9: a reference variable always denotes its referent;
+           dereference at use.  Function symbols keep VT_REFERENCE to
+           mean "returns a reference", so exclude them. */
+        if (tcc_state->cpp && (s->type.t & VT_REFERENCE)
+            && (s->type.t & VT_BTYPE) != VT_FUNC)
+            indir();
         break;
     }
 
@@ -10757,6 +10764,23 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
         vtop--;
     }
     else {
+        /* C++ BUG-9: a reference declaration binds to the initializer
+           lvalue, i.e. stores its ADDRESS.  Without this the value was
+           stored into the pointer slot (scalar) or memcpy'd over it
+           (struct), so later accesses dereferenced garbage. */
+        if (tcc_state->cpp && (dtype.t & VT_REFERENCE)) {
+            if ((vtop->r & VT_LVAL)
+                && cpp_can_bind_lvalue_to_reference(&dtype, &vtop->type)) {
+                gaddrof();
+                vtop->type = dtype;
+                /* plain pointer store; keeping VT_REFERENCE on the dest
+                   would trigger the assign-through-reference path */
+                vtop->type.t &= ~VT_REFERENCE;
+                dtype.t &= ~VT_REFERENCE;
+            } else {
+                tcc_error("cannot bind reference to this initializer");
+            }
+        }
         vset(&dtype, VT_LOCAL | VT_LVAL, c);
         vswap();
         vstore();
