@@ -5257,8 +5257,15 @@ static void verify_assign_cast(CType* dt)
     st = &vtop->type; /* source type */
     dbt = dt->t & VT_BTYPE;
     sbt = st->t & VT_BTYPE;
-    if (dt->t & VT_CONSTANT)
+    if (dt->t & VT_CONSTANT) {
+        /* FEAT-6B-P2: hard error in C++ mode.  const T& destinations are
+           exempt: argument binding passes the param type (which keeps
+           top-level VT_CONSTANT, see convert_parameter_type) through
+           gen_assign_cast on every call. */
+        if (tcc_state->cpp && !(dt->t & VT_REFERENCE))
+            tcc_error("assignment of read-only location");
         tcc_warning("�ǂݎ���p�̏ꏊ�ւ̑���ł�");
+    }
     switch (dbt) {
     case VT_VOID:
         if (sbt != dbt)
@@ -11395,9 +11402,14 @@ static void gen_function(Sym* sym)
            field walk after indir() (`this->x`, `*this`) (BUG-8). */
         pt.t = VT_STRUCT;
         pt.ref = sym->parent_class;
-        mk_pointer(&pt);
+        /* FEAT-6B-P2: a const method takes `const T* this`; the const
+           must sit on the pointed-to type so that indir() propagates it
+           to member lvalues (assignment then errors in
+           verify_assign_cast).  It was previously set on the pointer
+           itself, where nothing ever checked it. */
         if (sym->type.ref->f.func_const)
             pt.t |= VT_CONSTANT;
+        mk_pointer(&pt);
         this_param = sym_malloc();
         /* sym_malloc() recycles pool memory without zeroing; r/c would
            otherwise carry stale data (BUG-6).  They are placeholders
