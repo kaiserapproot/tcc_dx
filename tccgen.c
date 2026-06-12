@@ -1004,6 +1004,27 @@ static Sym *cpp_find_ctor_field(Sym *class_sym)
     return NULL;
 }
 
+/* FEAT-4F: does the class declare a 0-arg (default) constructor?
+   Used to decide whether `Foo f;` should call the ctor implicitly. */
+static int cpp_class_has_default_ctor(Sym *class_sym)
+{
+    Sym *f;
+    int class_name_tok;
+
+    if (!class_sym)
+        return 0;
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (cpp_func_param_count(f) == 0)
+            return 1;
+    }
+    return 0;
+}
+
 /* C++: scan class_sym's member chain for the destructor field. */
 static Sym *cpp_find_dtor_field(Sym *class_sym)
 {
@@ -11767,6 +11788,29 @@ static int decl(int l)
                        parse): restore the stream and fall through. */
                     unget_tok('(');
                     unget_tok(saved_var_tok);
+                } else if ((tok == ';' || tok == ',')
+                           && !(btype.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+                           && cpp_class_has_default_ctor(btype.ref)) {
+                    /* FEAT-4F: `Foo f;` with a user default ctor is
+                       rewritten into `f.Foo()` (same unget trick as 4B;
+                       the current ';' or ',' stays after the ')'). */
+                    Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                    int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                    decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                                           0, saved_var_tok, 0);
+                    unget_tok(')');
+                    unget_tok('(');
+                    unget_tok(ctor_tok_v);
+                    unget_tok('.');
+                    unget_tok(saved_var_tok);
+                    expr_eq();
+                    vpop();
+                    if (tok == ',') {
+                        next();
+                        continue;
+                    }
+                    skip(';');
+                    break;
                 } else {
                     unget_tok(saved_var_tok);
                 }
