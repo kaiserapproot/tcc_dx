@@ -177,6 +177,7 @@ static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
 static int cpp_func_param_count(Sym *field);
+static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
@@ -1457,9 +1458,12 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
 {
     Sym *ctor_field;
     Sym *ctor_global;
+    Sym *resolved;
+    Sym *sa;
     CType base_type;
     int nb_args;
     int na;
+    int i;
     SValue base_this;
 
     if (!base_field || !base_class || !cpp_this_sym)
@@ -1481,6 +1485,28 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
             next();
     }
     na = nb_args;
+    /* resolve the ctor overload from the raw argument types (the initial
+       bind above only sees the first ctor field), then convert each arg
+       to the resolved prototype: args are the top na entries (func below),
+       so na rotations of vrotb(na) visit each arg once and restore the
+       original order */
+    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
     cpp_push_member_var(base_field);
     gaddrof();
     base_this = *vtop;
