@@ -332,7 +332,10 @@ static void section_reserve(Section *sec, unsigned long size)
 }
 #endif
 
-static Section *have_section(TCCState *s1, const char *name)
+/* FEAT-4G: tccpe.c must probe .init_array without creating it
+   (find_section would add an empty section to every C++ PE link),
+   so this lookup-only helper is exported. */
+ST_FUNC Section *have_section(TCCState *s1, const char *name)
 {
     Section *sec;
     int i;
@@ -1574,6 +1577,104 @@ static void tcc_compile_string_no_debug(TCCState *s, const char *str)
     tcc_compile_string(s, str);
     s->do_debug = save_do_debug;
     s->test_coverage = save_test_coverage;
+}
+
+/* compile injected startup as C even when the TU is C++ */
+static void tcc_compile_injected_c_no_debug(TCCState *s, const char *str)
+{
+    int save_do_debug = s->do_debug;
+    int save_test_coverage = s->test_coverage;
+    int saved_cpp = s->cpp;
+    int saved_lex_c = s->lex_c;
+    int saved_extern_c = s->extern_c;
+
+    s->do_debug = 0;
+    s->test_coverage = 0;
+    s->cpp = 0;
+    s->lex_c = 1;
+    s->extern_c = 0;
+    tcc_compile_string(s, str);
+    s->cpp = saved_cpp;
+    s->lex_c = saved_lex_c;
+    s->extern_c = saved_extern_c;
+    s->do_debug = save_do_debug;
+    s->test_coverage = save_test_coverage;
+}
+
+/* FEAT-4G: PE console EXE entry that walks .init_array / .fini_array
+   before main.  Injected only when a C++ TU registered init_array
+   entries; avoids rebuilding libtcc1 crt1.o. */
+ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
+{
+    Section *s;
+    CString cstr;
+
+    /* cpp_global_ctors: s1->cpp is per-TU and already restored to 0
+       when the linker calls this (see tcc_compile). */
+    if (!s1->cpp_global_ctors || TCC_OUTPUT_DLL == s1->output_type)
+        return;
+    if (s1->cpp_init_startup_done)
+        return;
+    s = have_section(s1, ".init_array");
+    if (!s || s->data_offset == 0)
+        return;
+
+    s1->cpp_init_startup_done = 1;
+
+    cstr_new(&cstr);
+    cstr_cat(&cstr,
+        "typedef void (__cdecl *tcc_ctor_fn_t)(void);\n"
+        "extern tcc_ctor_fn_t __init_array_start;\n"
+        "extern tcc_ctor_fn_t __init_array_end;\n"
+        "extern tcc_ctor_fn_t __fini_array_start;\n"
+        "extern tcc_ctor_fn_t __fini_array_end;\n"
+        "static void tcc_cpp_run_init(void)\n"
+        "{\n"
+        "    tcc_ctor_fn_t *p, *e;\n"
+        "    p = (tcc_ctor_fn_t *)&__init_array_start;\n"
+        "    e = (tcc_ctor_fn_t *)&__init_array_end;\n"
+        "    for (; p < e; ++p) { if (*p) (*p)(); }\n"
+        "}\n"
+        "static void tcc_cpp_run_fini(void)\n"
+        "{\n"
+        "    tcc_ctor_fn_t *p, *s;\n"
+        "    s = (tcc_ctor_fn_t *)&__fini_array_start;\n"
+        "    p = (tcc_ctor_fn_t *)&__fini_array_end;\n"
+        "    while (p > s) { --p; if (*p) (*p)(); }\n"
+        "}\n"
+        "typedef struct { int newmode; } _startupinfo;\n"
+        "int __cdecl __getmainargs(int*,char***,char***,int,_startupinfo*);\n"
+        "void __cdecl __set_app_type(int);\n"
+        "unsigned int __cdecl _controlfp(unsigned int,unsigned int);\n"
+        "extern int atexit(void (*)(void));\n"
+        "extern void exit(int);\n"
+        "int main(int,char**,char**);\n"
+        /* single leading underscore: pe_add_runtime strips one '_' from
+           the start_symbol table name ("__tcc_cpp_start" -> entry
+           "_tcc_cpp_start"), same convention as "__start" vs crt "_start".
+           argc/argv/env are locals passed to __getmainargs like crt1.c:
+           msvcrt's __argc/__argv/_environ are DATA imports and would
+           need __declspec(dllimport) (pe_check_symbols rejects them). */
+        "void _tcc_cpp_start(void)\n"
+        "{\n"
+        "    int argc; char **argv; char **env;\n"
+        "    _startupinfo si;\n"
+        "    __set_app_type(1);\n"
+        "    _controlfp(0x10000,0x30000);\n"
+        "    si.newmode = 0;\n"
+        "    __getmainargs(&argc,&argv,&env,0,&si);\n"
+        /* ctors run after CRT init (they may use it); atexit LIFO makes
+           the fini walk run before CRT teardown. */
+        "    tcc_cpp_run_init();\n"
+        "    atexit(tcc_cpp_run_fini);\n"
+        "    exit(main(argc,argv,env));\n"
+        "}\n"
+        /* len 0 = strlen+1: keep the NUL in the CString.  With -1 the
+           injected source is not NUL-terminated and tcc_compile's
+           strlen() runs into heap garbage (random \x01 parse errors). */
+        , 0);
+    tcc_compile_injected_c_no_debug(s1, cstr.data);
+    cstr_free(&cstr);
 }
 
 #ifdef CONFIG_TCC_BACKTRACE

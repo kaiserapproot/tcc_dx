@@ -1080,6 +1080,244 @@ static void cpp_call_scope_dtors(Sym *bottom)
         cpp_emit_local_dtor(s);
 }
 
+/* FEAT-4G: deferred global ctor/dtor thunks for .init_array / .fini_array. */
+typedef struct CppGlobalDynEntry {
+    Sym *obj_sym;
+    TokenString *ctor_args; /* NULL for default ctor or dtor entry */
+    int is_dtor;
+} CppGlobalDynEntry;
+
+static CppGlobalDynEntry **cpp_global_dyns;
+static int nb_cpp_global_dyns;
+static int cpp_global_dyn_serial;
+
+static TokenString *cpp_save_paren_expr_tokens(void)
+{
+    TokenString *ts;
+
+    ts = tok_str_alloc();
+    while (tok != ')') {
+        if (tok == TOK_EOF)
+            tcc_error("unexpected end in global ctor arguments");
+        tok_str_add_tok(ts);
+        next();
+    }
+    /* every replayed TokenString needs the TOK_EOF terminator (see
+       gen_inline_functions); without it begin_macro replay runs past
+       the buffer into garbage tokens and crashes tcc. */
+    tok_str_add(ts, TOK_EOF);
+    return ts;
+}
+
+static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is_dtor)
+{
+    CppGlobalDynEntry *ent;
+    Sym *class_sym;
+
+    if (!obj_sym || !tcc_state->cpp)
+        return;
+    if ((obj_sym->type.t & VT_BTYPE) != VT_STRUCT)
+        return;
+    /* dynarray_add stores the pointer as-is (no struct copy), so each
+       entry must be heap-allocated; a stack address here dangles and
+       crashed tcc at thunk-emission time.  dynarray_reset frees them. */
+    ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+    ent->obj_sym = obj_sym;
+    ent->ctor_args = ctor_args;
+    ent->is_dtor = is_dtor;
+    dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
+    if (!is_dtor) {
+        class_sym = obj_sym->type.ref;
+        if (class_sym && cpp_find_dtor_field(class_sym)) {
+            ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+            ent->obj_sym = obj_sym;
+            ent->ctor_args = NULL;
+            ent->is_dtor = 1;
+            dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
+        }
+    }
+}
+
+static void cpp_emit_global_dtor_call(Sym *obj_sym)
+{
+    Sym *class_sym;
+    Sym *dtor_field;
+    Sym *dtor_global;
+    CType obj_type;
+
+    class_sym = obj_sym->type.ref;
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (!dtor_field)
+        return;
+    obj_type.t = VT_STRUCT;
+    obj_type.ref = class_sym;
+    dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
+    vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+    vtop->sym = dtor_global;
+    vtop->r &= ~VT_LVAL;
+    /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
+       section offset; passing it skewed the object address by c bytes. */
+    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+    vtop->sym = obj_sym;
+    gaddrof();
+    gfunc_call(1);
+}
+
+static void cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
+{
+    Sym *ctor_field;
+    Sym *ctor_global;
+    Sym *resolved;
+    Sym *sa;
+    CType obj_type;
+    SValue obj_addr;
+    int nb_args;
+    int na;
+    int i;
+
+    obj_type.t = VT_STRUCT;
+    obj_type.ref = obj_sym->type.ref;
+    ctor_field = cpp_find_ctor_field(obj_sym->type.ref);
+    if (!ctor_field)
+        return;
+    ctor_global = cpp_lookup_member_func(ctor_field, &obj_type);
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    nb_args = 0;
+    if (arg_toks) {
+        begin_macro(arg_toks, 1);
+        next();
+        while (tok != TOK_EOF) {
+            expr_eq();
+            nb_args++;
+            if (tok == ',')
+                next();
+        }
+        /* no next() after end_macro: the outer stream sits at file EOF
+           here and gen_inline_functions ends its replays the same way. */
+        end_macro();
+    }
+    na = nb_args;
+    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa && sa->type.t != VT_VOID) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
+    /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
+       section offset; passing it skewed the object address by c bytes. */
+    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+    vtop->sym = obj_sym;
+    gaddrof();
+    obj_addr = *vtop;
+    vpop();
+    if (na == 0) {
+        vpushv(&obj_addr);
+        gfunc_call(1);
+    } else {
+        vtop++;
+        nb_args = na + 1;
+        memmove(vtop - nb_args + 2, vtop - nb_args + 1,
+            na * sizeof(SValue));
+        vtop[-nb_args + 1] = obj_addr;
+        gfunc_call(nb_args);
+    }
+}
+
+static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
+{
+    CType void_type;
+    CType func_type;
+    Sym *proto;
+    Sym *wrapper;
+    char name[48];
+    const char *sec;
+    int name_tok;
+    int thunk_start;
+
+    void_type.t = VT_VOID;
+    func_type.t = VT_FUNC;
+    proto = sym_push(SYM_FIELD, &void_type, 0, 0);
+    proto->f.func_call = FUNC_CDECL;
+    proto->f.func_type = FUNC_NEW;
+    func_type.ref = proto;
+
+    snprintf(name, sizeof(name), ent->is_dtor ? "__cpp_gd_%d" : "__cpp_gi_%d",
+        cpp_global_dyn_serial++);
+    name_tok = tok_alloc(name, strlen(name))->tok;
+    wrapper = external_global_sym(name_tok, &func_type);
+
+    loc = 0;
+    thunk_start = ind = cur_text_section->data_offset;
+    put_extern_sym(wrapper, cur_text_section, ind, 0);
+
+    /* Minimal cdecl thunk: push rbp; mov rbp,rsp; sub rsp,0x20;
+       call ctor/dtor; leave; ret.
+       Avoid gfunc_prolog/epilog here: epilog rewinds ind and calls
+       pe_add_unwind_data, which made FEAT-4G init thunks take minutes. */
+    o(0xe5894855);
+    /* sub rsp,0x20: win64 callees home their register args in the
+       CALLER's 32-byte shadow area; without it the ctor prolog's
+       "mov [rbp+10h],rcx" smashed this thunk's saved rbp and the
+       .init_array walker crashed right after the call returned. */
+    o(0x20ec8348);
+
+    if (ent->is_dtor)
+        cpp_emit_global_dtor_call(ent->obj_sym);
+    else
+        cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
+
+    o(0xc9);
+    o(0xc3);
+    check_vstack();
+    /* o()/g() advance only ind, not data_offset (gen_function normally
+       syncs it at its end).  Without this sync gen_inline_functions
+       would emit the deferred member bodies over these thunks and the
+       .init_array pointers would jump into overwritten code. */
+    cur_text_section->data_offset = ind;
+    put_extern_sym(wrapper, cur_text_section, thunk_start, ind - thunk_start);
+
+    sec = ent->is_dtor ? ".fini_array" : ".init_array";
+    add_array(tcc_state, sec, wrapper->c);
+
+    /* no tok_str_free(ent->ctor_args) here: begin_macro(arg_toks, 1)
+       hands ownership to end_macro, which already frees the string;
+       freeing again corrupted the heap (injected startup then failed
+       with a bogus \x01 parse error). */
+}
+
+static void cpp_finish_global_dyns(TCCState *s1)
+{
+    int i;
+    int saved_nocode;
+
+    if (!s1->cpp || nb_cpp_global_dyns == 0)
+        return;
+    saved_nocode = nocode_wanted;
+    nocode_wanted = 0;
+    cur_text_section = text_section;
+    cpp_global_dyn_serial = 0;
+    for (i = 0; i < nb_cpp_global_dyns; i++)
+        cpp_emit_global_dyn_thunk(cpp_global_dyns[i]);
+    dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
+    /* survives the per-TU save/restore of s1->cpp; gates the PE startup
+       injection at link time (tccpe.c). */
+    s1->cpp_global_ctors = 1;
+    nocode_wanted = saved_nocode;
+}
+
 /* FEAT-5A: anonymous embedded base subobject (class D : public Base). */
 static Sym *cpp_get_anon_base_field(Sym *class_sym)
 {
@@ -1957,6 +2195,8 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
     cpp_cur_func_class = NULL;
+    dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
+    cpp_global_dyn_serial = 0;
 }
 
 ST_FUNC int tccgen_compile(TCCState* s1)
@@ -1978,6 +2218,7 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
     next();
     decl(VT_CONST);
+    cpp_finish_global_dyns(s1);
     gen_inline_functions(s1);
     check_vstack();
     /* �|��P�ʂ̏��̏I��� */
@@ -11781,6 +12022,55 @@ static int decl(int l)
         while (1) { /* iterate thru each declaration */
             type = btype;
             ad = adbase;
+            /* FEAT-4G: global `Foo g;` / `Foo g(args);` with ctor.  Kept
+               separate from the local FEAT-4B/4F rewrite: mixing both in one
+               block left global decls in a bad token state (hang). */
+            if (tcc_state->cpp
+                && l == VT_CONST
+                && (btype.t & VT_BTYPE) == VT_STRUCT
+                && btype.ref
+                && tok >= TOK_UIDENT
+                && cpp_find_ctor_field(btype.ref)) {
+                int saved_var_tok = tok;
+                int obj_r = VT_LVAL | VT_CONST;
+                Sym *obj_sym;
+                next();
+                if (tok == '(') {
+                    next();
+                    if (tok != ')') {
+                        TokenString *arg_toks;
+                        arg_toks = cpp_save_paren_expr_tokens();
+                        decl_initializer_alloc(&type, &ad, obj_r,
+                            0, saved_var_tok, 1);
+                        obj_sym = sym_find(saved_var_tok);
+                        cpp_register_global_dyn(obj_sym, arg_toks, 0);
+                        next();
+                        if (tok == ',') {
+                            next();
+                            continue;
+                        }
+                        skip(';');
+                        break;
+                    }
+                    unget_tok('(');
+                    unget_tok(saved_var_tok);
+                } else if ((tok == ';' || tok == ',')
+                           && !(btype.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+                           && cpp_class_has_default_ctor(btype.ref)) {
+                    decl_initializer_alloc(&type, &ad, obj_r,
+                        0, saved_var_tok, 1);
+                    obj_sym = sym_find(saved_var_tok);
+                    cpp_register_global_dyn(obj_sym, NULL, 0);
+                    if (tok == ',') {
+                        next();
+                        continue;
+                    }
+                    skip(';');
+                    break;
+                } else {
+                    unget_tok(saved_var_tok);
+                }
+            }
             /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
                Only in C++ mode, when the base type is a class with a
                constructor, we are in a local scope, and an identifier is
@@ -11794,14 +12084,15 @@ static int decl(int l)
                 && tok >= TOK_UIDENT
                 && cpp_find_ctor_field(btype.ref)) {
                 int saved_var_tok = tok;
+                int obj_r = VT_LVAL | VT_LOCAL;
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
                     if (tok != ')') {
-                        /* `Foo f(args);` -> `f.Foo(args);` */
+                        /* `Foo f(args);` -> `f.Foo(args);` (local) */
                         Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                         int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
-                        decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                        decl_initializer_alloc(&type, &ad, obj_r,
                                                0, saved_var_tok, 0);
                         /* Rebuild the stream `var . Ctor ( <args...> )`.
                            unget is LIFO and saves the current tok (the first
@@ -11832,7 +12123,7 @@ static int decl(int l)
                        the current ';' or ',' stays after the ')'). */
                     Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                     int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
-                    decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                    decl_initializer_alloc(&type, &ad, obj_r,
                                            0, saved_var_tok, 0);
                     unget_tok(')');
                     unget_tok('(');
