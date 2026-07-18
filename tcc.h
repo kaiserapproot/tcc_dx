@@ -765,6 +765,11 @@ struct TCCState {
     unsigned char cpp_forced;
     unsigned char extern_c;
     unsigned char lex_c;
+    unsigned char cpp_init_startup_done;
+    /* FEAT-4G: set once cpp_finish_global_dyns emitted ctor/dtor thunks.
+       s1->cpp itself is save/restored per TU by tcc_compile, so it is
+       already 0 again at link time and cannot gate the PE startup. */
+    unsigned char cpp_global_ctors;
 
     /* C language options */
     unsigned char char_is_unsigned;
@@ -1315,6 +1320,7 @@ ST_FUNC void tcc_add_bcheck(TCCState *s1);
 #ifdef CONFIG_TCC_BACKTRACE
 ST_FUNC void tcc_add_btstub(TCCState *s1);
 #endif
+ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1);
 ST_FUNC void tcc_add_pragma_libs(TCCState *s1);
 PUB_FUNC int tcc_add_library_err(TCCState *s, const char *f);
 PUB_FUNC void tcc_print_stats(TCCState *s, unsigned total_time);
@@ -1554,6 +1560,7 @@ ST_FUNC void section_realloc(Section *sec, unsigned long new_size);
 ST_FUNC size_t section_add(Section *sec, addr_t size, int align);
 ST_FUNC void *section_ptr_add(Section *sec, addr_t size);
 ST_FUNC Section *find_section(TCCState *s1, const char *name);
+ST_FUNC Section *have_section(TCCState *s1, const char *name);
 ST_FUNC void free_section(Section *s);
 ST_FUNC Section *new_symtab(TCCState *s1, const char *symtab_name, int sh_type, int sh_flags, const char *strtab_name, const char *hash_name, int hash_sh_flags);
 ST_FUNC void init_symtab(Section *s);
