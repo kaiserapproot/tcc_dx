@@ -1138,7 +1138,9 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     }
 }
 
-static void cpp_emit_global_dtor_call(Sym *obj_sym)
+/* returns the gfunc_call arg count so the thunk can size its scratch
+   area (0 when the class has no dtor and no call was emitted). */
+static int cpp_emit_global_dtor_call(Sym *obj_sym)
 {
     Sym *class_sym;
     Sym *dtor_field;
@@ -1148,7 +1150,7 @@ static void cpp_emit_global_dtor_call(Sym *obj_sym)
     class_sym = obj_sym->type.ref;
     dtor_field = cpp_find_dtor_field(class_sym);
     if (!dtor_field)
-        return;
+        return 0;
     obj_type.t = VT_STRUCT;
     obj_type.ref = class_sym;
     dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
@@ -1161,9 +1163,12 @@ static void cpp_emit_global_dtor_call(Sym *obj_sym)
     vtop->sym = obj_sym;
     gaddrof();
     gfunc_call(1);
+    return 1;
 }
 
-static void cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
+/* returns the gfunc_call arg count (this + ctor args) so the thunk can
+   size its scratch area (0 when no ctor was found). */
+static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
 {
     Sym *ctor_field;
     Sym *ctor_global;
@@ -1179,7 +1184,7 @@ static void cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
     obj_type.ref = obj_sym->type.ref;
     ctor_field = cpp_find_ctor_field(obj_sym->type.ref);
     if (!ctor_field)
-        return;
+        return 0;
     ctor_global = cpp_lookup_member_func(ctor_field, &obj_type);
     vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
     vtop->sym = ctor_global;
@@ -1226,6 +1231,7 @@ static void cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
     if (na == 0) {
         vpushv(&obj_addr);
         gfunc_call(1);
+        return 1;
     } else {
         vtop++;
         nb_args = na + 1;
@@ -1233,6 +1239,7 @@ static void cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
             na * sizeof(SValue));
         vtop[-nb_args + 1] = obj_addr;
         gfunc_call(nb_args);
+        return nb_args;
     }
 }
 
@@ -1246,6 +1253,9 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
     const char *sec;
     int name_tok;
     int thunk_start;
+    int sub_imm_off;
+    int nb_call_args;
+    int scratch;
 
     void_type.t = VT_VOID;
     func_type.t = VT_FUNC;
@@ -1263,21 +1273,37 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
     thunk_start = ind = cur_text_section->data_offset;
     put_extern_sym(wrapper, cur_text_section, ind, 0);
 
-    /* Minimal cdecl thunk: push rbp; mov rbp,rsp; sub rsp,0x20;
+    /* Minimal cdecl thunk: push rbp; mov rbp,rsp; sub rsp,imm32;
        call ctor/dtor; leave; ret.
        Avoid gfunc_prolog/epilog here: epilog rewinds ind and calls
        pe_add_unwind_data, which made FEAT-4G init thunks take minutes. */
     o(0xe5894855);
-    /* sub rsp,0x20: win64 callees home their register args in the
+    /* sub rsp,imm32: win64 callees home their register args in the
        CALLER's 32-byte shadow area; without it the ctor prolog's
        "mov [rbp+10h],rcx" smashed this thunk's saved rbp and the
-       .init_array walker crashed right after the call returned. */
-    o(0x20ec8348);
+       .init_array walker crashed right after the call returned.
+       A fixed 0x20 only covers 4 args: gfunc_call stages arg 5+ at
+       [rsp+arg*8], which then lands on the saved rbp / return address
+       (crashed on a 6-arg global ctor).  imm32 form so the real size
+       can be patched below once the arg count is known. */
+    o(0xec8148);
+    sub_imm_off = ind;
+    gen_le32(0x20);
 
     if (ent->is_dtor)
-        cpp_emit_global_dtor_call(ent->obj_sym);
+        nb_call_args = cpp_emit_global_dtor_call(ent->obj_sym);
     else
-        cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
+        nb_call_args = cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
+
+    /* same sizing rule as gfunc_call's stack staging ([rsp+arg*8],
+       32-byte minimum), 16-aligned to keep the callee entry aligned.
+       By-value struct/long-double ctor args would need gfunc_call's
+       func_scratch on top of this; not supported here. */
+    scratch = nb_call_args * 8;
+    if (scratch < 32)
+        scratch = 32;
+    scratch = (scratch + 15) & -16;
+    write32le(cur_text_section->data + sub_imm_off, scratch);
 
     o(0xc9);
     o(0xc3);
