@@ -247,6 +247,30 @@ static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
     mangle_append_char(buf, buf_size, pos, c);
 }
 
+/* BUG-11: the one-token lookahead after an extern "C" region is lexed
+   while lex_c is still active, so a C++ keyword there (e.g. "class")
+   arrives as its demoted identifier twin and the following declaration
+   fails to parse.  The twin is registered in table_ident but never
+   linked into the hash chain (tok_alloc_demote), so a lookup by name
+   returns the original keyword token: use that to re-promote.  Plain
+   identifiers map to themselves and stay untouched. */
+static void cpp_repromote_stale_lookahead(void)
+{
+    const char *name;
+    TokenSym *ts;
+
+    if (!tcc_state->cpp || tcc_state->lex_c)
+        return;
+    if (tok < TOK_IDENT)
+        return;
+    name = get_tok_str(tok, NULL);
+    if (!name || !name[0])
+        return;
+    ts = tok_alloc(name, (int)strlen(name));
+    if (ts->tok != tok)
+        tok = ts->tok;
+}
+
 static int cpp_build_func_mangle(int v, CType *type, char *mbuf, int buf_size)
 {
     const char *name;
@@ -1194,7 +1218,22 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
         begin_macro(arg_toks, 1);
         next();
         while (tok != TOK_EOF) {
+            int arg_align;
+            int arg_size;
+
             expr_eq();
+            /* The hand-written thunk (cpp_emit_global_dyn_thunk) reserves
+               only max(32, nb_args*8) of scratch, which covers register/
+               stack scalar slots but NOT gfunc_call's by-value struct /
+               long-double staging (it grows struct_size past args_size and
+               would overflow into the thunk's saved rbp / return address).
+               using_regs(size) == !(size>8 || size&(size-1)); anything else
+               is staged, so reject it with a diagnostic instead of emitting
+               silently-crashing code. */
+            arg_size = type_size(&vtop->type, &arg_align);
+            if (arg_size > 8 || (arg_size & (arg_size - 1)))
+                tcc_error("global constructor with by-value struct / long "
+                          "double argument is not supported");
             nb_args++;
             if (tok == ',')
                 next();
@@ -11928,11 +11967,17 @@ static int decl(int l)
                         decl_once_flag = 0;
                         tcc_state->lex_c--;
                         tcc_state->extern_c--;
+                        /* BUG-11: decl() already fetched the token after
+                           ';' in C mode - re-promote it. */
+                        cpp_repromote_stale_lookahead();
                         continue;
                     }
-                    next();
+                    /* BUG-11: raise lex_c before consuming '{' so the
+                       first token inside the block is lexed in C mode
+                       (symmetry with the trailing lookahead fix). */
                     tcc_state->extern_c++;
                     tcc_state->lex_c++;
+                    next();
                     while (tok != '}') {
                         if (tok == TOK_EOF)
                             tcc_error("unclosed extern C block");
@@ -11941,6 +11986,9 @@ static int decl(int l)
                     next();
                     tcc_state->lex_c--;
                     tcc_state->extern_c--;
+                    /* BUG-11: the next() above fetched the token after
+                       '}' in C mode - re-promote it. */
+                    cpp_repromote_stale_lookahead();
                     continue;
                 }
                 if (len == 3 && !memcmp(s, "C++", 3)) {
@@ -12081,7 +12129,16 @@ static int decl(int l)
                     unget_tok('(');
                     unget_tok(saved_var_tok);
                 } else if ((tok == ';' || tok == ',')
-                           && !(btype.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+                           /* VT_STATIC is NOT excluded here: a file-scope
+                              `static P g;` is a definition with static
+                              storage duration whose default ctor must run
+                              at startup (matching `static P g(args);` and
+                              non-static `P g;`).  VT_EXTERN is a declaration
+                              and VT_TYPEDEF is a type alias, so both stay
+                              excluded.  (The local FEAT-4F gate below keeps
+                              excluding VT_STATIC: function-local statics need
+                              once-only guarded construction, not this path.) */
+                           && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
                            && cpp_class_has_default_ctor(btype.ref)) {
                     decl_initializer_alloc(&type, &ad, obj_r,
                         0, saved_var_tok, 1);
