@@ -503,6 +503,8 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
     sym->asm_label = ts->tok;
 }
 
+static int cpp_dtor_name_tok(int class_tok);
+
 static int parse_cpp_scope_qualifier(int *v)
 {
     int class_v;
@@ -516,6 +518,23 @@ static int parse_cpp_scope_qualifier(int *v)
     }
     next();
     class_v = *v;
+    /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
+       a single-char token, so the generic member-name check below
+       would reject it.  Reuse the FEAT-4E mangled global token so the
+       existing auto/explicit dtor call paths link against this body. */
+    if (tok == '~') {
+        next();
+        if (tok != class_v)
+            tcc_error("destructor name does not match class name");
+        next();
+        *v = cpp_dtor_name_tok(class_v);
+        if (!*v)
+            tcc_error("cannot build destructor name");
+        cpp_qualified_class = struct_find(class_v);
+        if (!cpp_qualified_class)
+            tcc_error("unknown class in qualified name");
+        return 1;
+    }
     if (tok < TOK_IDENT)
         tcc_error("expected member name after ::");
     *v = tok;
@@ -1691,6 +1710,7 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
 static int cpp_peek_out_of_class_ctor(int *class_tok)
 {
     int cls, mem;
+    int tilde;
 
     if (!tcc_state->cpp || tok < TOK_IDENT || !class_tok)
         return 0;
@@ -1709,9 +1729,18 @@ static int cpp_peek_out_of_class_ctor(int *class_tok)
         return 0;
     }
     next();
+    /* FEAT-4E-P2: also accept Class::~Class( so out-of-class dtor
+       definitions take the qualified-class decl path (btype VT_VOID),
+       mirroring the out-of-class ctor peek. */
+    tilde = 0;
+    if (tok == '~') {
+        tilde = 1;
+        next();
+    }
     mem = tok;
     if (mem != cls) {
-        unget_tok(mem);
+        if (tilde)
+            unget_tok('~');
         unget_tok(':');
         unget_tok(':');
         unget_tok(cls);
@@ -1720,12 +1749,16 @@ static int cpp_peek_out_of_class_ctor(int *class_tok)
     next();
     if (tok != '(') {
         unget_tok(mem);
+        if (tilde)
+            unget_tok('~');
         unget_tok(':');
         unget_tok(':');
         unget_tok(cls);
         return 0;
     }
     unget_tok(mem);
+    if (tilde)
+        unget_tok('~');
     unget_tok(':');
     unget_tok(':');
     unget_tok(cls);
