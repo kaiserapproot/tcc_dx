@@ -172,6 +172,11 @@ static int decl_once_flag;
 /* --- C++ Stage 3: this, member calls, default args --- */
 static SValue cpp_member_this;
 static int cpp_member_this_pending;
+/* BUG-14: while a member function global is being registered via
+   external_sym, this points at its class so external_sym keeps it a distinct
+   Sym from a same-named method in another class and cpp_build_func_mangle
+   qualifies the asm_label with the class.  NULL for free functions. */
+static Sym *cpp_pending_member_class;
 static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
@@ -271,7 +276,8 @@ static void cpp_repromote_stale_lookahead(void)
         tok = ts->tok;
 }
 
-static int cpp_build_func_mangle(int v, CType *type, char *mbuf, int buf_size)
+static int cpp_build_func_mangle(int v, CType *type, Sym *cls,
+                                 char *mbuf, int buf_size)
 {
     const char *name;
     Sym *arg;
@@ -282,7 +288,15 @@ static int cpp_build_func_mangle(int v, CType *type, char *mbuf, int buf_size)
     if (!type || (type->t & VT_BTYPE) != VT_FUNC)
         return 0;
     name = get_tok_str(v, NULL);
-    pos = snprintf(mbuf, buf_size, "__tcc_%s_", name);
+    /* BUG-14: qualify a member function's link name with its class so two
+       classes with a same-named, same-signature method (e.g. a base virtual
+       and its override) get distinct symbols instead of clobbering one
+       another.  Free functions (cls == NULL) keep the unqualified name. */
+    if (cls)
+        pos = snprintf(mbuf, buf_size, "__tcc_%s__%s_",
+                       get_tok_str(cls->v & ~SYM_STRUCT, NULL), name);
+    else
+        pos = snprintf(mbuf, buf_size, "__tcc_%s_", name);
     if (pos < 0 || pos >= buf_size)
         pos = buf_size - 1;
     for (arg = type->ref->next; arg; arg = arg->next) {
@@ -496,7 +510,10 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
     entry_name = get_tok_str(sym->v, NULL);
     if (!strcmp(entry_name, "main") || !strcmp(entry_name, "wmain"))
         return;
-    len = cpp_build_func_mangle(sym->v, type, mbuf, sizeof mbuf);
+    /* sym->parent_class must already be set for member functions (external_sym
+       assigns it from cpp_pending_member_class before calling us) so the class
+       is baked into the link name - BUG-14. */
+    len = cpp_build_func_mangle(sym->v, type, sym->parent_class, mbuf, sizeof mbuf);
     if (len <= 0)
         return;
     ts = tok_alloc(mbuf, len);
@@ -1999,7 +2016,12 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         } else {
             global_tok = f->v & ~SYM_FIELD;
         }
+        /* BUG-14: mark the class so external_sym keeps this member's global
+           distinct from a same-named method in another class (see
+           cpp_pending_member_class / cpp_build_func_mangle). */
+        cpp_pending_member_class = class_sym;
         sym = external_sym(global_tok, &type, 0, &ad);
+        cpp_pending_member_class = NULL;
         sym->parent_class = class_sym;
         sym->type.t |= VT_INLINE;
         /* Inline ctor: propagate the saved mem-initializer-list so
@@ -3286,13 +3308,25 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
         /* copy type to the global stack */
         if (local_stack)
             sym_copy_ref(s, &global_stack);
-        if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC)
+        if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC) {
+            /* BUG-14: bake the class in before the mangle so this member's
+               link name is class-qualified (NULL for free functions). */
+            s->parent_class = cpp_pending_member_class;
             cpp_set_func_mangle_label(s, type);
+        }
     }
     else {
+        /* BUG-14: a same-named, same-signature method in a *different* class
+           must not merge into this global (is_compatible_types ignores the
+           class).  Keep them distinct so their bodies and vtable slots do
+           not clobber each other.  Overloads (incompatible types) already
+           fork a new Sym here; the added class check covers the same-
+           signature cross-class case. */
         if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC
             && (s->type.t & VT_BTYPE) == VT_FUNC
-            && !is_compatible_types(&s->type, type)) {
+            && (!is_compatible_types(&s->type, type)
+                || (cpp_pending_member_class
+                    && s->parent_class != cpp_pending_member_class))) {
             s = global_identifier_push(v, type->t, 0);
             s->r |= r;
             s->a = ad->a;
@@ -3300,6 +3334,7 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
             s->type.ref = type->ref;
             if (local_stack)
                 sym_copy_ref(s, &global_stack);
+            s->parent_class = cpp_pending_member_class;
             cpp_set_func_mangle_label(s, type);
         } else {
             patch_storage(s, ad, type);
@@ -12518,7 +12553,12 @@ static int decl(int l)
                     if (ct)
                         sym_tok = ct;
                 }
+                /* BUG-14: mark the class so external_sym keeps an out-of-class
+                   member (Class::method) distinct from a same-named method in
+                   another class, and mangles its asm_label with the class. */
+                cpp_pending_member_class = qclass;
                 sym = external_sym(sym_tok, &type, 0, &ad);
+                cpp_pending_member_class = NULL;
                 if ((type.t & VT_BTYPE) == VT_FUNC)
                     cpp_set_func_mangle_label(sym, &type);
                 if (qclass) {
