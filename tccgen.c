@@ -183,6 +183,9 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
 static int cpp_func_param_count(Sym *field);
 static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
+/* FEAT-5C: forward decl - cpp_emit_mptr_pmf_invoke (defined earlier)
+   dispatches a virtual PMF through this vtable helper (defined later). */
+static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
@@ -1028,8 +1031,17 @@ static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
     field = cpp_lookup_member_field(field_tok, class_sym);
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         tcc_error("invalid member function pointer");
-    if (field->type.ref && field->type.ref->f.func_virtual)
-        tcc_error("member function pointer to virtual method not supported");
+    if (field->type.ref && field->type.ref->f.func_virtual) {
+        /* FEAT-5C: virtual PMF - the member is known (field_tok from the
+           pointer type) but which override runs depends on the object's
+           dynamic type.  Dispatch through the object's vtable at the
+           field's slot, exactly like a normal `obj.vfunc()` call.  The
+           pointer's stored value (the class impl address) is irrelevant
+           here; virtual dispatch is driven by obj's vptr. */
+        vpushv(obj);
+        cpp_prepare_virtual_member_call(field, &obj->type);
+        return;
+    }
     obj_type = obj->type;
     fsym = cpp_lookup_member_func(field, &obj_type);
     vset(&fsym->type, fsym->r | VT_SYM, 0);
@@ -8781,8 +8793,17 @@ tok_next:
                 ct.ref = class_sym;
                 field = find_field(&ct, mem_tok, &cumofs);
                 if ((field->type.t & VT_BTYPE) == VT_FUNC) {
-                    if (field->type.ref && field->type.ref->f.func_virtual)
-                        tcc_error("member function pointer to virtual method not supported");
+                    /* FEAT-5C: `&Class::vfunc` for a virtual method is now
+                       allowed.  The specific member is carried symbolically
+                       in the member-pointer type (ref->c = mem_tok, set by
+                       mk_member_pointer below and propagated on assignment),
+                       so the stored VALUE need not encode the vtable slot -
+                       the invoke site re-derives virtual-ness from the field
+                       and dispatches through the object's vtable.  We store
+                       the class implementation's address as the value (same
+                       as the non-virtual case); it is a valid, nonzero
+                       symbol so null-tests behave, and the invoke ignores it
+                       for virtual members. */
                     fsym = cpp_lookup_member_func(field, &ct);
                     mpt = field->type;
                     mk_member_pointer(&mpt, class_sym, mem_tok);
