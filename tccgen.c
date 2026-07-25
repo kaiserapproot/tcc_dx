@@ -12484,8 +12484,23 @@ static int decl(int l)
                    make old style params without decl have int type */
                 sym = type.ref;
                 while ((sym = sym->next) != NULL) {
-                    if (!(sym->v & ~SYM_FIELD))
-                        expect("identifier");
+                    if (!(sym->v & ~SYM_FIELD)) {
+                        /* BUG-13-P2: C89 requires named params in a
+                           definition, but C++ allows unnamed ones - the
+                           standard non-member postfix operator idiom
+                           `operator++(T&, int)` needs the unnamed (int)
+                           dummy.  Give it a fresh anonymous token id so
+                           gfunc_prolog's sym_push takes the "anonymous,
+                           do not record" path (v >= SYM_FIRST_ANOM);
+                           otherwise sym_push(0,...) indexes
+                           table_ident[0 - TOK_IDENT] and crashes, exactly
+                           as in BUG-13 for member bodies.  In C the K&R
+                           rule still applies, so keep rejecting there. */
+                        if (tcc_state->cpp)
+                            sym->v = (anon_sym++) | SYM_FIELD;
+                        else
+                            expect("identifier");
+                    }
                     if (sym->type.t == VT_VOID)
                         sym->type = int_type;
                 }

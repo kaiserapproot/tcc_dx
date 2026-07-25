@@ -1,15 +1,13 @@
 // FEAT-6A-ext4: non-member postfix operator++(T&, int) fallback.  The
 // class has no member operator++, so a++ resolves to the free 2-param
-// form (reference operand + int dummy).  The dummy is NAMED here because
-// free-function definitions still reject unnamed params (BUG-13 fixed the
-// crash only for member bodies, not the free-function declarator check);
-// the implicit a++ passes 0 for it regardless of the name.
+// form (reference operand + unnamed int dummy).  The unnamed dummy is the
+// standard idiom and is accepted in C++ mode (BUG-13-P2).
 class C {
 public:
     int v;
 };
 
-C operator++(C& a, int dummy) { C old; old.v = a.v; a.v = a.v + 1; return old; }
+C operator++(C& a, int) { C old; old.v = a.v; a.v = a.v + 1; return old; }
 
 int main()
 {
