@@ -6426,8 +6426,24 @@ static void cpp_finish_member_call(Sym *s, SValue *user_args, int nb_user_args)
     na = nb_args;
     vtop++;
     nb_args++;
-    memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
-    vtop[-nb_args + 1] = cpp_member_this;
+    {
+        /* BUG-12: `this` is normally inserted as arg0/RCX (matches
+           gen_function's this_param, the callee's first *type-list*
+           parameter).  But when the struct return doesn't fit in
+           registers (ret_nregs==0, sret pointer pushed above as the
+           first arg), Win64 reserves arg0/RCX for that hidden pointer
+           and the type-list params - `this` included - start at
+           arg1/RDX (gfunc_prolog inserts sret ahead of the list).
+           Inserting `this` at position 0 here pushed sret to arg1
+           instead, swapping this<->sret for any >8-byte struct return
+           (feat6a_big_struct, 問題と原因.md 12d/BUG-12). */
+        int has_sret = (s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0;
+        int insert_at = has_sret ? 1 : 0;
+        int nmove = na - insert_at;
+        memmove(vtop - nb_args + 2 + insert_at, vtop - nb_args + 1 + insert_at,
+            nmove * sizeof(SValue));
+        vtop[-nb_args + 1 + insert_at] = cpp_member_this;
+    }
     gfunc_call(nb_args);
 
     if (ret_nregs < 0) {
@@ -9384,15 +9400,32 @@ tok_next:
                     vpushv(&cpp_member_this);
                     nb_args++;
                 } else {
+                    /* BUG-12: when the call already pushed a struct-return
+                       (sret) pointer as its first arg (na includes it,
+                       ret_nregs==0 below), that pointer must stay arg0/RCX
+                       and `this` goes to arg1/RDX instead of arg0 - Win64
+                       reserves arg0 for the hidden return pointer ahead of
+                       the callee's type-list params, `this` included (see
+                       gen_function/gfunc_prolog).  Inserting `this` at
+                       position 0 unconditionally swapped this<->sret for
+                       any method returning a struct too big for registers
+                       (feat6a_big_struct, 問題と原因.md 12d/BUG-12). */
+                    int has_sret = (s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0;
+                    int insert_at = has_sret ? 1 : 0;
+                    int nmove;
+
                     vtop++;
                     nb_args++;
-                    /* Shift the na explicit args one slot up to make room
-                     * for 'this' at vtop[-nb_args+1].  The args currently
-                     * sit at [vtop-nb_args+1 .. vtop-1]; move them to
-                     * [vtop-nb_args+2 .. vtop].                           */
-                    memmove(vtop - nb_args + 2, vtop - nb_args + 1,
-                        na * sizeof(SValue));
-                    vtop[-nb_args + 1] = cpp_member_this;
+                    nmove = na - insert_at;
+                    /* Shift the args from insert_at onward one slot up to
+                     * make room for 'this' at vtop[-nb_args+1+insert_at].
+                     * The args currently sit at
+                     * [vtop-nb_args+1 .. vtop-1]; move
+                     * [vtop-nb_args+1+insert_at .. vtop-1] to
+                     * [vtop-nb_args+2+insert_at .. vtop].                */
+                    memmove(vtop - nb_args + 2 + insert_at, vtop - nb_args + 1 + insert_at,
+                        nmove * sizeof(SValue));
+                    vtop[-nb_args + 1 + insert_at] = cpp_member_this;
                 }
                 cpp_member_this_pending = 0;
             }
