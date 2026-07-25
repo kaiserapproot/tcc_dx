@@ -6794,6 +6794,82 @@ static int cpp_try_free_unop(int op_tok)
     return 1;
 }
 
+/* FEAT-6A-ext4: postfix operator++/-- on a struct operand (vtop).
+   The member form is operator++(int): a single dummy int parameter is
+   what makes it postfix (prefix is the 0-arg operator++()).  We look up
+   the arity-1 member and pass a dummy 0 as that int argument, matching
+   how C++ dispatches postfix.  Returns 0 with vtop untouched when no
+   arity-1 member exists, so the free form / plain C inc() can run. */
+static int cpp_try_member_postop(int op_tok)
+{
+    Sym *field, *s;
+    SValue dummy;
+    int cumofs;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    field = cpp_find_operator_member(&vtop->type, cpp_operator_field_tok(op_tok),
+        &cumofs, 1);
+    if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    /* the any-arity fallback in cpp_find_operator_member may hand back the
+       prefix (0-arg) overload; postfix must be the single-(int) form */
+    if (cpp_func_param_count(field) != 1)
+        return 0;
+    if (field->type.ref && field->type.ref->f.func_virtual)
+        return 0;
+    /* C++ passes 0 as the dummy int argument for postfix operators */
+    vpushi(0);
+    dummy = vtop[0];
+    vpop();
+    s = cpp_prepare_member_func_call(field);
+    cpp_finish_member_call(s, &dummy, 1);
+    return 1;
+}
+
+/* FEAT-6A-ext4: free postfix operator++/--(T&, int) fallback. */
+static int cpp_try_free_postop(int op_tok)
+{
+    Sym *resolved, *s;
+    SValue operand, user_args[2];
+    int v;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    v = cpp_operator_field_tok(op_tok);
+    if (!v || !cpp_has_free_func(v))
+        return 0;
+
+    operand = *vtop;
+    vpop();
+    user_args[0] = operand;
+    vpushi(0);
+    user_args[1] = vtop[0];
+    vpop();
+
+    /* resolve against the 2-param (T&, int) form; the 1-param prefix free
+       operator is rejected by arity in cpp_resolve_free_func_call */
+    vpushv(&operand);
+    vpushi(0);
+    resolved = cpp_resolve_free_func_call(v, 2);
+    if (!resolved) {
+        /* restore the single struct operand for the plain C path */
+        vpop();
+        vpop();
+        vpushv(&operand);
+        return 0;
+    }
+
+    vpop();
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    s = resolved->type.ref;
+    cpp_finish_free_call(s, user_args, 2);
+    return 1;
+}
+
 static int cpp_try_member_binop(int op_tok)
 {
     Sym *field, *s;
@@ -9132,7 +9208,14 @@ tok_next:
     /* post operations */
     while (1) {
         if (tok == TOK_INC || tok == TOK_DEC) {
-            inc(1, tok);
+            /* FEAT-6A-ext4: postfix operator++/-- for a struct operand.
+               Member operator++(int) / free operator++(T&, int); the (int)
+               dummy distinguishes postfix from prefix by arity.  The
+               VT_STRUCT guard keeps every non-struct operand on the plain
+               inc() path byte-for-byte (no .c / scalar regression). */
+            if (!(tcc_state->cpp && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+                  && (cpp_try_member_postop(tok) || cpp_try_free_postop(tok))))
+                inc(1, tok);
             next();
         }
         else if (tok == '.' || tok == TOK_ARROW) {
