@@ -1935,6 +1935,33 @@ static void cpp_register_member_body(Sym *field_sym, Sym *class_sym, CType *ftyp
     field_sym->inline_func_str = body;
 }
 
+/* BUG-13: a member function (incl. an operator) may be declared with an
+   unnamed parameter - the standard postfix idiom `operator++(int)` is the
+   common case.  post_type() stores such a param with v == SYM_FIELD (no
+   name token), and a free-function *definition* rejects that at the
+   declarator check (expect("identifier"), 12456).  Member bodies bypass
+   that check: they are saved and emitted later through gen_function ->
+   gfunc_prolog, which pushes each param with sym_push(v & ~SYM_FIELD,...).
+   For an unnamed param v & ~SYM_FIELD == 0, and sym_push then records the
+   name at table_ident[0 - TOK_IDENT] - a negative index that crashes tcc
+   when the member is emitted (feat6a postfix operator, BUG-13).
+   Fix: before registering the body, give every unnamed param a fresh
+   anonymous token id (>= SYM_FIRST_ANOM).  gfunc_prolog's sym_push then
+   takes the "anonymous, do not record" path, so no table_ident write
+   happens.  Types (used by overload resolution and mangling) are
+   untouched; only the unreferenceable param name changes. */
+static void cpp_name_unnamed_params(Sym *func_field)
+{
+    Sym *pa;
+
+    if (!func_field->type.ref)
+        return;
+    for (pa = func_field->type.ref->next; pa; pa = pa->next) {
+        if ((pa->v & ~SYM_FIELD) == 0)
+            pa->v = (anon_sym++) | SYM_FIELD;
+    }
+}
+
 static void cpp_finish_member_inlines(Sym *class_sym)
 {
     Sym *f;
@@ -1954,6 +1981,8 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         if (!body)
             continue;
         f->inline_func_str = NULL;
+        /* BUG-13: rename unnamed params before gen_function reaches them */
+        cpp_name_unnamed_params(f);
         memset(&ad, 0, sizeof ad);
         type = f->type;
         type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
