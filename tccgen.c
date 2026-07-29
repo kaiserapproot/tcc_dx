@@ -722,6 +722,16 @@ static const char *cpp_operator_suffix(int op_tok)
     case '~': return "compl";
     case TOK_INC: return "inc";
     case TOK_DEC: return "dec";
+    /* FEAT-6A-ext5: relational / equality operators.  These are binary and
+       route through the existing expr_infix -> cpp_try_member_binop /
+       cpp_try_free_binop hook (9834), so adding the suffixes here is enough
+       to declare and dispatch operator== / != / < / > / <= / >=. */
+    case TOK_EQ: return "eq";
+    case TOK_NE: return "ne";
+    case TOK_LT: return "lt";
+    case TOK_GT: return "gt";
+    case TOK_LE: return "le";
+    case TOK_GE: return "ge";
     default:
         return NULL;
     }
