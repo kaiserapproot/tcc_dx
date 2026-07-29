@@ -1076,6 +1076,8 @@ static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
     vpushv(obj);
     test_lvalue();
     gaddrof();
+    mk_pointer(&vtop->type);   /* BUG-15: pass `this` as a pointer, not a
+                                  by-value struct copy (see cpp_prepare_member_func_call) */
     cpp_member_this = *vtop;
     vpop();
     cpp_member_this_pending = 1;
@@ -1733,6 +1735,8 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
     slot = field->c;
     test_lvalue();
     gaddrof();
+    mk_pointer(&vtop->type);   /* BUG-15: pass `this` as a pointer, not a
+                                  by-value struct copy (see cpp_prepare_member_func_call) */
     cpp_member_this = *vtop;
     vpop();
 
@@ -6466,6 +6470,13 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
     obj_type = vtop->type;
     test_lvalue();
     gaddrof();
+    /* BUG-15: `this` is the object's address and must be a POINTER value.
+       gaddrof leaves the struct type on it, so gfunc_call would otherwise
+       treat it as a by-value struct argument and, for objects >8 bytes,
+       memcpy the object into a temporary and pass that copy's address -
+       the method then mutates the copy and the caller's object is
+       unchanged.  Retyping to T* makes it a plain 8-byte pointer arg. */
+    mk_pointer(&vtop->type);
     cpp_member_this = *vtop;
     vpop();
     fsym = cpp_lookup_member_func(field, &obj_type);
@@ -9356,6 +9367,8 @@ tok_next:
                     tcc_error("no destructor for class");
                 obj_type = vtop->type;
                 gaddrof();
+                mk_pointer(&vtop->type);   /* BUG-15: `this` as pointer, not
+                                              a by-value struct copy */
                 cpp_member_this = *vtop;
                 vpop();
                 fsym = cpp_lookup_member_func(field, &obj_type);
