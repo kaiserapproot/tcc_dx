@@ -36,12 +36,14 @@ set "EXEOUT=%TEMP%\tcc_exec_gate"
 if not exist "%EXEOUT%" mkdir "%EXEOUT%"
 for %%f in (a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp a7\typedef_class.cpp smoke\hello.c) do (
     "%TCC%" "%%f" -o "%EXEOUT%\%%~nf.exe" >nul
-    if errorlevel 1 (
-        echo   [LINK FAIL] %%f
+    rem Use `neq 0` (not `errorlevel 1`): a crash exits with a NEGATIVE code
+    rem (e.g. 0xC0000005 access violation), which `if errorlevel 1` misses.
+    if !errorlevel! neq 0 (
+        echo   [BUILD FAIL] %%f
         set /a FAILED+=1
     ) else (
         "%EXEOUT%\%%~nf.exe" >nul
-        if errorlevel 1 (
+        if !errorlevel! neq 0 (
             echo   [RUN FAIL] %%f
             set /a FAILED+=1
         )
