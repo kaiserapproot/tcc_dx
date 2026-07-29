@@ -7732,6 +7732,8 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             next();
             break;
         case TOK_BOOL:
+        /* FEAT-BOOL: `bool` (C++ spelling) is the same type as `_Bool`. */
+        case TOK_BOOL2:
             u = VT_BOOL;
             goto basic_type;
         case TOK_COMPLEX:
@@ -8657,6 +8659,15 @@ tok_next:
         t = VT_SHORT | VT_UNSIGNED;
         goto push_tokc;
 #endif
+    case TOK_TRUE:
+    case TOK_FALSE:
+        /* FEAT-BOOL: C++ boolean literals -> _Bool constant 1 / 0.  Only
+           reachable in C++ mode; in C these tokens are demoted to plain
+           identifiers (is_cpp_only_keyword) and never reach this switch. */
+        vpushi(tok == TOK_TRUE ? 1 : 0);
+        vtop->type.t = VT_BOOL;
+        next();
+        break;
     case TOK_CINT:
     case TOK_CCHAR:
         t = VT_INT;
