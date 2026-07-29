@@ -165,6 +165,9 @@ static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
 static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg);
 static int is_integer_btype(int bt);
+/* MI: byte offset of a base subobject within a class (forward decl - defined
+   with the member-call helpers).  Used by the derived->base upcast paths. */
+static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -5291,8 +5294,20 @@ static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg)
     CType *pt;
 
     pt = pointed_type(ref);
-    if ((arg->t & VT_BTYPE) == VT_STRUCT)
-        return is_compatible_unqualified_types(pt, arg);
+    if ((arg->t & VT_BTYPE) == VT_STRUCT) {
+        if (is_compatible_unqualified_types(pt, arg))
+            return 1;
+        /* MI/inheritance upcast: a derived-class lvalue binds to a base-class
+           reference.  The pointer is adjusted to the base subobject in
+           gen_cast's binding path (offset 0 for single/first base).  Non-
+           virtual (Phase 1) only - polymorphic types are left to the vtable
+           machinery / a later phase. */
+        if (tcc_state->cpp && (pt->t & VT_BTYPE) == VT_STRUCT
+            && pt->ref && arg->ref && !cpp_type_has_virtual(arg->ref)
+            && cpp_base_subobject_offset(arg->ref, pt->ref) >= 0)
+            return 1;
+        return 0;
+    }
     if ((pt->t & VT_BTYPE) != (arg->t & VT_BTYPE))
         return 0;
     if ((pt->t & VT_UNSIGNED) != (arg->t & VT_UNSIGNED))
@@ -5317,6 +5332,14 @@ static void gen_cast(CType* type)
     /* C++: bind lvalue to reference (param / return) */
     if (tcc_state->cpp && (type->t & VT_REFERENCE) && (vtop->r & VT_LVAL)) {
         if (cpp_can_bind_lvalue_to_reference(type, &vtop->type)) {
+            /* MI upcast: capture the source class and target base before the
+               address is taken so the reference can be pointed at the base
+               subobject (offset 0 for single/first base). */
+            Sym *src_class = ((vtop->type.t & VT_BTYPE) == VT_STRUCT)
+                             ? vtop->type.ref : NULL;
+            CType *base_pt = pointed_type(type);
+            Sym *base_class = ((base_pt->t & VT_BTYPE) == VT_STRUCT)
+                              ? base_pt->ref : NULL;
             if (!(vtop->r & VT_LVAL)
                 && (vtop->r & VT_VALMASK) == VT_LOCAL)
                 vtop->r |= VT_LVAL;
@@ -5324,9 +5347,44 @@ static void gen_cast(CType* type)
                 gaddrof();
             else
                 tcc_error("rvalue cannot bind to reference");
+            if (src_class && base_class && src_class != base_class) {
+                int ofs = cpp_base_subobject_offset(src_class, base_class);
+                if (ofs > 0) {
+                    vtop->type = char_pointer_type;
+                    vpushi(ofs);
+                    gen_op('+');
+                }
+            }
             vtop->type = *type;
             vtop->r &= ~VT_LVAL;
             return;
+        }
+    }
+
+    /* MI upcast: D* -> B* (explicit `(B*)p` or implicit `B* q = p`) adjusts
+       the pointer to the base subobject.  Only fires when the source class
+       actually derives from the target base at a non-zero offset; the first
+       base / single inheritance keeps offset 0 and the normal reinterpret. */
+    if (tcc_state->cpp
+        && (type->t & (VT_BTYPE | VT_REFERENCE)) == VT_PTR
+        && (vtop->type.t & VT_BTYPE) == VT_PTR) {
+        CType *dpt = pointed_type(type);
+        CType *spt = pointed_type(&vtop->type);
+        /* Phase 1 is non-virtual MI: skip classes with virtuals - their base
+           subobject layout involves the vptr and the vtable machinery already
+           treats the primary base as offset 0.  Applying an offset here would
+           break `(Base*)&derived` for polymorphic types (virtual MI = later). */
+        if ((dpt->t & VT_BTYPE) == VT_STRUCT && (spt->t & VT_BTYPE) == VT_STRUCT
+            && dpt->ref && spt->ref && dpt->ref != spt->ref
+            && !cpp_type_has_virtual(spt->ref)) {
+            int ofs = cpp_base_subobject_offset(spt->ref, dpt->ref);
+            if (ofs > 0) {
+                vtop->type = char_pointer_type;
+                vpushi(ofs);
+                gen_op('+');
+                vtop->type = *type;
+                return;
+            }
         }
     }
 
@@ -6462,6 +6520,33 @@ static Sym* find_field(CType* type, int v, int* cumofs)
 }
 
 /* Prepare non-virtual member call: obj lvalue on vtop -> func on vtop. */
+/* MI: byte offset of target_class's subobject within obj_class, walking base
+   subobject fields recursively.  0 when target_class == obj_class or lies on
+   the primary (offset-0) base path; -1 when not reachable.  Non-virtual,
+   single-path inheritance only - a diamond returns the first path found. */
+static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class)
+{
+    Sym *f;
+
+    if (!obj_class || !target_class)
+        return -1;
+    if (obj_class == target_class)
+        return 0;
+    for (f = obj_class->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) == VT_STRUCT
+            && f->v >= (SYM_FIRST_ANOM | SYM_FIELD)
+            && f->parent_class) {
+            int inner;
+            if (f->parent_class == target_class)
+                return f->c;
+            inner = cpp_base_subobject_offset(f->parent_class, target_class);
+            if (inner >= 0)
+                return f->c + inner;
+        }
+    }
+    return -1;
+}
+
 static Sym *cpp_prepare_member_func_call(Sym *field)
 {
     CType obj_type;
@@ -6470,13 +6555,30 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
     obj_type = vtop->type;
     test_lvalue();
     gaddrof();
+    /* MI: a method inherited from a non-first base runs on that base's
+       subobject, so `this` must be obj + offset(base) - for single
+       inheritance / the first base the offset is 0 and this is a no-op.
+       This also leaves a char* pointer, satisfying the BUG-15 requirement
+       below. */
+    if (field && field->parent_class && obj_type.ref
+        && field->parent_class != obj_type.ref
+        && !cpp_type_has_virtual(obj_type.ref)) {
+        int base_ofs = cpp_base_subobject_offset(obj_type.ref, field->parent_class);
+        if (base_ofs > 0) {
+            vtop->type = char_pointer_type;
+            vpushi(base_ofs);
+            gen_op('+');
+        }
+    }
     /* BUG-15: `this` is the object's address and must be a POINTER value.
        gaddrof leaves the struct type on it, so gfunc_call would otherwise
        treat it as a by-value struct argument and, for objects >8 bytes,
        memcpy the object into a temporary and pass that copy's address -
        the method then mutates the copy and the caller's object is
-       unchanged.  Retyping to T* makes it a plain 8-byte pointer arg. */
-    mk_pointer(&vtop->type);
+       unchanged.  Retype to T* only when the MI branch above did not
+       already turn it into a pointer. */
+    if ((vtop->type.t & VT_BTYPE) != VT_PTR)
+        mk_pointer(&vtop->type);
     cpp_member_this = *vtop;
     vpop();
     fsym = cpp_lookup_member_func(field, &obj_type);
@@ -7323,27 +7425,37 @@ do_decl:
 
 
     if (is_class && tok == ':') {
-        Sym *base_class_sym, *base_field;
+        Sym *base_class_sym, *base_field, **base_tail;
         CType base_type;
 
         next();
-        if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED)
+        /* Multiple inheritance: base subobjects are laid out in declaration
+           order (first base at offset 0, next after it) so struct_layout
+           assigns their offsets like ordinary leading fields.  Append each
+           base field to the chain tail (empty here, before members), which
+           keeps the single-base order identical to before. */
+        base_tail = &s->next;
+        for (;;) {
+            if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED)
+                next();
+            if (tok < TOK_IDENT)
+                tcc_error("expected base class name");
+            base_class_sym = struct_find(tok);
+            if (!base_class_sym)
+                tcc_error("unknown base class");
             next();
-        if (tok < TOK_IDENT)
-            tcc_error("expected base class name");
-        base_class_sym = struct_find(tok);
-        if (!base_class_sym)
-            tcc_error("unknown base class");
-        next();
-        if (tok == ',')
-            tcc_error("multiple inheritance not supported");
-        base_type.t = VT_STRUCT;
-        base_type.ref = base_class_sym;
-        base_field = sym_push(anon_sym++ | SYM_FIELD, &base_type, 0, 0);
-        base_field->a.access = ACCESS_PUBLIC;
-        base_field->parent_class = base_class_sym;
-        base_field->next = s->next;
-        s->next = base_field;
+            base_type.t = VT_STRUCT;
+            base_type.ref = base_class_sym;
+            base_field = sym_push(anon_sym++ | SYM_FIELD, &base_type, 0, 0);
+            base_field->a.access = ACCESS_PUBLIC;
+            base_field->parent_class = base_class_sym;
+            base_field->next = *base_tail;
+            *base_tail = base_field;
+            base_tail = &base_field->next;
+            if (tok != ',')
+                break;
+            next();
+        }
     }
 
     if (tok == '{') {
@@ -11368,7 +11480,22 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
         if (tcc_state->cpp && (dtype.t & VT_REFERENCE)) {
             if ((vtop->r & VT_LVAL)
                 && cpp_can_bind_lvalue_to_reference(&dtype, &vtop->type)) {
+                /* MI upcast: `B& r = d` must bind r to d's B subobject.
+                   Capture the classes before the address/type are changed. */
+                Sym *src_class = ((vtop->type.t & VT_BTYPE) == VT_STRUCT)
+                                 ? vtop->type.ref : NULL;
+                CType *base_pt = pointed_type(&dtype);
+                Sym *base_class = ((base_pt->t & VT_BTYPE) == VT_STRUCT)
+                                  ? base_pt->ref : NULL;
                 gaddrof();
+                if (src_class && base_class && src_class != base_class) {
+                    int ofs = cpp_base_subobject_offset(src_class, base_class);
+                    if (ofs > 0) {
+                        vtop->type = char_pointer_type;
+                        vpushi(ofs);
+                        gen_op('+');
+                    }
+                }
                 vtop->type = dtype;
                 /* plain pointer store; keeping VT_REFERENCE on the dest
                    would trigger the assign-through-reference path */
