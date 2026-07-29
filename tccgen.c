@@ -732,6 +732,22 @@ static const char *cpp_operator_suffix(int op_tok)
     case TOK_GT: return "gt";
     case TOK_LE: return "le";
     case TOK_GE: return "ge";
+    /* FEAT-6A-ext6: remaining binary bitwise / shift / modulo operators and
+       their compound-assignment forms.  Binary ones route through expr_infix
+       (like ext5); the compound ones route through expr_eq's struct
+       TOK_ASSIGN branch (like ext2).  Only the suffixes are needed. */
+    case '%': return "mod";
+    case '&': return "and";
+    case '|': return "or";
+    case '^': return "xor";
+    case TOK_SHL: return "shl";
+    case TOK_SAR: return "shr";
+    case TOK_A_MOD: return "mod_assign";
+    case TOK_A_AND: return "and_assign";
+    case TOK_A_OR: return "or_assign";
+    case TOK_A_XOR: return "xor_assign";
+    case TOK_A_SHL: return "shl_assign";
+    case TOK_A_SAR: return "shr_assign";
     default:
         return NULL;
     }
