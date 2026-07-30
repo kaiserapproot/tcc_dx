@@ -45,7 +45,7 @@ echo ========================================
 msbuild test\vs_test\con_c_vs_test.vcxproj /p:Configuration="Debug Unicode" /p:Platform=x64
 if errorlevel 1 exit /b 1
 pushd "test\vs_test\x64\Debug Unicode"
-con_c_vs_test.exe
+.\con_c_vs_test.exe
 if errorlevel 1 (
   popd
   exit /b 1

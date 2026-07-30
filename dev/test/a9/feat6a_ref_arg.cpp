@@ -5,7 +5,7 @@ public:
 };
 
 int Vec2::operator+(const Vec2& o) {
-    return x + o.x + o.y;
+    return x + y + o.x + o.y;
 }
 
 int main() {
