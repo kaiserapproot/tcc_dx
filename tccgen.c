@@ -165,6 +165,9 @@ static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
 static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg);
 static int is_integer_btype(int bt);
+/* MI: byte offset of a base subobject within a class (forward decl - defined
+   with the member-call helpers).  Used by the derived->base upcast paths. */
+static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -172,12 +175,20 @@ static int decl_once_flag;
 /* --- C++ Stage 3: this, member calls, default args --- */
 static SValue cpp_member_this;
 static int cpp_member_this_pending;
+/* BUG-14: while a member function global is being registered via
+   external_sym, this points at its class so external_sym keeps it a distinct
+   Sym from a same-named method in another class and cpp_build_func_mangle
+   qualifies the asm_label with the class.  NULL for free functions. */
+static Sym *cpp_pending_member_class;
 static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
 static int cpp_func_param_count(Sym *field);
 static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
+/* FEAT-5C: forward decl - cpp_emit_mptr_pmf_invoke (defined earlier)
+   dispatches a virtual PMF through this vtable helper (defined later). */
+static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
@@ -247,7 +258,32 @@ static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
     mangle_append_char(buf, buf_size, pos, c);
 }
 
-static int cpp_build_func_mangle(int v, CType *type, char *mbuf, int buf_size)
+/* BUG-11: the one-token lookahead after an extern "C" region is lexed
+   while lex_c is still active, so a C++ keyword there (e.g. "class")
+   arrives as its demoted identifier twin and the following declaration
+   fails to parse.  The twin is registered in table_ident but never
+   linked into the hash chain (tok_alloc_demote), so a lookup by name
+   returns the original keyword token: use that to re-promote.  Plain
+   identifiers map to themselves and stay untouched. */
+static void cpp_repromote_stale_lookahead(void)
+{
+    const char *name;
+    TokenSym *ts;
+
+    if (!tcc_state->cpp || tcc_state->lex_c)
+        return;
+    if (tok < TOK_IDENT)
+        return;
+    name = get_tok_str(tok, NULL);
+    if (!name || !name[0])
+        return;
+    ts = tok_alloc(name, (int)strlen(name));
+    if (ts->tok != tok)
+        tok = ts->tok;
+}
+
+static int cpp_build_func_mangle(int v, CType *type, Sym *cls,
+                                 char *mbuf, int buf_size)
 {
     const char *name;
     Sym *arg;
@@ -258,7 +294,15 @@ static int cpp_build_func_mangle(int v, CType *type, char *mbuf, int buf_size)
     if (!type || (type->t & VT_BTYPE) != VT_FUNC)
         return 0;
     name = get_tok_str(v, NULL);
-    pos = snprintf(mbuf, buf_size, "__tcc_%s_", name);
+    /* BUG-14: qualify a member function's link name with its class so two
+       classes with a same-named, same-signature method (e.g. a base virtual
+       and its override) get distinct symbols instead of clobbering one
+       another.  Free functions (cls == NULL) keep the unqualified name. */
+    if (cls)
+        pos = snprintf(mbuf, buf_size, "__tcc_%s__%s_",
+                       get_tok_str(cls->v & ~SYM_STRUCT, NULL), name);
+    else
+        pos = snprintf(mbuf, buf_size, "__tcc_%s_", name);
     if (pos < 0 || pos >= buf_size)
         pos = buf_size - 1;
     for (arg = type->ref->next; arg; arg = arg->next) {
@@ -472,12 +516,17 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
     entry_name = get_tok_str(sym->v, NULL);
     if (!strcmp(entry_name, "main") || !strcmp(entry_name, "wmain"))
         return;
-    len = cpp_build_func_mangle(sym->v, type, mbuf, sizeof mbuf);
+    /* sym->parent_class must already be set for member functions (external_sym
+       assigns it from cpp_pending_member_class before calling us) so the class
+       is baked into the link name - BUG-14. */
+    len = cpp_build_func_mangle(sym->v, type, sym->parent_class, mbuf, sizeof mbuf);
     if (len <= 0)
         return;
     ts = tok_alloc(mbuf, len);
     sym->asm_label = ts->tok;
 }
+
+static int cpp_dtor_name_tok(int class_tok);
 
 static int parse_cpp_scope_qualifier(int *v)
 {
@@ -492,6 +541,23 @@ static int parse_cpp_scope_qualifier(int *v)
     }
     next();
     class_v = *v;
+    /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
+       a single-char token, so the generic member-name check below
+       would reject it.  Reuse the FEAT-4E mangled global token so the
+       existing auto/explicit dtor call paths link against this body. */
+    if (tok == '~') {
+        next();
+        if (tok != class_v)
+            tcc_error("destructor name does not match class name");
+        next();
+        *v = cpp_dtor_name_tok(class_v);
+        if (!*v)
+            tcc_error("cannot build destructor name");
+        cpp_qualified_class = struct_find(class_v);
+        if (!cpp_qualified_class)
+            tcc_error("unknown class in qualified name");
+        return 1;
+    }
     if (tok < TOK_IDENT)
         tcc_error("expected member name after ::");
     *v = tok;
@@ -659,6 +725,32 @@ static const char *cpp_operator_suffix(int op_tok)
     case '~': return "compl";
     case TOK_INC: return "inc";
     case TOK_DEC: return "dec";
+    /* FEAT-6A-ext5: relational / equality operators.  These are binary and
+       route through the existing expr_infix -> cpp_try_member_binop /
+       cpp_try_free_binop hook (9834), so adding the suffixes here is enough
+       to declare and dispatch operator== / != / < / > / <= / >=. */
+    case TOK_EQ: return "eq";
+    case TOK_NE: return "ne";
+    case TOK_LT: return "lt";
+    case TOK_GT: return "gt";
+    case TOK_LE: return "le";
+    case TOK_GE: return "ge";
+    /* FEAT-6A-ext6: remaining binary bitwise / shift / modulo operators and
+       their compound-assignment forms.  Binary ones route through expr_infix
+       (like ext5); the compound ones route through expr_eq's struct
+       TOK_ASSIGN branch (like ext2).  Only the suffixes are needed. */
+    case '%': return "mod";
+    case '&': return "and";
+    case '|': return "or";
+    case '^': return "xor";
+    case TOK_SHL: return "shl";
+    case TOK_SAR: return "shr";
+    case TOK_A_MOD: return "mod_assign";
+    case TOK_A_AND: return "and_assign";
+    case TOK_A_OR: return "or_assign";
+    case TOK_A_XOR: return "xor_assign";
+    case TOK_A_SHL: return "shl_assign";
+    case TOK_A_SAR: return "shr_assign";
     default:
         return NULL;
     }
@@ -968,8 +1060,17 @@ static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
     field = cpp_lookup_member_field(field_tok, class_sym);
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         tcc_error("invalid member function pointer");
-    if (field->type.ref && field->type.ref->f.func_virtual)
-        tcc_error("member function pointer to virtual method not supported");
+    if (field->type.ref && field->type.ref->f.func_virtual) {
+        /* FEAT-5C: virtual PMF - the member is known (field_tok from the
+           pointer type) but which override runs depends on the object's
+           dynamic type.  Dispatch through the object's vtable at the
+           field's slot, exactly like a normal `obj.vfunc()` call.  The
+           pointer's stored value (the class impl address) is irrelevant
+           here; virtual dispatch is driven by obj's vptr. */
+        vpushv(obj);
+        cpp_prepare_virtual_member_call(field, &obj->type);
+        return;
+    }
     obj_type = obj->type;
     fsym = cpp_lookup_member_func(field, &obj_type);
     vset(&fsym->type, fsym->r | VT_SYM, 0);
@@ -978,6 +1079,8 @@ static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
     vpushv(obj);
     test_lvalue();
     gaddrof();
+    mk_pointer(&vtop->type);   /* BUG-15: pass `this` as a pointer, not a
+                                  by-value struct copy (see cpp_prepare_member_func_call) */
     cpp_member_this = *vtop;
     vpop();
     cpp_member_this_pending = 1;
@@ -1078,6 +1181,285 @@ static void cpp_call_scope_dtors(Sym *bottom)
         return;
     for (s = local_stack; s != bottom; s = s->prev)
         cpp_emit_local_dtor(s);
+}
+
+/* FEAT-4G: deferred global ctor/dtor thunks for .init_array / .fini_array. */
+typedef struct CppGlobalDynEntry {
+    Sym *obj_sym;
+    TokenString *ctor_args; /* NULL for default ctor or dtor entry */
+    int is_dtor;
+} CppGlobalDynEntry;
+
+static CppGlobalDynEntry **cpp_global_dyns;
+static int nb_cpp_global_dyns;
+static int cpp_global_dyn_serial;
+
+static TokenString *cpp_save_paren_expr_tokens(void)
+{
+    TokenString *ts;
+
+    ts = tok_str_alloc();
+    while (tok != ')') {
+        if (tok == TOK_EOF)
+            tcc_error("unexpected end in global ctor arguments");
+        tok_str_add_tok(ts);
+        next();
+    }
+    /* every replayed TokenString needs the TOK_EOF terminator (see
+       gen_inline_functions); without it begin_macro replay runs past
+       the buffer into garbage tokens and crashes tcc. */
+    tok_str_add(ts, TOK_EOF);
+    return ts;
+}
+
+static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is_dtor)
+{
+    CppGlobalDynEntry *ent;
+    Sym *class_sym;
+
+    if (!obj_sym || !tcc_state->cpp)
+        return;
+    if ((obj_sym->type.t & VT_BTYPE) != VT_STRUCT)
+        return;
+    /* dynarray_add stores the pointer as-is (no struct copy), so each
+       entry must be heap-allocated; a stack address here dangles and
+       crashed tcc at thunk-emission time.  dynarray_reset frees them. */
+    ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+    ent->obj_sym = obj_sym;
+    ent->ctor_args = ctor_args;
+    ent->is_dtor = is_dtor;
+    dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
+    if (!is_dtor) {
+        class_sym = obj_sym->type.ref;
+        if (class_sym && cpp_find_dtor_field(class_sym)) {
+            ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+            ent->obj_sym = obj_sym;
+            ent->ctor_args = NULL;
+            ent->is_dtor = 1;
+            dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
+        }
+    }
+}
+
+/* returns the gfunc_call arg count so the thunk can size its scratch
+   area (0 when the class has no dtor and no call was emitted). */
+static int cpp_emit_global_dtor_call(Sym *obj_sym)
+{
+    Sym *class_sym;
+    Sym *dtor_field;
+    Sym *dtor_global;
+    CType obj_type;
+
+    class_sym = obj_sym->type.ref;
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (!dtor_field)
+        return 0;
+    obj_type.t = VT_STRUCT;
+    obj_type.ref = class_sym;
+    dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
+    vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+    vtop->sym = dtor_global;
+    vtop->r &= ~VT_LVAL;
+    /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
+       section offset; passing it skewed the object address by c bytes. */
+    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+    vtop->sym = obj_sym;
+    gaddrof();
+    gfunc_call(1);
+    return 1;
+}
+
+/* returns the gfunc_call arg count (this + ctor args) so the thunk can
+   size its scratch area (0 when no ctor was found). */
+static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
+{
+    Sym *ctor_field;
+    Sym *ctor_global;
+    Sym *resolved;
+    Sym *sa;
+    CType obj_type;
+    SValue obj_addr;
+    int nb_args;
+    int na;
+    int i;
+
+    obj_type.t = VT_STRUCT;
+    obj_type.ref = obj_sym->type.ref;
+    ctor_field = cpp_find_ctor_field(obj_sym->type.ref);
+    if (!ctor_field)
+        return 0;
+    ctor_global = cpp_lookup_member_func(ctor_field, &obj_type);
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    nb_args = 0;
+    if (arg_toks) {
+        begin_macro(arg_toks, 1);
+        next();
+        while (tok != TOK_EOF) {
+            int arg_align;
+            int arg_size;
+
+            expr_eq();
+            /* The hand-written thunk (cpp_emit_global_dyn_thunk) reserves
+               only max(32, nb_args*8) of scratch, which covers register/
+               stack scalar slots but NOT gfunc_call's by-value struct /
+               long-double staging (it grows struct_size past args_size and
+               would overflow into the thunk's saved rbp / return address).
+               using_regs(size) == !(size>8 || size&(size-1)); anything else
+               is staged, so reject it with a diagnostic instead of emitting
+               silently-crashing code. */
+            arg_size = type_size(&vtop->type, &arg_align);
+            if (arg_size > 8 || (arg_size & (arg_size - 1)))
+                tcc_error("global constructor with by-value struct / long "
+                          "double argument is not supported");
+            nb_args++;
+            if (tok == ',')
+                next();
+        }
+        /* no next() after end_macro: the outer stream sits at file EOF
+           here and gen_inline_functions ends its replays the same way. */
+        end_macro();
+    }
+    na = nb_args;
+    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa && sa->type.t != VT_VOID) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
+    /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
+       section offset; passing it skewed the object address by c bytes. */
+    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+    vtop->sym = obj_sym;
+    gaddrof();
+    obj_addr = *vtop;
+    vpop();
+    if (na == 0) {
+        vpushv(&obj_addr);
+        gfunc_call(1);
+        return 1;
+    } else {
+        vtop++;
+        nb_args = na + 1;
+        memmove(vtop - nb_args + 2, vtop - nb_args + 1,
+            na * sizeof(SValue));
+        vtop[-nb_args + 1] = obj_addr;
+        gfunc_call(nb_args);
+        return nb_args;
+    }
+}
+
+static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
+{
+    CType void_type;
+    CType func_type;
+    Sym *proto;
+    Sym *wrapper;
+    char name[48];
+    const char *sec;
+    int name_tok;
+    int thunk_start;
+    int sub_imm_off;
+    int nb_call_args;
+    int scratch;
+
+    void_type.t = VT_VOID;
+    func_type.t = VT_FUNC;
+    proto = sym_push(SYM_FIELD, &void_type, 0, 0);
+    proto->f.func_call = FUNC_CDECL;
+    proto->f.func_type = FUNC_NEW;
+    func_type.ref = proto;
+
+    snprintf(name, sizeof(name), ent->is_dtor ? "__cpp_gd_%d" : "__cpp_gi_%d",
+        cpp_global_dyn_serial++);
+    name_tok = tok_alloc(name, strlen(name))->tok;
+    wrapper = external_global_sym(name_tok, &func_type);
+
+    loc = 0;
+    thunk_start = ind = cur_text_section->data_offset;
+    put_extern_sym(wrapper, cur_text_section, ind, 0);
+
+    /* Minimal cdecl thunk: push rbp; mov rbp,rsp; sub rsp,imm32;
+       call ctor/dtor; leave; ret.
+       Avoid gfunc_prolog/epilog here: epilog rewinds ind and calls
+       pe_add_unwind_data, which made FEAT-4G init thunks take minutes. */
+    o(0xe5894855);
+    /* sub rsp,imm32: win64 callees home their register args in the
+       CALLER's 32-byte shadow area; without it the ctor prolog's
+       "mov [rbp+10h],rcx" smashed this thunk's saved rbp and the
+       .init_array walker crashed right after the call returned.
+       A fixed 0x20 only covers 4 args: gfunc_call stages arg 5+ at
+       [rsp+arg*8], which then lands on the saved rbp / return address
+       (crashed on a 6-arg global ctor).  imm32 form so the real size
+       can be patched below once the arg count is known. */
+    o(0xec8148);
+    sub_imm_off = ind;
+    gen_le32(0x20);
+
+    if (ent->is_dtor)
+        nb_call_args = cpp_emit_global_dtor_call(ent->obj_sym);
+    else
+        nb_call_args = cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
+
+    /* same sizing rule as gfunc_call's stack staging ([rsp+arg*8],
+       32-byte minimum), 16-aligned to keep the callee entry aligned.
+       By-value struct/long-double ctor args would need gfunc_call's
+       func_scratch on top of this; not supported here. */
+    scratch = nb_call_args * 8;
+    if (scratch < 32)
+        scratch = 32;
+    scratch = (scratch + 15) & -16;
+    write32le(cur_text_section->data + sub_imm_off, scratch);
+
+    o(0xc9);
+    o(0xc3);
+    check_vstack();
+    /* o()/g() advance only ind, not data_offset (gen_function normally
+       syncs it at its end).  Without this sync gen_inline_functions
+       would emit the deferred member bodies over these thunks and the
+       .init_array pointers would jump into overwritten code. */
+    cur_text_section->data_offset = ind;
+    put_extern_sym(wrapper, cur_text_section, thunk_start, ind - thunk_start);
+
+    sec = ent->is_dtor ? ".fini_array" : ".init_array";
+    add_array(tcc_state, sec, wrapper->c);
+
+    /* no tok_str_free(ent->ctor_args) here: begin_macro(arg_toks, 1)
+       hands ownership to end_macro, which already frees the string;
+       freeing again corrupted the heap (injected startup then failed
+       with a bogus \x01 parse error). */
+}
+
+static void cpp_finish_global_dyns(TCCState *s1)
+{
+    int i;
+    int saved_nocode;
+
+    if (!s1->cpp || nb_cpp_global_dyns == 0)
+        return;
+    saved_nocode = nocode_wanted;
+    nocode_wanted = 0;
+    cur_text_section = text_section;
+    cpp_global_dyn_serial = 0;
+    for (i = 0; i < nb_cpp_global_dyns; i++)
+        cpp_emit_global_dyn_thunk(cpp_global_dyns[i]);
+    dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
+    /* survives the per-TU save/restore of s1->cpp; gates the PE startup
+       injection at link time (tccpe.c). */
+    s1->cpp_global_ctors = 1;
+    nocode_wanted = saved_nocode;
 }
 
 /* FEAT-5A: anonymous embedded base subobject (class D : public Base). */
@@ -1356,6 +1738,8 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
     slot = field->c;
     test_lvalue();
     gaddrof();
+    mk_pointer(&vtop->type);   /* BUG-15: pass `this` as a pointer, not a
+                                  by-value struct copy (see cpp_prepare_member_func_call) */
     cpp_member_this = *vtop;
     vpop();
 
@@ -1388,6 +1772,7 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
 static int cpp_peek_out_of_class_ctor(int *class_tok)
 {
     int cls, mem;
+    int tilde;
 
     if (!tcc_state->cpp || tok < TOK_IDENT || !class_tok)
         return 0;
@@ -1406,9 +1791,18 @@ static int cpp_peek_out_of_class_ctor(int *class_tok)
         return 0;
     }
     next();
+    /* FEAT-4E-P2: also accept Class::~Class( so out-of-class dtor
+       definitions take the qualified-class decl path (btype VT_VOID),
+       mirroring the out-of-class ctor peek. */
+    tilde = 0;
+    if (tok == '~') {
+        tilde = 1;
+        next();
+    }
     mem = tok;
     if (mem != cls) {
-        unget_tok(mem);
+        if (tilde)
+            unget_tok('~');
         unget_tok(':');
         unget_tok(':');
         unget_tok(cls);
@@ -1417,12 +1811,16 @@ static int cpp_peek_out_of_class_ctor(int *class_tok)
     next();
     if (tok != '(') {
         unget_tok(mem);
+        if (tilde)
+            unget_tok('~');
         unget_tok(':');
         unget_tok(':');
         unget_tok(cls);
         return 0;
     }
     unget_tok(mem);
+    if (tilde)
+        unget_tok('~');
     unget_tok(':');
     unget_tok(':');
     unget_tok(cls);
@@ -1599,6 +1997,33 @@ static void cpp_register_member_body(Sym *field_sym, Sym *class_sym, CType *ftyp
     field_sym->inline_func_str = body;
 }
 
+/* BUG-13: a member function (incl. an operator) may be declared with an
+   unnamed parameter - the standard postfix idiom `operator++(int)` is the
+   common case.  post_type() stores such a param with v == SYM_FIELD (no
+   name token), and a free-function *definition* rejects that at the
+   declarator check (expect("identifier"), 12456).  Member bodies bypass
+   that check: they are saved and emitted later through gen_function ->
+   gfunc_prolog, which pushes each param with sym_push(v & ~SYM_FIELD,...).
+   For an unnamed param v & ~SYM_FIELD == 0, and sym_push then records the
+   name at table_ident[0 - TOK_IDENT] - a negative index that crashes tcc
+   when the member is emitted (feat6a postfix operator, BUG-13).
+   Fix: before registering the body, give every unnamed param a fresh
+   anonymous token id (>= SYM_FIRST_ANOM).  gfunc_prolog's sym_push then
+   takes the "anonymous, do not record" path, so no table_ident write
+   happens.  Types (used by overload resolution and mangling) are
+   untouched; only the unreferenceable param name changes. */
+static void cpp_name_unnamed_params(Sym *func_field)
+{
+    Sym *pa;
+
+    if (!func_field->type.ref)
+        return;
+    for (pa = func_field->type.ref->next; pa; pa = pa->next) {
+        if ((pa->v & ~SYM_FIELD) == 0)
+            pa->v = (anon_sym++) | SYM_FIELD;
+    }
+}
+
 static void cpp_finish_member_inlines(Sym *class_sym)
 {
     Sym *f;
@@ -1618,6 +2043,8 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         if (!body)
             continue;
         f->inline_func_str = NULL;
+        /* BUG-13: rename unnamed params before gen_function reaches them */
+        cpp_name_unnamed_params(f);
         memset(&ad, 0, sizeof ad);
         type = f->type;
         type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
@@ -1634,7 +2061,12 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         } else {
             global_tok = f->v & ~SYM_FIELD;
         }
+        /* BUG-14: mark the class so external_sym keeps this member's global
+           distinct from a same-named method in another class (see
+           cpp_pending_member_class / cpp_build_func_mangle). */
+        cpp_pending_member_class = class_sym;
         sym = external_sym(global_tok, &type, 0, &ad);
+        cpp_pending_member_class = NULL;
         sym->parent_class = class_sym;
         sym->type.t |= VT_INLINE;
         /* Inline ctor: propagate the saved mem-initializer-list so
@@ -1957,6 +2389,8 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
     cpp_cur_func_class = NULL;
+    dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
+    cpp_global_dyn_serial = 0;
 }
 
 ST_FUNC int tccgen_compile(TCCState* s1)
@@ -1978,6 +2412,7 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
     next();
     decl(VT_CONST);
+    cpp_finish_global_dyns(s1);
     gen_inline_functions(s1);
     check_vstack();
     /* �|��P�ʂ̏��̏I��� */
@@ -2918,13 +3353,25 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
         /* copy type to the global stack */
         if (local_stack)
             sym_copy_ref(s, &global_stack);
-        if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC)
+        if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC) {
+            /* BUG-14: bake the class in before the mangle so this member's
+               link name is class-qualified (NULL for free functions). */
+            s->parent_class = cpp_pending_member_class;
             cpp_set_func_mangle_label(s, type);
+        }
     }
     else {
+        /* BUG-14: a same-named, same-signature method in a *different* class
+           must not merge into this global (is_compatible_types ignores the
+           class).  Keep them distinct so their bodies and vtable slots do
+           not clobber each other.  Overloads (incompatible types) already
+           fork a new Sym here; the added class check covers the same-
+           signature cross-class case. */
         if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC
             && (s->type.t & VT_BTYPE) == VT_FUNC
-            && !is_compatible_types(&s->type, type)) {
+            && (!is_compatible_types(&s->type, type)
+                || (cpp_pending_member_class
+                    && s->parent_class != cpp_pending_member_class))) {
             s = global_identifier_push(v, type->t, 0);
             s->r |= r;
             s->a = ad->a;
@@ -2932,6 +3379,7 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
             s->type.ref = type->ref;
             if (local_stack)
                 sym_copy_ref(s, &global_stack);
+            s->parent_class = cpp_pending_member_class;
             cpp_set_func_mangle_label(s, type);
         } else {
             patch_storage(s, ad, type);
@@ -4846,8 +5294,20 @@ static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg)
     CType *pt;
 
     pt = pointed_type(ref);
-    if ((arg->t & VT_BTYPE) == VT_STRUCT)
-        return is_compatible_unqualified_types(pt, arg);
+    if ((arg->t & VT_BTYPE) == VT_STRUCT) {
+        if (is_compatible_unqualified_types(pt, arg))
+            return 1;
+        /* MI/inheritance upcast: a derived-class lvalue binds to a base-class
+           reference.  The pointer is adjusted to the base subobject in
+           gen_cast's binding path (offset 0 for single/first base).  Non-
+           virtual (Phase 1) only - polymorphic types are left to the vtable
+           machinery / a later phase. */
+        if (tcc_state->cpp && (pt->t & VT_BTYPE) == VT_STRUCT
+            && pt->ref && arg->ref && !cpp_type_has_virtual(arg->ref)
+            && cpp_base_subobject_offset(arg->ref, pt->ref) >= 0)
+            return 1;
+        return 0;
+    }
     if ((pt->t & VT_BTYPE) != (arg->t & VT_BTYPE))
         return 0;
     if ((pt->t & VT_UNSIGNED) != (arg->t & VT_UNSIGNED))
@@ -4872,6 +5332,14 @@ static void gen_cast(CType* type)
     /* C++: bind lvalue to reference (param / return) */
     if (tcc_state->cpp && (type->t & VT_REFERENCE) && (vtop->r & VT_LVAL)) {
         if (cpp_can_bind_lvalue_to_reference(type, &vtop->type)) {
+            /* MI upcast: capture the source class and target base before the
+               address is taken so the reference can be pointed at the base
+               subobject (offset 0 for single/first base). */
+            Sym *src_class = ((vtop->type.t & VT_BTYPE) == VT_STRUCT)
+                             ? vtop->type.ref : NULL;
+            CType *base_pt = pointed_type(type);
+            Sym *base_class = ((base_pt->t & VT_BTYPE) == VT_STRUCT)
+                              ? base_pt->ref : NULL;
             if (!(vtop->r & VT_LVAL)
                 && (vtop->r & VT_VALMASK) == VT_LOCAL)
                 vtop->r |= VT_LVAL;
@@ -4879,9 +5347,44 @@ static void gen_cast(CType* type)
                 gaddrof();
             else
                 tcc_error("rvalue cannot bind to reference");
+            if (src_class && base_class && src_class != base_class) {
+                int ofs = cpp_base_subobject_offset(src_class, base_class);
+                if (ofs > 0) {
+                    vtop->type = char_pointer_type;
+                    vpushi(ofs);
+                    gen_op('+');
+                }
+            }
             vtop->type = *type;
             vtop->r &= ~VT_LVAL;
             return;
+        }
+    }
+
+    /* MI upcast: D* -> B* (explicit `(B*)p` or implicit `B* q = p`) adjusts
+       the pointer to the base subobject.  Only fires when the source class
+       actually derives from the target base at a non-zero offset; the first
+       base / single inheritance keeps offset 0 and the normal reinterpret. */
+    if (tcc_state->cpp
+        && (type->t & (VT_BTYPE | VT_REFERENCE)) == VT_PTR
+        && (vtop->type.t & VT_BTYPE) == VT_PTR) {
+        CType *dpt = pointed_type(type);
+        CType *spt = pointed_type(&vtop->type);
+        /* Phase 1 is non-virtual MI: skip classes with virtuals - their base
+           subobject layout involves the vptr and the vtable machinery already
+           treats the primary base as offset 0.  Applying an offset here would
+           break `(Base*)&derived` for polymorphic types (virtual MI = later). */
+        if ((dpt->t & VT_BTYPE) == VT_STRUCT && (spt->t & VT_BTYPE) == VT_STRUCT
+            && dpt->ref && spt->ref && dpt->ref != spt->ref
+            && !cpp_type_has_virtual(spt->ref)) {
+            int ofs = cpp_base_subobject_offset(spt->ref, dpt->ref);
+            if (ofs > 0) {
+                vtop->type = char_pointer_type;
+                vpushi(ofs);
+                gen_op('+');
+                vtop->type = *type;
+                return;
+            }
         }
     }
 
@@ -5257,8 +5760,15 @@ static void verify_assign_cast(CType* dt)
     st = &vtop->type; /* source type */
     dbt = dt->t & VT_BTYPE;
     sbt = st->t & VT_BTYPE;
-    if (dt->t & VT_CONSTANT)
+    if (dt->t & VT_CONSTANT) {
+        /* FEAT-6B-P2: hard error in C++ mode.  const T& destinations are
+           exempt: argument binding passes the param type (which keeps
+           top-level VT_CONSTANT, see convert_parameter_type) through
+           gen_assign_cast on every call. */
+        if (tcc_state->cpp && !(dt->t & VT_REFERENCE))
+            tcc_error("assignment of read-only location");
         tcc_warning("�ǂݎ���p�̏ꏊ�ւ̑���ł�");
+    }
     switch (dbt) {
     case VT_VOID:
         if (sbt != dbt)
@@ -6010,6 +6520,33 @@ static Sym* find_field(CType* type, int v, int* cumofs)
 }
 
 /* Prepare non-virtual member call: obj lvalue on vtop -> func on vtop. */
+/* MI: byte offset of target_class's subobject within obj_class, walking base
+   subobject fields recursively.  0 when target_class == obj_class or lies on
+   the primary (offset-0) base path; -1 when not reachable.  Non-virtual,
+   single-path inheritance only - a diamond returns the first path found. */
+static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class)
+{
+    Sym *f;
+
+    if (!obj_class || !target_class)
+        return -1;
+    if (obj_class == target_class)
+        return 0;
+    for (f = obj_class->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) == VT_STRUCT
+            && f->v >= (SYM_FIRST_ANOM | SYM_FIELD)
+            && f->parent_class) {
+            int inner;
+            if (f->parent_class == target_class)
+                return f->c;
+            inner = cpp_base_subobject_offset(f->parent_class, target_class);
+            if (inner >= 0)
+                return f->c + inner;
+        }
+    }
+    return -1;
+}
+
 static Sym *cpp_prepare_member_func_call(Sym *field)
 {
     CType obj_type;
@@ -6018,6 +6555,30 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
     obj_type = vtop->type;
     test_lvalue();
     gaddrof();
+    /* MI: a method inherited from a non-first base runs on that base's
+       subobject, so `this` must be obj + offset(base) - for single
+       inheritance / the first base the offset is 0 and this is a no-op.
+       This also leaves a char* pointer, satisfying the BUG-15 requirement
+       below. */
+    if (field && field->parent_class && obj_type.ref
+        && field->parent_class != obj_type.ref
+        && !cpp_type_has_virtual(obj_type.ref)) {
+        int base_ofs = cpp_base_subobject_offset(obj_type.ref, field->parent_class);
+        if (base_ofs > 0) {
+            vtop->type = char_pointer_type;
+            vpushi(base_ofs);
+            gen_op('+');
+        }
+    }
+    /* BUG-15: `this` is the object's address and must be a POINTER value.
+       gaddrof leaves the struct type on it, so gfunc_call would otherwise
+       treat it as a by-value struct argument and, for objects >8 bytes,
+       memcpy the object into a temporary and pass that copy's address -
+       the method then mutates the copy and the caller's object is
+       unchanged.  Retype to T* only when the MI branch above did not
+       already turn it into a pointer. */
+    if ((vtop->type.t & VT_BTYPE) != VT_PTR)
+        mk_pointer(&vtop->type);
     cpp_member_this = *vtop;
     vpop();
     fsym = cpp_lookup_member_func(field, &obj_type);
@@ -6080,8 +6641,24 @@ static void cpp_finish_member_call(Sym *s, SValue *user_args, int nb_user_args)
     na = nb_args;
     vtop++;
     nb_args++;
-    memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
-    vtop[-nb_args + 1] = cpp_member_this;
+    {
+        /* BUG-12: `this` is normally inserted as arg0/RCX (matches
+           gen_function's this_param, the callee's first *type-list*
+           parameter).  But when the struct return doesn't fit in
+           registers (ret_nregs==0, sret pointer pushed above as the
+           first arg), Win64 reserves arg0/RCX for that hidden pointer
+           and the type-list params - `this` included - start at
+           arg1/RDX (gfunc_prolog inserts sret ahead of the list).
+           Inserting `this` at position 0 here pushed sret to arg1
+           instead, swapping this<->sret for any >8-byte struct return
+           (feat6a_big_struct, 問題と原因.md 12d/BUG-12). */
+        int has_sret = (s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0;
+        int insert_at = has_sret ? 1 : 0;
+        int nmove = na - insert_at;
+        memmove(vtop - nb_args + 2 + insert_at, vtop - nb_args + 1 + insert_at,
+            nmove * sizeof(SValue));
+        vtop[-nb_args + 1 + insert_at] = cpp_member_this;
+    }
     gfunc_call(nb_args);
 
     if (ret_nregs < 0) {
@@ -6400,6 +6977,82 @@ static int cpp_try_free_unop(int op_tok)
     vtop->r &= ~VT_LVAL;
     s = resolved->type.ref;
     cpp_finish_free_call(s, user_args, 1);
+    return 1;
+}
+
+/* FEAT-6A-ext4: postfix operator++/-- on a struct operand (vtop).
+   The member form is operator++(int): a single dummy int parameter is
+   what makes it postfix (prefix is the 0-arg operator++()).  We look up
+   the arity-1 member and pass a dummy 0 as that int argument, matching
+   how C++ dispatches postfix.  Returns 0 with vtop untouched when no
+   arity-1 member exists, so the free form / plain C inc() can run. */
+static int cpp_try_member_postop(int op_tok)
+{
+    Sym *field, *s;
+    SValue dummy;
+    int cumofs;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    field = cpp_find_operator_member(&vtop->type, cpp_operator_field_tok(op_tok),
+        &cumofs, 1);
+    if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    /* the any-arity fallback in cpp_find_operator_member may hand back the
+       prefix (0-arg) overload; postfix must be the single-(int) form */
+    if (cpp_func_param_count(field) != 1)
+        return 0;
+    if (field->type.ref && field->type.ref->f.func_virtual)
+        return 0;
+    /* C++ passes 0 as the dummy int argument for postfix operators */
+    vpushi(0);
+    dummy = vtop[0];
+    vpop();
+    s = cpp_prepare_member_func_call(field);
+    cpp_finish_member_call(s, &dummy, 1);
+    return 1;
+}
+
+/* FEAT-6A-ext4: free postfix operator++/--(T&, int) fallback. */
+static int cpp_try_free_postop(int op_tok)
+{
+    Sym *resolved, *s;
+    SValue operand, user_args[2];
+    int v;
+
+    if (!tcc_state->cpp || (vtop->type.t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    v = cpp_operator_field_tok(op_tok);
+    if (!v || !cpp_has_free_func(v))
+        return 0;
+
+    operand = *vtop;
+    vpop();
+    user_args[0] = operand;
+    vpushi(0);
+    user_args[1] = vtop[0];
+    vpop();
+
+    /* resolve against the 2-param (T&, int) form; the 1-param prefix free
+       operator is rejected by arity in cpp_resolve_free_func_call */
+    vpushv(&operand);
+    vpushi(0);
+    resolved = cpp_resolve_free_func_call(v, 2);
+    if (!resolved) {
+        /* restore the single struct operand for the plain C path */
+        vpop();
+        vpop();
+        vpushv(&operand);
+        return 0;
+    }
+
+    vpop();
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    s = resolved->type.ref;
+    cpp_finish_free_call(s, user_args, 2);
     return 1;
 }
 
@@ -6772,27 +7425,37 @@ do_decl:
 
 
     if (is_class && tok == ':') {
-        Sym *base_class_sym, *base_field;
+        Sym *base_class_sym, *base_field, **base_tail;
         CType base_type;
 
         next();
-        if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED)
+        /* Multiple inheritance: base subobjects are laid out in declaration
+           order (first base at offset 0, next after it) so struct_layout
+           assigns their offsets like ordinary leading fields.  Append each
+           base field to the chain tail (empty here, before members), which
+           keeps the single-base order identical to before. */
+        base_tail = &s->next;
+        for (;;) {
+            if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED)
+                next();
+            if (tok < TOK_IDENT)
+                tcc_error("expected base class name");
+            base_class_sym = struct_find(tok);
+            if (!base_class_sym)
+                tcc_error("unknown base class");
             next();
-        if (tok < TOK_IDENT)
-            tcc_error("expected base class name");
-        base_class_sym = struct_find(tok);
-        if (!base_class_sym)
-            tcc_error("unknown base class");
-        next();
-        if (tok == ',')
-            tcc_error("multiple inheritance not supported");
-        base_type.t = VT_STRUCT;
-        base_type.ref = base_class_sym;
-        base_field = sym_push(anon_sym++ | SYM_FIELD, &base_type, 0, 0);
-        base_field->a.access = ACCESS_PUBLIC;
-        base_field->parent_class = base_class_sym;
-        base_field->next = s->next;
-        s->next = base_field;
+            base_type.t = VT_STRUCT;
+            base_type.ref = base_class_sym;
+            base_field = sym_push(anon_sym++ | SYM_FIELD, &base_type, 0, 0);
+            base_field->a.access = ACCESS_PUBLIC;
+            base_field->parent_class = base_class_sym;
+            base_field->next = *base_tail;
+            *base_tail = base_field;
+            base_tail = &base_field->next;
+            if (tok != ',')
+                break;
+            next();
+        }
     }
 
     if (tok == '{') {
@@ -7208,6 +7871,8 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             next();
             break;
         case TOK_BOOL:
+        /* FEAT-BOOL: `bool` (C++ spelling) is the same type as `_Bool`. */
+        case TOK_BOOL2:
             u = VT_BOOL;
             goto basic_type;
         case TOK_COMPLEX:
@@ -8133,6 +8798,15 @@ tok_next:
         t = VT_SHORT | VT_UNSIGNED;
         goto push_tokc;
 #endif
+    case TOK_TRUE:
+    case TOK_FALSE:
+        /* FEAT-BOOL: C++ boolean literals -> _Bool constant 1 / 0.  Only
+           reachable in C++ mode; in C these tokens are demoted to plain
+           identifiers (is_cpp_only_keyword) and never reach this switch. */
+        vpushi(tok == TOK_TRUE ? 1 : 0);
+        vtop->type.t = VT_BOOL;
+        next();
+        break;
     case TOK_CINT:
     case TOK_CCHAR:
         t = VT_INT;
@@ -8279,8 +8953,17 @@ tok_next:
                 ct.ref = class_sym;
                 field = find_field(&ct, mem_tok, &cumofs);
                 if ((field->type.t & VT_BTYPE) == VT_FUNC) {
-                    if (field->type.ref && field->type.ref->f.func_virtual)
-                        tcc_error("member function pointer to virtual method not supported");
+                    /* FEAT-5C: `&Class::vfunc` for a virtual method is now
+                       allowed.  The specific member is carried symbolically
+                       in the member-pointer type (ref->c = mem_tok, set by
+                       mk_member_pointer below and propagated on assignment),
+                       so the stored VALUE need not encode the vtable slot -
+                       the invoke site re-derives virtual-ness from the field
+                       and dispatches through the object's vtable.  We store
+                       the class implementation's address as the value (same
+                       as the non-virtual case); it is a valid, nonzero
+                       symbol so null-tests behave, and the invoke ignores it
+                       for virtual members. */
                     fsym = cpp_lookup_member_func(field, &ct);
                     mpt = field->type;
                     mk_member_pointer(&mpt, class_sym, mem_tok);
@@ -8741,7 +9424,14 @@ tok_next:
     /* post operations */
     while (1) {
         if (tok == TOK_INC || tok == TOK_DEC) {
-            inc(1, tok);
+            /* FEAT-6A-ext4: postfix operator++/-- for a struct operand.
+               Member operator++(int) / free operator++(T&, int); the (int)
+               dummy distinguishes postfix from prefix by arity.  The
+               VT_STRUCT guard keeps every non-struct operand on the plain
+               inc() path byte-for-byte (no .c / scalar regression). */
+            if (!(tcc_state->cpp && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+                  && (cpp_try_member_postop(tok) || cpp_try_free_postop(tok))))
+                inc(1, tok);
             next();
         }
         else if (tok == '.' || tok == TOK_ARROW) {
@@ -8789,6 +9479,8 @@ tok_next:
                     tcc_error("no destructor for class");
                 obj_type = vtop->type;
                 gaddrof();
+                mk_pointer(&vtop->type);   /* BUG-15: `this` as pointer, not
+                                              a by-value struct copy */
                 cpp_member_this = *vtop;
                 vpop();
                 fsym = cpp_lookup_member_func(field, &obj_type);
@@ -9038,15 +9730,32 @@ tok_next:
                     vpushv(&cpp_member_this);
                     nb_args++;
                 } else {
+                    /* BUG-12: when the call already pushed a struct-return
+                       (sret) pointer as its first arg (na includes it,
+                       ret_nregs==0 below), that pointer must stay arg0/RCX
+                       and `this` goes to arg1/RDX instead of arg0 - Win64
+                       reserves arg0 for the hidden return pointer ahead of
+                       the callee's type-list params, `this` included (see
+                       gen_function/gfunc_prolog).  Inserting `this` at
+                       position 0 unconditionally swapped this<->sret for
+                       any method returning a struct too big for registers
+                       (feat6a_big_struct, 問題と原因.md 12d/BUG-12). */
+                    int has_sret = (s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0;
+                    int insert_at = has_sret ? 1 : 0;
+                    int nmove;
+
                     vtop++;
                     nb_args++;
-                    /* Shift the na explicit args one slot up to make room
-                     * for 'this' at vtop[-nb_args+1].  The args currently
-                     * sit at [vtop-nb_args+1 .. vtop-1]; move them to
-                     * [vtop-nb_args+2 .. vtop].                           */
-                    memmove(vtop - nb_args + 2, vtop - nb_args + 1,
-                        na * sizeof(SValue));
-                    vtop[-nb_args + 1] = cpp_member_this;
+                    nmove = na - insert_at;
+                    /* Shift the args from insert_at onward one slot up to
+                     * make room for 'this' at vtop[-nb_args+1+insert_at].
+                     * The args currently sit at
+                     * [vtop-nb_args+1 .. vtop-1]; move
+                     * [vtop-nb_args+1+insert_at .. vtop-1] to
+                     * [vtop-nb_args+2+insert_at .. vtop].                */
+                    memmove(vtop - nb_args + 2 + insert_at, vtop - nb_args + 1 + insert_at,
+                        nmove * sizeof(SValue));
+                    vtop[-nb_args + 1 + insert_at] = cpp_member_this;
                 }
                 cpp_member_this_pending = 0;
             }
@@ -10771,7 +11480,22 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
         if (tcc_state->cpp && (dtype.t & VT_REFERENCE)) {
             if ((vtop->r & VT_LVAL)
                 && cpp_can_bind_lvalue_to_reference(&dtype, &vtop->type)) {
+                /* MI upcast: `B& r = d` must bind r to d's B subobject.
+                   Capture the classes before the address/type are changed. */
+                Sym *src_class = ((vtop->type.t & VT_BTYPE) == VT_STRUCT)
+                                 ? vtop->type.ref : NULL;
+                CType *base_pt = pointed_type(&dtype);
+                Sym *base_class = ((base_pt->t & VT_BTYPE) == VT_STRUCT)
+                                  ? base_pt->ref : NULL;
                 gaddrof();
+                if (src_class && base_class && src_class != base_class) {
+                    int ofs = cpp_base_subobject_offset(src_class, base_class);
+                    if (ofs > 0) {
+                        vtop->type = char_pointer_type;
+                        vpushi(ofs);
+                        gen_op('+');
+                    }
+                }
                 vtop->type = dtype;
                 /* plain pointer store; keeping VT_REFERENCE on the dest
                    would trigger the assign-through-reference path */
@@ -11395,9 +12119,14 @@ static void gen_function(Sym* sym)
            field walk after indir() (`this->x`, `*this`) (BUG-8). */
         pt.t = VT_STRUCT;
         pt.ref = sym->parent_class;
-        mk_pointer(&pt);
+        /* FEAT-6B-P2: a const method takes `const T* this`; the const
+           must sit on the pointed-to type so that indir() propagates it
+           to member lvalues (assignment then errors in
+           verify_assign_cast).  It was previously set on the pointer
+           itself, where nothing ever checked it. */
         if (sym->type.ref->f.func_const)
             pt.t |= VT_CONSTANT;
+        mk_pointer(&pt);
         this_param = sym_malloc();
         /* sym_malloc() recycles pool memory without zeroing; r/c would
            otherwise carry stale data (BUG-6).  They are placeholders
@@ -11649,11 +12378,17 @@ static int decl(int l)
                         decl_once_flag = 0;
                         tcc_state->lex_c--;
                         tcc_state->extern_c--;
+                        /* BUG-11: decl() already fetched the token after
+                           ';' in C mode - re-promote it. */
+                        cpp_repromote_stale_lookahead();
                         continue;
                     }
-                    next();
+                    /* BUG-11: raise lex_c before consuming '{' so the
+                       first token inside the block is lexed in C mode
+                       (symmetry with the trailing lookahead fix). */
                     tcc_state->extern_c++;
                     tcc_state->lex_c++;
+                    next();
                     while (tok != '}') {
                         if (tok == TOK_EOF)
                             tcc_error("unclosed extern C block");
@@ -11662,6 +12397,9 @@ static int decl(int l)
                     next();
                     tcc_state->lex_c--;
                     tcc_state->extern_c--;
+                    /* BUG-11: the next() above fetched the token after
+                       '}' in C mode - re-promote it. */
+                    cpp_repromote_stale_lookahead();
                     continue;
                 }
                 if (len == 3 && !memcmp(s, "C++", 3)) {
@@ -11769,6 +12507,64 @@ static int decl(int l)
         while (1) { /* iterate thru each declaration */
             type = btype;
             ad = adbase;
+            /* FEAT-4G: global `Foo g;` / `Foo g(args);` with ctor.  Kept
+               separate from the local FEAT-4B/4F rewrite: mixing both in one
+               block left global decls in a bad token state (hang). */
+            if (tcc_state->cpp
+                && l == VT_CONST
+                && (btype.t & VT_BTYPE) == VT_STRUCT
+                && btype.ref
+                && tok >= TOK_UIDENT
+                && cpp_find_ctor_field(btype.ref)) {
+                int saved_var_tok = tok;
+                int obj_r = VT_LVAL | VT_CONST;
+                Sym *obj_sym;
+                next();
+                if (tok == '(') {
+                    next();
+                    if (tok != ')') {
+                        TokenString *arg_toks;
+                        arg_toks = cpp_save_paren_expr_tokens();
+                        decl_initializer_alloc(&type, &ad, obj_r,
+                            0, saved_var_tok, 1);
+                        obj_sym = sym_find(saved_var_tok);
+                        cpp_register_global_dyn(obj_sym, arg_toks, 0);
+                        next();
+                        if (tok == ',') {
+                            next();
+                            continue;
+                        }
+                        skip(';');
+                        break;
+                    }
+                    unget_tok('(');
+                    unget_tok(saved_var_tok);
+                } else if ((tok == ';' || tok == ',')
+                           /* VT_STATIC is NOT excluded here: a file-scope
+                              `static P g;` is a definition with static
+                              storage duration whose default ctor must run
+                              at startup (matching `static P g(args);` and
+                              non-static `P g;`).  VT_EXTERN is a declaration
+                              and VT_TYPEDEF is a type alias, so both stay
+                              excluded.  (The local FEAT-4F gate below keeps
+                              excluding VT_STATIC: function-local statics need
+                              once-only guarded construction, not this path.) */
+                           && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
+                           && cpp_class_has_default_ctor(btype.ref)) {
+                    decl_initializer_alloc(&type, &ad, obj_r,
+                        0, saved_var_tok, 1);
+                    obj_sym = sym_find(saved_var_tok);
+                    cpp_register_global_dyn(obj_sym, NULL, 0);
+                    if (tok == ',') {
+                        next();
+                        continue;
+                    }
+                    skip(';');
+                    break;
+                } else {
+                    unget_tok(saved_var_tok);
+                }
+            }
             /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
                Only in C++ mode, when the base type is a class with a
                constructor, we are in a local scope, and an identifier is
@@ -11782,14 +12578,15 @@ static int decl(int l)
                 && tok >= TOK_UIDENT
                 && cpp_find_ctor_field(btype.ref)) {
                 int saved_var_tok = tok;
+                int obj_r = VT_LVAL | VT_LOCAL;
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
                     if (tok != ')') {
-                        /* `Foo f(args);` -> `f.Foo(args);` */
+                        /* `Foo f(args);` -> `f.Foo(args);` (local) */
                         Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                         int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
-                        decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                        decl_initializer_alloc(&type, &ad, obj_r,
                                                0, saved_var_tok, 0);
                         /* Rebuild the stream `var . Ctor ( <args...> )`.
                            unget is LIFO and saves the current tok (the first
@@ -11820,7 +12617,7 @@ static int decl(int l)
                        the current ';' or ',' stays after the ')'). */
                     Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                     int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
-                    decl_initializer_alloc(&type, &ad, VT_LVAL | VT_LOCAL,
+                    decl_initializer_alloc(&type, &ad, obj_r,
                                            0, saved_var_tok, 0);
                     unget_tok(')');
                     unget_tok('(');
@@ -11920,8 +12717,23 @@ static int decl(int l)
                    make old style params without decl have int type */
                 sym = type.ref;
                 while ((sym = sym->next) != NULL) {
-                    if (!(sym->v & ~SYM_FIELD))
-                        expect("identifier");
+                    if (!(sym->v & ~SYM_FIELD)) {
+                        /* BUG-13-P2: C89 requires named params in a
+                           definition, but C++ allows unnamed ones - the
+                           standard non-member postfix operator idiom
+                           `operator++(T&, int)` needs the unnamed (int)
+                           dummy.  Give it a fresh anonymous token id so
+                           gfunc_prolog's sym_push takes the "anonymous,
+                           do not record" path (v >= SYM_FIRST_ANOM);
+                           otherwise sym_push(0,...) indexes
+                           table_ident[0 - TOK_IDENT] and crashes, exactly
+                           as in BUG-13 for member bodies.  In C the K&R
+                           rule still applies, so keep rejecting there. */
+                        if (tcc_state->cpp)
+                            sym->v = (anon_sym++) | SYM_FIELD;
+                        else
+                            expect("identifier");
+                    }
                     if (sym->type.t == VT_VOID)
                         sym->type = int_type;
                 }
@@ -11939,7 +12751,12 @@ static int decl(int l)
                     if (ct)
                         sym_tok = ct;
                 }
+                /* BUG-14: mark the class so external_sym keeps an out-of-class
+                   member (Class::method) distinct from a same-named method in
+                   another class, and mangles its asm_label with the class. */
+                cpp_pending_member_class = qclass;
                 sym = external_sym(sym_tok, &type, 0, &ad);
+                cpp_pending_member_class = NULL;
                 if ((type.t & VT_BTYPE) == VT_FUNC)
                     cpp_set_func_mangle_label(sym, &type);
                 if (qclass) {
