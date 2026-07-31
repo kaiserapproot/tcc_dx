@@ -186,6 +186,9 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
 static int cpp_func_param_count(Sym *field);
 static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
+/* forward decl: cpp_collect_explicit_bases replays a saved mem-initializer
+   list and is defined before the token-string helpers */
+static TokenString *tok_str_dup_for_default(TokenString *src);
 /* FEAT-5C: forward decl - cpp_emit_mptr_pmf_invoke (defined earlier)
    dispatches a virtual PMF through this vtable helper (defined later). */
 static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type);
@@ -1169,6 +1172,11 @@ static void cpp_emit_local_dtor(Sym *obj_sym)
     vtop->r &= ~VT_LVAL;
     vset(&obj_sym->type, obj_sym->r, obj_sym->c);
     gaddrof();
+    /* BUG-16: without this the >8-byte case passes a staged COPY of the
+       object, so the dtor's `this` is not the real object - member writes
+       are dropped and anything that publishes `this` (unlink(this) etc.)
+       gets a dangling temporary. */
+    mk_pointer(&vtop->type);
     gfunc_call(1);
 }
 
@@ -1265,6 +1273,7 @@ static int cpp_emit_global_dtor_call(Sym *obj_sym)
     vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
     vtop->sym = obj_sym;
     gaddrof();
+    mk_pointer(&vtop->type);    /* BUG-16: see cpp_emit_local_dtor. */
     gfunc_call(1);
     return 1;
 }
@@ -1344,6 +1353,10 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
     vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
     vtop->sym = obj_sym;
     gaddrof();
+    /* BUG-16: gaddrof keeps the struct type, so gfunc_call would pass the
+       global by value - for objects larger than 8 bytes Win64 stages a copy
+       and the ctor initializes that copy, leaving the real global zeroed. */
+    mk_pointer(&vtop->type);
     obj_addr = *vtop;
     vpop();
     if (na == 0) {
@@ -1928,6 +1941,12 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
     }
     cpp_push_member_var(base_field);
     gaddrof();
+    /* BUG-16 (same root cause as BUG-15): gaddrof leaves the struct type on
+       the value, so gfunc_call treats `this` as a by-value struct argument
+       and, for bases larger than 8 bytes, Win64 passes a copy - the base
+       ctor then writes into that copy and the real subobject stays
+       uninitialized.  Retype to Base* so it is passed as a pointer. */
+    mk_pointer(&vtop->type);
     base_this = *vtop;
     vpop();
     if (na == 0) {
@@ -1941,6 +1960,219 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
         vtop[-nb_args + 1] = base_this;
     }
     gfunc_call(nb_args);
+}
+
+/* MI: is this class member an embedded base subobject?  struct_decl pushes
+   bases as anonymous (SYM_FIRST_ANOM) struct fields whose parent_class is the
+   base class; that is what tells them apart from an ordinary data member that
+   merely happens to have a class type.  Same predicate as the walk inside
+   cpp_base_subobject_offset. */
+static int cpp_is_base_field(Sym *f)
+{
+    return f && (f->type.t & VT_BTYPE) == VT_STRUCT
+        && f->v >= (SYM_FIRST_ANOM | SYM_FIELD)
+        && f->parent_class != NULL;
+}
+
+/* Is fsym the ctor / dtor global of its own class?  gen_function needs this to
+   decide whether the implicit base ctor/dtor sequences apply; both globals live
+   under the mangled tokens produced by cpp_ctor_name_tok / cpp_dtor_name_tok. */
+static int cpp_is_ctor_global(Sym *fsym)
+{
+    int v;
+
+    if (!fsym || !fsym->parent_class)
+        return 0;
+    v = cpp_ctor_name_tok(fsym->parent_class->v & ~SYM_STRUCT);
+    return v && fsym->v == v;
+}
+
+static int cpp_is_dtor_global(Sym *fsym)
+{
+    int v;
+
+    if (!fsym || !fsym->parent_class)
+        return 0;
+    v = cpp_dtor_name_tok(fsym->parent_class->v & ~SYM_STRUCT);
+    return v && fsym->v == v;
+}
+
+/* Implicit base construction: call __cpp_ctor_Base(&base_subobject) with no
+   arguments.  C++ requires every base to be constructed before the derived
+   ctor body runs, but MI Phase 1 only constructed bases named in the
+   mem-initializer list, so `D(int x) { ... }` left its bases raw.
+   Does nothing when the base has no 0-arg ctor: C++ would diagnose that, but
+   erroring here would reject existing sources whose bases only declare
+   argument-taking ctors and never relied on implicit construction. */
+static void cpp_emit_base_default_ctor_call(Sym *base_field)
+{
+    Sym *base_class;
+    Sym *ctor_field;
+    Sym *ctor_global;
+    Sym *resolved;
+    CType base_type;
+
+    if (!base_field || !cpp_this_sym)
+        return;
+    base_class = base_field->parent_class;
+    if (!base_class)
+        return;
+    ctor_field = cpp_find_ctor_field(base_class);
+    if (!ctor_field || !cpp_class_has_default_ctor(base_class))
+        return;
+    base_type.t = VT_STRUCT;
+    base_type.ref = base_class;
+    ctor_global = cpp_lookup_member_func(ctor_field, &base_type);
+    if (!ctor_global || (ctor_global->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    /* cpp_lookup_member_func binds the first matching global, which may well
+       be Base(int) when the base overloads its ctor, so re-resolve for arity
+       0.  Bail out instead of emitting a wrong call when no 0-arg global
+       exists: the field-level check above only proves it was declared, and
+       cpp_resolve_func_call falls back to sym_find on no match. */
+    resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC
+        || cpp_func_param_count(resolved) != 0)
+        return;
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    cpp_push_member_var(base_field);
+    gaddrof();
+    mk_pointer(&vtop->type);    /* BUG-15/16: pass `this` as a pointer. */
+    gfunc_call(1);
+}
+
+/* Collect the base subobject fields that a ctor's mem-initializer list names
+   explicitly, so the implicit pass can skip them.  The saved list has to be
+   replayed through begin_macro to be read: a TokenString is not a flat token
+   array (literals carry extra payload words), so it cannot be scanned raw.
+   Returns the count, or -1 when there are more explicit bases than the caller
+   can track - the caller then skips implicit construction entirely, which
+   preserves the previous behaviour rather than risking a double ctor call. */
+static int cpp_collect_explicit_bases(Sym *class_sym, TokenString *mem_init,
+                                      Sym **out, int max_out)
+{
+    TokenString *copy;
+    Sym *member_field;
+    Sym *base_field;
+    int name_tok;
+    int paren;
+    int n;
+
+    if (!mem_init)
+        return 0;
+    copy = tok_str_dup_for_default(mem_init);
+    if (!copy)
+        return -1;
+    n = 0;
+    begin_macro(copy, 1);
+    next();
+    while (tok != TOK_EOF) {
+        if (tok < TOK_IDENT)
+            break;
+        name_tok = tok;
+        next();
+        if (tok != '(')
+            break;
+        next();
+        /* skip the initializer expression; track nesting so that `a(f(1,2))`
+           does not stop at the inner `)` */
+        paren = 0;
+        while (tok != TOK_EOF) {
+            if (tok == '(') {
+                paren++;
+            } else if (tok == ')') {
+                if (paren == 0)
+                    break;
+                paren--;
+            }
+            next();
+        }
+        if (tok != ')')
+            break;
+        next();
+        /* mirror the real expansion loop below: a data member wins over a
+           base of the same name, so only names that are not members can
+           designate a base */
+        member_field = cpp_lookup_member_field(name_tok, class_sym);
+        if (!member_field || (member_field->type.t & VT_BTYPE) == VT_FUNC) {
+            base_field = cpp_find_base_field(class_sym, name_tok);
+            if (base_field) {
+                if (n >= max_out) {
+                    n = -1;
+                    break;
+                }
+                out[n++] = base_field;
+            }
+        }
+        if (tok == ',')
+            next();
+    }
+    end_macro();
+    return n;
+}
+
+static void cpp_emit_implicit_base_ctors(Sym *class_sym, TokenString *mem_init)
+{
+    Sym *done[32];
+    Sym *f;
+    int nb_done;
+    int seen;
+    int i;
+
+    if (!class_sym || !cpp_this_sym)
+        return;
+    nb_done = cpp_collect_explicit_bases(class_sym, mem_init, done,
+                                         (int)(sizeof done / sizeof done[0]));
+    if (nb_done < 0)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f))
+            continue;
+        seen = 0;
+        for (i = 0; i < nb_done; i++) {
+            if (done[i] == f)
+                seen = 1;
+        }
+        if (!seen)
+            cpp_emit_base_default_ctor_call(f);
+    }
+}
+
+/* Implicit base destruction: emit __cpp_dtor_Base(&base_subobject) for every
+   base, in reverse declaration order (C++ destroys bases after the derived
+   dtor body has run, last-declared first).  The member chain is singly
+   linked, so recursing to its tail before emitting is what produces the
+   reverse order.  Called with class_sym->next. */
+static void cpp_emit_base_dtor_calls(Sym *field)
+{
+    Sym *base_class;
+    Sym *dtor_field;
+    Sym *dtor_global;
+    CType base_type;
+
+    if (!field || !cpp_this_sym)
+        return;
+    cpp_emit_base_dtor_calls(field->next);
+    if (!cpp_is_base_field(field))
+        return;
+    base_class = field->parent_class;
+    dtor_field = cpp_find_dtor_field(base_class);
+    if (!dtor_field)
+        return;
+    base_type.t = VT_STRUCT;
+    base_type.ref = base_class;
+    dtor_global = cpp_lookup_member_func(dtor_field, &base_type);
+    if (!dtor_global || (dtor_global->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+    vtop->sym = dtor_global;
+    vtop->r &= ~VT_LVAL;
+    cpp_push_member_var(field);
+    gaddrof();
+    mk_pointer(&vtop->type);    /* BUG-15/16: pass `this` as a pointer. */
+    gfunc_call(1);
 }
 
 static void cpp_save_default_arg(Sym *param)
@@ -12178,6 +12410,15 @@ static void gen_function(Sym* sym)
     rsym = 0;
     func_vla_arg(sym);
 
+    /* MI: construct every base subobject the mem-initializer list does NOT
+     * name (including the case of a ctor with no list at all).  Emitted
+     * BEFORE the list runs because C++ guarantees bases are fully
+     * constructed first, so a member initializer may legally read a base
+     * member.  MI Phase 1 only handled explicitly listed bases. */
+    if (tcc_state->cpp && cpp_this_sym && sym->parent_class
+        && cpp_is_ctor_global(sym))
+        cpp_emit_implicit_base_ctors(sym->parent_class, sym->cpp_mem_init_list);
+
     /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
      * the ctor sym into `this->a = x; this->b = y;` instructions before the
      * body runs.  Base-class initializers call __cpp_ctor_Base on the
@@ -12251,6 +12492,16 @@ static void gen_function(Sym* sym)
     gsym(rsym);
 
     nocode_wanted = 0;
+
+    /* MI: destroy the base subobjects at the end of a derived dtor.
+     * Placed after gsym(rsym) so that `return` paths join here too, after
+     * `nocode_wanted = 0` so the calls are actually emitted, and before
+     * pop_local_syms because cpp_this_sym and local_stack must still be
+     * live to address the subobjects. */
+    if (tcc_state->cpp && cpp_this_sym && sym->parent_class
+        && cpp_is_dtor_global(sym))
+        cpp_emit_base_dtor_calls(sym->parent_class->next);
+
     /* reset local stack */
     pop_local_syms(NULL, 0);
     tcc_debug_prolog_epilog(tcc_state, 1);
