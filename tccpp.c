@@ -3684,8 +3684,15 @@ ST_FUNC void preprocess_start(TCCState *s1, int filetype)
         CString cstr;
         cstr_new(&cstr);
         tcc_predefs(s1, &cstr, is_asm);
-        if (s1->cplusplus)
+        if (s1->cplusplus) {
             cstr_printf(&cstr, "#define __cplusplus 199711L\n");
+            /* 本サブセットは operator オーバーロードに未対応。mingw が用意する
+               オプトアウトマクロで guiddef.h の operator== を無効化する */
+            cstr_printf(&cstr, "#define _NO_SYS_GUID_OPERATOR_EQ_ 1\n");
+            /* COM インタフェースは C++ 版（多重継承・novtable 前提）ではなく
+               C 形式（lpVtbl 経由）の定義を使う */
+            cstr_printf(&cstr, "#define CINTERFACE 1\n");
+        }
         if (s1->cmdline_defs.size)
           cstr_cat(&cstr, s1->cmdline_defs.data, s1->cmdline_defs.size);
         if (s1->cmdline_incl.size)
