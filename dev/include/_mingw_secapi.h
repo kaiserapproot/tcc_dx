@@ -8,7 +8,8 @@
 #define _INC_MINGW_SECAPI
 
 /* http://msdn.microsoft.com/en-us/library/ms175759%28v=VS.100%29.aspx */
-#if defined(__cplusplus)
+/* TCC の C++ サブセットは template 未対応のため C 側の定義（すべて 0）を使う */
+#if defined(__cplusplus) && !defined(__TINYC__)
 #ifndef _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES
 #define _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES 1         /* default to 1 */
 #endif /*_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES*/
@@ -40,7 +41,8 @@
 
 #define __MINGW_CRT_NAME_CONCAT2(sym) ::sym##_s
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
+/* TCC の C++ サブセットは template 未対応のためスキップ */
 extern "C++" {
 template <bool __test, typename __dsttype>
   struct __if_array;

@@ -815,6 +815,15 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
             file->fd = fd;
         }
 
+        /* C++ モード判定: 拡張子 .cpp/.cc/.cxx/.hpp のとき有効 */
+        s1->cplusplus = 0;
+        if (fd != -1) {
+            const char *ext = tcc_fileextension(str);
+            if (ext[0] && (!PATHCMP(ext + 1, "cpp") || !PATHCMP(ext + 1, "cc")
+                || !PATHCMP(ext + 1, "cxx") || !PATHCMP(ext + 1, "hpp")))
+                s1->cplusplus = 1;
+        }
+
         preprocess_start(s1, filetype);
         tccgen_init(s1);
 
@@ -1193,7 +1202,11 @@ static int guess_filetype(const char *filename)
                 filetype = AFF_TYPE_ASM;
             else if (!PATHCMP(ext, "c")
                      || !PATHCMP(ext, "h")
-                     || !PATHCMP(ext, "i"))
+                     || !PATHCMP(ext, "i")
+                     || !PATHCMP(ext, "cpp")
+                     || !PATHCMP(ext, "cc")
+                     || !PATHCMP(ext, "cxx")
+                     || !PATHCMP(ext, "hpp"))
                 filetype = AFF_TYPE_C;
             else
                 filetype |= AFF_TYPE_BIN;

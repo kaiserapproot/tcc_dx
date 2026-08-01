@@ -1251,6 +1251,20 @@ static inline void tok_get(int *t, const int **pp, CValue *cv)
     } while (0)
 #endif
 
+/* append all tokens of 'src' (up to its terminator) to 'dst' */
+ST_FUNC void tok_str_cat(TokenString *dst, TokenString *src)
+{
+    const int *p = src->str;
+    int t;
+    CValue cv;
+    while (p < src->str + src->len) {
+        TOK_GET(&t, &p, &cv);
+        if (t == 0 || t == TOK_EOF)
+            break;
+        tok_str_add2(dst, t, &cv);
+    }
+}
+
 static int macro_is_equal(const int *a, const int *b)
 {
     CValue cv;
@@ -3670,6 +3684,8 @@ ST_FUNC void preprocess_start(TCCState *s1, int filetype)
         CString cstr;
         cstr_new(&cstr);
         tcc_predefs(s1, &cstr, is_asm);
+        if (s1->cplusplus)
+            cstr_printf(&cstr, "#define __cplusplus 199711L\n");
         if (s1->cmdline_defs.size)
           cstr_cat(&cstr, s1->cmdline_defs.data, s1->cmdline_defs.size);
         if (s1->cmdline_incl.size)

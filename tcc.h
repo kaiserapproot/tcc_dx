@@ -565,6 +565,8 @@ typedef struct Sym {
     struct Sym *prev_tok; /* previous symbol for this token */
     /* saved token string for an inline function body (for class members) */
     struct TokenString *inline_func_str;
+    /* C++: base class for single inheritance (used on SYM_STRUCT syms) */
+    struct Sym *base_class;
 } Sym;
 
 /* section definition */
@@ -739,6 +741,7 @@ struct sym_attr {
 
 struct TCCState {
     unsigned char verbose; /* if true, display some information during compilation */
+    unsigned char cplusplus; /* if true, current file is compiled in C++ mode (.cpp/.cc/.cxx/.hpp) */
     unsigned char nostdinc; /* if true, no standard headers are added */
     unsigned char nostdlib; /* if true, no standard libraries are added */
     unsigned char nostdlib_paths; /* if true, the default paths are not searched for libraries */
@@ -1374,6 +1377,7 @@ ST_FUNC void tok_str_free(TokenString *s);
 ST_FUNC void tok_str_free_str(int *str);
 ST_FUNC void tok_str_add(TokenString *s, int t);
 ST_FUNC void tok_str_add_tok(TokenString *s);
+ST_FUNC void tok_str_cat(TokenString *dst, TokenString *src);
 ST_INLN void define_push(int v, int macro_type, int *str, Sym *first_arg);
 ST_FUNC void define_undef(Sym *s);
 ST_INLN Sym *define_find(int v);

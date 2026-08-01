@@ -250,3 +250,8 @@ proj/iosprooj/iosbase.vsimporter/
 /test/vs_test/con_cpp_vs_test
 /test/vs_test/con_c_vs_test
 /test/cppuniut/cppuniut
+
+# dev/ の回帰テスト成果物（ソースのみ追跡する）
+dev/*_test.exe
+dev/repro_double6.exe
+*.exe.bak
