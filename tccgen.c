@@ -92,6 +92,19 @@ typedef struct CppOverload {
 } CppOverload;
 static CppOverload* cpp_ovl;
 static int cpp_nb_ovl;
+
+/* C++ 仮想関数テーブル。多相クラス 1 個につき 1 エントリを持ち、
+   スロットは基底クラスのものを引き継いだうえで override を上書きしたもの */
+typedef struct CppVtable {
+    Sym* cls;        /* クラスの Sym (SYM_STRUCT) */
+    int nb_slots;
+    int* names;      /* 各スロットのメソッド名トークン（マングル前） */
+    Sym** fns;       /* 各スロットの実装シンボル */
+    int vptr_off;    /* __vptr フィールドのオフセット */
+    int vtbl_tok;    /* vtable 変数 __vtbl_<Class> のトークン */
+} CppVtable;
+static CppVtable* cpp_vt;
+static int cpp_nb_vt;
 ST_DATA CType int_type, func_old_type, char_type, char_pointer_type;
 static CString initstr;
 
@@ -179,6 +192,9 @@ static void cast_error(CType* st, CType* dt);
 static void end_switch(void);
 static void do_Static_assert(void);
 static void gfunc_param_typed(Sym* func, Sym* arg);
+static int cpp_ctor_tok(void);
+static void cpp_emit_base_call_head(TokenString* dst, int fn_tok);
+static void cpp_emit_vtables(TCCState* s);
 
 /* ------------------------------------------------------------------------- */
 /* 自動的なコード抑制 */
@@ -421,6 +437,8 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
     next();
     decl(VT_CONST);
+    if (s1->cplusplus)
+        cpp_emit_vtables(s1);
     gen_inline_functions(s1);
     check_vstack();
     /* 翻訳単位の情報の終わり */
@@ -447,6 +465,13 @@ ST_FUNC void tccgen_finish(TCCState* s1)
     cpp_ovl = NULL;
     cpp_nb_ovl = 0;
     cpp_extern_c_level = 0;
+    while (cpp_nb_vt) {
+        --cpp_nb_vt;
+        tcc_free(cpp_vt[cpp_nb_vt].names);
+        tcc_free(cpp_vt[cpp_nb_vt].fns);
+    }
+    tcc_free(cpp_vt);
+    cpp_vt = NULL;
     dynarray_reset(&stk_data, &nb_stk_data);
     while (cur_switch)
         end_switch();
@@ -4541,6 +4566,261 @@ static int cpp_find_ovl_base(Sym* cls, int v)
     return 0;
 }
 
+/* ---- C++ 仮想関数 -------------------------------------------------------- */
+
+static int cpp_vptr_tok(void)
+{
+    return tok_alloc("__vptr", 6)->tok;
+}
+
+/* クラス自身の vtable エントリ（基底のものは返さない） */
+static CppVtable* cpp_get_vtable(Sym* cls)
+{
+    int i;
+    for (i = 0; i < cpp_nb_vt; i++)
+        if (cpp_vt[i].cls == cls)
+            return &cpp_vt[i];
+    return NULL;
+}
+
+/* メソッド名に対応する vtable スロット番号。仮想でなければ -1 */
+static int cpp_vtable_slot(Sym* cls, int name)
+{
+    CppVtable* vt = cpp_get_vtable(cls);
+    int i;
+    if (!vt)
+        return -1;
+    for (i = 0; i < vt->nb_slots; i++)
+        if (vt->names[i] == name)
+            return i;
+    return -1;
+}
+
+/* 多相クラス（自身または基底が仮想関数を持つ）か */
+static int cpp_is_polymorphic(Sym* cls)
+{
+    while (cls) {
+        if (cpp_get_vtable(cls))
+            return 1;
+        cls = cls->base_class;
+    }
+    return 0;
+}
+
+/* vtable 変数名 __vtbl_<Class> のトークン */
+static int cpp_vtbl_tok(Sym* cls)
+{
+    char buf[256];
+    snprintf(buf, sizeof buf, "__vtbl_%s", get_tok_str(cls->v & ~SYM_STRUCT, NULL));
+    return tok_alloc(buf, (int)strlen(buf))->tok;
+}
+
+/* 仮想呼び出し用に vtable スロットの関数ポインタを積む。
+   呼び出し時 vtop == this。終了時 [this][関数ポインタの左辺値] */
+static void cpp_push_virtual_fn(Sym* ms, CppVtable* vt, int slot)
+{
+    CType t;
+
+    /* gv_dup は独立したレジスタに複製する。単なる vdup ではレジスタを共有し、
+       下でポインタ演算をすると元の this まで壊れてしまう */
+    gv_dup(); /* [this][this] */
+    vtop->type = char_pointer_type;
+    vpushi(vt->vptr_off);
+    gen_op('+');    /* &this->__vptr */
+    t = ms->type;   /* FUNC */
+    mk_pointer(&t); /* 関数ポインタ */
+    mk_pointer(&t); /* 関数ポインタの配列 = vtable */
+    mk_pointer(&t); /* その番地 */
+    vtop->type = t;
+    indir();        /* __vptr の左辺値 */
+    vpushi(slot);
+    gen_op('+');    /* &vtable[slot] */
+    indir();        /* スロットの左辺値（関数ポインタ） */
+}
+
+/* 生成した本体を持つデフォルトコンストラクタ void __<Class>____ctor(Class *this) を作る */
+static void cpp_add_generated_ctor(Sym* cls, TokenString* body)
+{
+    CType ftype, ct, vtype;
+    AttributeDef adm;
+    Sym* fsym, * pthis, * msym;
+    struct InlineFunc* fn;
+
+    memset(&adm, 0, sizeof adm);
+    vtype.t = VT_VOID;
+    vtype.ref = NULL;
+    fsym = sym_push(SYM_FIELD, &vtype, 0, 0);
+    fsym->f.func_call = FUNC_CDECL;
+    fsym->f.func_type = FUNC_NEW;
+    fsym->f.func_args = 1;
+    ct.t = cls->type.t;
+    ct.ref = cls;
+    mk_pointer(&ct);
+    pthis = sym_push2(&global_stack, TOK_THIS | SYM_FIELD, 0, 0);
+    pthis->type = ct;
+    pthis->r = VT_LOCAL | VT_LVAL;
+    fsym->next = pthis;
+    ftype.t = VT_FUNC | VT_STATIC | VT_INLINE;
+    ftype.ref = fsym;
+
+    msym = external_sym(cpp_mangle_method(cls, cpp_ctor_tok()), &ftype, 0, &adm);
+    msym->base_class = cls;
+    fn = tcc_malloc(sizeof * fn + strlen(file->filename));
+    strcpy(fn->filename, file->filename);
+    fn->sym = msym;
+    fn->func_str = body;
+    dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
+    msym->inline_func_str = body;
+}
+
+/* クラス定義の終わりに vtable を構築し、ctor に vptr の設定を組み込む */
+static void cpp_build_vtable(Sym* cls, int* names, Sym** fns, char* virt, int nb_m)
+{
+    CppVtable* vt;
+    Sym* b, * cs;
+    CType ct;
+    TokenString* set, * nb;
+    int i, j, cumofs = 0, ctor_tok, bidx = -1;
+
+    /* 基底の vtable は添字で覚える（realloc でポインタが無効になるため） */
+    for (b = cls->base_class; b && bidx < 0; b = b->base_class)
+        for (i = 0; i < cpp_nb_vt; i++)
+            if (cpp_vt[i].cls == b) {
+                bidx = i;
+                break;
+            }
+
+    cpp_vt = tcc_realloc(cpp_vt, (cpp_nb_vt + 1) * sizeof * cpp_vt);
+    vt = &cpp_vt[cpp_nb_vt++];
+    memset(vt, 0, sizeof * vt);
+    vt->cls = cls;
+    vt->vtbl_tok = cpp_vtbl_tok(cls);
+
+    /* 基底のスロットを引き継ぐ */
+    if (bidx >= 0 && cpp_vt[bidx].nb_slots) {
+        CppVtable* bvt = &cpp_vt[bidx];
+        vt->nb_slots = bvt->nb_slots;
+        vt->names = tcc_malloc(vt->nb_slots * sizeof(int));
+        vt->fns = tcc_malloc(vt->nb_slots * sizeof(Sym*));
+        memcpy(vt->names, bvt->names, vt->nb_slots * sizeof(int));
+        memcpy(vt->fns, bvt->fns, vt->nb_slots * sizeof(Sym*));
+    }
+    /* このクラスのメソッドを反映（同名は override、virtual 指定は新規追加） */
+    for (i = 0; i < nb_m; i++) {
+        for (j = 0; j < vt->nb_slots; j++) {
+            if (vt->names[j] == names[i]) {
+                vt->fns[j] = fns[i];
+                break;
+            }
+        }
+        if (j == vt->nb_slots && virt[i]) {
+            vt->names = tcc_realloc(vt->names, (j + 1) * sizeof(int));
+            vt->fns = tcc_realloc(vt->fns, (j + 1) * sizeof(Sym*));
+            vt->names[j] = names[i];
+            vt->fns[j] = fns[i];
+            vt->nb_slots = j + 1;
+        }
+    }
+
+    ct.t = cls->type.t;
+    ct.ref = cls;
+    if (!find_field(&ct, cpp_vptr_tok() | SYM_FIELD, &cumofs))
+        tcc_error("内部エラー: 仮想関数テーブルポインタが見つかりません");
+    vt->vptr_off = cumofs;
+
+    /* __vptr = (void*)__vtbl_<Class>; を ctor に組み込む */
+    set = tok_str_alloc();
+    tok_str_add(set, cpp_vptr_tok());
+    tok_str_add(set, '=');
+    tok_str_add(set, '(');
+    tok_str_add(set, TOK_VOID);
+    tok_str_add(set, '*');
+    tok_str_add(set, ')');
+    tok_str_add(set, vt->vtbl_tok);
+    tok_str_add(set, ';');
+
+    ctor_tok = cpp_mangle_method(cls, cpp_ctor_tok());
+    cs = sym_find(ctor_tok);
+    nb = tok_str_alloc();
+    tok_str_add(nb, '{');
+    if (cs) {
+        /* 既存の本体の後ろに追加する（基底 ctor の後に自クラスの vptr を書く） */
+        for (i = 0; i < tcc_state->nb_inline_fns; i++) {
+            struct InlineFunc* fn = tcc_state->inline_fns[i];
+            if (fn->sym == cs) {
+                tok_str_cat(nb, fn->func_str);
+                tok_str_cat(nb, set);
+                tok_str_add(nb, '}');
+                tok_str_add(nb, TOK_EOF);
+                tok_str_free(fn->func_str);
+                fn->func_str = nb;
+                cs->inline_func_str = nb;
+                break;
+            }
+        }
+        if (i == tcc_state->nb_inline_fns)
+            tok_str_free(nb); /* 本体を持たない ctor: 何もしない */
+    }
+    else {
+        /* ctor が無いクラスには生成する（基底に ctor があれば先に呼ぶ） */
+        if (cls->base_class
+            && sym_find(cpp_mangle_method(cls->base_class, cpp_ctor_tok()))) {
+            cpp_emit_base_call_head(nb,
+                cpp_mangle_method(cls->base_class, cpp_ctor_tok()));
+            tok_str_add(nb, ')');
+            tok_str_add(nb, ';');
+        }
+        tok_str_cat(nb, set);
+        tok_str_add(nb, '}');
+        tok_str_add(nb, TOK_EOF);
+        cpp_add_generated_ctor(cls, nb);
+    }
+    tok_str_free(set);
+}
+
+/* 翻訳単位の末尾で vtable を `static void *__vtbl_C[] = {...};` として出力する */
+static void cpp_emit_vtables(TCCState* s)
+{
+    TokenString* str;
+    int i, j;
+
+    if (!cpp_nb_vt)
+        return;
+    str = tok_str_alloc();
+    for (i = 0; i < cpp_nb_vt; i++) {
+        CppVtable* vt = &cpp_vt[i];
+        tok_str_add(str, TOK_STATIC);
+        tok_str_add(str, TOK_VOID);
+        tok_str_add(str, '*');
+        tok_str_add(str, vt->vtbl_tok);
+        tok_str_add(str, '[');
+        tok_str_add(str, ']');
+        tok_str_add(str, '=');
+        tok_str_add(str, '{');
+        for (j = 0; j < vt->nb_slots; j++) {
+            if (j)
+                tok_str_add(str, ',');
+            tok_str_add(str, '(');
+            tok_str_add(str, TOK_VOID);
+            tok_str_add(str, '*');
+            tok_str_add(str, ')');
+            tok_str_add(str, vt->fns[j]->v);
+        }
+        if (!vt->nb_slots)
+            tok_str_add(str, '0');
+        tok_str_add(str, '}');
+        tok_str_add(str, ';');
+    }
+    tok_str_add(str, TOK_EOF);
+
+    tcc_open_bf(s, ":vtable:", 0);
+    begin_macro(str, 1);
+    next();
+    decl(VT_CONST);
+    end_macro();
+    tcc_close();
+}
+
 /* コンストラクタ/デストラクタの内部メンバ名トークン */
 static int cpp_ctor_tok(void)
 {
@@ -5022,6 +5302,12 @@ static void struct_decl(CType* type, int u)
     Sym* s, * ss, ** ps;
     AttributeDef ad, ad1;
     CType type1, btype;
+#define CPP_MAX_METHODS 128
+    /* C++: このクラスで宣言されたメソッド（vtable 構築に使う） */
+    int m_names[CPP_MAX_METHODS];
+    Sym* m_fns[CPP_MAX_METHODS];
+    char m_virt[CPP_MAX_METHODS];
+    int nb_m = 0, has_virtual = 0, is_virtual = 0;
 
     memset(&ad, 0, sizeof ad);
     next();
@@ -5186,12 +5472,17 @@ do_decl:
                 c = 1;
             }
             while (tok != '}') {
+                is_virtual = 0;
                 if (tcc_state->cplusplus
                     && (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED)) {
                     /* C++ アクセス指定子: 現段階では受理のみ（アクセス制御は未実装） */
                     next();
                     skip(':');
                     continue;
+                }
+                if (tcc_state->cplusplus && tok == TOK_VIRTUAL) {
+                    next();
+                    is_virtual = has_virtual = 1;
                 }
                 if (tcc_state->cplusplus && u == VT_STRUCT && tok >= TOK_UIDENT
                     && tok == (s->v & ~SYM_STRUCT)) {
@@ -5310,6 +5601,13 @@ do_decl:
                                     &tcc_state->nb_inline_fns, fn);
                                 skip_or_save_block(&fn->func_str);
                                 msym->inline_func_str = fn->func_str;
+                                /* vtable 構築のためにメソッドを記録する */
+                                if (nb_m >= CPP_MAX_METHODS)
+                                    tcc_error("クラスのメソッドが多すぎます");
+                                m_names[nb_m] = v;
+                                m_fns[nb_m] = msym;
+                                m_virt[nb_m] = (char)is_virtual;
+                                nb_m++;
                                 method_body = 1;
                                 break;
                             }
@@ -5392,6 +5690,18 @@ do_decl:
                     skip(';');
             }
             skip('}');
+            /* C++ 多相クラス: 仮想関数テーブルへのポインタ __vptr を持たせる。
+               基底が既に持っていれば（オフセット 0 に埋め込まれるので）継承する */
+            if (tcc_state->cplusplus && has_virtual
+                && !(s->base_class && cpp_is_polymorphic(s->base_class))) {
+                CType vpt;
+                vpt.t = VT_VOID;
+                vpt.ref = NULL;
+                mk_pointer(&vpt);
+                ss = sym_push(cpp_vptr_tok() | SYM_FIELD, &vpt, 0, 0);
+                *ps = ss;
+                ps = &ss->next;
+            }
             parse_attribute(&ad);
             if (ad.cleanup_func) {
                 tcc_warning("属性 '__cleanup__' は型に対して無視されます");
@@ -5399,6 +5709,9 @@ do_decl:
             check_fields(type, 1);
             check_fields(type, 0);
             struct_layout(type, &ad);
+            if (tcc_state->cplusplus
+                && (has_virtual || (s->base_class && cpp_is_polymorphic(s->base_class))))
+                cpp_build_vtable(s, m_names, m_fns, m_virt, nb_m);
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
         }
@@ -6937,11 +7250,18 @@ tok_next:
                     /* インスタンスメソッド: this->method(...) 相当。[this][func] を積む */
                     if (tok == '(' && sthis) {
                         int obase = cpp_find_ovl_base(func_class, t);
+                        int vslot = cpp_vtable_slot(func_class, t);
                         r = sthis->r;
                         if ((r & VT_VALMASK) < VT_CONST)
                             r = (r & ~VT_VALMASK) | VT_LOCAL;
                         vset(&sthis->type, r, sthis->c);
                         vtop->sym = sthis;
+                        if (vslot >= 0) {
+                            /* 仮想関数: vtable 経由 */
+                            cpp_push_virtual_fn(ms, cpp_get_vtable(func_class), vslot);
+                            mcall = 1;
+                            break;
+                        }
                         if (obase) {
                             cpp_call_overload(obase, 1);
                             break;
@@ -7019,6 +7339,19 @@ tok_next:
                 Sym* ms = cpp_find_method(vtop->type.ref, tok);
                 if (ms && (ms->type.t & VT_BTYPE) == VT_FUNC) {
                     int obase = cpp_find_ovl_base(vtop->type.ref, tok);
+                    int vslot = cpp_vtable_slot(vtop->type.ref, tok);
+                    if (vslot >= 0 && cpp_is_instance_method(ms)) {
+                        /* 仮想関数: vtable 経由で呼び出す */
+                        CppVtable* cvt = cpp_get_vtable(vtop->type.ref);
+                        gaddrof();
+                        vtop->type = ms->type.ref->next->type; /* Class* */
+                        cpp_push_virtual_fn(ms, cvt, vslot);
+                        mcall = 1;
+                        next();
+                        if (tok != '(')
+                            expect("'('");
+                        continue;
+                    }
                     if (obase && cpp_is_instance_method(ms)) {
                         /* オーバーロードされたメソッド */
                         gaddrof();
