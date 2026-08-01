@@ -372,7 +372,8 @@ _CRTIMP int __cdecl ___mb_cur_max_func(void);
   errno_t __cdecl _get_winmajor(unsigned int *_Value);
   errno_t __cdecl _get_winminor(unsigned int *_Value);
 #ifndef _countof
-#ifndef __cplusplus
+#if !defined(__cplusplus) || defined(__TINYC__)
+/* TCC の C++ サブセットは template 未対応なので C 版の定義を使う */
 #define _countof(_Array) (sizeof(_Array) / sizeof(_Array[0]))
 #else
   extern "C++" {

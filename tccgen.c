@@ -7049,6 +7049,10 @@ tok_next:
                         if (!ms || (ms->type.t & VT_BTYPE) != VT_FUNC)
                             tcc_error("'%s::%s' が見つかりません",
                                 get_tok_str(cname, NULL), get_tok_str(tok, NULL));
+                        if (cpp_vtable_slot(cls, tok) >= 0)
+                            tcc_error("仮想関数 '%s::%s' のメンバ関数ポインタは"
+                                "未対応です（非仮想のラッパを経由してください）",
+                                get_tok_str(cname, NULL), get_tok_str(tok, NULL));
                         next();
                         vpushsym(&ms->type, ms);
                         ms->a.addrtaken = 1;
@@ -10348,15 +10352,26 @@ static int decl(int l)
 
         if (tcc_state->cplusplus && (btype.t & VT_EXTERN)
             && tok == TOK_STR) {
-            /* extern "C" / extern "C++": リンケージ指定。
-               フリー関数はマングルしないため機能的には no-op として受理する */
+            /* リンケージ指定。extern "C" はフリー関数をマングルしないため
+               no-op として受理する */
+            int cpp_linkage = (tokc.str.size == 4
+                && 0 == memcmp(tokc.str.data, "C++", 4));
             next();
             if (tok == '{') {
-                next();
-                cpp_extern_c_level++;
-                decl(l);
-                cpp_extern_c_level--;
-                skip('}');
+                if (cpp_linkage) {
+                    /* extern "C++" { ... } はテンプレートなど本サブセットが
+                       扱えない宣言を囲うために使われる（mingw のヘッダ等）。
+                       ブロックごと読み飛ばす。中の #define は
+                       プリプロセッサ段階で処理済みなので影響しない */
+                    skip_or_save_block(NULL);
+                }
+                else {
+                    next();
+                    cpp_extern_c_level++;
+                    decl(l);
+                    cpp_extern_c_level--;
+                    skip('}');
+                }
             }
             else {
                 /* extern "C" <宣言> 単発形式: extern を戻して再解析 */
@@ -10416,6 +10431,16 @@ static int decl(int l)
                         type.t = (type.t & ~VT_EXTERN) | VT_STATIC;
                     else
                         type.t &= ~VT_INLINE; /* always compile otherwise */
+                }
+                else if (tcc_state->cplusplus
+                    && (type.t & (VT_EXTERN | VT_STATIC | VT_INLINE)) == VT_INLINE) {
+                    /* C++ の inline 関数は「使われた場合にのみ実体化される」
+                       （vague linkage）。TCC の遅延生成に載せるため
+                       static inline として扱う。これが無いと、非 inline の
+                       プロトタイプが先行している場合に patch_type で
+                       VT_INLINE が失われ、未使用でも本体が即座にコンパイル
+                       されてしまう（windows.h の FORCEINLINE で顕在化） */
+                    type.t |= VT_STATIC;
                 }
 
             }
@@ -10554,10 +10579,25 @@ static int decl(int l)
                     /* C++: ローカルの class 変数なら ctor/dtor を検出 */
                     cxctor = cxdtor = NULL;
                     if (tcc_state->cplusplus && (type.t & VT_BTYPE) == VT_STRUCT
-                        && type.ref && !(type.t & (VT_EXTERN | VT_TYPEDEF))
-                        && cpp_is_abstract(type.ref))
-                        tcc_error("抽象クラス '%s' のオブジェクトは作れません",
-                            get_tok_str(type.ref->v & ~SYM_STRUCT, NULL));
+                        && type.ref && !(type.t & (VT_EXTERN | VT_TYPEDEF))) {
+                        if (cpp_is_abstract(type.ref))
+                            tcc_error("抽象クラス '%s' のオブジェクトは作れません",
+                                get_tok_str(type.ref->v & ~SYM_STRUCT, NULL));
+                        /* 静的記憶域のオブジェクトはコンストラクタが動かない。
+                           PE の起動コードが .init_array を実行しないため、
+                           グローバル初期化子を仕込む手段がない */
+                        if ((l != VT_LOCAL || (type.t & (VT_STATIC | VT_ARRAY)))
+                            && sym_find(cpp_mangle_method(type.ref, cpp_ctor_tok()))) {
+                            if (tok == '(')
+                                tcc_error("'%s': 静的記憶域のオブジェクトに"
+                                    "コンストラクタ引数は指定できません"
+                                    "（初期化用メンバ関数を明示的に呼んでください）",
+                                    get_tok_str(v, NULL));
+                            tcc_warning("'%s' は静的記憶域のためコンストラクタが"
+                                "呼び出されません（ゼロ初期化のみ）",
+                                get_tok_str(v, NULL));
+                        }
+                    }
                     if (tcc_state->cplusplus && l == VT_LOCAL
                         && (type.t & VT_BTYPE) == VT_STRUCT
                         && !(type.t & (VT_EXTERN | VT_STATIC | VT_ARRAY))

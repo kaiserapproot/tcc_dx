@@ -255,3 +255,13 @@ proj/iosprooj/iosbase.vsimporter/
 dev/*_test.exe
 dev/repro_double6.exe
 *.exe.bak
+
+# libcunit の C++ 化ビルド成果物
+dev/cunit_build/
+dev/cunit_cpp_build/
+dev/repro_*.i
+dev/repro_*.o
+dev/cut*.cpp
+dev/wc.c
+dev/wc.cpp
+dev/t*.o
