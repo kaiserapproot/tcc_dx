@@ -3596,6 +3596,32 @@ ST_FUNC void mk_pointer(CType* type)
     type->ref = s;
 }
 
+/* C++ の参照型 T& は「印を付けたポインタ」として表現する。
+   mk_pointer が作る Sym の c は通常 -1 なので -2 を参照の印に使う
+   （非配列ポインタの c は型比較にもサイズ計算にも使われないため安全） */
+#define REF_MARK (-2)
+
+static void mk_reference(CType* type)
+{
+    mk_pointer(type);
+    type->ref->c = REF_MARK;
+}
+
+static int is_reference(CType* type)
+{
+    return (type->t & (VT_BTYPE | VT_ARRAY)) == VT_PTR
+        && type->ref && type->ref->c == REF_MARK;
+}
+
+/* 左辺値をその参照（＝アドレス）に変換する */
+static void gen_reference_of(void)
+{
+    if (!(vtop->r & VT_LVAL))
+        tcc_error("参照を初期化・束縛するには左辺値が必要です");
+    mk_pointer(&vtop->type);
+    gaddrof();
+}
+
 /* return true if type1 and type2 are exactly the same (including
    qualifiers).
 */
@@ -4239,7 +4265,7 @@ static void cpp_mangle_ctype(char* buf, size_t sz, CType* t)
 
     if ((t->t & VT_ARRAY) || bt == VT_PTR) {
         if (n + 1 < sz)
-            buf[n] = 'P', buf[n + 1] = 0;
+            buf[n] = is_reference(t) ? 'R' : 'P', buf[n + 1] = 0;
         cpp_mangle_ctype(buf, sz, &t->ref->type);
         return;
     }
@@ -4348,9 +4374,22 @@ static int cpp_overload_name(int base, CType* ftype)
 static int cpp_arg_score(SValue* sv, CType* pt)
 {
     CType* at = &sv->type;
-    int abt = at->t & VT_BTYPE, pbt = pt->t & VT_BTYPE;
-    int aptr = (abt == VT_PTR) || (at->t & VT_ARRAY);
-    int pptr = (pbt == VT_PTR) || (pt->t & VT_ARRAY);
+    int abt, pbt, aptr, pptr;
+
+    if (is_reference(pt)) {
+        /* T& は左辺値にのみ束縛できる。参照先の型で採点し、値渡し版が
+           存在する場合はそちらを優先させるため 1 点下げる
+           （C++ 本来は曖昧エラーだが、ここでは決定的に解決する） */
+        int sc;
+        if (!(sv->r & VT_LVAL))
+            return -1;
+        sc = cpp_arg_score(sv, &pt->ref->type);
+        return sc <= 0 ? -1 : sc - 1;
+    }
+
+    abt = at->t & VT_BTYPE, pbt = pt->t & VT_BTYPE;
+    aptr = (abt == VT_PTR) || (at->t & VT_ARRAY);
+    pptr = (pbt == VT_PTR) || (pt->t & VT_ARRAY);
 
     if (abt == VT_STRUCT || pbt == VT_STRUCT) {
         if (abt == pbt && at->ref == pt->ref)
@@ -5935,7 +5974,8 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
     type->t &= ~VT_STORAGE;
     post = ret = type;
 
-    while (tok == '*') {
+    while (tok == '*' || (tok == '&' && tcc_state->cplusplus)) {
+        int is_ref = (tok == '&');
         qualifiers = 0;
     redo:
         next();
@@ -5963,7 +6003,10 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
             parse_attribute(ad);
             break;
         }
-        mk_pointer(type);
+        if (is_ref)
+            mk_reference(type);
+        else
+            mk_pointer(type);
         type->t |= qualifiers;
         if (ret == type)
             /* innermost pointed to type is the one for the first derivation */
@@ -6070,6 +6113,8 @@ static void gfunc_param_typed(Sym* func, Sym* arg)
     }
     else {
         type = arg->type;
+        if (is_reference(&type))
+            gen_reference_of(); /* 参照引数には実引数のアドレスを渡す */
         type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
         gen_assign_cast(&type);
     }
@@ -6948,6 +6993,8 @@ tok_next:
         else if (r == VT_CONST && IS_ENUM_VAL(s->type.t)) {
             vtop->c.i = s->enum_val;
         }
+        if (is_reference(&vtop->type))
+            indir(); /* C++ の参照は使用時に自動で間接参照する */
         break;
     }
 
@@ -9066,6 +9113,8 @@ static void decl_initializer(init_params* p, CType* type, unsigned long c, int f
                 expect("string constant");
             parse_init_elem(!p->sec ? EXPR_ANY : EXPR_CONST);
         }
+        if (is_reference(type) && (vtop->r & VT_LVAL))
+            gen_reference_of(); /* C++ の参照の初期化 */
         if (!p->sec && (flags & DIF_CLEAR) /* container was already zero'd */
             && (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST
             && vtop->c.i == 0
