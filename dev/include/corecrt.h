@@ -94,7 +94,8 @@ typedef int ptrdiff_t;
 
 #ifndef _WCHAR_T_DEFINED
 #define _WCHAR_T_DEFINED
-#if !defined(__cplusplus) && !defined(__WIDL__)
+#if (!defined(__cplusplus) || defined(__TINYC__)) && !defined(__WIDL__)
+/* TCC の C++ サブセットでは wchar_t は組み込み型ではないため typedef する */
 typedef unsigned short wchar_t;
 #endif /* C++ */
 #endif /* _WCHAR_T_DEFINED */
