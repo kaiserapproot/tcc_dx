@@ -105,6 +105,15 @@ typedef struct CppVtable {
 } CppVtable;
 static CppVtable* cpp_vt;
 static int cpp_nb_vt;
+
+/* C++ メンバポインタ。
+   `T C::*` は「T へのポインタ型を持つバイトオフセット値」、
+   `R (C::*)(args)` は「第 1 引数に this を取る通常の関数ポインタ」で表現する。
+   cpp_pmf_class は宣言子で `C::*` を見たときに設定され、関数ポインタなら
+   this 引数の挿入に使われる。cpp_pmf_pending は `obj.*pmf` が
+   [this][関数ポインタ] を積んだことを直後の呼び出しに伝える */
+static Sym* cpp_pmf_class;
+static int cpp_pmf_pending;
 ST_DATA CType int_type, func_old_type, char_type, char_pointer_type;
 static CString initstr;
 
@@ -195,6 +204,7 @@ static void gfunc_param_typed(Sym* func, Sym* arg);
 static int cpp_ctor_tok(void);
 static void cpp_emit_base_call_head(TokenString* dst, int fn_tok);
 static void cpp_emit_vtables(TCCState* s);
+static void cpp_fix_member_fnptr(CType* type);
 
 /* ------------------------------------------------------------------------- */
 /* 自動的なコード抑制 */
@@ -472,6 +482,8 @@ ST_FUNC void tccgen_finish(TCCState* s1)
     }
     tcc_free(cpp_vt);
     cpp_vt = NULL;
+    cpp_pmf_class = NULL;
+    cpp_pmf_pending = 0;
     dynarray_reset(&stk_data, &nb_stk_data);
     while (cur_switch)
         end_switch();
@@ -4821,6 +4833,66 @@ static void cpp_emit_vtables(TCCState* s)
     tcc_close();
 }
 
+/* ---- C++ メンバポインタ -------------------------------------------------- */
+
+/* 宣言子で `C::*` を見た後の後処理。関数ポインタなら this 引数を先頭に挿入する */
+static void cpp_fix_member_fnptr(CType* type)
+{
+    Sym* fs, * pthis;
+    CType ct;
+
+    if (!cpp_pmf_class)
+        return;
+    if ((type->t & (VT_BTYPE | VT_ARRAY)) == VT_PTR
+        && (type->ref->type.t & VT_BTYPE) == VT_FUNC) {
+        fs = type->ref->type.ref;
+        ct.t = cpp_pmf_class->type.t;
+        ct.ref = cpp_pmf_class;
+        mk_pointer(&ct);
+        pthis = sym_push2(&global_stack, TOK_THIS | SYM_FIELD, 0, 0);
+        pthis->type = ct;
+        pthis->r = VT_LOCAL | VT_LVAL;
+        pthis->next = fs->next;
+        fs->next = pthis;
+        fs->f.func_args++;
+        if (fs->f.func_type == FUNC_OLD)
+            fs->f.func_type = FUNC_NEW;
+    }
+    cpp_pmf_class = NULL;
+}
+
+/* `obj.*p` / `ptr->*p` を処理する。呼び出し時 vtop はオブジェクトの左辺値 */
+static void cpp_member_ptr_access(void)
+{
+    CType mtype;
+
+    unary(); /* メンバポインタの値 */
+    if ((vtop->type.t & (VT_BTYPE | VT_ARRAY)) != VT_PTR)
+        tcc_error("'.*' の右辺にはメンバポインタが必要です");
+
+    if ((vtop->type.ref->type.t & VT_BTYPE) == VT_FUNC) {
+        /* メンバ関数ポインタ: [obj][pmf] を [this][pmf] にして呼び出しに備える */
+        vswap();
+        mk_pointer(&vtop->type);
+        gaddrof();
+        vswap();
+        cpp_pmf_pending = 1;
+        return;
+    }
+    /* データメンバポインタ: *(T*)((char*)&obj + offset) */
+    mtype = vtop->type.ref->type;
+    vtop->type.t = (PTR_SIZE == 8 ? VT_LLONG : VT_INT); /* オフセットとして扱う */
+    vtop->type.ref = NULL;
+    vswap();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vswap();
+    gen_op('+');
+    vtop->type = mtype;
+    if (!(vtop->type.t & VT_ARRAY))
+        vtop->r |= VT_LVAL;
+}
+
 /* コンストラクタ/デストラクタの内部メンバ名トークン */
 static int cpp_ctor_tok(void)
 {
@@ -5525,8 +5597,10 @@ do_decl:
                     v = 0;
                     type1 = btype;
                     if (tok != ':') {
-                        if (tok != ';')
+                        if (tok != ';') {
                             type_decl(&type1, &ad1, &v, TYPE_DIRECT);
+                            cpp_fix_member_fnptr(&type1);
+                        }
                         if (v == 0) {
                             if ((type1.t & VT_BTYPE) != VT_STRUCT)
                                 expect("identifier");
@@ -6047,7 +6121,7 @@ static int asm_label_instr(void)
 static int post_type(CType* type, AttributeDef* ad, int storage, int td)
 {
     int n, l, t1, arg_size, align;
-    Sym** plast, * s, * first;
+    Sym** plast, * s, * first, * saved_pmf_class;
     AttributeDef ad1;
     CType pt;
     TokenString* vla_array_tok = NULL;
@@ -6086,6 +6160,9 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
         plast = &first;
         arg_size = 0;
         ++local_scope;
+        /* 引数リストの解析中は、外側の宣言子が保留している `C::*` を退避する */
+        saved_pmf_class = cpp_pmf_class;
+        cpp_pmf_class = NULL;
         if (l) {
             for (;;) {
                 /* read param name and compute offset */
@@ -6093,6 +6170,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
                     if ((pt.t & VT_BTYPE) == VT_VOID && tok == ')')
                         break;
                     type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT | TYPE_PARAM);
+                    cpp_fix_member_fnptr(&pt);
                     if ((pt.t & VT_BTYPE) == VT_VOID)
                         tcc_error("パラメータが void として宣言されています");
                     if (n == 0)
@@ -6129,6 +6207,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
         else
             /* if no parameters, then old type prototype */
             l = FUNC_OLD;
+        cpp_pmf_class = saved_pmf_class;
         skip(')');
         /* remove parameter symbols from token table, keep on stack */
         if (first) {
@@ -6286,6 +6365,38 @@ static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
     storage = type->t & VT_STORAGE;
     type->t &= ~VT_STORAGE;
     post = ret = type;
+
+    /* C++ メンバポインタ宣言子 `C::*`。'*' はこの後の通常処理に任せる */
+    if (tcc_state->cplusplus && tok >= TOK_UIDENT) {
+        Sym* cls = struct_find(tok);
+        if (cls && (cls->type.t & VT_BTYPE) == VT_STRUCT) {
+            int cname = tok;
+            next();
+            if (tok == ':') {
+                next();
+                if (tok == ':') {
+                    next();
+                    if (tok == '*') {
+                        cpp_pmf_class = cls;
+                    }
+                    else {
+                        /* `Class::member`（static メンバの定義など）。
+                           3 トークンとも戻して通常の宣言子処理に任せる */
+                        unget_tok(':');
+                        unget_tok(':');
+                        unget_tok(cname);
+                    }
+                }
+                else {
+                    unget_tok(':');
+                    unget_tok(cname);
+                }
+            }
+            else {
+                unget_tok(cname);
+            }
+        }
+    }
 
     while (tok == '*' || (tok == '&' && tcc_state->cplusplus)) {
         int is_ref = (tok == '&');
@@ -6813,6 +6924,48 @@ tok_next:
         break;
     case '&':
         next();
+        /* C++ メンバポインタの取得 &Class::member */
+        if (tcc_state->cplusplus && tok >= TOK_UIDENT) {
+            Sym* cls = struct_find(tok);
+            if (cls && (cls->type.t & VT_BTYPE) == VT_STRUCT) {
+                int cname = tok;
+                next();
+                if (tok == ':') {
+                    next();
+                    if (tok == ':') {
+                        int cumofs = 0;
+                        CType mt;
+                        Sym* f, * ms;
+                        next();
+                        if (tok < TOK_UIDENT)
+                            expect("member name");
+                        mt.t = cls->type.t;
+                        mt.ref = cls;
+                        f = find_field(&mt, tok | SYM_FIELD, &cumofs);
+                        if (f) {
+                            /* データメンバポインタ = バイトオフセット */
+                            next();
+                            vpushi(cumofs);
+                            vtop->type = f->type;
+                            mk_pointer(&vtop->type);
+                            break;
+                        }
+                        ms = cpp_find_member_sym(cls, tok);
+                        if (!ms || (ms->type.t & VT_BTYPE) != VT_FUNC)
+                            tcc_error("'%s::%s' が見つかりません",
+                                get_tok_str(cname, NULL), get_tok_str(tok, NULL));
+                        next();
+                        vpushsym(&ms->type, ms);
+                        ms->a.addrtaken = 1;
+                        mk_pointer(&vtop->type);
+                        gaddrof();
+                        break;
+                    }
+                    unget_tok(':');
+                }
+                unget_tok(cname);
+            }
+        }
         unary();
         /* functions names must be treated as function pointers,
            except for unary '&' and sizeof. Since we consider that
@@ -7333,6 +7486,12 @@ tok_next:
             test_lvalue();
             /* expect pointer on structure */
             next();
+            /* C++ メンバポインタ演算子 `.*` / `->*` */
+            if (tcc_state->cplusplus && tok == '*') {
+                next();
+                cpp_member_ptr_access();
+                continue;
+            }
             /* C++: obj.method(...) — フィールドに無ければメソッドを探す */
             if ((vtop->type.t & VT_BTYPE) == VT_STRUCT && vtop->type.ref
                 && !find_field(&vtop->type, tok | SYM_FIELD, &cumofs)) {
@@ -7415,6 +7574,11 @@ tok_next:
             int nb_args, ret_nregs, ret_align, regsize, variadic;
             TokenString* p, * p2;
 
+            /* C++: `(obj.*pmf)(...)` は [this][関数ポインタ] が積まれている */
+            if (cpp_pmf_pending) {
+                mcall = 1;
+                cpp_pmf_pending = 0;
+            }
             /* function call  */
             if ((vtop->type.t & VT_BTYPE) != VT_FUNC) {
                 /* pointer test (no array accepted) */
@@ -10009,6 +10173,7 @@ static int decl(int l)
             type = btype;
             ad = adbase;
             type_decl(&type, &ad, &v, TYPE_DIRECT);
+            cpp_fix_member_fnptr(&type);
 #if 0
             {
                 char buf[500];
