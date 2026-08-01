@@ -4608,6 +4608,19 @@ static int cpp_vtable_slot(Sym* cls, int name)
     return -1;
 }
 
+/* 抽象クラス（未実装の純粋仮想関数を持つ）か */
+static int cpp_is_abstract(Sym* cls)
+{
+    CppVtable* vt = cpp_get_vtable(cls);
+    int i;
+    if (!vt)
+        return 0;
+    for (i = 0; i < vt->nb_slots; i++)
+        if (!vt->fns[i])
+            return 1;
+    return 0;
+}
+
 /* 多相クラス（自身または基底が仮想関数を持つ）か */
 static int cpp_is_polymorphic(Sym* cls)
 {
@@ -4796,9 +4809,27 @@ static void cpp_emit_vtables(TCCState* s)
     TokenString* str;
     int i, j;
 
+    int pure_tok = 0;
+
     if (!cpp_nb_vt)
         return;
     str = tok_str_alloc();
+    /* 純粋仮想関数のスロット用スタブ（呼ばれても何もしない）。
+       トークン列では整数リテラルを作れないため NULL の代わりに使う */
+    for (i = 0; i < cpp_nb_vt && !pure_tok; i++)
+        for (j = 0; j < cpp_vt[i].nb_slots; j++)
+            if (!cpp_vt[i].fns[j]) {
+                pure_tok = tok_alloc("__cxx_pure_virtual", 18)->tok;
+                tok_str_add(str, TOK_STATIC);
+                tok_str_add(str, TOK_VOID);
+                tok_str_add(str, pure_tok);
+                tok_str_add(str, '(');
+                tok_str_add(str, TOK_VOID);
+                tok_str_add(str, ')');
+                tok_str_add(str, '{');
+                tok_str_add(str, '}');
+                break;
+            }
     for (i = 0; i < cpp_nb_vt; i++) {
         CppVtable* vt = &cpp_vt[i];
         tok_str_add(str, TOK_STATIC);
@@ -4816,7 +4847,7 @@ static void cpp_emit_vtables(TCCState* s)
             tok_str_add(str, TOK_VOID);
             tok_str_add(str, '*');
             tok_str_add(str, ')');
-            tok_str_add(str, vt->fns[j]->v);
+            tok_str_add(str, vt->fns[j] ? vt->fns[j]->v : pure_tok);
         }
         if (!vt->nb_slots)
             tok_str_add(str, '0');
@@ -5578,6 +5609,14 @@ do_decl:
                     if (tok != '(')
                         expect("'('");
                     cpp_parse_ctor_dtor(s, cpp_dtor_tok());
+                    /* デストラクタは常に記録する。基底が仮想デストラクタなら
+                       名前一致で override として反映される */
+                    if (nb_m >= CPP_MAX_METHODS)
+                        tcc_error("クラスのメソッドが多すぎます");
+                    m_names[nb_m] = cpp_dtor_tok();
+                    m_fns[nb_m] = sym_find(cpp_mangle_method(s, cpp_dtor_tok()));
+                    m_virt[nb_m] = (char)is_virtual;
+                    nb_m++;
                     continue;
                 }
                 if (!parse_btype(&btype, &ad1, 0)) {
@@ -5684,6 +5723,39 @@ do_decl:
                                 nb_m++;
                                 method_body = 1;
                                 break;
+                            }
+                            /* 純粋仮想関数 `virtual R f(...) = 0;`
+                               実装は無いが、呼び出し側が型を知る必要があるので
+                               シンボルだけは登録する（参照は vtable 経由のみ） */
+                            if (is_virtual && tok == '=') {
+                                CType mtype, ct;
+                                Sym* msym, * pthis;
+                                next();
+                                if (tok != TOK_CINT || tokc.i != 0)
+                                    tcc_error("純粋仮想関数の指定は '= 0' です");
+                                next();
+                                ct.t = s->type.t;
+                                ct.ref = s;
+                                mk_pointer(&ct);
+                                pthis = sym_push2(&global_stack, TOK_THIS | SYM_FIELD, 0, 0);
+                                pthis->type = ct;
+                                pthis->r = VT_LOCAL | VT_LVAL;
+                                pthis->next = type1.ref->next;
+                                type1.ref->next = pthis;
+                                type1.ref->f.func_args++;
+                                if (type1.ref->f.func_type == FUNC_OLD)
+                                    type1.ref->f.func_type = FUNC_NEW;
+                                mtype = type1;
+                                mtype.t &= ~VT_EXTERN;
+                                mtype.t |= VT_STATIC | VT_INLINE;
+                                msym = external_sym(cpp_mangle_method(s, v), &mtype, 0, &ad1);
+                                msym->base_class = s;
+                                if (nb_m >= CPP_MAX_METHODS)
+                                    tcc_error("クラスのメソッドが多すぎます");
+                                m_names[nb_m] = v;
+                                m_fns[nb_m] = NULL; /* 実装なし = 抽象 */
+                                m_virt[nb_m] = 1;
+                                nb_m++;
                             }
                             /* 宣言のみ: 受理するがレイアウトには含めない
                                （sizeof に影響させない） */
@@ -6040,8 +6112,31 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             if (typespec_found)
                 goto the_end;
             s = sym_find(tok);
-            if (!s || !(s->type.t & VT_TYPEDEF))
+            if (!s || !(s->type.t & VT_TYPEDEF)) {
+                /* C++: クラス名はそのまま型名として使える */
+                if (tcc_state->cplusplus && tok >= TOK_UIDENT) {
+                    Sym* cs = struct_find(tok);
+                    if (cs && (cs->type.t & VT_BTYPE) == VT_STRUCT) {
+                        n = tok, next();
+                        if (tok == ':') {
+                            /* `Class::member` はラベルでも宣言でもなく式 */
+                            unget_tok(n);
+                            goto the_end;
+                        }
+                        t &= ~(VT_BTYPE | VT_LONG);
+                        u = t & ~(VT_CONSTANT | VT_VOLATILE), t ^= u;
+                        type->t = cs->type.t | u;
+                        type->ref = cs;
+                        if (t)
+                            parse_btype_qualify(type, t);
+                        t = type->t;
+                        typespec_found = 1;
+                        st = bt = -2;
+                        break;
+                    }
+                }
                 goto the_end;
+            }
 
             n = tok, next();
             if (tok == ':' && ignore_label) {
@@ -6979,6 +7074,121 @@ tok_next:
             vtop->sym->a.addrtaken = 1;
         mk_pointer(&vtop->type);
         gaddrof();
+        break;
+    case TOK_NEW:
+        if (!tcc_state->cplusplus)
+            goto tok_identifier;
+        next();
+        {
+            CType nt, npt;
+            AttributeDef nad;
+            SValue nret;
+            Sym* ncls, * nctor, * nsa;
+            int nsize, nalign, naddr, nargs;
+
+            if (func_ind < 0)
+                tcc_error("'new' は関数の中でのみ使用できます");
+            memset(&nad, 0, sizeof nad);
+            if (!parse_btype(&nt, &nad, 0) || (nt.t & VT_BTYPE) != VT_STRUCT)
+                tcc_error("'new' にはクラス型が必要です");
+            ncls = nt.ref;
+            if (cpp_is_abstract(ncls))
+                tcc_error("抽象クラス '%s' は new できません",
+                    get_tok_str(ncls->v & ~SYM_STRUCT, NULL));
+            nsize = type_size(&nt, &nalign);
+            npt = nt;
+            mk_pointer(&npt);
+
+            /* malloc(sizeof(C)) */
+            vpush_helper_func(tok_alloc("malloc", 6)->tok);
+            vpushi(nsize);
+            nret.type = npt;
+            nret.r2 = VT_CONST;
+            nret.c.i = 0;
+            PUT_R_RET(&nret, nret.type.t);
+            gfunc_call(1);
+            vsetc(&nret.type, nret.r, &nret.c);
+            vtop->r2 = nret.r2;
+
+            /* 一時変数に退避する（ctor と結果で 2 回使うため） */
+            naddr = (loc - PTR_SIZE) & -PTR_SIZE;
+            loc = naddr;
+            vset(&npt, VT_LOCAL | VT_LVAL, naddr);
+            vswap();
+            vstore();
+            vpop();
+
+            /* コンストラクタ呼び出し */
+            nctor = sym_find(cpp_mangle_method(ncls, cpp_ctor_tok()));
+            if (nctor && (nctor->type.t & VT_BTYPE) == VT_FUNC) {
+                nsa = nctor->type.ref->next; /* this */
+                if (nsa)
+                    nsa = nsa->next;
+                nargs = 1;
+                vpushsym(&nctor->type, nctor);
+                vset(&npt, VT_LOCAL | VT_LVAL, naddr);
+                if (tok == '(') {
+                    next();
+                    if (tok != ')') {
+                        for (;;) {
+                            expr_eq();
+                            gfunc_param_typed(nctor->type.ref, nsa);
+                            nargs++;
+                            if (nsa)
+                                nsa = nsa->next;
+                            if (tok == ')')
+                                break;
+                            skip(',');
+                        }
+                    }
+                    next();
+                }
+                gfunc_call(nargs);
+            }
+            else if (tok == '(') {
+                next();
+                skip(')');
+            }
+            vset(&npt, VT_LOCAL | VT_LVAL, naddr);
+        }
+        break;
+    case TOK_DELETE:
+        if (!tcc_state->cplusplus)
+            goto tok_identifier;
+        next();
+        if (tok == '[') { /* delete[] は delete と同じ扱い */
+            next();
+            skip(']');
+        }
+        unary();
+        {
+            Sym* dcls, * ddtor;
+            int dslot;
+
+            if ((vtop->type.t & (VT_BTYPE | VT_ARRAY)) != VT_PTR)
+                tcc_error("'delete' にはポインタが必要です");
+            dcls = NULL;
+            if ((vtop->type.ref->type.t & VT_BTYPE) == VT_STRUCT)
+                dcls = vtop->type.ref->type.ref;
+            ddtor = dcls ? cpp_find_member_sym(dcls, cpp_dtor_tok()) : NULL;
+            if (ddtor && (ddtor->type.t & VT_BTYPE) != VT_FUNC)
+                ddtor = NULL;
+            if (ddtor) {
+                dslot = cpp_vtable_slot(dcls, cpp_dtor_tok());
+                gv_dup();
+                if (dslot >= 0) /* 仮想デストラクタは vtable 経由 */
+                    cpp_push_virtual_fn(ddtor, cpp_get_vtable(dcls), dslot);
+                else
+                    vpushsym(&ddtor->type, ddtor);
+                vrott(2);
+                gfunc_call(1);
+            }
+            vpush_helper_func(tok_alloc("free", 4)->tok);
+            vrott(2);
+            gfunc_call(1);
+            vpushi(0);
+            vtop->type.t = VT_VOID;
+        }
         break;
     case '!':
         next();
@@ -10343,6 +10553,11 @@ static int decl(int l)
                     }
                     /* C++: ローカルの class 変数なら ctor/dtor を検出 */
                     cxctor = cxdtor = NULL;
+                    if (tcc_state->cplusplus && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref && !(type.t & (VT_EXTERN | VT_TYPEDEF))
+                        && cpp_is_abstract(type.ref))
+                        tcc_error("抽象クラス '%s' のオブジェクトは作れません",
+                            get_tok_str(type.ref->v & ~SYM_STRUCT, NULL));
                     if (tcc_state->cplusplus && l == VT_LOCAL
                         && (type.t & VT_BTYPE) == VT_STRUCT
                         && !(type.t & (VT_EXTERN | VT_STATIC | VT_ARRAY))
