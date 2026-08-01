@@ -166,6 +166,8 @@
      DEF(TOK_NAMESPACE, "namespace")
      DEF(TOK_TRUE, "true")
      DEF(TOK_FALSE, "false")
+     DEF(TOK_NEW, "new")
+     DEF(TOK_DELETE, "delete")
 
      DEF(TOK_builtin_types_compatible_p, "__builtin_types_compatible_p")
      DEF(TOK_builtin_choose_expr, "__builtin_choose_expr")
