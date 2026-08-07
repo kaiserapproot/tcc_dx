@@ -161,6 +161,9 @@ static void gen_inline_functions(TCCState* s);
 static void free_inline_functions(TCCState* s);
 static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
+/* BUG-18: cpp_prepare_virtual_member_call dups the object address before the
+   vtable-load chain and vdup is defined later in this file. */
+static void vdup(void);
 static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
 static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg);
@@ -168,6 +171,9 @@ static int is_integer_btype(int bt);
 /* MI: byte offset of a base subobject within a class (forward decl - defined
    with the member-call helpers).  Used by the derived->base upcast paths. */
 static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
+/* Virtual MI (Phase 2): forward decl - the multi-vptr init walkers run before
+   the definition point of this base-subobject predicate. */
+static int cpp_is_base_field(Sym *f);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -1580,10 +1586,20 @@ static void cpp_assign_virtual_slots(Sym *class_sym)
 
 static void cpp_insert_vptr_field(Sym *class_sym)
 {
-    Sym *vptr, *first;
+    Sym *vptr, *first, *base_field;
     CType pt;
 
     if (!class_sym || !cpp_type_has_virtual(class_sym))
+        return;
+    /* Virtual MI (Phase 2) / BUG-17: when the first (primary) base is itself
+       polymorphic its subobject already starts with a vptr at offset 0 and
+       the derived class SHARES it (the derived vtable pointer is stored
+       there).  The old unconditional insert added a second vptr, shifting
+       every base subobject by 8 bytes, so base-pointer data access and
+       non-virtual base methods silently read the wrong slots. */
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class
+        && cpp_type_has_virtual(base_field->parent_class))
         return;
     pt.t = VT_VOID | VT_PTR;
     pt.ref = NULL;
@@ -1686,18 +1702,199 @@ static void cpp_emit_vtable(Sym *class_sym)
     }
 }
 
-static void cpp_init_local_vptr(Sym *obj_sym)
+/* Virtual MI (Phase 2): `this` adjusting thunks.  A derived override reached
+   through a non-primary base subobject receives the SUBOBJECT address as
+   `this`, but its body expects the derived object, so a small stub subtracts
+   the subobject offset and tail-jumps into the real implementation.  Code
+   emission is deferred to cpp_finish_virtual_thunks: struct_decl may run in
+   the middle of a function body (local class), where emitting at `ind` would
+   splice bytes into the surrounding function's code stream. */
+typedef struct CppVThunk {
+    Sym *thunk_sym;   /* __cpp_vthunk_* symbol (undefined until the flush) */
+    Sym *impl_sym;    /* final override implementation */
+    int adjust;       /* base subobject offset to subtract from `this` */
+} CppVThunk;
+
+static CppVThunk **cpp_vthunks;
+static int nb_cpp_vthunks;
+
+static Sym *cpp_new_virtual_thunk(Sym *class_sym, Sym *base_class,
+                                  Sym *bfield, Sym *impl, int adjust)
+{
+    char buf[256];
+    TokenSym *ts;
+    CType func_type;
+    CType void_type;
+    Sym *proto;
+    Sym *thunk;
+    CppVThunk *ent;
+    int len;
+
+    /* fall back to the raw impl (this stays unadjusted but the call still
+       lands somewhere valid) only on the pathological name-overflow case */
+    len = snprintf(buf, sizeof buf, "__cpp_vthunk_%s_%s_%s",
+                   get_tok_str(class_sym->v & ~SYM_STRUCT, NULL),
+                   get_tok_str(base_class->v & ~SYM_STRUCT, NULL),
+                   get_tok_str(bfield->v & ~SYM_FIELD, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        return impl;
+    void_type.t = VT_VOID;
+    func_type.t = VT_FUNC;
+    proto = sym_push(SYM_FIELD, &void_type, 0, 0);
+    proto->f.func_call = FUNC_CDECL;
+    proto->f.func_type = FUNC_NEW;
+    func_type.ref = proto;
+    ts = tok_alloc(buf, len);
+    thunk = external_global_sym(ts->tok, &func_type);
+    ent = tcc_mallocz(sizeof *ent);
+    ent->thunk_sym = thunk;
+    ent->impl_sym = impl;
+    ent->adjust = adjust;
+    dynarray_add(&cpp_vthunks, &nb_cpp_vthunks, ent);
+    return thunk;
+}
+
+/* Virtual MI (Phase 2): a non-primary polymorphic base subobject carries its
+   own vptr, which must point at a vtable using the BASE's slot numbering.
+   Slots the derived class overrides (matched by name, like the primary slot
+   assignment) go through a `this` adjusting thunk; inherited slots call the
+   base implementation directly because `this` already IS the subobject. */
+static void cpp_emit_secondary_vtables(Sym *class_sym)
+{
+    char buf[256];
+    TokenSym *ts;
+    Sym *bf, *base_class, *vtable_sym, *bfield, *ovr, *impl, *entry_sym;
+    CType arr_type, fptr_type;
+    AttributeDef ad;
+    Section *sec;
+    unsigned long addr;
+    int nslots, slot, len;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    for (bf = class_sym->next; bf; bf = bf->next) {
+        if (!cpp_is_base_field(bf))
+            continue;
+        base_class = bf->parent_class;
+        /* the offset-0 primary base shares the class's own vtable */
+        if (bf->c == 0)
+            continue;
+        if (!cpp_type_has_virtual(base_class))
+            continue;
+        nslots = cpp_count_virtual_slots(base_class);
+        if (nslots <= 0)
+            continue;
+        len = snprintf(buf, sizeof buf, "__cpp_vtbl2_%s_%s",
+                       get_tok_str(class_sym->v & ~SYM_STRUCT, NULL),
+                       get_tok_str(base_class->v & ~SYM_STRUCT, NULL));
+        if (len <= 0 || len >= (int)sizeof buf)
+            continue;
+        ts = tok_alloc(buf, len);
+        bf->cpp_vtable_tok = ts->tok;
+        fptr_type.t = VT_VOID | VT_PTR;
+        fptr_type.ref = NULL;
+        arr_type.t = VT_PTR | VT_ARRAY;
+        arr_type.ref = sym_push(SYM_FIELD, &fptr_type, 0, nslots);
+        memset(&ad, 0, sizeof ad);
+        vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
+        sec = rodata_section;
+        addr = section_add(sec, (unsigned long)nslots * PTR_SIZE, PTR_SIZE);
+        put_extern_sym(vtable_sym, sec, addr, (unsigned long)nslots * PTR_SIZE);
+        for (slot = 0; slot < nslots; slot++) {
+            bfield = cpp_find_virtual_by_slot(base_class, slot);
+            if (!bfield)
+                continue;
+            entry_sym = NULL;
+            ovr = cpp_find_virtual_field_by_name(class_sym,
+                                                 bfield->v & ~SYM_FIELD);
+            if (ovr) {
+                impl = cpp_lookup_virtual_impl(ovr);
+                if (impl)
+                    entry_sym = cpp_new_virtual_thunk(class_sym, base_class,
+                                                      bfield, impl, bf->c);
+            }
+            if (!entry_sym)
+                entry_sym = cpp_lookup_virtual_impl(bfield);
+            if (!entry_sym)
+                continue;
+            greloca(sec, entry_sym, addr + (unsigned long)slot * PTR_SIZE,
+                    R_DATA_PTR, 0);
+        }
+    }
+}
+
+static void cpp_emit_virtual_thunk_code(CppVThunk *t)
+{
+    int thunk_start;
+
+    thunk_start = ind = cur_text_section->data_offset;
+    put_extern_sym(t->thunk_sym, cur_text_section, ind, 0);
+    /* sub rcx, imm32: move `this` (win64 arg0) from the base subobject back
+       to the most-derived object before entering the override body. */
+    o(0xe98148);
+    gen_le32(t->adjust);
+    /* movabs rax, &impl; jmp rax.  The absolute 64-bit immediate lets the
+       target use the generic R_DATA_PTR relocation macro - no per-target
+       PC32 relocation constant is needed in this target-independent file
+       (same raw-byte precedent as cpp_emit_global_dyn_thunk). */
+    o(0xb848);
+    greloca(cur_text_section, t->impl_sym, ind, R_DATA_PTR, 0);
+    gen_le32(0);
+    gen_le32(0);
+    o(0xe0ff);
+    /* o()/g() advance only ind; sync data_offset so later emissions
+       (gen_inline_functions, FEAT-4G thunks) do not overwrite this code. */
+    cur_text_section->data_offset = ind;
+    put_extern_sym(t->thunk_sym, cur_text_section, thunk_start,
+                   ind - thunk_start);
+}
+
+static void cpp_finish_virtual_thunks(TCCState *s1)
+{
+    int i;
+    int saved_nocode;
+
+    /* same shape as cpp_finish_global_dyns: the registrations happened in
+       this very TU, so s1->cpp is still set when anything is pending */
+    if (!s1->cpp || nb_cpp_vthunks == 0)
+        return;
+    saved_nocode = nocode_wanted;
+    nocode_wanted = 0;
+    cur_text_section = text_section;
+    for (i = 0; i < nb_cpp_vthunks; i++)
+        cpp_emit_virtual_thunk_code(cpp_vthunks[i]);
+    dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
+    nocode_wanted = saved_nocode;
+}
+
+/* Virtual MI (Phase 2): does object creation need any vptr store?  True for
+   a class with its own/shared primary vtable AND for a class whose only
+   polymorphism lives in a (nested) base subobject - e.g. a non-polymorphic
+   first base plus a polymorphic second base gives cpp_vtable_tok == 0 but
+   the second subobject still carries a vptr that must be written. */
+static int cpp_class_needs_vptr_init(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return 0;
+    if (class_sym->cpp_vtable_tok)
+        return 1;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f))
+            continue;
+        if (cpp_class_needs_vptr_init(f->parent_class))
+            return 1;
+    }
+    return 0;
+}
+
+static void cpp_write_local_vptr_slot(Sym *obj_sym, int ofs, int vtable_tok)
 {
     Sym *vtable_sym;
     CType voidp;
 
-    if (!obj_sym || !obj_sym->type.ref || !obj_sym->type.ref->cpp_vtable_tok)
-        return;
-    if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
-        return;
-    if (nocode_wanted)
-        return;
-    vtable_sym = sym_find(obj_sym->type.ref->cpp_vtable_tok);
+    vtable_sym = sym_find(vtable_tok);
     if (!vtable_sym)
         return;
     /* Build a real void* type (mk_pointer allocates ->ref; a NULL ref would
@@ -1705,27 +1902,89 @@ static void cpp_init_local_vptr(Sym *obj_sym)
     voidp.t = VT_VOID;
     voidp.ref = NULL;
     mk_pointer(&voidp);
-    /* vstore() expects vtop[-1] = destination lvalue, vtop = source value.
-     * The vptr lives at object offset 0, so its slot address is obj_sym->c. */
-    vset(&voidp, VT_LOCAL | VT_LVAL, obj_sym->c);   /* destination */
+    /* vstore() expects vtop[-1] = destination lvalue, vtop = source value. */
+    vset(&voidp, VT_LOCAL | VT_LVAL, obj_sym->c + ofs); /* destination */
     vpushsym(&voidp, vtable_sym);                    /* value = &vtable */
     vstore();
     vpop();
 }
 
-/* FEAT-5A Phase 4: static vptr init for global/static polymorphic objects. */
+/* Virtual MI (Phase 2): one object can carry several vptrs - the shared
+   primary one at offset 0 plus one per non-primary polymorphic base
+   subobject (recursively).  The offset-0 primary base shares the slot the
+   caller already wrote, so only non-zero-offset bases store their secondary
+   vtable here; nested subobjects keep the vtable of the class that declared
+   them as a direct base (deep re-override is a documented limitation). */
+static void cpp_init_local_vptr_rec(Sym *obj_sym, Sym *class_sym, int base_ofs)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f))
+            continue;
+        if (!cpp_type_has_virtual(f->parent_class))
+            continue;
+        if (f->c > 0 && f->cpp_vtable_tok)
+            cpp_write_local_vptr_slot(obj_sym, base_ofs + f->c,
+                                      f->cpp_vtable_tok);
+        cpp_init_local_vptr_rec(obj_sym, f->parent_class, base_ofs + f->c);
+    }
+}
+
+static void cpp_init_local_vptr(Sym *obj_sym)
+{
+    if (!obj_sym || !obj_sym->type.ref)
+        return;
+    if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
+        return;
+    if (nocode_wanted)
+        return;
+    if (obj_sym->type.ref->cpp_vtable_tok)
+        cpp_write_local_vptr_slot(obj_sym, 0, obj_sym->type.ref->cpp_vtable_tok);
+    cpp_init_local_vptr_rec(obj_sym, obj_sym->type.ref, 0);
+}
+
+/* FEAT-5A Phase 4: static vptr init for global/static polymorphic objects.
+   Virtual MI (Phase 2): same walk as the local variant, as data relocations. */
+static void cpp_init_global_vptr_rec(Section *sec, unsigned long addr,
+                                     Sym *class_sym, int base_ofs)
+{
+    Sym *f, *vtable_sym;
+
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f))
+            continue;
+        if (!cpp_type_has_virtual(f->parent_class))
+            continue;
+        if (f->c > 0 && f->cpp_vtable_tok) {
+            vtable_sym = sym_find(f->cpp_vtable_tok);
+            if (vtable_sym)
+                greloca(sec, vtable_sym,
+                        addr + (unsigned long)(base_ofs + f->c),
+                        R_DATA_PTR, 0);
+        }
+        cpp_init_global_vptr_rec(sec, addr, f->parent_class, base_ofs + f->c);
+    }
+}
+
 static void cpp_init_global_vptr(Sym *obj_sym, Section *sec, unsigned long addr)
 {
     Sym *vtable_sym;
 
-    if (!obj_sym || !obj_sym->type.ref || !obj_sym->type.ref->cpp_vtable_tok)
+    if (!obj_sym || !obj_sym->type.ref)
         return;
     if (!sec || sec == common_section || NODATA_WANTED)
         return;
-    vtable_sym = sym_find(obj_sym->type.ref->cpp_vtable_tok);
-    if (!vtable_sym)
-        return;
-    greloca(sec, vtable_sym, addr, R_DATA_PTR, 0);
+    if (obj_sym->type.ref->cpp_vtable_tok) {
+        vtable_sym = sym_find(obj_sym->type.ref->cpp_vtable_tok);
+        if (vtable_sym)
+            greloca(sec, vtable_sym, addr, R_DATA_PTR, 0);
+    }
+    cpp_init_global_vptr_rec(sec, addr, obj_sym->type.ref, 0);
 }
 
 /* Load virtual member fn from vtable[slot]; leaves a function-pointer
@@ -1751,10 +2010,23 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
     slot = field->c;
     test_lvalue();
     gaddrof();
-    mk_pointer(&vtop->type);   /* BUG-15: pass `this` as a pointer, not a
+    /* Virtual MI (Phase 2): a virtual member declared by a non-primary base
+       uses that base's slot numbering, so the dispatch must go through the
+       SUBOBJECT's vptr (secondary vtable): move `this` to the subobject
+       first.  Offset 0 (own members / primary chain) keeps the old path. */
+    if (field->parent_class && obj_type && obj_type->ref
+        && field->parent_class != obj_type->ref) {
+        int base_ofs = cpp_base_subobject_offset(obj_type->ref,
+                                                 field->parent_class);
+        if (base_ofs > 0) {
+            vtop->type = char_pointer_type;
+            vpushi(base_ofs);
+            gen_op('+');
+        }
+    }
+    if ((vtop->type.t & VT_BTYPE) != VT_PTR)
+        mk_pointer(&vtop->type);   /* BUG-15: pass `this` as a pointer, not a
                                   by-value struct copy (see cpp_prepare_member_func_call) */
-    cpp_member_this = *vtop;
-    vpop();
 
     fnptr_t = field->type;          /* T()       -> */
     mk_pointer(&fnptr_t);           /* T(*)()       */
@@ -1763,8 +2035,14 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
     fnptr_ppp = fnptr_pp;
     mk_pointer(&fnptr_ppp);         /* T(***)()     */
 
-    /* this -> &vptr, load vptr */
-    vpushv(&cpp_member_this);
+    /* BUG-18: keep the object address ON the vstack while the vtable load
+       below allocates registers.  The old order captured `this` into
+       cpp_member_this (off-stack, invisible to the register allocator)
+       FIRST; when the address lived in a register - the `ptr->virt()` path -
+       the indir/add/indir sequence could re-allocate that register and the
+       injected `this` became garbage.  vdup keeps a protected copy under the
+       vtable-load chain; `this` is captured only after the chain is done. */
+    vdup();
     vtop->type = fnptr_ppp;
     vtop->r &= ~VT_LVAL;
     indir();                        /* lvalue T(**)() == vptr storage */
@@ -1772,6 +2050,10 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
     vpushi(slot);
     gen_op('+');                    /* T(**)() rvalue == &vtable[slot] */
     indir();                        /* lvalue T(*)() == vtable[slot]    */
+    /* stack: [this-addr, fnptr-lvalue] -> capture this, leave fnptr */
+    vswap();
+    cpp_member_this = *vtop;
+    vpop();
 
     /* This is an indirect (function-pointer) call, not a named function:
      * clear the leftover .sym copied from 'this' so the call handler's C++
@@ -1841,13 +2123,46 @@ static int cpp_peek_out_of_class_ctor(int *class_tok)
     return 1;
 }
 
+/* BUG-19: cumulative offset of a (possibly inherited) field within cls,
+   matched by field IDENTITY - not by name, so overloads/shadowing cannot
+   pick the wrong Sym.  Returns 0 when the field is not reachable. */
+static int cpp_field_cumofs_in_class(Sym *cls, Sym *field, int *ofs)
+{
+    Sym *f;
+    int inner;
+
+    if (!cls)
+        return 0;
+    for (f = cls->next; f; f = f->next) {
+        if (f == field) {
+            *ofs = f->c;
+            return 1;
+        }
+        if (cpp_is_base_field(f)
+            && cpp_field_cumofs_in_class(f->parent_class, field, &inner)) {
+            *ofs = f->c + inner;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void cpp_push_member_var(Sym *field)
 {
-    int cumofs, qualifiers;
+    int cumofs, qualifiers, full_ofs;
+    CType *this_pt;
 
     if (!cpp_this_sym)
         tcc_error("invalid use of member name");
     cumofs = field->c;
+    /* BUG-19: field->c is the offset within the DECLARING class.  For a
+       member inherited from a base subobject at a non-zero offset (the
+       non-first base under MI, or any base behind an inserted vptr) the
+       base offset must be added, or the body reads a sibling's slot. */
+    this_pt = pointed_type(&cpp_this_sym->type);
+    if (this_pt && (this_pt->t & VT_BTYPE) == VT_STRUCT && this_pt->ref
+        && cpp_field_cumofs_in_class(this_pt->ref, field, &full_ofs))
+        cumofs = full_ofs;
     vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
     vtop->sym = cpp_this_sym;
     indir();
@@ -2623,6 +2938,9 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_cur_func_class = NULL;
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     cpp_global_dyn_serial = 0;
+    /* Virtual MI (Phase 2): drop thunks a failed/aborted TU left pending so
+       they cannot be emitted against stale Syms in the next compilation. */
+    dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
 }
 
 ST_FUNC int tccgen_compile(TCCState* s1)
@@ -2644,6 +2962,9 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
     next();
     decl(VT_CONST);
+    /* Virtual MI (Phase 2): thunk code is deferred to this top-level point -
+       emitting inside struct_decl could land mid-function for local classes. */
+    cpp_finish_virtual_thunks(s1);
     cpp_finish_global_dyns(s1);
     gen_inline_functions(s1);
     check_vstack();
@@ -5531,11 +5852,14 @@ static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg)
             return 1;
         /* MI/inheritance upcast: a derived-class lvalue binds to a base-class
            reference.  The pointer is adjusted to the base subobject in
-           gen_cast's binding path (offset 0 for single/first base).  Non-
-           virtual (Phase 1) only - polymorphic types are left to the vtable
-           machinery / a later phase. */
+           gen_cast's binding path (offset 0 for single/first base).
+           Virtual MI (Phase 2): polymorphic classes take this path too -
+           with the shared-primary-vptr layout cpp_base_subobject_offset
+           returns the true laid-out offsets, and a non-primary polymorphic
+           subobject carries its own (secondary-vtable) vptr, so dispatch
+           through the adjusted reference stays correct. */
         if (tcc_state->cpp && (pt->t & VT_BTYPE) == VT_STRUCT
-            && pt->ref && arg->ref && !cpp_type_has_virtual(arg->ref)
+            && pt->ref && arg->ref
             && cpp_base_subobject_offset(arg->ref, pt->ref) >= 0)
             return 1;
         return 0;
@@ -5602,13 +5926,15 @@ static void gen_cast(CType* type)
         && (vtop->type.t & VT_BTYPE) == VT_PTR) {
         CType *dpt = pointed_type(type);
         CType *spt = pointed_type(&vtop->type);
-        /* Phase 1 is non-virtual MI: skip classes with virtuals - their base
-           subobject layout involves the vptr and the vtable machinery already
-           treats the primary base as offset 0.  Applying an offset here would
-           break `(Base*)&derived` for polymorphic types (virtual MI = later). */
+        /* Virtual MI (Phase 2): polymorphic classes are no longer skipped.
+           The Phase 1 guard existed because the old duplicate-vptr layout
+           put even the primary base at a non-zero offset while its subobject
+           vptr was never initialized (adjusting broke `(Base*)&derived`).
+           With the shared-primary-vptr layout the primary base sits at
+           offset 0 (no-op here) and every non-primary polymorphic base has
+           an initialized secondary-vtable vptr, so the adjustment is safe. */
         if ((dpt->t & VT_BTYPE) == VT_STRUCT && (spt->t & VT_BTYPE) == VT_STRUCT
-            && dpt->ref && spt->ref && dpt->ref != spt->ref
-            && !cpp_type_has_virtual(spt->ref)) {
+            && dpt->ref && spt->ref && dpt->ref != spt->ref) {
             int ofs = cpp_base_subobject_offset(spt->ref, dpt->ref);
             if (ofs > 0) {
                 vtop->type = char_pointer_type;
@@ -6791,10 +7117,10 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
        subobject, so `this` must be obj + offset(base) - for single
        inheritance / the first base the offset is 0 and this is a no-op.
        This also leaves a char* pointer, satisfying the BUG-15 requirement
-       below. */
+       below.  Virtual MI (Phase 2): applies to polymorphic classes too -
+       the shared-primary-vptr layout makes these offsets the real ones. */
     if (field && field->parent_class && obj_type.ref
-        && field->parent_class != obj_type.ref
-        && !cpp_type_has_virtual(obj_type.ref)) {
+        && field->parent_class != obj_type.ref) {
         int base_ofs = cpp_base_subobject_offset(obj_type.ref, field->parent_class);
         if (base_ofs > 0) {
             vtop->type = char_pointer_type;
@@ -7991,6 +8317,9 @@ do_decl:
                  * (registered via inline_fns) so member calls can link. */
                 cpp_finish_member_inlines(s);
                 cpp_emit_vtable(s);
+                /* Virtual MI (Phase 2): runs after struct_layout so the base
+                 * fields carry their final offsets (thunk adjust values). */
+                cpp_emit_secondary_vtables(s);
                 cpp_cur_class = NULL;
             }
         }
@@ -12113,11 +12442,13 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
 #endif
             sym = sym_push(v, type, r, addr);
             /* FEAT-5A: initialize the vptr of a local polymorphic object so
-             * virtual calls dispatch through a valid vtable. */
+             * virtual calls dispatch through a valid vtable.  Virtual MI
+             * (Phase 2): the needs-init predicate also covers classes whose
+             * only vptr lives in a non-primary base subobject. */
             if (tcc_state->cpp
                 && (type->t & VT_BTYPE) == VT_STRUCT
                 && type->ref
-                && type->ref->cpp_vtable_tok)
+                && cpp_class_needs_vptr_init(type->ref))
                 cpp_init_local_vptr(sym);
             if (ad->cleanup_func) {
                 Sym* cls = sym_push2(&all_cleanups,
@@ -12139,7 +12470,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
         sym = NULL;
         cpp_needs_vptr = tcc_state->cpp && v && global
             && (type->t & VT_BTYPE) == VT_STRUCT && type->ref
-            && type->ref->cpp_vtable_tok;
+            && cpp_class_needs_vptr_init(type->ref);
         if (v && global) {
             /* see if the symbol was already defined */
             sym = sym_find(v);
@@ -12198,11 +12529,12 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             /* update symbol definition */
             put_extern_sym(sym, sec, addr, size);
             /* FEAT-5A Phase 4: wire vptr slot for global polymorphic objects.
-             * Phase 4: vptr reloc in data section (needs_vptr forces .data). */
+             * Phase 4: vptr reloc in data section (needs_vptr forces .data).
+             * Virtual MI (Phase 2): also wires the secondary vptrs. */
             if (tcc_state->cpp
                 && (type->t & VT_BTYPE) == VT_STRUCT
                 && type->ref
-                && type->ref->cpp_vtable_tok) {
+                && cpp_class_needs_vptr_init(type->ref)) {
                 cpp_init_global_vptr(sym, sec, addr);
             }
         }
