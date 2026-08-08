@@ -59,7 +59,7 @@ __INTRINSICS_USEINLINE
 /* However we do check for __MINGW_INTRIN_INLINE.  In theory this means we
    can work with other compilers.  */
 
-#ifdef __MINGW_INTRIN_INLINE
+#if defined(__MINGW_INTRIN_INLINE) && !defined(__TINYC__)
 
 /* Clang has support for MSVC builtins, GCC doesn't */
 #pragma push_macro("__has_builtin")

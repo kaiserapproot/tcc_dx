@@ -483,9 +483,13 @@ STDAPI VarRound(LPVARIANT pvarIn,int cDecimals,LPVARIANT pvarResult);
 STDAPI VarCmp(LPVARIANT pvarLeft,LPVARIANT pvarRight,LCID lcid,ULONG dwFlags);
 
 #ifdef __cplusplus
+#ifndef __TINYC__
 extern "C++" {
+#endif
   static __inline HRESULT WINAPI VarCmp(LPVARIANT pvarLeft,LPVARIANT pvarRight,LCID lcid) { return VarCmp(pvarLeft,pvarRight,lcid,0); }
+#ifndef __TINYC__
 }
+#endif
 #endif
 
 STDAPI VarDecAdd(LPDECIMAL pdecLeft,LPDECIMAL pdecRight,LPDECIMAL pdecResult);

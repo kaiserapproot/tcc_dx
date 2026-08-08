@@ -28,6 +28,10 @@
 #ifndef _COMBASEAPI_H_
 #define _COMBASEAPI_H_
 
+#if defined(__TINYC__) && !defined(CINTERFACE)
+#define CINTERFACE
+#endif
+
 #include <pshpack8.h>
 
 #ifdef _OLE32_
@@ -39,7 +43,7 @@
 #endif
 
 #if WINAPI_FAMILY_PARTITION (WINAPI_PARTITION_APP)
-#if defined (__cplusplus) && !defined (CINTERFACE)
+#if defined (__cplusplus) && !defined (CINTERFACE) && !defined (__TINYC__)
 
 #ifdef COM_STDMETHOD_CAN_THROW
 #define COM_DECLSPEC_NOTHROW

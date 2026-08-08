@@ -8,7 +8,7 @@
 #define _INC_MINGW_SECAPI
 
 /* http://msdn.microsoft.com/en-us/library/ms175759%28v=VS.100%29.aspx */
-#if defined(__cplusplus)
+#if defined(__cplusplus) && !defined(__TINYC__)
 #ifndef _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES
 #define _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES 1         /* default to 1 */
 #endif /*_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES*/
@@ -25,7 +25,7 @@
 #define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_MEMORY 0 /* default to 0 */
 #endif /* _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_MEMORY */
 #else
-/* Templates won't work in C, will break if secure API is not enabled, disabled */
+/* Templates won't work in C or TCC C++, disable secure overload helpers. */
 #undef _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES
 #undef _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES_MEMORY
 #undef _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES
@@ -36,11 +36,11 @@
 #define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES 0
 #define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_COUNT 0
 #define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_MEMORY 0
-#endif /*defined(__cplusplus)*/
+#endif /*defined(__cplusplus) && !defined(__TINYC__)*/
 
 #define __MINGW_CRT_NAME_CONCAT2(sym) ::sym##_s
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 extern "C++" {
 template <bool __test, typename __dsttype>
   struct __if_array;
@@ -49,7 +49,7 @@ template <typename __dsttype>
     typedef __dsttype __type;
 };
 }
-#endif /*__cplusplus*/
+#endif /*defined(__cplusplus) && !defined(__TINYC__)*/
 
 /* https://blogs.msdn.com/b/sdl/archive/2010/02/16/vc-2010-and-memcpy.aspx?Redirected=true */
 /* fallback on default implementation if we can't know the size of the destination */

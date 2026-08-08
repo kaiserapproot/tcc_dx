@@ -7933,7 +7933,7 @@ void __RPC_STUB IMallocSpy_PostHeapMinimize_Stub(
 
 typedef IBindCtx *LPBC;
 typedef IBindCtx *LPBINDCTX;
-#if defined(__cplusplus)
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef struct tagBIND_OPTS {
   DWORD cbStruct;
   DWORD grfFlags;
@@ -7949,7 +7949,7 @@ typedef struct tagBIND_OPTS {
 } BIND_OPTS;
 typedef struct tagBIND_OPTS *LPBIND_OPTS;
 #endif
-#if defined(__cplusplus)
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef struct tagBIND_OPTS2 : tagBIND_OPTS {
 DWORD           dwTrackFlags;
 DWORD           dwClassContext;
@@ -7969,7 +7969,7 @@ typedef struct tagBIND_OPTS2 {
 } BIND_OPTS2;
 typedef struct tagBIND_OPTS2 *LPBIND_OPTS2;
 #endif
-#if defined(__cplusplus)
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef struct tagBIND_OPTS3 : tagBIND_OPTS2 {
 HWND           hwnd;
 } BIND_OPTS3, * LPBIND_OPTS3;

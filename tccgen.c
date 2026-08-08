@@ -1226,6 +1226,47 @@ static TokenString *cpp_save_paren_expr_tokens(void)
     return ts;
 }
 
+static int cpp_tok_starts_type_name(int v)
+{
+    Sym *s;
+
+    switch (v) {
+    case TOK_CHAR:
+    case TOK_VOID:
+    case TOK_SHORT:
+    case TOK_INT:
+    case TOK_LONG:
+    case TOK_BOOL:
+    case TOK_BOOL2:
+    case TOK_FLOAT:
+    case TOK_DOUBLE:
+    case TOK_ENUM:
+    case TOK_STRUCT:
+    case TOK_CLASS:
+    case TOK_UNION:
+    case TOK_CONST1:
+    case TOK_CONST2:
+    case TOK_CONST3:
+    case TOK_VOLATILE1:
+    case TOK_VOLATILE2:
+    case TOK_VOLATILE3:
+    case TOK_SIGNED1:
+    case TOK_SIGNED2:
+    case TOK_SIGNED3:
+    case TOK_UNSIGNED:
+        return 1;
+    }
+    if (v < TOK_IDENT)
+        return 0;
+    if (struct_find(v))
+        return 1;
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        if (s->type.t & VT_TYPEDEF)
+            return 1;
+    }
+    return 0;
+}
+
 static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is_dtor)
 {
     CppGlobalDynEntry *ent;
@@ -8105,7 +8146,7 @@ do_decl:
             int cur_access;
             c = 0;
             flexible = 0;
-            cur_access = is_class ? ACCESS_PRIVATE : ACCESS_PUBLIC;
+            cur_access = is_class == 1 ? ACCESS_PRIVATE : ACCESS_PUBLIC;
             while (tok != '}') {
                 int skip_member_semi = 0;
                 int is_ctor_decl = 0;
@@ -8308,7 +8349,8 @@ do_decl:
                 tag_v = s->v & ~SYM_STRUCT;
                 ctype = *type;
                 ctype.t |= VT_TYPEDEF;
-                sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
+                if (is_class == 1 || !sym_find(tag_v))
+                    sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
             }
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
@@ -8458,7 +8500,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             type->ref = type1.ref;
             goto basic_type1;
         case TOK_STRUCT:
-            struct_decl(&type1, VT_STRUCT, 0);
+            struct_decl(&type1, VT_STRUCT, tcc_state->cpp ? 2 : 0);
             goto basic_type2;
         case TOK_CLASS:
             if (!tcc_state->cpp)
@@ -8588,7 +8630,8 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 if (!stsym && s) {
                     Sym *ts;
                     for (ts = s; ts; ts = ts->prev_tok) {
-                        if (ts->type.t & VT_TYPEDEF && ts->type.ref)
+                        if ((ts->type.t & (VT_TYPEDEF | VT_BTYPE))
+                            == (VT_TYPEDEF | VT_STRUCT) && ts->type.ref)
                             stsym = ts->type.ref;
                         else if ((ts->v & SYM_STRUCT)
                             && (ts->type.t & VT_BTYPE) == VT_STRUCT)
@@ -10260,6 +10303,7 @@ tok_next:
             next();
             vcheck_cmp(); /* the generators don't like VT_CMP on vtop */
             if (tcc_state->cpp && !tcc_state->extern_c && nb_args >= 0
+                && (vtop[-nb_args].r & VT_SYM)
                 && vtop[-nb_args].sym
                 && (vtop[-nb_args].type.t & VT_BTYPE) == VT_FUNC) {
                 Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
@@ -13105,7 +13149,7 @@ static int decl(int l)
                 next();
                 if (tok == '(') {
                     next();
-                    if (tok != ')') {
+                    if (tok != ')' && !cpp_tok_starts_type_name(tok)) {
                         TokenString *arg_toks;
                         arg_toks = cpp_save_paren_expr_tokens();
                         decl_initializer_alloc(&type, &ad, obj_r,

@@ -25,7 +25,7 @@ typedef struct _GUID {
 #endif
 #endif
 
-#if defined(__cplusplus) && (USE___UUIDOF == 0)
+#if defined(__cplusplus) && !defined(__TINYC__) && (USE___UUIDOF == 0)
 extern "C++" {
 #if __cpp_constexpr >= 200704l && __cpp_inline_variables >= 201606L
 __extension__ template<typename T> struct __mingw_uuidof_s;
@@ -176,7 +176,7 @@ __inline int IsEqualGUID (REFGUID rguid1, REFGUID rguid2) {
 
 #if !defined (_SYS_GUID_OPERATOR_EQ_) && !defined (_NO_SYS_GUID_OPERATOR_EQ_)
 #define _SYS_GUID_OPERATOR_EQ_
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 __inline bool operator== (REFGUID guidOne, REFGUID guidOther) { return !!IsEqualGUID (guidOne, guidOther); }
 __inline bool operator!= (REFGUID guidOne, REFGUID guidOther) { return ! (guidOne == guidOther); }
 #endif
