@@ -904,6 +904,26 @@ static Sym *cpp_lookup_member_field(int v, Sym *class_sym)
     return find_field(&ct, v, &cumofs);
 }
 
+/* Same lookup, but returns NULL for a name that is not a member instead of
+   erroring out.  find_field() only reports "field not found" on a top-level
+   call, so pre-setting SYM_FIELD selects its silent, nested behaviour.
+   Needed when a miss is a normal outcome - probing whether an identifier
+   happens to name a member of the enclosing class (BUG-21) rather than
+   resolving an already-committed `obj.field`. */
+static Sym *cpp_lookup_member_field_opt(int v, Sym *class_sym)
+{
+    CType ct;
+    int cumofs;
+
+    if (!class_sym || v < TOK_UIDENT || (v & SYM_FIELD))
+        return NULL;
+    if (class_sym->c < 0)       /* incomplete class: no fields to search */
+        return NULL;
+    ct.t = VT_STRUCT;
+    ct.ref = class_sym;
+    return find_field(&ct, v | SYM_FIELD, &cumofs);
+}
+
 /* FEAT-5B: member pointer helpers */
 static int cpp_is_member_pointer(CType *type)
 {
@@ -10018,8 +10038,67 @@ tok_next:
         t = tok;
         next();
         s = sym_find(t);
-        if (!s && tcc_state->cpp && cpp_cur_func_class) {
-            Sym *mf = cpp_lookup_member_field(t, cpp_cur_func_class);
+        /* BUG-22: an unqualified call to another member of the same class
+           (`return helper(42);` inside a method) must pass `this`.  The name
+           otherwise binds to the hoisted global that carries the method body,
+           whose first parameter IS `this`, so the call went out one argument
+           short and crashed.  Rewrite it into the `this->f()` form and let the
+           regular member-call path emit it, which also keeps virtual dispatch
+           and MI base offsets working.  cross.h's C++ window_t relies on this
+           throughout - init() calls init_common(). */
+        if (tcc_state->cpp && cpp_cur_func_class && cpp_this_sym
+            && tok == '('
+            && (!s || sym_scope(s) == 0)) {
+            Sym *mfn = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
+            if (mfn && (mfn->type.t & VT_BTYPE) == VT_FUNC
+                && !(mfn->type.t & VT_STATIC)) {
+                CType this_obj_type;
+                Sym *cfield;
+                int  ccumofs;
+
+                /* push *this as the object, exactly as `this->f()` would */
+                vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
+                vtop->sym = cpp_this_sym;
+                indir();
+                cfield = cpp_find_field_for_call(&vtop->type, t, &ccumofs);
+                this_obj_type = vtop->type;
+                if (cfield->type.ref && cfield->type.ref->f.func_virtual) {
+                    cpp_prepare_virtual_member_call(cfield, &this_obj_type);
+                } else {
+                    cpp_prepare_member_func_call(cfield);
+                    cpp_member_this_pending = 1;
+                }
+                break;
+            }
+        }
+        /* BUG-21: C++ unqualified lookup inside a member function searches
+           class scope BEFORE namespace scope, so only a block-scope binding
+           (a local or a parameter) may hide a data member - a global must
+           not.  Testing just !s was wrong because tcc hoists every in-class
+           inline body to a global function: any class that declares a method
+           named like this class's data member shadowed it.  In amateras
+           cross.h, win_txt::clear() hid window_t::clear[4] and the member
+           init `clear[0] = 0.0f` failed with "lvalue expected".
+           Member FUNCTIONS are deliberately left to the existing global
+           binding - calls resolve through cpp_find_field_for_call - so only
+           data members are considered here. */
+        if (tcc_state->cpp && cpp_cur_func_class) {
+            Sym *mf = NULL;
+            if (!s) {
+                mf = cpp_lookup_member_field(t, cpp_cur_func_class);
+            } else if (sym_scope(s) == 0 && cpp_this_sym) {
+                /* A global was found, but class scope outranks it.  Restrict
+                   this to what cpp_push_member_var can actually emit: a
+                   non-static data member reached through `this`.  A static
+                   member has no this-offset (its storage IS the global just
+                   found) and a member function must keep resolving to its
+                   hoisted global, or member calls and static-member tests
+                   break. */
+                Sym *cand = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
+                if (cand && (cand->type.t & VT_BTYPE) != VT_FUNC
+                    && !(cand->type.t & VT_STATIC))
+                    mf = cand;
+            }
             if (mf) {
                 cpp_push_member_var(mf);
                 break;
