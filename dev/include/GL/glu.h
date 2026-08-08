@@ -34,7 +34,14 @@ int APIENTRY gluScaleImage(GLenum format,GLint widthin,GLint heightin,GLenum typ
 int APIENTRY gluBuild1DMipmaps(GLenum target,GLint components,GLint width,GLenum format,GLenum type,const void *data);
 int APIENTRY gluBuild2DMipmaps(GLenum target,GLint components,GLint width,GLint height,GLenum format,GLenum type,const void *data);
 
-#ifdef __cplusplus
+/* TCC: these class declarations sit inside the `extern "C" {` opened above,
+   and tcc implements extern "C" by lexing C++ keywords as plain identifiers,
+   so `class GLUnurbs;` parses as two identifiers and fails with
+   "';' expected".  The C branch below declares the very same opaque handles
+   as struct typedefs, which is compatible for every use in this header, so
+   route TCC through it.  Same approach as the other SDK headers adapted for
+   __TINYC__ (see amateras対応.md). */
+#if defined(__cplusplus) && !defined(__TINYC__)
 
 class GLUnurbs;
 class GLUquadric;
