@@ -1226,9 +1226,53 @@ static TokenString *cpp_save_paren_expr_tokens(void)
     return ts;
 }
 
+/* Kind of binding cpp_lookup_type_name() resolved to. */
+#define CPP_TN_NONE     0   /* not a type name here (hidden, or unknown) */
+#define CPP_TN_TYPEDEF  1   /* a typedef Sym returned by sym_find()      */
+#define CPP_TN_TAG      2   /* a struct/union/enum tag from struct_find() */
+
+/* C++ unqualified lookup for a type name.
+ * Only the innermost binding in the ordinary identifier namespace counts:
+ * an object, parameter or function hides an outer class of the same name,
+ * and an inner typedef hides an outer class.  Looking at struct tags first
+ * (or walking prev_tok for any typedef) ignores that hiding and made tcc
+ * misparse ordinary statements - `tex->id = 0;` inside a function whose
+ * parameter is named `tex` was taken for a declaration of type `tex`
+ * (amateras cross.h mmd_gl_free_texture), and an inner `typedef int X`
+ * lost to an outer `struct X`.
+ * struct_find() is therefore consulted only when nothing at all is bound
+ * to the token, which is what a merely forward-declared struct looks like:
+ * `struct X;` parses no body, so it pushes no implicit typedef (see the
+ * injection after struct_layout) yet `X *p;` must still resolve.
+ * Ordinary lookup only - a qualified-id (X::y) must consider types and
+ * namespaces only, so it must NOT use this helper. */
+static Sym *cpp_lookup_type_name(int v, int *kind)
+{
+    Sym *s;
+
+    *kind = CPP_TN_NONE;
+    if (v < TOK_IDENT)
+        return NULL;
+    s = sym_find(v);
+    if (s) {
+        /* innermost binding decides: a non-type entity hides the class */
+        if (!(s->type.t & VT_TYPEDEF))
+            return NULL;
+        *kind = CPP_TN_TYPEDEF;
+        return s;
+    }
+    s = struct_find(v & ~SYM_FIELD);
+    if (s) {
+        *kind = CPP_TN_TAG;
+        return s;
+    }
+    return NULL;
+}
+
 static int cpp_tok_starts_type_name(int v)
 {
     Sym *s;
+    int kind;
 
     switch (v) {
     case TOK_CHAR:
@@ -1256,15 +1300,12 @@ static int cpp_tok_starts_type_name(int v)
     case TOK_UNSIGNED:
         return 1;
     }
-    if (v < TOK_IDENT)
-        return 0;
-    if (struct_find(v))
-        return 1;
-    for (s = sym_find(v); s; s = s->prev_tok) {
-        if (s->type.t & VT_TYPEDEF)
-            return 1;
-    }
-    return 0;
+    /* Use the shared lookup so a shadowed class name is not taken for a
+       type here either: with `int tex; struct tex {...};` in scope, the
+       global ctor `Foo g(tex);` was parsed as a function declaration and
+       the error only surfaced later at the first use of `g` (BUG-20). */
+    s = cpp_lookup_type_name(v, &kind);
+    return s != NULL;
 }
 
 static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is_dtor)
@@ -8625,20 +8666,25 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 goto the_end;
             s = sym_find(tok);
             if (tcc_state->cpp) {
-                int cls_tok_lookup = tok & ~SYM_FIELD;
-                Sym *stsym = struct_find(cls_tok_lookup);
-                if (!stsym && s) {
-                    Sym *ts;
-                    for (ts = s; ts; ts = ts->prev_tok) {
-                        if ((ts->type.t & (VT_TYPEDEF | VT_BTYPE))
-                            == (VT_TYPEDEF | VT_STRUCT) && ts->type.ref)
-                            stsym = ts->type.ref;
-                        else if ((ts->v & SYM_STRUCT)
-                            && (ts->type.t & VT_BTYPE) == VT_STRUCT)
-                            stsym = ts;
-                        if (stsym)
-                            break;
-                    }
+                Sym *tn;
+                Sym *stsym;
+                int tn_kind;
+
+                /* C++ unqualified lookup (see cpp_lookup_type_name): the
+                   innermost binding wins, so a parameter or variable named
+                   like a class hides it and the token starts an expression,
+                   not a declaration. */
+                tn = cpp_lookup_type_name(tok, &tn_kind);
+                stsym = NULL;
+                if (tn_kind == CPP_TN_TYPEDEF) {
+                    /* Only a typedef *to a struct* is handled here; a plain
+                       one such as `typedef int X` must fall through to the
+                       generic typedef path below, otherwise its target type
+                       is lost and X is treated as a struct. */
+                    if ((tn->type.t & VT_BTYPE) == VT_STRUCT && tn->type.ref)
+                        stsym = tn->type.ref;
+                } else if (tn_kind == CPP_TN_TAG) {
+                    stsym = tn;
                 }
                 if (stsym && (stsym->type.t & VT_BTYPE) == VT_STRUCT) {
                     int cls_tok = tok;
