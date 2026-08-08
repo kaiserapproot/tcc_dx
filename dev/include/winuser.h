@@ -664,7 +664,7 @@ extern "C" {
     ULONG_PTR dwExtraInfo;
   } MOUSEHOOKSTRUCT,*LPMOUSEHOOKSTRUCT,*PMOUSEHOOKSTRUCT;
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
   typedef struct tagMOUSEHOOKSTRUCTEX : public tagMOUSEHOOKSTRUCT {
     DWORD mouseData;
   } MOUSEHOOKSTRUCTEX,*LPMOUSEHOOKSTRUCTEX,*PMOUSEHOOKSTRUCTEX;
@@ -5572,7 +5572,7 @@ extern "C" {
   } AUDIODESCRIPTION,*LPAUDIODESCRIPTION;
 #endif
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
   typedef struct tagMONITORINFOEXA : public tagMONITORINFO {
     CHAR szDevice[CCHDEVICENAME];
   } MONITORINFOEXA,*LPMONITORINFOEXA;

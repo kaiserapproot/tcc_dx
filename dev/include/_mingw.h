@@ -19,6 +19,18 @@
 #define _CRT_NON_CONFORMING_SWPRINTFS
 #define __CRT__NO_INLINE
 
+#if defined(__TINYC__)
+#ifndef CINTERFACE
+#define CINTERFACE
+#endif
+#ifndef D3D11_NO_HELPERS
+#define D3D11_NO_HELPERS
+#endif
+#ifndef D3D10_NO_HELPERS
+#define D3D10_NO_HELPERS
+#endif
+#endif
+
 /* Arch differences, before _mingw_mac.h */
 #ifdef _WIN64
 #define _AMD64_ 1
@@ -550,7 +562,7 @@ limitations in handling dllimport attribute.  */
 
 
 /* Macros for __uuidof template-based emulation */
-#if defined(__cplusplus) && (USE___UUIDOF == 0)
+#if defined(__cplusplus) && !defined(__TINYC__) && (USE___UUIDOF == 0)
 
 #if __cpp_constexpr >= 200704l && __cpp_inline_variables >= 201606L
 #define __CRT_UUID_DECL(type,l,w1,w2,b1,b2,b3,b4,b5,b6,b7,b8)    \
