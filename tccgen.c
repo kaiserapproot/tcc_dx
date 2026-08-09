@@ -198,6 +198,9 @@ static TokenString *tok_str_dup_for_default(TokenString *src);
 /* FEAT-5C: forward decl - cpp_emit_mptr_pmf_invoke (defined earlier)
    dispatches a virtual PMF through this vtable helper (defined later). */
 static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type);
+/* BUG-23: forward decl - the `this` capture sites come before the definition,
+   which lives with the other member-call helpers. */
+static void cpp_spill_member_this(void);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
@@ -1112,6 +1115,7 @@ static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
                                   by-value struct copy (see cpp_prepare_member_func_call) */
     cpp_member_this = *vtop;
     vpop();
+    cpp_spill_member_this();    /* BUG-23 */
     cpp_member_this_pending = 1;
 }
 
@@ -1832,6 +1836,18 @@ static void cpp_emit_vtable(Sym *class_sym)
    emission is deferred to cpp_finish_virtual_thunks: struct_decl may run in
    the middle of a function body (local class), where emitting at `ind` would
    splice bytes into the surrounding function's code stream. */
+/* The thunk body is literal x86-64 Win64 machine code: `this` is arg0 in RCX
+   and the sequence is sub rcx,imm32 / movabs rax / jmp rax.  Nothing about it
+   is portable, so keep it behind an explicit target test instead of letting
+   another target emit these bytes and produce garbage.  Only virtual multiple
+   inheritance reaches it, which is what the diagnostic names.  (Building the
+   compiler itself for Win32 proves nothing about these bytes running.) */
+#if defined(TCC_TARGET_X86_64) && defined(TCC_TARGET_PE)
+#define CPP_VTHUNK_SUPPORTED 1
+#else
+#define CPP_VTHUNK_SUPPORTED 0
+#endif
+
 typedef struct CppVThunk {
     Sym *thunk_sym;   /* __cpp_vthunk_* symbol (undefined until the flush) */
     Sym *impl_sym;    /* final override implementation */
@@ -1865,6 +1881,10 @@ static Sym *cpp_new_virtual_thunk(Sym *class_sym, Sym *base_class,
          on the same base collapsed onto one symbol and both vtable slots
          ended up at the same implementation.
        A serial is short (cannot overflow) and unique by construction. */
+    /* Fail here rather than at the emission point, so the diagnostic names the
+       class being compiled instead of appearing at end of TU. */
+    if (!CPP_VTHUNK_SUPPORTED)
+        tcc_error("virtual multiple inheritance requires the x86-64 PE target");
     len = snprintf(buf, sizeof buf, "__cpp_vthunk_%d", thunk_serial++);
     if (len <= 0 || len >= (int)sizeof buf)
         tcc_error("internal error: virtual thunk name overflow");
@@ -1970,6 +1990,9 @@ static void cpp_emit_virtual_thunk_code(CppVThunk *t)
 {
     int thunk_start;
 
+#if !CPP_VTHUNK_SUPPORTED
+    tcc_error("virtual multiple inheritance requires the x86-64 PE target");
+#endif
     thunk_start = ind = cur_text_section->data_offset;
     put_extern_sym(t->thunk_sym, cur_text_section, ind, 0);
     /* sub rcx, imm32: move `this` (win64 arg0) from the base subobject back
@@ -2197,6 +2220,7 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
     vswap();
     cpp_member_this = *vtop;
     vpop();
+    cpp_spill_member_this();    /* BUG-23 */
 
     /* This is an indirect (function-pointer) call, not a named function:
      * clear the leftover .sym copied from 'this' so the call handler's C++
@@ -7296,11 +7320,46 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
         mk_pointer(&vtop->type);
     cpp_member_this = *vtop;
     vpop();
+    cpp_spill_member_this();    /* BUG-23 */
     fsym = cpp_lookup_member_func(field, &obj_type);
     vset(&fsym->type, fsym->r | VT_SYM, 0);
     vtop->sym = fsym;
     vtop->r &= ~VT_LVAL;
     return fsym->type.ref;
+}
+
+/* BUG-23: `this` is stashed off the vstack in cpp_member_this, so the register
+   allocator cannot see that it is still live while the call's ARGUMENTS are
+   evaluated.  When the captured value sits in a register and an argument
+   expression needs registers itself - the common `bump(v + 1)`, where the
+   argument reads a member and therefore reloads `this` - that register got
+   reused and the injected `this` became garbage.  The result was an access
+   violation at run time, with no diagnostic; `this->bump(this->v + 1)` failed
+   the same way, so it was not specific to the unqualified form.
+   Copy it into its own stack slot so the saved value lives in memory.
+   get_temp_local_var() is deliberately NOT used: it recycles a slot as soon as
+   nothing on the VSTACK refers to it, and cpp_member_this is precisely a
+   reference the vstack does not carry, so the slot could be handed out again
+   mid-argument and reintroduce the same corruption. */
+static void cpp_spill_member_this(void)
+{
+    SValue sv;
+
+    /* Only a value held in a CPU register can be clobbered; anything already
+       addressed through memory or a constant survives argument evaluation. */
+    if ((cpp_member_this.r & VT_VALMASK) >= VT_CONST)
+        return;
+    if (cpp_member_this.r & VT_LVAL)
+        return;                 /* lvalue: reloaded from memory when used */
+
+    loc = (loc - PTR_SIZE) & -PTR_SIZE;
+    sv.type = cpp_member_this.type;
+    sv.r = VT_LOCAL | VT_LVAL;
+    sv.r2 = VT_CONST;
+    sv.c.i = loc;
+    sv.sym = NULL;
+    store(cpp_member_this.r & VT_VALMASK, &sv);
+    cpp_member_this = sv;
 }
 
 /* Complete member call: func on vtop, user args in array. */
