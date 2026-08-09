@@ -131,9 +131,11 @@ template（`TestCaller<Fixture>` 含む）/ namespace / 例外 / RTTI / STL。
 （High 4 対応 — `git bisect` と回帰特定のため。1 branch = 1 guide は維持）。
 
 ```
-G0 インベントリ + ベースラインゲート（小・実装なし）
+G0 インベントリ + ベースラインゲート（小・実装なし）【完了 2026-08-09】
 → G1 先頭::正式lookup（小）→ G2 friend class 限定対応（極小）
+→ G-OP 単項 operator* 呼び出し + operator->（小〜中、G0 で露出）
 → G3 クラス内typedef（大・P0監査 + P1〜P5 = 5コミット）
+→ G-CAST 関数形式キャスト T(expr)（小、G3 依存、G0 で露出）
 → G4 new/delete（中）→ G5 純粋仮想 metadata（中）
 → G6 仮想dtor + complete-object delete（中〜大）→ G7 CPPUnit フルゲート（小）
 ```
@@ -745,8 +747,21 @@ MSVC（VS2026 x64 cl 14.50）+ `-DMINIMUM_SET -Dcu_NO_EXPLICIT` でビルド・�
 | 仮想 dtor | 8 件（Test/TestCase/TestDecorator/TestListener/Mutex/SimpleListener/Logger/TestSuite） | G6 対象。継承はすべて単一 |
 | friend | `friend class Logger;`（TestRunner.cpp:34）の **1 件のみ** | G2 の限定対応で十分 |
 | `= npos` デフォルト引数 | 9 宣言（SimpleString.h） | G3-P5 対象 |
-| 演算子オーバーロード | SimpleString.h に free 演算子 24 本（`+ == != < <= > >=`）+ メンバ `= += []`、Iterator 系にメンバ `* -> 前置/後置 ++ -- == !=`、コピー禁止 idiom の private 宣言 12 クラス | 大半は FEAT-6A ext1〜6 で実装済み。**単項 `operator*()`（deref）と `operator->()` は ext3 一覧に無く対応未確認**（`*p` の実呼び出しが TestRegistry.cpp:16 等にあり）→ G1 前に smoke で確認、未対応ならガイド追加 |
-| 関数形式キャスト | `size_type(-1)`（SimpleString.cpp:33、typedef 名のキャスト） | **対応未確認**。G3 の受け入れに smoke を追加して確認 |
+| 演算子オーバーロード | SimpleString.h に free 演算子 24 本（`+ == != < <= > >=`）+ メンバ `= += []`、Iterator 系にメンバ `* -> 前置/後置 ++ -- == !=`、コピー禁止 idiom の private 宣言 12 クラス | 大半は FEAT-6A ext1〜6 で実装済み。**smoke 実測（2026-08-09）: 単項 `operator*()` は宣言はパースされるが呼び出し `(*it).v` が「pointer が必要です」で未対応。`operator->()` は宣言段階で「unsupported operator」** → **新規ガイド G-OP を追加**（下記） |
+| 関数形式キャスト | `size_type(-1)`（SimpleString.cpp:33、typedef 名のキャスト） | **smoke 実測（2026-08-09）: 未対応**（「function pointer が必要です」）→ **新規ガイド G-CAST を追加**（下記） |
+
+**G0 で露出した追加ガイド（§1 の安全弁どおりプランに追加。詳細設計は着手時に本プランへ
+追記し、G3 同等の設計密度にしてから実装する）**:
+
+- **G-OP: 単項 `operator*()` 呼び出し + `operator->()`** — FEAT-6A ext7 相当。
+  使用箇所: SimpleList Iterator / SimpleAutoPtr（`*p` の実呼び出しは TestRegistry.cpp:16、
+  TestResult.cpp:27,30、TestSuite.cpp:20 等）。単項 `*` は ext3 の単項機構（`! - ~`）への
+  追加、`->` は postfix 経路の拡張で、既存 `cpp_operator_suffix` 方式に乗る見込み。
+  依存: 他ガイドと独立（G2 後いつでも）。
+- **G-CAST: 関数形式キャスト `T(expr)`** — 対象は typedef 名 / 基本型（CPPUnit の実使用は
+  `size_type(-1)` と `size_type(0)` 系のみ）。クラス型の functional cast（一時オブジェクト
+  生成）は対象外として `tcc_error` を維持。SimpleString.cpp:33 はクラス内 typedef 名の
+  キャストのため **G3 完了後**に実装・検証する。
 
 ### 7.3 new / delete の形別分類（コメント除外、実コードのみ）
 
