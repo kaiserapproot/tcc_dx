@@ -1,10 +1,15 @@
-# CPPUnit（sample/cppunit）対応プラン（rev.5 / 2026-08-09 — **実装開始 GO**）
+# CPPUnit（sample/cppunit）対応プラン（rev.6 / 2026-08-09 — **G1〜G6 GO / 拡張部の再設計反映**）
 
-> rev.4 で **GO 判定**（レビュー: 「Blocker なし。実装フェーズへ進めて問題ない」）。
-> rev.5 は GO 時に指定された実装指示の明確化 2 点 + Low 1 点のみを反映した最終版:
-> ① G3-P5 に value-name lookup の scope 復元を明記（型名 lookup と別経路であることを固定）
-> ② G3-P2 の「規則 1〜5」を「`lookup_unqualified_type()` の規則 1〜4」へ修正
-> ③ G0 で baseline タグの commit hash も記録（タグ移動事故への保険・Low）
+> **判定履歴**: rev.4 で GO → G0 実測でプランが拡張（案 A・G-OP・G-CAST）→ rev.5 全体は
+> REJECT（既存 G1〜G6 の設計は GO 維持、新規部分に Blocker 3 件）→ **rev.6 で対応**:
+> ① 原本無改変ゲートを **31 原本ファイルの明示 manifest** 方式へ変更（`*.cpp` glob だと
+>    `all_test_tpp.cpp` 追加自体がゲートを赤にする欠陥の修正）
+> ② **G-OP / G-CAST を G1〜G6 と同等の詳細設計 + 受け入れテスト**まで記述（着手時追記を廃止）
+> ③ G7 に **機能→テストのカバレッジ契約表**を新設し、期待テスト件数 N は表から導出
+> ④ 文書掃除: §1 / §5 の旧カウント（純粋仮想 27 等）を G0 実測値へ一本化、§8 に G-OP/G-CAST 追加
+>
+> rev.5 の反映内容（rev.4 GO 時指摘）: G3-P5 の value-name lookup 明記 /
+> G3-P2 の規則番号修正 / baseline commit hash 記録。
 
 **目的**: `sample/cppunit` の CPPUnit ライブラリ 12 TU + ヘッダ 19 本を、
 tpp（`dev\tcc.exe`）で**原本無改変のまま**コンパイル・リンクし、テストドライバで
@@ -98,18 +103,23 @@ template 等の大物は不要。
 > ポインタ調整 / 関数ポインタ等）が新たに露出する可能性がある。** 露出した場合は本プランを
 > 改訂し、ガイドを追加してから実装する（無断でスコープ拡大しない）。
 
-| # | 機能 | 使用数 | 現状 | 対応ガイド |
+| # | 機能 | 使用数（G0 実測・確定） | 現状 | 対応ガイド |
 |---|---|---|---|---|
 | 1 | 先頭 `::`（グローバルスコープ修飾） | 18 | `identifier が必要です` | G1 |
-| 2 | `friend` 宣言の受理 | 1（`friend class Logger;`） | `';' が必要です` | G2 |
-| 3 | クラス内 typedef | 29 | `'value_type' に対する無効な型` | G3-P1/P2 |
-| 4 | 修飾型名 `Class::type` / `Class::Inner` | 15+ | 式として誤解釈 | G3-P3 |
-| 5 | ネストクラスの二重修飾クラス外定義 `Outer::Inner::op++(int)` | 4 | 未対応 | G3-P4 |
-| 6 | デフォルト引数でのクラススコープ名（`= npos`、10 箇所） | 10 | 未検証（再生時スコープ） | G3-P5 |
-| 7 | `new` / `delete` | 31 / 19 | `'new' は宣言されていません` | G4 |
-| 8 | `new T[n]` / `delete[]` | 4 / 5 | 同上 | G4 |
-| 9 | 純粋仮想 `= 0` + 抽象クラス | 27 | `',' が必要です` | G5 |
-| 10 | 仮想デストラクタ（BUG-24） | 8 | `identifier が必要です` | G6 |
+| 2 | `friend` 宣言の受理 | 1（`friend class Logger;` のみ） | `';' が必要です` | G2 |
+| 3 | 単項 `operator*()` 呼び出し / `operator->()` | Iterator/SimpleAutoPtr で使用、`*p` 実呼び出し 4+ 箇所 | `*` 呼び出しは `pointer が必要です`、`->` は宣言段階で `unsupported operator` | **G-OP** |
+| 4 | クラス内 typedef | 29 | `'value_type' に対する無効な型` | G3-P1/P2 |
+| 5 | 修飾型名 `Class::type` / `Class::Inner` | 15+ | 式として誤解釈 | G3-P3 |
+| 6 | ネストクラスの二重修飾クラス外定義 `Outer::Inner::op++(int)` | 4 | 未対応 | G3-P4 |
+| 7 | デフォルト引数でのクラススコープ名（`= npos`） | 9 宣言 | 未検証（再生時スコープ） | G3-P5 |
+| 8 | 関数形式キャスト `T(expr)`（typedef 名） | 1（SimpleString.cpp:33 `size_type(-1)`） | `function pointer が必要です` | **G-CAST** |
+| 9 | `new` / `delete`（scalar） | 11 / 14（全 new は `new Class(...)` 形、POD scalar 0） | `'new' は宣言されていません` | G4 |
+| 10 | `new T[n]` / `delete[]` | 4 / 5（char 配列、型名はクラス内 typedef） | 同上 | G4 |
+| 11 | 純粋仮想 `= 0` + 抽象クラス | **宣言 9 件**（全て regular method、pure dtor 0） | `',' が必要です` | G5 |
+| 12 | 仮想デストラクタ（BUG-24） | 8 | `identifier が必要です` | G6 |
+
+> 使用数は 2026-08-09 の G0 実測で確定した値（rev.1 の「new 31 / delete 19 / 純粋仮想 27」は
+> コメント内使用例を含む粗 grep 数だったため廃止。詳細な分類は §7）。
 
 **既に動くもの（実測確認済み、実装不要）**:
 ネストクラス定義そのもの / `static const` メンバ + クラス外初期化 /
@@ -248,6 +258,45 @@ friend 関数宣言）は **`tcc_error` で拒否**する。
 **受け入れ**:
 - 正例: `friend class X;` が通ること + `.c` で `int friend;` が通ること
 - **負例**: `friend int fn(C&);` が `tcc_error` になること（rev.1 では正例だったものを負例へ変更）
+
+### G-OP: 単項 `operator*()` 呼び出し + `operator->()` — `feat/cpp-op-deref-arrow`（G0 で露出）
+
+**最小再現**（G0 smoke で実測確定）:
+`P& operator*() const { ... }` は宣言をパースするが、呼び出し `(*it).v` が
+`pointer が必要です` で失敗。`P* operator->()` は宣言段階で `unsupported operator`。
+
+**実装（FEAT-6A ext7 相当。既存 `cpp_operator_suffix` 方式に接続）**:
+
+1. **`operator->` の宣言パース**: `cpp_operator_suffix` に `->`（`TOK_ARROW`）を追加し
+   合成トークン（`__cpp_op_arrow` 系）を割り当てる。これで宣言・クラス外定義・
+   明示呼び出し `a.operator->()` が ext1〜6 と同じ経路に乗る。
+2. **単項 `*` のディスパッチ**: `unary()` の単項 `*` 処理で、オペランドが
+   **クラス型（非ポインタ）かつ `operator*`（0 引数メンバ）を持つ**場合のみ
+   `a.operator*()` 呼び出しへ変換する。オペランドがポインタ型なら従来の deref
+   （built-in）を変更しない — 判別は「オペランドの静的型」で行い、ポインタへの
+   フォールバックは既存コードパスをそのまま使う。
+3. **`->` のディスパッチ**: postfix の `->` 処理で、左辺が**クラス型（非ポインタ）**なら
+   `(a.operator->())` を呼び、その戻り値に対して従来の `->` を適用する
+   （変換は 1 段のみ。C++ の再帰適用は CPPUnit に不要なのでスコープ外とし、
+   戻り値がクラス型なら `tcc_error`）。左辺がポインタなら従来どおり。
+4. **戻り値の値カテゴリ維持（重要）**: `T& operator*()` の呼び出し結果は
+   **lvalue（参照返却）**でなければならない。`*it = v` / `&(*it)` / `delete (Entry*)*p`
+   （TestRegistry.cpp:16 の実形。cast のオペランドになる）が動くこと。
+   FEAT-6A-ext2 の `T&` 返却チェーン機構をそのまま使い、**新規の値カテゴリ処理を
+   書かない**（雑に rvalue 化すると G4 の delete 経路へ波及するため）。
+5. `operator->` の戻り値が**ポインタ型でない場合は `tcc_error`**（1 段変換の帰結）。
+
+**受け入れテスト**（`a9/gop_*.cpp`）:
+- 正例: `(*it).v` 読み取り / `*it = value` 書き込み（lvalue 検証）/ `&(*it)` アドレス取得
+- 正例: `it->v` 読み取り・書き込み / const メンバ関数からの呼び出し
+- 正例: `delete (Entry*)*p` 相当（cast のオペランドに `operator*()` 結果、実行値まで）
+- 正例: ポインタ変数への従来 `*` / `->` が無変更で動く（同一 TU 内で混在）
+- 負例: `operator*` を持たないクラスへの単項 `*` が従来どおりエラー
+- 負例: `operator->` の戻り値が非ポインタ → `tcc_error`
+- C モード非回帰: `.c` の `*p` / `p->m`（既存 run_all で担保 + 専用 1 本）
+
+**依存**: 他ガイドと独立（G2 の後、G3 の前に実施）。G4 より先が必須
+（`delete (Entry*)*p` の値カテゴリを G4 が前提にするため）。
 
 ### G3: クラス内 typedef と修飾型名 — `feat/cpp-class-typedef`（1 branch / P1〜P5 の 5 コミット）
 
@@ -470,6 +519,44 @@ SimpleList::iterator SimpleList::insert(iterator pos, value_type value)  // Simp
 - 負例: 他クラスの typedef が unqualified で漏れて見えないこと（`a9/negative/`）
 - 最終ゲート: **`SimpleString.h` / `SimpleList.h` を include するだけの TU が原本のまま `-c` で通る**
 
+### G-CAST: 関数形式キャスト `T(expr)` — `feat/cpp-functional-cast`（G0 で露出）
+
+**最小再現**（G0 smoke で実測確定）: `typedef unsigned int size_type;` に対し
+`size_type(-1)` が `function pointer が必要です` で失敗。
+実使用は SimpleString.cpp:33 `const SimpleString::size_type SimpleString::npos = size_type(-1);`
+の 1 箇所（型名はクラス内 typedef → **G3 完了が前提**）。
+
+**実装**:
+
+1. **判別**: `unary()` の式頭で識別子が**型名として解決できる**（`lookup_unqualified_type()`
+   / 既存 typedef 解決で VT_TYPEDEF またはビルトイン型キーワード）かつ直後が `(` の場合のみ
+   関数形式キャストとして扱う。型名でなければ従来の関数呼び出し・変数参照に一切触らない
+   （判別は「型名解決の成否」であり、ヒューリスティックを増やさない）。
+2. **変換**: `T ( expr )` を既存の cast machinery（`(T)expr` の経路）へそのまま接続する。
+   新しいキャスト実装は書かない。
+3. **スコープ限定**:
+   - 許可: typedef 名（クラス内 typedef 含む — G3 の lookup を使用）と基本型
+     （`int` / `unsigned` 等のキーワード列は CPPUnit に無いが同経路で自然に通る範囲のみ）。
+   - **クラス型の functional cast（一時オブジェクト生成 `Foo(1,2)`）は `tcc_error` で明示拒否**
+     （ctor 呼び出し経路が必要になり G4 と干渉するため。CPPUnit に使用なし）。
+   - 引数は **1 個のみ**。`T()`（value-init）と `T(a, b)` は `tcc_error`（CPPUnit に使用なし。
+     無音の未初期化・誤解釈を作らない）。
+4. **C モード安全**: この判別は `s1->cpp == 1` の式文脈でのみ有効。`.c` では
+   `int(x);` が「変数 x の宣言」になる C の規則に一切触れない（宣言パーサ側は無変更）。
+
+**受け入れテスト**（`a9/gcast_*.cpp`）:
+- 正例: グローバル typedef の `size_type(-1)`（実行値 == `(size_type)-1` を検証）
+- 正例: クラス内 typedef での `size_type(-1)`（SimpleString.cpp:33 と同形、
+  クラス外 static メンバ初期化位置で。G3 完了後に有効化）
+- 正例: 同名でない通常の関数呼び出し `f(-1)` が無変更で動く（同一 TU 混在）
+- 負例: クラス型 `Foo(1)` → `tcc_error` / `size_type()` → `tcc_error` /
+  `size_type(1, 2)` → `tcc_error`
+- C モード非回帰: `.c` で `int(x);` 形の宣言が従来どおり動く（専用 1 本）
+
+**依存**: G3 完了後（クラス内 typedef 名の解決を使うため）。G4 より先
+（`new value_type[n]` と同じ TU = SimpleString.cpp が両方を要求するが、
+コンパイル可否のゲートは G7 なので順序は G3 → G-CAST → G4 で整合）。
+
 ### G4: `new` / `delete`（+配列形）— `feat/cpp-new-delete`
 
 **参照実装**: feature/cpp-support の `f14b534`。アプローチ（コミットメッセージより）:
@@ -638,8 +725,36 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
 ### G7: CPPUnit ビルドゲート — `feat/cppunit-build-gate`
 
 1. **`all_test_tpp.cpp` を新規作成**（案 A・§7.4 の決定どおり）: 例外なし・
-   TEST_ASSERT/TEST_FAIL 系のみでライブラリ全機能を叩く。意図的失敗を含めないため
-   **failures = 0 / errors = 0 / exit 0 が正**。テスト登録数 N をここで固定する。
+   TEST_ASSERT/TEST_FAIL 系のみ。意図的失敗を含めないため
+   **failures = 0 / errors = 0 / exit 0 が正**。
+
+   **カバレッジ契約（rev.6 Blocker 3 対応）**: 「新ドライバの登録数を N とする」だけでは
+   循環（テスト 1 個でも緑）になるため、**下表の機能→テスト対応を契約として固定**し、
+   **N は表の行数から導出**する。表の行を削る変更はプラン改訂（レビュー対象）に戻す。
+
+   | # | 対象 | 検証する振る舞い | テスト名（固定） |
+   |---|---|---|---|
+   | 1 | TestCase | 正常経路: setUp → runTest → tearDown の実行順 | `test_case_lifecycle` |
+   | 2 | TestCase | TEST_ASSERT 失敗が addFailure + 早期 return すること（**別 TestResult に対して失敗テストを走らせ、その failureCount==1 を外側の成功テストで検証**。全体の failures は 0 のまま） | `test_case_failure_record` |
+   | 3 | TestCase | TEST_ASSERT_EQUALS の一致 / 不一致（不一致側は #2 と同じ別 TestResult 方式） | `test_assert_equals` |
+   | 4 | TestResult | runCount / failureCount / errorCount / wasSuccessful の集計 | `test_result_counts` |
+   | 5 | TestFailure | failedTest / file / line / what の内容保持 | `test_failure_detail` |
+   | 6 | TestSuite | 複数 TestCase の登録・一括実行・countTestCases | `test_suite_run` |
+   | 7 | TestRegistry | addTest / 名前検索 / runTests / Entry の delete（所有権） | `test_registry` |
+   | 8 | TestRunner | addTest + run の駆動経路 | `test_runner_run` |
+   | 9 | RepeatedTest | 指定回数の反復実行（runCount == 回数） | `test_repeated` |
+   | 10 | TestDecorator | run 委譲と countTestCases 委譲 | `test_decorator` |
+   | 11 | TestSetup | setUp / tearDown フックの前後実行 | `test_setup_hooks` |
+   | 12 | TestListener | startTest / endTest / addFailure の通知順（#2 の別 TestResult に listener を付けて検証） | `test_listener` |
+   | 13 | SimpleString | ctor / append / 比較演算子 / substr / `= npos` デフォルト引数の実行値 | `test_simple_string` |
+   | 14 | SimpleString | `new value_type[n]` 経路（長い文字列で再確保を強制、`delete[]`） | `test_simple_string_grow` |
+   | 15 | SimpleList | push_back / insert / erase / size | `test_simple_list` |
+   | 16 | SimpleList | Iterator / const_Iterator の `* -> 前置/後置 ++ -- == !=` 一巡 | `test_simple_list_iter` |
+   | 17 | SimpleAutoPtr | 所有権移動（release / reset）と スコープ終了時 delete（仮想 dtor 経由・NULL delete 含む） | `test_auto_ptr` |
+
+   **N = 17**（本表から導出。実装時に行を追加するのは自由だが、その場合 N も表と同時に
+   更新する）。#2/#3/#12 の「失敗を記録する側のテスト」は登録せず別 TestResult で直接
+   run するため、登録数 N と failures=0 の両立が成り立つ。
 2. `sample/cppunit/build_cppunit.bat` を新規作成:
    - ライブラリ 12 TU + `all_test_tpp.cpp` を `-DMINIMUM_SET -Dcu_NO_EXPLICIT -I . -w` で `-c`
    - リンク（`-luser32 -lkernel32`。TestRunner はコンソール API のみ使用）
@@ -653,19 +768,26 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
    件数が基準値と異なればゲート失敗。
    **相互検証**: 同じ `all_test_tpp.cpp` を MSVC でもビルド・実行し、同一の N/0/0 に
    なることを G7 完了時に 1 回確認する（ドライバ自体のバグと tpp の誤動作を切り分け）。
-4. **原本無改変の機械ゲート（rev.3 Blocker 1 対応 — baseline commit 比較）**: bat 内で
+4. **原本無改変の機械ゲート（rev.6 Blocker 1 対応 — 31 原本ファイルの明示 manifest 比較）**:
+   `sample/cppunit/*.cpp` のような **glob pathspec は使わない** — `all_test_tpp.cpp` を
+   追加コミットした時点で baseline との差分（added file）になり G7 自身が赤になる上、
+   スコープ外にした `all_test.cpp` まで対象に含んでしまう（rev.5 の欠陥）。
+   代わりに **manifest ファイル `sample/cppunit/original_manifest.txt`** を G7 で新規作成し、
+   **ライブラリ原本 31 ファイル（12 TU + ヘッダ 19 本）のパスだけ**を列挙する
+   （`all_test.cpp` は案 A によりスコープ外なので載せない）。bat 内で manifest の
+   各ファイルについて
    ```
-   git diff --exit-code cppunit-original-base -- sample/cppunit/*.cpp sample/cppunit/*.h
+   git diff --exit-code cppunit-original-base -- <manifest の 31 ファイル>
    ```
-   を実行し、**G0 で固定した baseline commit（タグ `cppunit-original-base`）と
-   現在の worktree の原本 `*.cpp / *.h`** を比較する。
-   コミット指定なしの `git diff -- path` は「worktree vs index」比較のため、
-   途中ガイドで誤修正を commit してしまうと G7 で緑になり無改変の証明にならない —
-   baseline 指定なら staged / committed / unstaged を問わず検出できる。
-   pathspec を原本 `*.cpp / *.h` に限定するので、`build_cppunit.bat` 等の
-   新規追加ファイルはゲートに引っかからない。
-   （`all_test_tpp.cpp` は baseline 後の新規追加ファイルなので pathspec に含まれず、
-   ゲートに影響しない）
+   を実行する（for /f で manifest を読み pathspec 列を組み立てる。1 ファイルずつの
+   ループでも可 — どれか 1 つでも差分があれば errorlevel でゲート失敗）。
+   baseline は G0 で固定済みの commit `ad882a3c5673a238354d6ad72bac88342a18335e`
+   （タグ `cppunit-original-base`）。コミット指定なしの `git diff -- path` は
+   「worktree vs index」比較のため誤修正の commit を検出できない — baseline commit
+   指定なら staged / committed / unstaged を問わず検出できる。
+   manifest 自体と `build_cppunit.bat` / `all_test_tpp.cpp` は baseline 後の新規追加
+   ファイルであり、**manifest に列挙されないためゲート対象外**（glob と違い
+   「新規 .cpp の追加」でゲートが誤検出することは構造的にない）。
 5. `dev/test/run_all.bat` 末尾から `call` する（`pushd "%~dp0"` 規約を厳守）。
 
 ---
@@ -696,11 +818,12 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
 | G1 のグローバル lookup 実装可否 | tpp の Sym にスコープ判別が安価に取れるか未確認 | 着手前 grep で確認。不可なら「shadow 検出時 error」フォールバック（silent miscompile は作らない） |
 | VT_TYPEDEF の consumer 影響（High 3） | member chain 走査箇所が typedef 偽メンバで壊れる可能性 | G3-P0 の全 consumer 監査を P1 前に必須化。member-chain invariant を壊す consumer があれば別チェーンへ設計変更（件数基準は廃止） |
 | G3 lookup の探索順・ambiguity | base より enclosing を先に引く、または多重 base の先勝ち実装は silent miscompile | G3 共通の lookup 規則（クラス自身 → bases merge → enclosing）と ambiguity 負例で固定。merge は指定型へ正規化して比較（宣言比較は false error）。qualified は別関数で enclosing へ逃がさない |
-| 純粋仮想 27 件に dtor が含まれるか | **未確認**。`virtual ~X() = 0;` があると G5 が G6 と切り離せない | G0 の分類（rev.4 High 4）で確定。含まれれば G5/G6 の順序・分割を再判断 |
+| ~~純粋仮想に dtor が含まれるか~~ | **解決済み（G0 実測）**: 宣言 9 件すべて regular method、pure virtual dtor 0 件 | G5 → G6 の現行順で確定 |
 | default 引数の再生スコープ（Blocker 3） | 保存構造体へのフィールド追加が既存再生経路と整合するか | G3-P5 で defining scope 保存を設計として実装（テスト任せにしない）。保存構造体は着手前確認 |
 | vtable への offset-to-top 追加（Blocker 5） | 既存 vptr 初期化・仮想 MI thunk とのレイアウト整合が未確認 | G6 着手前に `cpp_emit_vtable` / `cpp_emit_secondary_vtables` を実機確認。整合しなければプラン改訂 |
 | `SimpleAutoPtr` マクロ版 | `cu_AUTO_PTR(T)` は `SIMPLE_AUTO_PTR(T)`（SimpleAutoPtr.h:64、token-paste でクラス名生成）に展開。TestRunner.cpp:255-258 が使用。クラス本体を生成する DECLARE マクロの呼び出し箇所が TestRunner.cpp 内にあるかは**未確認** | G7 で自然に露見する。無ければ TestRunner.cpp 側の構造を再調査（原本改変はしない前提で cuconfig の別スイッチを探す） |
-| MSVC で MINIMUM_SET ベースラインが取れるか | G0 の期待テスト件数取得手段が未確認 | G0 記載の 4 段優先順位（MSVC 実行 → 他コンパイラ → preprocessed 登録集合比較 → 生 grep）で取得し、どの段で取ったか記録 |
+| ~~MSVC で MINIMUM_SET ベースラインが取れるか~~ | **解決済み（G0 実測・優先順位 1）**: 12 TU は MSVC でコンパイル成功。旧 all_test の基準（1/2/0, exit 1）は例外依存のため廃止し、案 A の新ドライバで N=17/0/0 を基準化（§G7 カバレッジ契約） | — |
+| G-OP の値カテゴリ実装 | `operator*()` 戻り値を rvalue 化すると `delete (Entry*)*p` 経由で G4 に波及 | G-OP 設計 4 のとおり FEAT-6A-ext2 の参照返却機構を流用。専用テストで lvalue 性を固定 |
 | BUG-21/22/23 との相互作用 | G3 の unqualified 解決は BUG-21 の「クラススコープ優先」ガードに重なる | 既存 a9 の bug20〜23 テスト全通過を各ガイドのゲートに含める（run_all で自動） |
 | `tcctok.h` 変更 | トークン番号ずれで既存 `.o` と不整合 | 該当ガイド（G2/G4/G5/G6）は必ず /t:Rebuild。build.bat は常に全ビルドなので運用上は既定で満たされる |
 | feature/cpp-support がクラス内 typedef を持つか | **未確認**（feature の CPPUnit 検証は先頭 `::` で停止したため到達せず） | 参照するのは new/delete・純粋仮想・仮想 dtor の 3 概念のみ。G3 は master 機構で新規設計 |
@@ -822,9 +945,11 @@ all_test.cpp 側**に、MINIMUM_SET と非互換の問題が 3 点ある:
 
 | ガイド | 規模 | 主な変更先 |
 |---|---|---|
-| G0 ベースライン | 小（実装なし） | `sample/cppunit` 原本コミット + インベントリ表 + 基準値記録 |
+| G0 ベースライン【完了】 | 小（実装なし） | `sample/cppunit` 原本コミット + インベントリ表 + 基準値記録 |
 | G1 先頭 `::` | 小 | `tccgen.c` unary() / parse_btype() 入口（正式 lookup） |
 | G2 friend | 極小 | `tcctok.h` + struct_decl()（`friend class` 限定） |
+| G-OP 単項 `*` / `->` | 小〜中 | `cpp_operator_suffix` + unary() の単項 `*` / postfix `->` ディスパッチ |
+| G-CAST `T(expr)` | 小 | unary() 式頭の型名判別 + 既存 cast 経路への接続 |
 | G3 クラス内 typedef | **大**（5 コミット） | struct_decl() / struct_layout() / parse_btype() / parse_cpp_scope_qualifier / デフォルト引数保存構造 |
 | G4 new/delete | 中 | `tcctok.h` + unary() + ctor/dtor 呼び出し機構 |
 | G5 純粋仮想 | 中 | struct_decl() / cpp_assign_virtual_slots（pure flag）/ cpp_emit_vtable / 宣言検査 |
