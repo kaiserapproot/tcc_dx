@@ -131,7 +131,7 @@ typedef struct XMLDOMDocumentEvents XMLDOMDocumentEvents;
 
 #ifndef __DOMDocument_FWD_DEFINED__
 #define __DOMDocument_FWD_DEFINED__
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef class DOMDocument DOMDocument;
 #else
 typedef struct DOMDocument DOMDocument;
@@ -140,7 +140,7 @@ typedef struct DOMDocument DOMDocument;
 
 #ifndef __DOMFreeThreadedDocument_FWD_DEFINED__
 #define __DOMFreeThreadedDocument_FWD_DEFINED__
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef class DOMFreeThreadedDocument DOMFreeThreadedDocument;
 #else
 typedef struct DOMFreeThreadedDocument DOMFreeThreadedDocument;
@@ -154,7 +154,7 @@ typedef struct IXMLHttpRequest IXMLHttpRequest;
 
 #ifndef __XMLHTTPRequest_FWD_DEFINED__
 #define __XMLHTTPRequest_FWD_DEFINED__
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef class XMLHTTPRequest XMLHTTPRequest;
 #else
 typedef struct XMLHTTPRequest XMLHTTPRequest;
@@ -168,7 +168,7 @@ typedef struct IXMLDSOControl IXMLDSOControl;
 
 #ifndef __XMLDSOControl_FWD_DEFINED__
 #define __XMLDSOControl_FWD_DEFINED__
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef class XMLDSOControl XMLDSOControl;
 #else
 typedef struct XMLDSOControl XMLDSOControl;
@@ -213,7 +213,7 @@ typedef struct IXMLError IXMLError;
 #ifndef __XMLDocument_FWD_DEFINED__
 #define __XMLDocument_FWD_DEFINED__
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 typedef class XMLDocument XMLDocument;
 #else
 typedef struct XMLDocument XMLDocument;
@@ -2650,11 +2650,11 @@ typedef struct XMLDocument XMLDocument;
 #endif
 
   EXTERN_C const CLSID CLSID_DOMDocument;
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
   class DOMDocument;
 #endif
   EXTERN_C const CLSID CLSID_DOMFreeThreadedDocument;
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
   class DOMFreeThreadedDocument;
 #endif
 
@@ -2763,7 +2763,7 @@ typedef struct XMLDocument XMLDocument;
 #endif
 
   EXTERN_C const CLSID CLSID_XMLHTTPRequest;
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
   class XMLHTTPRequest;
 #endif
 
@@ -2827,7 +2827,7 @@ typedef struct XMLDocument XMLDocument;
 #endif
 
   EXTERN_C const CLSID CLSID_XMLDSOControl;
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
   class XMLDSOControl;
 #endif
 
@@ -3372,7 +3372,7 @@ typedef struct XMLDocument XMLDocument;
 #endif
 
   EXTERN_C const CLSID CLSID_XMLDocument;
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
   class XMLDocument;
 #endif
 #endif

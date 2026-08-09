@@ -73,7 +73,7 @@ struct _exception;
 #ifndef RC_INVOKED
 
 #ifndef __mingw_types_compatible_p
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 extern "C++" {
 template <typename type1, typename type2> struct __mingw_types_compatible_p {
   static const bool result = false;

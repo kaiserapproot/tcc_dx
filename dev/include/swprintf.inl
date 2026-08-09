@@ -24,7 +24,9 @@
 
 #ifdef __cplusplus
 
+#ifndef __TINYC__
 extern "C++" {
+#endif
 
 __mingw_ovr
 /* __attribute__((__format__ (gnu_wprintf, 2, 0))) */ __MINGW_ATTRIB_NONNULL(2)
@@ -35,7 +37,9 @@ int vswprintf (wchar_t *__stream, const wchar_t *__format, __builtin_va_list __l
 #else
   return _vswprintf( __stream, __format, __local_argv );
 #endif
+#ifndef __TINYC__
 }
+#endif
 
 __mingw_ovr
 /* __attribute__((__format__ (gnu_wprintf, 2, 3))) */ __MINGW_ATTRIB_NONNULL(2)

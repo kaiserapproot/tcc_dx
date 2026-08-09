@@ -19,6 +19,33 @@
 #define _CRT_NON_CONFORMING_SWPRINTFS
 #define __CRT__NO_INLINE
 
+/* TCC compatibility mode for COM / Direct3D headers.
+ *
+ * These headers expose two shapes: a C++ one built from classes, templates and
+ * __uuidof, and a C one built from vtable structs.  tcc's C++ subset cannot
+ * parse the C++ shape, so the C shape is selected by default for __TINYC__.
+ *
+ * This is NOT merely "Windows header compatibility": it changes the API a C++
+ * TU sees.  With CINTERFACE, `p->Release()` becomes `p->lpVtbl->Release(p)`
+ * and the D3D helper classes/operators disappear.  Ordinary C++ COM code
+ * therefore has to be written in the C form when compiled with tcc.
+ *
+ * Define TCC_NO_FORCE_CINTERFACE to opt out and keep the headers' own
+ * defaults.  Doing so is expected to fail while the C++ subset lacks
+ * templates and __uuidof; it exists so the choice stays the user's.
+ */
+#if defined(__TINYC__) && !defined(TCC_NO_FORCE_CINTERFACE)
+#ifndef CINTERFACE
+#define CINTERFACE
+#endif
+#ifndef D3D11_NO_HELPERS
+#define D3D11_NO_HELPERS
+#endif
+#ifndef D3D10_NO_HELPERS
+#define D3D10_NO_HELPERS
+#endif
+#endif
+
 /* Arch differences, before _mingw_mac.h */
 #ifdef _WIN64
 #define _AMD64_ 1
@@ -550,7 +577,7 @@ limitations in handling dllimport attribute.  */
 
 
 /* Macros for __uuidof template-based emulation */
-#if defined(__cplusplus) && (USE___UUIDOF == 0)
+#if defined(__cplusplus) && !defined(__TINYC__) && (USE___UUIDOF == 0)
 
 #if __cpp_constexpr >= 200704l && __cpp_inline_variables >= 201606L
 #define __CRT_UUID_DECL(type,l,w1,w2,b1,b2,b3,b4,b5,b6,b7,b8)    \

@@ -8786,11 +8786,13 @@ typedef DWORD (WINAPI *PRTL_RUN_ONCE_INIT_FN)(PRTL_RUN_ONCE, PVOID, PVOID *);
     struct _TEB *NtCurrentTeb(VOID);
     PVOID GetCurrentFiber(VOID);
     PVOID GetFiberData(VOID);
+#ifndef __TINYC__
     FORCEINLINE struct _TEB *NtCurrentTeb(VOID) { return (struct _TEB *)__readgsqword(FIELD_OFFSET(NT_TIB,Self)); }
     FORCEINLINE PVOID GetCurrentFiber(VOID) { return(PVOID)__readgsqword(FIELD_OFFSET(NT_TIB,FiberData)); }
     FORCEINLINE PVOID GetFiberData(VOID) {
       return *(PVOID *)GetCurrentFiber();
     }
+#endif
 #endif /* __x86_64 */
 
 #if defined (__arm__) && !defined (__WIDL__)

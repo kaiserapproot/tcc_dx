@@ -12,7 +12,10 @@ rem                              is not implemented yet (Stage 4 gap).
 set "KNOWNFAIL= sm3.cpp sm6.cpp t_assign.cpp "
 
 rem === Phase 1: compile-only (every source must pass -c) ===
-for %%f in (smoke\*.c smoke\*.cpp a2\*.c a2\*.cpp a3\*.c a3\*.cpp a4\*.cpp a5\*.cpp a6\*.cpp a8\*.cpp a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp a7\typedef_class.cpp) do (
+rem   a9\*.c is enumerated too: the C-mode non-regression guard for the C++
+rem   name-hiding fix (bug20_c_mode.c) is a .c file, and without this it would
+rem   never actually be gated.
+for %%f in (smoke\*.c smoke\*.cpp a2\*.c a2\*.cpp a3\*.c a3\*.cpp a4\*.cpp a5\*.cpp a6\*.cpp a8\*.cpp a9\*.c a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp a7\typedef_class.cpp) do (
     echo === %%f ===
     "%TCC%" -c "%%f" -o "%%~dpnf.o"
     if errorlevel 1 (
@@ -46,6 +49,37 @@ for %%f in (a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp 
         if !errorlevel! neq 0 (
             echo   [RUN FAIL] %%f
             set /a FAILED+=1
+        )
+    )
+)
+
+rem === Phase 3: negative gate (compilation MUST fail) ===
+rem Inverse of Phase 1: these sources pin down what tcc has to REJECT, e.g.
+rem using a class name that is currently hidden by a parameter.  KNOWNFAIL
+rem only drops a source from gating, so it cannot catch a rejection that
+rem silently turns into an acceptance - this loop can.
+rem a9\negative\ is a subdirectory, so a9\*.cpp above never picks it up.
+rem Matching is done on ASCII only ("<name>.cpp:<line>: error:") because tcc
+rem prints diagnostics in CP932 Japanese while the .expected files are UTF-8;
+rem comparing the message text itself would compare mismatched code pages.
+set "NEGOUT=%TEMP%\tcc_neg_gate"
+if not exist "%NEGOUT%" mkdir "%NEGOUT%"
+for %%f in (a9\negative\*.cpp) do (
+    echo === %%f [negative] ===
+    "%TCC%" -c "%%f" -o "%NEGOUT%\%%~nf.o" >"%NEGOUT%\%%~nf.log" 2>&1
+    if not errorlevel 1 (
+        echo   [NEGATIVE FAIL] %%f compiled but was expected to be rejected
+        set /a FAILED+=1
+    ) else (
+        if exist "%%~dpnf.expected" (
+            set "NEGPAT="
+            for /f "usebackq delims=" %%p in ("%%~dpnf.expected") do set "NEGPAT=%%p"
+            findstr /c:"!NEGPAT!" "%NEGOUT%\%%~nf.log" >nul
+            if errorlevel 1 (
+                echo   [NEGATIVE FAIL] %%f rejected, but not with "!NEGPAT!"
+                type "%NEGOUT%\%%~nf.log"
+                set /a FAILED+=1
+            )
         )
     )
 )

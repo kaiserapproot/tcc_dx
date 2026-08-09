@@ -259,3 +259,7 @@ proj/iosprooj/iosbase.vsimporter/
 /libtcc.hex.txt
 /dev/tcc.exe
 build_log.txt
+
+# VS Code のマルチルート設定は開発者ごとにパスが異なるため追跡しない
+# (ローカル環境依存の絶対/相対パスや files.associations が混ざるため)
+*.code-workspace

@@ -1106,7 +1106,7 @@ typedef struct tagSERIALIZEDPROPERTYVALUE {
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 EXTERN_C SERIALIZEDPROPERTYVALUE * __stdcall StgConvertVariantToProperty(const PROPVARIANT *pvar, USHORT CodePage, SERIALIZEDPROPERTYVALUE *pprop, ULONG *pcb, PROPID pid, BOOLEAN fReserved, ULONG *pcIndirect);
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(__TINYC__)
 class PMemoryAllocator;
 
 EXTERN_C BOOLEAN __stdcall StgConvertPropertyToVariant(const SERIALIZEDPROPERTYVALUE *pprop, USHORT CodePage, PROPVARIANT *pvar, PMemoryAllocator *pma);
