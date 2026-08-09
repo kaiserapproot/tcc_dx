@@ -1618,6 +1618,27 @@ static int cpp_type_has_virtual(Sym *class_sym)
     return 0;
 }
 
+/* Number of virtual members of class_sym that share member_tok as their name.
+   More than one means the name alone cannot identify a slot - see the guard
+   in cpp_emit_secondary_vtables. */
+static int cpp_count_virtuals_named(Sym *class_sym, int member_tok)
+{
+    Sym *f;
+    int n = 0;
+
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!f->type.ref || !f->type.ref->f.func_virtual)
+            continue;
+        if ((f->v & ~SYM_FIELD) == member_tok)
+            n++;
+    }
+    return n;
+}
+
 static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
 {
     Sym *f;
@@ -1823,7 +1844,7 @@ static int nb_cpp_vthunks;
 static Sym *cpp_new_virtual_thunk(Sym *class_sym, Sym *base_class,
                                   Sym *bfield, Sym *impl, int adjust)
 {
-    char buf[256];
+    char buf[64];
     TokenSym *ts;
     CType func_type;
     CType void_type;
@@ -1831,15 +1852,22 @@ static Sym *cpp_new_virtual_thunk(Sym *class_sym, Sym *base_class,
     Sym *thunk;
     CppVThunk *ent;
     int len;
+    static int thunk_serial;
 
-    /* fall back to the raw impl (this stays unadjusted but the call still
-       lands somewhere valid) only on the pathological name-overflow case */
-    len = snprintf(buf, sizeof buf, "__cpp_vthunk_%s_%s_%s",
-                   get_tok_str(class_sym->v & ~SYM_STRUCT, NULL),
-                   get_tok_str(base_class->v & ~SYM_STRUCT, NULL),
-                   get_tok_str(bfield->v & ~SYM_FIELD, NULL));
+    (void)base_class;
+    (void)bfield;
+    /* The name is a plain serial rather than <Class>_<Base>_<method>.
+       Building it from user identifiers was wrong twice over:
+       - it could exceed the buffer, and the old code then returned the raw
+         impl, so a B* call jumped into D::f() with `this` still pointing at
+         the B subobject - a silent memory corruption, not a diagnostic.
+       - it carried no signature or slot number, so two overloaded virtuals
+         on the same base collapsed onto one symbol and both vtable slots
+         ended up at the same implementation.
+       A serial is short (cannot overflow) and unique by construction. */
+    len = snprintf(buf, sizeof buf, "__cpp_vthunk_%d", thunk_serial++);
     if (len <= 0 || len >= (int)sizeof buf)
-        return impl;
+        tcc_error("internal error: virtual thunk name overflow");
     void_type.t = VT_VOID;
     func_type.t = VT_FUNC;
     proto = sym_push(SYM_FIELD, &void_type, 0, 0);
@@ -1889,8 +1917,11 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
         len = snprintf(buf, sizeof buf, "__cpp_vtbl2_%s_%s",
                        get_tok_str(class_sym->v & ~SYM_STRUCT, NULL),
                        get_tok_str(base_class->v & ~SYM_STRUCT, NULL));
+        /* Skipping on overflow used to drop the whole secondary vtable, so
+           the base subobject's vptr was left pointing nowhere useful while
+           the code still compiled.  Fail loudly instead. */
         if (len <= 0 || len >= (int)sizeof buf)
-            continue;
+            tcc_error("class name too long for a secondary vtable symbol");
         ts = tok_alloc(buf, len);
         bf->cpp_vtable_tok = ts->tok;
         fptr_type.t = VT_VOID | VT_PTR;
@@ -1907,6 +1938,16 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
             if (!bfield)
                 continue;
             entry_sym = NULL;
+            /* Overrides are matched by NAME only, so an overloaded virtual on
+               a non-primary base cannot be resolved: every slot sharing the
+               name would bind to the same override and the other overload's
+               slot would silently call the wrong function.  Reject it instead
+               of miscompiling; the primary base is unaffected. */
+            if (cpp_count_virtuals_named(base_class, bfield->v & ~SYM_FIELD) > 1
+                || cpp_count_virtuals_named(class_sym,
+                                            bfield->v & ~SYM_FIELD) > 1)
+                tcc_error("overloaded virtual '%s' on a non-primary base is not supported",
+                          get_tok_str(bfield->v & ~SYM_FIELD, NULL));
             ovr = cpp_find_virtual_field_by_name(class_sym,
                                                  bfield->v & ~SYM_FIELD);
             if (ovr) {
@@ -6039,9 +6080,23 @@ static void gen_cast(CType* type)
             && dpt->ref && spt->ref && dpt->ref != spt->ref) {
             int ofs = cpp_base_subobject_offset(spt->ref, dpt->ref);
             if (ofs > 0) {
+                /* A null D* must stay null as a B*: C++ requires the upcast to
+                   preserve the null value, so the offset may only be applied
+                   to a real object.  Adding it unconditionally turned
+                   `D *p = 0; B *b = p;` into b == (B*)ofs, and every
+                   `if (b)` on it then took the wrong branch.
+                   Computed branchlessly as p + (ofs & -(p != 0)) to avoid
+                   emitting control flow in the middle of a cast. */
                 vtop->type = char_pointer_type;
+                vdup();                     /* p, p                        */
+                vpushi(0);
+                gen_op(TOK_NE);             /* p, (p != 0) -> 0 or 1       */
+                vpushi(0);
+                vswap();
+                gen_op('-');                /* p, 0 - (p != 0) -> 0 or -1  */
                 vpushi(ofs);
-                gen_op('+');
+                gen_op('&');                /* p, (ofs & mask)             */
+                gen_op('+');                /* p + adjustment              */
                 vtop->type = *type;
                 return;
             }
