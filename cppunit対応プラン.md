@@ -6,8 +6,14 @@
 > ② G3-P2 の「規則 1〜5」を「`lookup_unqualified_type()` の規則 1〜4」へ修正
 > ③ G0 で baseline タグの commit hash も記録（タグ移動事故への保険・Low）
 
-**目的**: `sample/cppunit` の CPPUnit ライブラリ 12 TU + `all_test.cpp` を、
-tpp（`dev\tcc.exe`）で**原本無改変のまま**コンパイル・リンク・実行できるようにする。
+**目的**: `sample/cppunit` の CPPUnit ライブラリ 12 TU + ヘッダ 19 本を、
+tpp（`dev\tcc.exe`）で**原本無改変のまま**コンパイル・リンクし、テストドライバで
+実行できるようにする。
+**G0 実測後の確定（2026-08-09・ユーザー決定 = 案 A）**: ドライバ `all_test.cpp` 原本は
+生の例外（`throw std::runtime_error` / `catch (std::exception&)`）を使うため
+スコープ外とし、**tpp 用ドライバ `all_test_tpp.cpp` を新規作成**する（例外なし・
+TEST_ASSERT 系のみ・ライブラリ全機能を叩く。詳細 §7.4）。
+原本無改変ゲートの対象は**ライブラリ 12 TU + ヘッダ 19 本**。
 
 **ベース**: `master`（`cc31384`）。`feature/cpp-support` は**マージしない**
 （実測で `tccgen.c` に衝突 266 ブロック。並行実装のため機械的に解決不能 —
@@ -629,18 +635,23 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
 
 ### G7: CPPUnit ビルドゲート — `feat/cppunit-build-gate`
 
-1. `sample/cppunit/build_cppunit.bat` を新規作成:
-   - 12 TU + `all_test.cpp` を `-DMINIMUM_SET -Dcu_NO_EXPLICIT -I . -w` で `-c`
+1. **`all_test_tpp.cpp` を新規作成**（案 A・§7.4 の決定どおり）: 例外なし・
+   TEST_ASSERT/TEST_FAIL 系のみでライブラリ全機能を叩く。意図的失敗を含めないため
+   **failures = 0 / errors = 0 / exit 0 が正**。テスト登録数 N をここで固定する。
+2. `sample/cppunit/build_cppunit.bat` を新規作成:
+   - ライブラリ 12 TU + `all_test_tpp.cpp` を `-DMINIMUM_SET -Dcu_NO_EXPLICIT -I . -w` で `-c`
    - リンク（`-luser32 -lkernel32`。TestRunner はコンソール API のみ使用）
-   - `all_test.exe` を実行。
-2. **実行結果ゲート（High 6 対応）**: exit 0 だけでは「テスト登録数 = 0 でも緑」を
-   検出できない。`all_test.exe` の出力をパースし、
-   **`実行テスト数 == N（G0 で取得した固定基準値）` かつ `failures == 0` かつ
+   - `all_test_tpp.exe` を実行。
+3. **実行結果ゲート（High 6 対応）**: exit 0 だけでは「テスト登録数 = 0 でも緑」を
+   検出できない。`all_test_tpp.exe` の出力をパースし、
+   **`実行テスト数 == N（手順 1 で固定した値）` かつ `failures == 0` かつ
    `errors == 0`** を errorlevel で検証する。照合は **`findstr /x`（完全行一致）**
    または件数・failures・errors を個別に数値抽出しての比較とする（rev.4 High 5 対応 —
    部分一致だと「N=1」の検索文字列が「N=10」の行にもヒットしてゲートが抜ける）。
    件数が基準値と異なればゲート失敗。
-3. **原本無改変の機械ゲート（rev.3 Blocker 1 対応 — baseline commit 比較）**: bat 内で
+   **相互検証**: 同じ `all_test_tpp.cpp` を MSVC でもビルド・実行し、同一の N/0/0 に
+   なることを G7 完了時に 1 回確認する（ドライバ自体のバグと tpp の誤動作を切り分け）。
+4. **原本無改変の機械ゲート（rev.3 Blocker 1 対応 — baseline commit 比較）**: bat 内で
    ```
    git diff --exit-code cppunit-original-base -- sample/cppunit/*.cpp sample/cppunit/*.h
    ```
@@ -651,15 +662,18 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
    baseline 指定なら staged / committed / unstaged を問わず検出できる。
    pathspec を原本 `*.cpp / *.h` に限定するので、`build_cppunit.bat` 等の
    新規追加ファイルはゲートに引っかからない。
-4. `dev/test/run_all.bat` 末尾から `call` する（`pushd "%~dp0"` 規約を厳守）。
+   （`all_test_tpp.cpp` は baseline 後の新規追加ファイルなので pathspec に含まれず、
+   ゲートに影響しない）
+5. `dev/test/run_all.bat` 末尾から `call` する（`pushd "%~dp0"` 規約を厳守）。
 
 ---
 
 ## 4. 全体の完了条件
 
-- `sample/cppunit` の 12 TU + `all_test.cpp` が原本無改変・
-  `-DMINIMUM_SET -Dcu_NO_EXPLICIT` でコンパイル・リンクでき、`all_test.exe` が
-  **期待テスト件数 N / failures 0 / errors 0** で exit 0（§G7 の機械ゲート）。
+- `sample/cppunit` のライブラリ 12 TU + ヘッダ 19 本が原本無改変・
+  `-DMINIMUM_SET -Dcu_NO_EXPLICIT` でコンパイルでき、新規ドライバ `all_test_tpp.cpp` と
+  リンクした `all_test_tpp.exe` が **期待テスト件数 N / failures 0 / errors 0** で
+  exit 0（§G7 の機械ゲート。all_test.cpp 原本は案 A によりスコープ外 — §7.4）。
 - `git diff --exit-code cppunit-original-base -- sample/cppunit/*.cpp sample/cppunit/*.h`
   が緑（G0 baseline commit との比較による原本無改変の機械証明）。
 - 各ガイドで `build.bat` 緑（`tccgen.c` 変更のため **Release x64 / Debug Win32 の両方**）、
@@ -775,6 +789,19 @@ all_test.cpp 側**に、MINIMUM_SET と非互換の問題が 3 点ある:
   all_test.cpp 原本は「例外要求のためスコープ外」として tpp仕様.md に記録。
 - 案 B: 例外サブセットを実装 — スコープ外・巨大。非推奨。
 - 案 C: all_test.cpp を修正 — 原本無改変の完了条件に違反。非推奨。
+
+**決定（2026-08-09・ユーザー承認）: 案 A を採用。**
+- 原本無改変ゲート対象 = ライブラリ 12 TU + ヘッダ 19 本（all_test.cpp は対象から除外。
+  原本はリポジトリに残すが、tpp でのビルド対象・ゲート対象にしない）。
+- `all_test_tpp.cpp` を G7 で新規作成: 例外なし・TEST_ASSERT/TEST_FAIL 系のみで
+  TestCase / TestSuite / TestRegistry / TestRunner / RepeatedTest / TestDecorator /
+  SimpleString / SimpleList / SimpleAutoPtr を網羅的に叩き、意図的失敗を含めない
+  （**failures = 0 / errors = 0 / exit 0 を正**にできる）。
+- 期待テスト件数 N は新ドライバのテスト登録数として G7 で固定し、
+  **同じ all_test_tpp.cpp を MSVC でもビルド・実行して同一出力（N/0/0）を確認**する
+  （tpp 固有の誤動作とドライバ自体のバグを切り分ける相互検証）。
+- all_test.cpp 原本がスコープ外である理由（例外・stdio 間接 include・意図的失敗）を
+  tpp仕様.md へ記録する（G7）。
 
 ## 8. 規模感（目安）
 
