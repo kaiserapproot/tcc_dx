@@ -38,9 +38,7 @@ int APIENTRY gluBuild2DMipmaps(GLenum target,GLint components,GLint width,GLint 
    and tcc implements extern "C" by lexing C++ keywords as plain identifiers,
    so `class GLUnurbs;` parses as two identifiers and fails with
    "';' expected".  The C branch below declares the very same opaque handles
-   as struct typedefs, which is compatible for every use in this header, so
-   route TCC through it.  Same approach as the other SDK headers adapted for
-   __TINYC__ (see amateras対応.md). */
+   as struct typedefs, so route TCC through it. */
 #if defined(__cplusplus) && !defined(__TINYC__)
 
 class GLUnurbs;
