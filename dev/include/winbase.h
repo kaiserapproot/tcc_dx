@@ -3067,7 +3067,9 @@ extern "C" {
 #define MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS (_WIN32_WINNT >= 0x0502 || !defined (_WINBASE_))
 #endif
 #if MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS && defined (__cplusplus)
+#ifndef __TINYC__
 extern "C++" {
+#endif
 #if defined(__x86_64__) && defined(__CYGWIN__)
 #define __MINGW_USE_INT64_INTERLOCKED_LONG
 #endif
@@ -3188,7 +3190,9 @@ extern "C++" {
     return (unsigned __int64) InterlockedXor64 ((volatile __int64 *) Destination,(__int64) Value);
   }
 #endif
+#ifndef __TINYC__
 }
+#endif
 #endif
 
 #undef MICROSOFT_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS
