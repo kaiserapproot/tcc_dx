@@ -1,135 +1,32 @@
-rev.4 を再度、敵対的に確認しました。
+rev.5 を再度、敵対的に確認しました。
 
-## 結論
+前回の GO 時に残した3点、**P5 の value-name lookup、P2 の規則番号、baseline commit hash 記録は正しく修正されています**。 特に P5 は `npos` が値名であることを明示し、型名経路と値名/関数名経路を分離したので、前回の指摘は解消です。
 
-**今回は Blocker は見つかりません。実装開始 GO でよいです。**
+ただし、G0 実測によってプラン自体が拡張されたため、**rev.5 全体としては再び REJECT** に戻します。既存の G1～G6 設計が悪化したわけではありません。**新しく追加された部分に Blocker 3件**あります。
 
-前回までの rev.1～rev.3 では「緑なのに誤コンパイル」「多重継承で heap corruption」につながる設計穴がありましたが、rev.4 ではそのレベルの問題は潰れています。特に前回の2 Blockerだった G3 の lookup-set と qualified lookup は、かなり明確になりました。
+1. **Blocker — G7 の原本無改変ゲートが** **`all_test_tpp.cpp`** **自身を検出します。** 現在のゲートは `git diff --exit-code cppunit-original-base -- sample/cppunit/*.cpp sample/cppunit/*.h` です。一方、rev.5 では baseline 後に `sample/cppunit/all_test_tpp.cpp` を新規作成します。 「baseline 後の新規ファイルなので pathspec に含まれない」という説明は誤りです。`*.cpp` はファイル名でマッチするので、`all_test_tpp.cpp` を Git に追加・コミットした時点で baseline との差分として **added file** になります。つまり最終 G7 自身が赤になります。さらに `all_test.cpp` も `*.cpp` に入るため、「all\_test.cpp は無改変ゲート対象外」という新しい方針とも一致していません。
 
-C++ の member lookup は実際に「declaration set + subobject set」で扱い、型宣言はそれが表す型へ置き換えてから merge します。また base ごとの lookup set を再帰的に merge し、支配関係→宣言集合比較→union の順で処理します。rev.4 の「型へ正規化」「先勝ち禁止」「判定不能なら `tcc_error`」という縮小実装方針は、このプロジェクトの目的に対して安全側です。
+   ここは **31原本ファイル（12 TU + 19 h）だけの明示的 manifest** を作るのが一番安全です。あるいは Git pathspec の exclude で `all_test.cpp` と `all_test_tpp.cpp` を明示除外します。私は manifest 方式を推奨します。baseline hash `ad882a3c...` まで固定できているので、31ファイルだけをその hash と比較すれば完全です。
+2. **Blocker — G-OP / G-CAST は「必要機能と判明した」のに、まだ実装プランになっていません。** G0 実測によって単項 `operator*()`、`operator->()`、`T(expr)` が実際の停止点だと判明したのは非常に良いです。 しかし現在の記述は「既存機構に乗る見込み」「詳細設計は着手時に追記」となっています。 これは、これまで G1～G6 に要求してきた設計密度と明らかに違います。
 
-### 残る指摘は High 1件だけ
+   G-OP なら少なくとも、built-in `*` と class `operator*` の判別、戻り値の lvalue/reference 性維持、`operator->` の宣言パース、呼び出し変換、戻り値がポインタでない場合の扱い、負例、Cモード非回帰が必要です。G-CAST なら、`T(expr)` と通常の関数呼び出しの判別、typedef/basic type のみ許可、既存 `(T)expr` の cast machinery への接続、class functional cast の明示拒否、複数引数/空引数の扱い、負例が必要です。特に `delete (Entry*)*p` が実コードに存在するので、G-OP の戻り値カテゴリを雑に実装すると G4 に波及します。
 
-G3-P5 の記述だけ、実装前に文言を直すことを勧めます。
+   **G1/G2 の実装開始までは GO** でも構いません。しかし G-OP に入る前に詳細設計を追記する、という条件付きです。「rev.5 全体が最終実装プラン」という意味ではまだ GO にできません。
+3. **Blocker —** **`all_test_tpp.cpp`** **の N ゲートが循環しています。** 新ドライバを作り、そのドライバ自身の登録数を N として固定し、MSVC と tpp が同じ N/0/0 なら成功、としています。 これは**選択したテストの同等動作**は証明できますが、**「ライブラリ全機能を叩く」ことは証明しません**。極端には `all_test_tpp.cpp` に正常終了するテストを1個だけ書けば、MSVC=1/0/0、tpp=1/0/0 で完全に緑です。
 
-現在は、
+   案Aそのものは妥当です。元の `all_test.cpp` が生の例外へ依存し、ライブラリ12 TU自体は MINIMUM\_SET で MSVC コンパイル成功しているため、ドライバだけ差し替える判断には合理性があります。 ただし G7 に **テストカバレッジ契約**を追加してください。例えば TestCase / TestSuite / TestRegistry / TestResult / TestFailure / TestRunner / RepeatedTest / TestDecorator / SimpleString / SimpleList / SimpleAutoPtr について「最低1つ以上」ではなく、正常経路・failure記録・登録/検索・所有権/delete・iterator・文字列操作など、必要な振る舞いを表にして、それぞれ対応テスト名を固定します。その表のテスト数から N を導出する形なら、N が意味を持ちます。
 
-> `cpp_cur_func_class` 相当を定義クラスへ差し替え、lookup 規則 2〜4 が定義クラス基準で働く状態にしてトークン再生
+そのほかは Blocker ではありませんが、rev.5 では文書の古い情報を掃除した方がいいです。§7 では pure virtual は **9件・pure dtor 0** と確定したのに、§1 はまだ27件、リスク表も「27件に dtor が含まれるか未確認」のままです。 同様に new/delete も G0 実測では scalar new=11、scalar delete=14 と確定していますが、上部の旧カウントが残っています。さらに §8 の規模表には新設した **G-OP / G-CAST が載っていません**。 これは実装担当LLMに渡すならかなり邪魔になるので、rev.6 で一本化した方がよいです。
 
-となっています。
+### 最終判定
 
-ところが G3 共通で定義した `lookup_unqualified_type()` は名前どおり**型名 lookup**です。一方 P5 の実対象、
+**既存 G1～G6 の設計: GO 維持。**\
+**rev.5 全体: REJECT。**
 
-```
-```
+修正必須は実質この3点です。
 
-```
-static const int npos;
-void f(int n = npos);
-```
+* 原本無改変ゲートを **31原本ファイル限定**にする
+* G-OP / G-CAST を G1～G6 と同等の詳細設計＋受け入れテストまで書く
+* `all_test_tpp.cpp` に **機能→テストのカバレッジ表**を設け、そこから N を固定する
 
-の `npos` は**型ではなく値メンバ**です。実際、プラン自身も P3 では `Class::npos` を式側へ戻すものとして扱っています。
-
-したがって P5 は、
-
-```
-```
-
-```
-再生時に owning class / declaration scope を復元する。
-
-型名が現れた場合:
-    lookup_unqualified_type() が復元した class scope を使用
-
-値名・関数名が現れた場合:
-    既存の式 identifier/member lookup が復元した
-    cpp_cur_func_class / declaration scope を使用
-```
-
-という書き方にした方がいいです。
-
-そして着手前確認に、
-
-```
-```
-
-```
-デフォルト引数トークン再生時の
-unqualified value-name 解決が
-cpp_cur_func_class を参照しているか確認する
-```
-
-を1項目追加する。
-
-**これは Blocker にはしません。** `npos` の実値まで確認する受け入れテストが既にあるので、間違って実装しても silent pass はしません。
-
-### Low — 文書上の古い番号が1か所残っています
-
-P2 に、
-
-> 上記 **lookup 規則 1〜5 を実装**
-
-とあります。
-
-現在は、
-
-1.  local 
-2.  current class 
-3.  enclosing class 
-4.  global 
-
-＋別関数 `lookup_qualified_class_type()`
-
-なので、単純に
-
-> `lookup_unqualified_type()` の規則 1〜4 を実装
-
-へ直した方が、実装担当 LLM が「5番目はどこだ？」と迷いません。
-
-### G6 は GO
-
-ここはかなり強くなっています。
-
-*  secondary-base からの `delete` 
-*  complete-object address の復元 
-* `vptr[-1]` 
-*  pointer-width signed offset 
-*  従来の `vptr[0...]` 不変 
-*  NULL check が vptr read より前 
-*  virtual dtor のときだけ G6 経路 
-*  non-virtual delete の回帰 
-*  destructor 順序の実値検証 
-
-まで揃っています。特に non-virtual 経路を G4 のまま維持すると明示したことで、「G6 を入れたら普通の `delete` が壊れた」という事故も検出できます。 
-
-ここについて新しい Blocker はありません。
-
-### G7 も十分強い
-
-現在は単なる exit 0 ではなく、
-
-**期待件数 N + failures=0 + errors=0 + 完全一致/数値比較**
-
-になっています。さらに CPPUnit 原本も baseline commit と比較します。
-
-これはかなり良いです。「0件実行で成功」「1と10の部分一致」「途中でCPPUnit原本を直してテストを通す」の3種類をそれぞれ潰せています。
-
-一つだけさらに堅くするなら、`cppunit-original-base` タグを動かしてしまえば baseline 自体が変わるので、G0 で取得した**commit hash も記録**しておくと完璧です。ただし通常運用では Low です。タグを勝手に force-update しない限り問題にはなりません。
-
-## 最終判定
-
-**rev.1: REJECT**\
- **rev.2: REJECT**\
- **rev.3: REJECT**\
- **rev.4: ✅ GO**
-
-実装前に直すなら実質この2点だけです。
-
-* &#x20;P5 を「type lookup」だけでなく**value-name lookup の scope 復元**まで明記 
-* &#x20;P2 の「規則1〜5」を「`lookup_unqualified_type()` 規則1〜4」に修正 
-
-これは設計変更ではなく**実装指示の明確化**です。
-
-それ以外は、G0で実測して新しい未対応構文が発見されたらプランを止めて改訂する、という安全弁も既に明記されています。
-
-したがって、**この rev.4 は実装フェーズへ進めて問題ない**と判定します。
+この3つを直せば、今度は追加実測で発見された問題まで含めた意味での **本当の最終 GO** にできます。
