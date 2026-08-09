@@ -1,4 +1,15 @@
-# CPPUnit（sample/cppunit）対応プラン（rev.6 / 2026-08-09 — **G1〜G6 GO / 拡張部の再設計反映**）
+# CPPUnit（sample/cppunit）対応プラン（rev.7 / 2026-08-09）
+
+> **rev.7**（rev.6 レビュー対応 — 必須 1 点 + High 3 点）:
+> ① 【Blocker】原本無改変ゲートの信頼根を手書き manifest から **baseline commit の
+>    tree からの機械導出**へ変更（manifest 行削除による false green を排除）。
+>    §4 に残っていた旧 glob 完了条件も同方式へ差し替え
+> ② 【High 1】G7 ゲートを「件数 17」だけでなく **17 テスト名の PASS marker 完全一致**まで検証
+> ③ 【High 2】G-OP に「`operator->` の返却ポインタそのものが使われる」実行テスト
+>    （別オブジェクト返却 Proxy 形）を追加
+> ④ 【High 3】G0 手順内の旧計画値（31/19/27）に「G0 実測前の値、結果は §7」と明示
+>
+> レビュー判定の推移: G1〜G6 GO 維持 / G-OP GO / G-CAST GO / G7 のみ Blocker → 本版で対応。
 
 > **判定履歴**: rev.4 で GO → G0 実測でプランが拡張（案 A・G-OP・G-CAST）→ rev.5 全体は
 > REJECT（既存 G1〜G6 の設計は GO 維持、新規部分に Blocker 3 件）→ **rev.6 で対応**:
@@ -184,7 +195,8 @@ G6 で vtable 経由 + complete-object 補正に昇格する。G5 の抽象ク�
    12 TU + all_test.cpp に対し、`operator=` / 変換演算子 / enum / qualified static member /
    copy ctor / 関数ポインタ / メンバポインタ等を grep し、§1 の表を拡充する。
    grep は「存在確認」であり意味論の保証ではないことを表に明記する。
-4. **`new` / `delete` 全件の形別分類（rev.3 High 2 対応）**:
+4. **`new` / `delete` 全件の形別分類（rev.3 High 2 対応。以下の 31/19 は
+   G0 実測前の旧計画値 — 実測結果は scalar new 11 / delete 14、§7.3 参照）**:
    `new[]` 4 箇所の型内訳（`rg "new\s+\w+\s*\[|delete\s*\[\]" sample/cppunit`）に加え、
    **scalar `new` 31 件 / `delete` 19 件も全件を形別に分類**して表にする:
    - `new` 側: `new Class` / `new Class()` / `new Class(args)` / `new POD` / `new POD()` /
@@ -193,7 +205,8 @@ G6 で vtable 経由 + complete-object 補正に昇格する。G5 の抽象ク�
      `POD*` / NULL になり得る経路の別
    G4 着手後に `new int()` のような未想定形が露出するのを防ぐ。非 POD の `new[]` が
    あれば G4 のスコープを再判断する。
-5. **純粋仮想 27 件の分類（rev.4 High 4 対応）**: 27 件を
+5. **純粋仮想の分類（rev.4 High 4 対応。「27 件」は G0 実測前の旧計画値 —
+   実測は宣言 9 件・pure dtor 0、§7.2 参照）**: 27 件を
    **regular method / destructor（`virtual ~X() = 0;`）に分類**する。
    pure virtual destructor が 1 件でもあれば G5 は G6 と切り離せない
    （dtor のスロット化が前提になり、かつ pure virtual dtor は派生を生成する限り
@@ -289,6 +302,18 @@ friend 関数宣言）は **`tcc_error` で拒否**する。
 **受け入れテスト**（`a9/gop_*.cpp`）:
 - 正例: `(*it).v` 読み取り / `*it = value` 書き込み（lvalue 検証）/ `&(*it)` アドレス取得
 - 正例: `it->v` 読み取り・書き込み / const メンバ関数からの呼び出し
+- 正例（**返却ポインタそのものが使われることの実行検証 — rev.7 High 2 対応**）:
+  `operator->()` が **this や元オブジェクトと無関係な別オブジェクト**を返す形で検証する
+  （`&p` を返すだけの形だと、実装が誤って this 経由でアクセスしていても偶然通るため）:
+  ```cpp
+  struct P { int v; };
+  struct Proxy {
+      P* target;
+      P* operator->() { return target; }
+  };
+  // P a; P b; b.v = 77; Proxy x; x.target = &b;
+  // x->v == 77（a ではなく b が読まれる）を exit code で検証。書き込み側も同様
+  ```
 - 正例: `delete (Entry*)*p` 相当（cast のオペランドに `operator*()` 結果、実行値まで）
 - 正例: ポインタ変数への従来 `*` / `->` が無変更で動く（同一 TU 内で混在）
 - 負例: `operator*` を持たないクラスへの単項 `*` が従来どおりエラー
@@ -766,28 +791,45 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
    または件数・failures・errors を個別に数値抽出しての比較とする（rev.4 High 5 対応 —
    部分一致だと「N=1」の検索文字列が「N=10」の行にもヒットしてゲートが抜ける）。
    件数が基準値と異なればゲート失敗。
-   **相互検証**: 同じ `all_test_tpp.cpp` を MSVC でもビルド・実行し、同一の N/0/0 に
-   なることを G7 完了時に 1 回確認する（ドライバ自体のバグと tpp の誤動作を切り分け）。
-4. **原本無改変の機械ゲート（rev.6 Blocker 1 対応 — 31 原本ファイルの明示 manifest 比較）**:
-   `sample/cppunit/*.cpp` のような **glob pathspec は使わない** — `all_test_tpp.cpp` を
-   追加コミットした時点で baseline との差分（added file）になり G7 自身が赤になる上、
-   スコープ外にした `all_test.cpp` まで対象に含んでしまう（rev.5 の欠陥）。
-   代わりに **manifest ファイル `sample/cppunit/original_manifest.txt`** を G7 で新規作成し、
-   **ライブラリ原本 31 ファイル（12 TU + ヘッダ 19 本）のパスだけ**を列挙する
-   （`all_test.cpp` は案 A によりスコープ外なので載せない）。bat 内で manifest の
-   各ファイルについて
+   **テスト名集合の検証（rev.7 High 1 対応）**: 「17 という数」だけでは二重登録 +
+   登録漏れの相殺（例: `test_case_lifecycle` ×2 / `test_listener` 漏れでも 17 件）を
+   検出できず、MSVC 相互検証も同じ誤ったドライバを使うため無力。対策として
+   `all_test_tpp.cpp` の各テストは終了時に一意 marker
    ```
-   git diff --exit-code cppunit-original-base -- <manifest の 31 ファイル>
+   PASS:test_case_lifecycle
+   ...
+   PASS:test_auto_ptr
    ```
-   を実行する（for /f で manifest を読み pathspec 列を組み立てる。1 ファイルずつの
-   ループでも可 — どれか 1 つでも差分があれば errorlevel でゲート失敗）。
+   を出力し、G7 は**カバレッジ契約表の 17 名すべてを `findstr /x /c:"PASS:<名前>"` の
+   完全行一致で個別確認**する（1 つでも欠ければゲート失敗。二重登録は件数 17 との
+   併用で検出される）。
+   **相互検証**: 同じ `all_test_tpp.cpp` を MSVC でもビルド・実行し、同一の N/0/0 +
+   marker 17 種になることを G7 完了時に 1 回確認する（ドライバ自体のバグと tpp の
+   誤動作を切り分け）。
+4. **原本無改変の機械ゲート（rev.7 Blocker 対応 — 対象集合を baseline tree から機械導出）**:
+   信頼根を「手書き manifest」にしない（行を 1 つ削るとそのファイルが diff 対象から
+   外れて false green になる — rev.6 の欠陥）。また `sample/cppunit/*.cpp` の glob も
+   使わない（`all_test_tpp.cpp` の追加自体が added file としてゲートを赤にし、
+   スコープ外の `all_test.cpp` も拾う — rev.5 の欠陥）。
+   **対象 31 ファイルの集合は baseline commit そのものから毎回機械生成**する:
+   ```
+   git ls-tree -r --name-only cppunit-original-base -- sample/cppunit
+     → *.cpp / *.h のみ抽出（findstr）
+     → all_test.cpp を除外（案 A でスコープ外）
+     → 得られた集合 = 原本 31 ファイル
+   ```
+   bat 内で（for /f で上記を読みながら）:
+   - **健全性検証を先に行う**: 列挙件数が **31 と完全一致**しなければゲート失敗
+     （baseline タグの付け替え・tree 破損をここで検出）。
+   - 続けて各ファイルを `git diff --exit-code cppunit-original-base -- <file>` で比較し、
+     1 つでも差分があれば errorlevel でゲート失敗。
    baseline は G0 で固定済みの commit `ad882a3c5673a238354d6ad72bac88342a18335e`
-   （タグ `cppunit-original-base`）。コミット指定なしの `git diff -- path` は
-   「worktree vs index」比較のため誤修正の commit を検出できない — baseline commit
-   指定なら staged / committed / unstaged を問わず検出できる。
-   manifest 自体と `build_cppunit.bat` / `all_test_tpp.cpp` は baseline 後の新規追加
-   ファイルであり、**manifest に列挙されないためゲート対象外**（glob と違い
-   「新規 .cpp の追加」でゲートが誤検出することは構造的にない）。
+   （タグ `cppunit-original-base`。hash 直書きの照合
+   `git rev-parse cppunit-original-base` == 上記 hash も健全性検証に含める）。
+   コミット指定なしの `git diff -- path` は「worktree vs index」比較のため誤修正の
+   commit を検出できない — baseline commit 指定なら staged / committed / unstaged を
+   問わず検出できる。`build_cppunit.bat` / `all_test_tpp.cpp` は baseline tree に
+   存在しないため列挙されず、ゲート対象外（手で管理する一覧は存在しない）。
 5. `dev/test/run_all.bat` 末尾から `call` する（`pushd "%~dp0"` 規約を厳守）。
 
 ---
@@ -798,8 +840,12 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
   `-DMINIMUM_SET -Dcu_NO_EXPLICIT` でコンパイルでき、新規ドライバ `all_test_tpp.cpp` と
   リンクした `all_test_tpp.exe` が **期待テスト件数 N / failures 0 / errors 0** で
   exit 0（§G7 の機械ゲート。all_test.cpp 原本は案 A によりスコープ外 — §7.4）。
-- `git diff --exit-code cppunit-original-base -- sample/cppunit/*.cpp sample/cppunit/*.h`
-  が緑（G0 baseline commit との比較による原本無改変の機械証明）。
+- **原本無改変の機械証明**: baseline commit（タグ `cppunit-original-base` =
+  `ad882a3c5673a238354d6ad72bac88342a18335e`）の tree から機械導出した
+  **ライブラリ原本 31 ファイル**（`git ls-tree` → *.cpp/*.h 抽出 → all_test.cpp 除外。
+  §G7 手順 4）の全てで `git diff --exit-code cppunit-original-base -- <file>` が緑、
+  かつ導出件数 == 31。glob pathspec（`sample/cppunit/*.cpp` 等）は使わない
+  （all_test_tpp.cpp / all_test.cpp を誤って拾うため — rev.7 で廃止）。
 - 各ガイドで `build.bat` 緑（`tccgen.c` 変更のため **Release x64 / Debug Win32 の両方**）、
   `run_all.bat` 0 gating failure。
 - **amateras 回帰**: `cross.h` の C / C++ 両モードコンパイル（`STBI_NO_SIMD` なし）と

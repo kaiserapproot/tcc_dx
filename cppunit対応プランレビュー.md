@@ -1,32 +1,324 @@
-rev.5 を再度、敵対的に確認しました。
+前回の **3 Blocker は、設計内容としてはすべて解消されています**。G-OP/G-CAST は実装経路・スコープ外・負例・Cモード回帰まで具体化され、G7 も17項目のカバレッジ契約まで入ったので、rev.5 よりかなり強くなっています。
 
-前回の GO 時に残した3点、**P5 の value-name lookup、P2 の規則番号、baseline commit hash 記録は正しく修正されています**。 特に P5 は `npos` が値名であることを明示し、型名経路と値名/関数名経路を分離したので、前回の指摘は解消です。
+ただし、**新規 Blocker 1件 / High 3件**を見つけました。最終判定は **まだ REJECT** です。
 
-ただし、G0 実測によってプラン自体が拡張されたため、**rev.5 全体としては再び REJECT** に戻します。既存の G1～G6 設計が悪化したわけではありません。**新しく追加された部分に Blocker 3件**あります。
+## Blocker — manifest 自体が信頼できない + 完了条件が旧 glob のまま
 
-1. **Blocker — G7 の原本無改変ゲートが** **`all_test_tpp.cpp`** **自身を検出します。** 現在のゲートは `git diff --exit-code cppunit-original-base -- sample/cppunit/*.cpp sample/cppunit/*.h` です。一方、rev.5 では baseline 後に `sample/cppunit/all_test_tpp.cpp` を新規作成します。 「baseline 後の新規ファイルなので pathspec に含まれない」という説明は誤りです。`*.cpp` はファイル名でマッチするので、`all_test_tpp.cpp` を Git に追加・コミットした時点で baseline との差分として **added file** になります。つまり最終 G7 自身が赤になります。さらに `all_test.cpp` も `*.cpp` に入るため、「all\_test.cpp は無改変ゲート対象外」という新しい方針とも一致していません。
+G7 は現在、
 
-   ここは **31原本ファイル（12 TU + 19 h）だけの明示的 manifest** を作るのが一番安全です。あるいは Git pathspec の exclude で `all_test.cpp` と `all_test_tpp.cpp` を明示除外します。私は manifest 方式を推奨します。baseline hash `ad882a3c...` まで固定できているので、31ファイルだけをその hash と比較すれば完全です。
-2. **Blocker — G-OP / G-CAST は「必要機能と判明した」のに、まだ実装プランになっていません。** G0 実測によって単項 `operator*()`、`operator->()`、`T(expr)` が実際の停止点だと判明したのは非常に良いです。 しかし現在の記述は「既存機構に乗る見込み」「詳細設計は着手時に追記」となっています。 これは、これまで G1～G6 に要求してきた設計密度と明らかに違います。
+> `original_manifest.txt` に31原本ファイルを書き、その manifest を読んで baseline と diff
 
-   G-OP なら少なくとも、built-in `*` と class `operator*` の判別、戻り値の lvalue/reference 性維持、`operator->` の宣言パース、呼び出し変換、戻り値がポインタでない場合の扱い、負例、Cモード非回帰が必要です。G-CAST なら、`T(expr)` と通常の関数呼び出しの判別、typedef/basic type のみ許可、既存 `(T)expr` の cast machinery への接続、class functional cast の明示拒否、複数引数/空引数の扱い、負例が必要です。特に `delete (Entry*)*p` が実コードに存在するので、G-OP の戻り値カテゴリを雑に実装すると G4 に波及します。
+という方式です。
 
-   **G1/G2 の実装開始までは GO** でも構いません。しかし G-OP に入る前に詳細設計を追記する、という条件付きです。「rev.5 全体が最終実装プラン」という意味ではまだ GO にできません。
-3. **Blocker —** **`all_test_tpp.cpp`** **の N ゲートが循環しています。** 新ドライバを作り、そのドライバ自身の登録数を N として固定し、MSVC と tpp が同じ N/0/0 なら成功、としています。 これは**選択したテストの同等動作**は証明できますが、**「ライブラリ全機能を叩く」ことは証明しません**。極端には `all_test_tpp.cpp` に正常終了するテストを1個だけ書けば、MSVC=1/0/0、tpp=1/0/0 で完全に緑です。
+これは前回の glob 問題を解決しています。
 
-   案Aそのものは妥当です。元の `all_test.cpp` が生の例外へ依存し、ライブラリ12 TU自体は MINIMUM\_SET で MSVC コンパイル成功しているため、ドライバだけ差し替える判断には合理性があります。 ただし G7 に **テストカバレッジ契約**を追加してください。例えば TestCase / TestSuite / TestRegistry / TestResult / TestFailure / TestRunner / RepeatedTest / TestDecorator / SimpleString / SimpleList / SimpleAutoPtr について「最低1つ以上」ではなく、正常経路・failure記録・登録/検索・所有権/delete・iterator・文字列操作など、必要な振る舞いを表にして、それぞれ対応テスト名を固定します。その表のテスト数から N を導出する形なら、N が意味を持ちます。
+しかし、**その manifest 自体はゲート対象外**です。
 
-そのほかは Blocker ではありませんが、rev.5 では文書の古い情報を掃除した方がいいです。§7 では pure virtual は **9件・pure dtor 0** と確定したのに、§1 はまだ27件、リスク表も「27件に dtor が含まれるか未確認」のままです。 同様に new/delete も G0 実測では scalar new=11、scalar delete=14 と確定していますが、上部の旧カウントが残っています。さらに §8 の規模表には新設した **G-OP / G-CAST が載っていません**。 これは実装担当LLMに渡すならかなり邪魔になるので、rev.6 で一本化した方がよいです。
+例えば途中で誤って、
 
-### 最終判定
+```
+```
 
-**既存 G1～G6 の設計: GO 維持。**\
-**rev.5 全体: REJECT。**
+```
+SimpleString.cpp
+SimpleList.cpp
+...
+```
 
-修正必須は実質この3点です。
+のうち `SimpleString.cpp` を manifest から1行削除した状態で、その `SimpleString.cpp` を変更しても、
 
-* 原本無改変ゲートを **31原本ファイル限定**にする
-* G-OP / G-CAST を G1～G6 と同等の詳細設計＋受け入れテストまで書く
-* `all_test_tpp.cpp` に **機能→テストのカバレッジ表**を設け、そこから N を固定する
+```
+```
 
-この3つを直せば、今度は追加実測で発見された問題まで含めた意味での **本当の最終 GO** にできます。
+```
+manifest にない
+↓
+git diff されない
+↓
+緑
+```
+
+になります。
+
+つまり、
+
+> 31原本ファイルが無改変
+
+を証明する信頼根が、自由に変更可能な `original_manifest.txt` になっています。
+
+これは前回の「globでは新規ファイルを拾う」の逆で、今回は **manifest omission による false green** です。
+
+### 修正推奨
+
+一番強いのは manifest を手書きの source-of-truth にしないことです。
+
+baseline commit 自体から機械生成してください。
+
+概念的には、
+
+```
+```
+
+```
+baseline commit
+  ↓ git ls-tree
+sample/cppunit/*.cpp + *.h
+  ↓
+all_test.cpp を除外
+  ↓
+期待 31 ファイル
+```
+
+です。
+
+そして G7 で、
+
+```
+```
+
+```
+baseline から導出した集合 == manifest の集合
+manifest 行数 == 31
+重複なし
+```
+
+を先に検証してから各ファイルを diff する。
+
+または、より単純に **manifest を使わず baseline tree から直接31ファイルを列挙して diff** してしまえばいいです。
+
+さらにもう1つ、文書内で明確な矛盾があります。
+
+G7 は glob を禁止して manifest 方式へ修正したのに、**全体完了条件はまだ**
+
+```
+```
+
+```
+git diff --exit-code cppunit-original-base -- sample/cppunit/*.cpp sample/cppunit/*.h
+```
+
+のままです。
+
+これは `all_test.cpp` と `all_test_tpp.cpp` を拾うので、G7 の新設計と矛盾します。
+
+したがって Blocker 1 は、
+
+**「manifest の完全性を機械保証する」+「§4完了条件もmanifest/baseline-tree方式へ変更する」**
+
+の2点セットで修正してください。
+
+***
+
+## High 1 — カバレッジ契約は17件だが、ゲートは「17という数」しか見ていない
+
+今回の17項目表はかなり良いです。
+
+TestCase / TestResult / TestFailure / TestSuite / Registry / Runner / Repeated / Decorator / Setup / Listener / SimpleString / SimpleList / SimpleAutoPtr まで具体的なテスト名に固定されています。
+
+ただし機械ゲートが見るのは、
+
+```
+```
+
+```
+runCount == 17
+failures == 0
+errors == 0
+```
+
+だけです。
+
+例えば実装ミスで、
+
+```
+```
+
+```
+test_case_lifecycle
+test_case_lifecycle   ← 二重登録
+...
+test_listener         ← 登録漏れ
+```
+
+でも17件なら通ります。
+
+MSVCとの相互比較も両方同じ誤ったドライバを使うため、これを検出できません。
+
+### 推奨
+
+17個の**テスト名集合まで固定**してください。
+
+例えば実行時に各テストが、
+
+```
+```
+
+```
+PASS:test_case_lifecycle
+PASS:test_case_failure_record
+...
+PASS:test_auto_ptr
+```
+
+のような一意 marker を出し、G7 が17個すべてを完全一致で確認する。
+
+あるいはドライバの登録部分を固定テーブル化して、
+
+```
+```
+
+```
+register_test("test_case_lifecycle", ...);
+...
+```
+
+その17名を機械チェックする方式でもよいです。
+
+Blockerにはしません。契約表そのものがあるので、人間レビューでは漏れを発見できます。ただし「機械ゲート」としてはあと一段あります。
+
+***
+
+## High 2 — G-OP の `operator->` に「戻り値が NULL」の実行テストが欲しい
+
+G-OP はかなりよくなりました。
+
+*  pointerならbuilt-in経路を維持 
+*  classなら `operator->()` 
+*  返却型がpointerでなければerror 
+* `operator*()` の `T&` lvalue維持 
+*  Cモード回帰 
+
+まであります。
+
+ただし、
+
+```
+```
+
+```
+P *operator->() { return 0; }
+```
+
+に対して、
+
+```
+```
+
+```
+it->v
+```
+
+を行った場合は普通にNULL dereferenceになります。
+
+これはコンパイラがNULLチェックすべきという意味ではありません。
+
+重要なのは **`operator->()`** **の返却値をそのまま built-in** **`->`** **へ渡す**ことを固定するテストです。
+
+例えば、
+
+```
+```
+
+```
+P *operator->() { return &p; }
+```
+
+だけだと、実装が内部 `this` や元オブジェクトのアドレスを誤って使っていても偶然通る可能性があります。
+
+戻り先を別オブジェクトにしてください。
+
+```
+```
+
+```
+struct Proxy {
+    P *target;
+    P *operator->() { return target; }
+};
+
+P a;
+P b;
+Proxy x;
+x.target = &b;
+
+return x->v == b.v;
+```
+
+これなら**返却pointerそのものが使われた**ことを実行値で確認できます。
+
+***
+
+## High 3 — G0完了済みなのに、G0手順内には古い 31/19・27件が残っている
+
+§1 と §5 はきれいになっています。
+
+現在の確定値は、
+
+*  scalar new 11 
+*  scalar delete 14 
+*  pure virtual 9 
+*  pure virtual dtor 0 
+
+です。
+
+しかし G0 の手順本文にはまだ、
+
+> scalar new 31 / delete 19
+
+> 純粋仮想27件
+
+が残っています。
+
+G0 は完了済みなので動作上は問題ありませんが、このプランを別LLMに渡すなら、
+
+```
+```
+
+```
+§1: 11 / 14 / 9
+G0: 31 / 19 / 27
+```
+
+という二重情報になります。
+
+「G0実施前の計画値」なら、
+
+> **旧計画値（G0実測前。結果は§7参照）**
+
+と明示するか、実測後の確定値へ書き換えた方が安全です。
+
+***
+
+## G-CAST は今回 GO
+
+G-CASTについては新しい Blockerは見つかりませんでした。
+
+特に、
+
+```
+```
+
+```
+型名と判定できたときだけ T(expr)
+→ 既存 (T)expr のcast machineryへ
+→ class functional castは明示error
+→ 0引数/複数引数もerror
+```
+
+という設計は、今回必要な `size_type(-1)` だけを安全に増やす方針になっています。
+
+通常関数呼び出しとの混在テストとCモード非回帰もあるので、この範囲なら十分です。
+
+## 判定
+
+**G1〜G6: GO 維持**\
+ **G-OP: GO（High追加テスト推奨）**\
+ **G-CAST: GO**\
+ **G7: Blockerあり**\
+ **rev.6全体: REJECT**
+
+今回、本当に必須なのは1点だけです。
+
+> **原本31ファイルの集合そのものを baseline commit から機械的に固定し、§4の古いglob完了条件も削除する。**
+
+これを直せば、これまでの rev.1〜rev.6 を通じて残っていた「緑なのに実は証明できていない」タイプの穴は、かなり潰し切った状態になります。次版では、私は **最終GO判定を出せる可能性が高い**です。
