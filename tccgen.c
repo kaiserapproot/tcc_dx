@@ -8449,6 +8449,22 @@ do_decl:
                         unget_tok('~');
                     }
                 }
+                // G2: accept and discard "friend class Identifier;" only.
+                // Any other friend form (e.g. "friend int fn(C&);") is ALSO
+                // a declaration of fn, so silently skipping it would drop
+                // that declaration (silent miscompile) - reject loudly.
+                if (tcc_state->cpp && tok == TOK_FRIEND) {
+                    next();
+                    if (tok == TOK_CLASS) {
+                        next();
+                        if (tok < TOK_UIDENT)
+                            expect("identifier");
+                        next();
+                        skip(';');
+                        continue;
+                    }
+                    tcc_error("unsupported friend declaration (only 'friend class X;' is accepted)");
+                }
                 if (!is_ctor_decl && !is_dtor_decl && !parse_btype(&btype, &ad1, 0)) {
                     if (tok == TOK_STATIC_ASSERT) {
                         do_Static_assert();
