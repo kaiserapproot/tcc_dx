@@ -70,7 +70,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | メンバポインタ | データメンバポインタ `T C::*`、非仮想 / 仮想メンバ関数ポインタ |
 | 演算子 | `+ - * / % & \| ^ << >>`、比較 `== != < > <= >=`、代入 `= += -= *= /=` と各種複合代入、単項 `! - ~`、前置・後置 `++ --`、`[]`、メンバ / 非メンバの両方 |
 | リンケージ | `extern "C" { ... }` ブロック、`extern "C" void f();` 単一宣言 |
-| その他 | `this` / `*this` / `this->x`、`Class::member` / `Class::func()`、ネストしたクラス定義、先頭 `::`（グローバルスコープ修飾。型位置 `typedef ::C D;` / 式位置 `::gfn()`。**正式 lookup 実装** — ローカルや同名メンバが隠していてもグローバル束縛へ解決し、shadow テストは exit 0。G1、2026-08-22） |
+| その他 | `this` / `*this` / `this->x`、`Class::member` / `Class::func()`、ネストしたクラス定義、`friend class X;`（受理して読み捨て。アクセス制御は元々未実装のため意味差なし。friend **関数**宣言は明示エラー。G2、2026-08-22）、先頭 `::`（グローバルスコープ修飾。型位置 `typedef ::C D;` / 式位置 `::gfn()`。**正式 lookup 実装** — ローカルや同名メンバが隠していてもグローバル束縛へ解決し、shadow テストは exit 0。G1、2026-08-22） |
 
 ---
 
@@ -92,7 +92,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **純粋仮想関数 / 抽象クラス** | `virtual int f() = 0;` | `',' が必要です（"=" が見つかりました）` |
 | **仮想デストラクタ** | `virtual ~B() {}` | `identifier が必要です` |
 | **仮想継承** | `struct B : virtual public A {}` | `unknown base class` |
-| **`friend`** | `friend int peek(P&);` | `';' が必要です（"friend" が見つかりました）` |
+| **`friend` 関数宣言** | `friend int peek(P&);` | `unsupported friend declaration`（G2 で明示エラー化。読み捨てると関数宣言自体が消えるため） |
 | **`explicit`** | `explicit P(int x) {...}` | `';' が必要です（"explicit" が見つかりました）` |
 | **`mutable`** | `mutable int v;` | `';' が必要です（"mutable" が見つかりました）` |
 | **クラス内 `enum`** | `struct C{ enum E{A,B}; };` | `identifier が必要です` |
