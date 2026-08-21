@@ -775,6 +775,10 @@ static const char *cpp_operator_suffix(int op_tok)
     case TOK_GT: return "gt";
     case TOK_LE: return "le";
     case TOK_GE: return "ge";
+    // G-OP: operator-> ("arrow").  With the suffix registered, declaration,
+    // out-of-class definition and explicit a.operator->() all ride the same
+    // ext1-6 machinery; the implicit dispatch hook is in postfix '->'.
+    case TOK_ARROW: return "arrow";
     /* FEAT-6A-ext6: remaining binary bitwise / shift / modulo operators and
        their compound-assignment forms.  Binary ones route through expr_infix
        (like ext5); the compound ones route through expr_eq's struct
@@ -9847,7 +9851,12 @@ tok_next:
     case '*':
         next();
         unary();
-        indir();
+        // G-OP: a class-typed operand dispatches to operator* (member 0-arg
+        // first, then the free 1-arg form, like every ext3 unary op).  Both
+        // hooks are VT_STRUCT-guarded, so pointer operands and C TUs keep
+        // the plain indir() path byte-for-byte.
+        if (!cpp_try_member_unop('*') && !cpp_try_free_unop('*'))
+            indir();
         break;
     case '&':
         next();
@@ -10435,8 +10444,17 @@ tok_next:
             CType obj_type;
             Sym *field;
 
-            if (tok == TOK_ARROW)
+            if (tok == TOK_ARROW) {
+                // G-OP: class-typed lhs: x->m becomes (x.operator->())->m,
+                // applied ONCE (C++ recursion is out of scope).  operator->
+                // is member-only per ISO C++, so there is no free fallback.
+                // A non-pointer return then fails in indir() ("pointer
+                // expected") instead of silently recursing.
+                if (tcc_state->cpp && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+                    && vtop->type.ref)
+                    cpp_try_member_unop(TOK_ARROW);
                 indir();
+            }
             /* C++: '.' on a reference is like '->' (deref then member) */
             else if (tcc_state->cpp && (vtop->type.t & VT_REFERENCE))
                 indir();
