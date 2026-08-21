@@ -540,6 +540,30 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
 
 static int cpp_dtor_name_tok(int class_tok);
 
+// G1 (leading ::): consume a global-scope qualifier "::" at the current
+// token position.  "::" arrives as two ':' tokens, so a lone ':' must be
+// pushed back untouched or ternary parsing in C++ TUs would break.
+static int cpp_parse_global_scope_qualifier(void)
+{
+    if (!tcc_state->cpp || tok != ':')
+        return 0;
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        return 0;
+    }
+    next();
+    return 1;
+}
+
+// G1: set right after cpp_parse_global_scope_qualifier() succeeded in a
+// type-head / expression-head position; the next identifier lookup must
+// then use the file-scope (global) binding only.  A plain skip would
+// silently resolve to a shadowing local (wrong code, no diagnostic),
+// which the plan explicitly forbids.
+static int cpp_global_scope_type_pending;
+static int cpp_global_scope_expr;
+
 static int parse_cpp_scope_qualifier(int *v)
 {
     int class_v;
@@ -585,7 +609,11 @@ static int cpp_unget_scoped_expr(void)
 {
     int cls_tok, mem_tok;
 
-    if (!tcc_state->cpp || tok < TOK_IDENT)
+    // G1: keywords sit in [TOK_IDENT, TOK_UIDENT) and can never be a
+    // class name, but "return ::gfn()" made "return" reach here as
+    // cls_tok and the whole statement was mis-fed to gexpr().  Only a
+    // user identifier may start a scoped expression.
+    if (!tcc_state->cpp || tok < TOK_UIDENT)
         return 0;
     cls_tok = tok;
     next();
@@ -3424,6 +3452,59 @@ static int sym_scope(Sym* s)
         return s->type.ref->sym_scope;
     else
         return s->sym_scope;
+}
+
+// G1 (leading ::): return only the file-scope binding of identifier v.
+// sym_find() returns the innermost binding, so using it directly after
+// "::" would pick a shadowing local; walk prev_tok to the global side,
+// the same idiom external_sym() already uses.
+static Sym* cpp_global_scope_find(int v)
+{
+    Sym* s = sym_find(v);
+    // Hoisted member bodies (and class statics) sit on this chain at
+    // scope 0 with parent_class set, but they are not global-namespace
+    // entities, so "::name" must skip them too - the same filter the
+    // free-function overload walk applies.
+    while (s && (sym_scope(s) || s->parent_class))
+        s = s->prev_tok;
+    return s;
+}
+
+// G1: file-scope-only variant of struct_find() for the tag namespace.
+// sym_push() records sym_scope on the sym_struct chain too, so the same
+// prev_tok walk selects the global tag.
+static Sym* cpp_global_scope_struct_find(int v)
+{
+    Sym* s = struct_find(v);
+    while (s && sym_scope(s))
+        s = s->prev_tok;
+    return s;
+}
+
+// G1: global-binding-only variant of cpp_lookup_type_name(), with the
+// same hiding rule (a non-type object at file scope hides a same-named
+// class for "::N", and the tag chain is consulted only when nothing is
+// bound in the ordinary namespace).
+static Sym* cpp_global_lookup_type_name(int v, int* kind)
+{
+    Sym* s;
+
+    *kind = CPP_TN_NONE;
+    if (v < TOK_IDENT)
+        return NULL;
+    s = cpp_global_scope_find(v);
+    if (s) {
+        if (!(s->type.t & VT_TYPEDEF))
+            return NULL;
+        *kind = CPP_TN_TYPEDEF;
+        return s;
+    }
+    s = cpp_global_scope_struct_find(v & ~SYM_FIELD);
+    if (s) {
+        *kind = CPP_TN_TAG;
+        return s;
+    }
+    return NULL;
 }
 
 /* �w�肳�ꂽ�V���{�����V���{���X�^�b�N�Ƀv�b�V�� */
@@ -8795,6 +8876,28 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             goto basic_type2;
         case TOK_THREAD_LOCAL:
             tcc_error("_Thread_local �͎�������Ă��܂���");
+        case ':':
+            // G1 (leading ::): a type head "::Name".  Resolve against the
+            // global binding only; when the global side has no type there,
+            // push "::" back so the expression parser sees "::name" intact
+            // (a statement like "::x = 1;" must not lose its qualifier).
+            // In C ':' never starts a type, so bail out unconsumed, which
+            // matches the old default-case behavior byte-for-byte.
+            if (!tcc_state->cpp || typespec_found)
+                goto the_end;
+            if (!cpp_parse_global_scope_qualifier())
+                goto the_end;
+            {
+                int gkind;
+                if (tok >= TOK_IDENT
+                    && cpp_global_lookup_type_name(tok, &gkind) != NULL) {
+                    cpp_global_scope_type_pending = 1;
+                    continue;
+                }
+            }
+            unget_tok(':');
+            unget_tok(':');
+            goto the_end;
         default:
             if (typespec_found)
                 goto the_end;
@@ -8808,7 +8911,16 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                    innermost binding wins, so a parameter or variable named
                    like a class hides it and the token starts an expression,
                    not a declaration. */
-                tn = cpp_lookup_type_name(tok, &tn_kind);
+                if (cpp_global_scope_type_pending) {
+                    // G1: "::" was just consumed by the ':' case above, so
+                    // both the ordinary and the type lookup must ignore any
+                    // shadowing local binding and use the file-scope one.
+                    cpp_global_scope_type_pending = 0;
+                    s = cpp_global_scope_find(tok);
+                    tn = cpp_global_lookup_type_name(tok, &tn_kind);
+                } else {
+                    tn = cpp_lookup_type_name(tok, &tn_kind);
+                }
                 stsym = NULL;
                 if (tn_kind == CPP_TN_TYPEDEF) {
                     /* Only a typedef *to a struct* is handled here; a plain
@@ -10145,6 +10257,14 @@ tok_next:
         vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
         vtop->sym = cpp_this_sym;
         break;
+    case ':':
+        // G1 (leading ::): an expression head "::name".  After consuming
+        // the qualifier, fall into the identifier path with the global-
+        // binding-only flag set.  A lone ':' falls through unchanged and
+        // hits the regular "identifier expected" diagnostic below.
+        if (tcc_state->cpp && cpp_parse_global_scope_qualifier())
+            cpp_global_scope_expr = 1;
+        goto tok_identifier;
     default:
     tok_identifier:
         if (tok < TOK_UIDENT)
@@ -10152,6 +10272,12 @@ tok_next:
         t = tok;
         next();
         s = sym_find(t);
+        if (tcc_state->cpp && cpp_global_scope_expr) {
+            // G1: "::name" must skip shadowing locals; the implicit member
+            // lookups below (BUG-21/BUG-22) are also bypassed because a
+            // qualified global must never rebind to a class member.
+            s = cpp_global_scope_find(t);
+        }
         /* BUG-22: an unqualified call to another member of the same class
            (`return helper(42);` inside a method) must pass `this`.  The name
            otherwise binds to the hoisted global that carries the method body,
@@ -10160,7 +10286,8 @@ tok_next:
            regular member-call path emit it, which also keeps virtual dispatch
            and MI base offsets working.  cross.h's C++ window_t relies on this
            throughout - init() calls init_common(). */
-        if (tcc_state->cpp && cpp_cur_func_class && cpp_this_sym
+        if (tcc_state->cpp && !cpp_global_scope_expr
+            && cpp_cur_func_class && cpp_this_sym
             && tok == '('
             && (!s || sym_scope(s) == 0)) {
             Sym *mfn = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
@@ -10196,7 +10323,7 @@ tok_next:
            Member FUNCTIONS are deliberately left to the existing global
            binding - calls resolve through cpp_find_field_for_call - so only
            data members are considered here. */
-        if (tcc_state->cpp && cpp_cur_func_class) {
+        if (tcc_state->cpp && !cpp_global_scope_expr && cpp_cur_func_class) {
             Sym *mf = NULL;
             if (!s) {
                 mf = cpp_lookup_member_field(t, cpp_cur_func_class);
@@ -10217,6 +10344,16 @@ tok_next:
                 cpp_push_member_var(mf);
                 break;
             }
+        }
+        if (tcc_state->cpp && cpp_global_scope_expr) {
+            cpp_global_scope_expr = 0;
+            // C++ has no implicit function declaration, and letting an
+            // unresolved "::name" fall through to the implicit-decl path
+            // would defeat the whole point of the qualified lookup, so
+            // fail loudly here instead.
+            if (!s)
+                tcc_error("'%s' is not declared in global scope",
+                          get_tok_str(t, NULL));
         }
         if (!s || IS_ASM_SYM(s)) {
             const char* name = get_tok_str(t, NULL);
@@ -10381,6 +10518,19 @@ tok_next:
                 unget_tok(':');
                 break;
             }
+            // G1: "x ? v : ::b" arrives here as THREE ':' tokens, and the
+            // pair check above alone mistook the ternary ':' plus the start
+            // of "::" for a scope operator.  ':::' can only split as
+            // ':' + '::' (a '::' directly followed by ':' could never form
+            // Class::member), so give both tokens back and let the ternary
+            // parser consume its ':'.
+            next();
+            if (tok == ':') {
+                unget_tok(':');
+                unget_tok(':');
+                break;
+            }
+            unget_tok(':');
             if (!vtop->sym || (vtop->type.t & VT_BTYPE) != VT_STRUCT || !vtop->type.ref)
                 expect("identifier");
             class_sym = vtop->type.ref;
@@ -10912,6 +11062,16 @@ static void expr_cond(void)
         next();
         c = condition_3way();
         g = (tok == ':' && gnu_ext);
+        if (g && tcc_state->cpp) {
+            // G1: "a ? ::b : c" begins its true branch with "::", which is
+            // ':' ':' at token level and looked like the GNU "a ?: b" form.
+            // Peek the second ':' to tell the two apart; C TUs never reach
+            // here with "::" so the GNU extension is untouched there.
+            next();
+            if (tok == ':')
+                g = 0;
+            unget_tok(':');
+        }
         tt = 0;
         if (!g) {
             if (c < 0) {
