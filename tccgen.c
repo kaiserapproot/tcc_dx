@@ -564,6 +564,13 @@ static int cpp_parse_global_scope_qualifier(void)
 // which the plan explicitly forbids.
 static int cpp_global_scope_type_pending;
 static int cpp_global_scope_expr;
+// G3 P5: nonzero while default-argument tokens are being replayed at a
+// call site.  The tokens must resolve in their DEFINING scope: call-site
+// locals may not capture names, the owning class (restored into
+// cpp_cur_func_class) provides statics, and the this-based implicit
+// member lookups stay off (non-static members in default args are
+// ill-formed in C++ anyway).
+static int cpp_default_arg_replay;
 
 static int parse_cpp_scope_qualifier(int *v)
 {
@@ -2820,6 +2827,11 @@ static void cpp_save_default_arg(Sym *param)
     }
     tok_str_add(def, TOK_EOF);
     param->inline_func_str = def;
+    // G3 P5: remember the defining class so the replay can restore the
+    // declaration scope (`= npos` must mean Class::npos at every call
+    // site).  cpp_cur_class covers in-class declarations; the qualified
+    // class covers an out-of-class definition's parameter list.
+    param->parent_class = cpp_cur_class ? cpp_cur_class : cpp_qualified_class;
 }
 
 static void cpp_save_mem_init_list(Sym *ctor)
@@ -2943,11 +2955,23 @@ static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa)
     nb_args = *pnb_args;
     while (sa) {
         if (sa->inline_func_str) {
+            // G3 P5: replay in the DEFINING scope - restore the owning
+            // class and raise the replay flag so `= npos` resolves to
+            // Class::npos and never to a same-named call-site local.
+            // Save/restore keeps nested replays (a default arg whose
+            // expression itself calls a defaulted function) correct.
+            Sym *saved_cls = cpp_cur_func_class;
+            int saved_replay = cpp_default_arg_replay;
+            if (sa->parent_class)
+                cpp_cur_func_class = sa->parent_class;
+            cpp_default_arg_replay = 1;
             begin_macro(sa->inline_func_str, 1);
             next();
             expr_eq();
             gfunc_param_typed(func, sa);
             end_macro();
+            cpp_cur_func_class = saved_cls;
+            cpp_default_arg_replay = saved_replay;
             nb_args++;
         } else {
             tcc_error("too few arguments to function");
@@ -3005,8 +3029,11 @@ static void cpp_inherit_decl_defaults(Sym *sym)
     while (dp && sp) {
         if (dp->type.t == VT_VOID || sp->type.t == VT_VOID)
             break;
-        if (!sp->inline_func_str && dp->inline_func_str)
+        if (!sp->inline_func_str && dp->inline_func_str) {
             sp->inline_func_str = tok_str_dup_for_default(dp->inline_func_str);
+            // G3 P5: the defining class travels with the tokens.
+            sp->parent_class = dp->parent_class;
+        }
         dp = dp->next;
         sp = sp->next;
     }
@@ -3237,6 +3264,7 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cstr_new(&initstr);
     cpp_qualified_class = NULL;
     cpp_cur_class = NULL;
+    cpp_default_arg_replay = 0;
     decl_once_flag = 0;
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
@@ -10512,6 +10540,18 @@ tok_next:
             // qualified global must never rebind to a class member.
             s = cpp_global_scope_find(t);
         }
+        else if (tcc_state->cpp && cpp_default_arg_replay) {
+            // G3 P5: default-arg replay resolves in the defining scope -
+            // a call-site local must not capture the name, and the owning
+            // class (in cpp_cur_func_class) supplies its statics.
+            if (s && sym_scope(s))
+                s = cpp_global_scope_find(t);
+            if (!s && cpp_cur_func_class) {
+                Sym *st = cpp_lookup_static_member(cpp_cur_func_class, t);
+                if (st)
+                    s = st;
+            }
+        }
         /* BUG-22: an unqualified call to another member of the same class
            (`return helper(42);` inside a method) must pass `this`.  The name
            otherwise binds to the hoisted global that carries the method body,
@@ -10520,7 +10560,7 @@ tok_next:
            regular member-call path emit it, which also keeps virtual dispatch
            and MI base offsets working.  cross.h's C++ window_t relies on this
            throughout - init() calls init_common(). */
-        if (tcc_state->cpp && !cpp_global_scope_expr
+        if (tcc_state->cpp && !cpp_global_scope_expr && !cpp_default_arg_replay
             && cpp_cur_func_class && cpp_this_sym
             && tok == '('
             && (!s || sym_scope(s) == 0)) {
@@ -10557,7 +10597,8 @@ tok_next:
            Member FUNCTIONS are deliberately left to the existing global
            binding - calls resolve through cpp_find_field_for_call - so only
            data members are considered here. */
-        if (tcc_state->cpp && !cpp_global_scope_expr && cpp_cur_func_class) {
+        if (tcc_state->cpp && !cpp_global_scope_expr && !cpp_default_arg_replay
+            && cpp_cur_func_class) {
             Sym *mf = NULL;
             if (!s) {
                 mf = cpp_lookup_member_field(t, cpp_cur_func_class);
