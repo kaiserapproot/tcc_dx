@@ -539,6 +539,7 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
 }
 
 static int cpp_dtor_name_tok(int class_tok);
+static Sym *cpp_lookup_class_type(Sym *cls, int v);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -645,6 +646,16 @@ static int cpp_unget_scoped_expr(void)
     unget_tok(':');
     unget_tok(':');
     unget_tok(cls_tok);
+    // G3 P3: "Class::type" at a statement head is a DECLARATION
+    // ("C::T x;"), not a scoped expression.  When the qualified name
+    // resolves to a type in the class scope (self + bases), hand the
+    // statement back to the decl path; expressions like C::npos keep
+    // returning 1 exactly as before.
+    {
+        Sym *cls = struct_find(cls_tok);
+        if (cls && cpp_lookup_class_type(cls, mem_tok))
+            return 0;
+    }
     return 1;
 }
 
@@ -1387,7 +1398,13 @@ static Sym *cpp_unqualified_class_type_find(int v)
 {
     Sym *cls, *td;
 
-    cls = cpp_cur_class ? cpp_cur_class : cpp_cur_func_class;
+    // G3 P3: cpp_qualified_class is live while an out-of-class member's
+    // declarator/parameter list is parsed (set by the scope qualifier,
+    // consumed and cleared by decl()), which is exactly when parameter
+    // types like `insert(iterator pos, value_type v)` must see class
+    // scope (SimpleList.cpp:114).
+    cls = cpp_cur_class ? cpp_cur_class
+        : cpp_cur_func_class ? cpp_cur_func_class : cpp_qualified_class;
     for (; cls; cls = cls->cpp_enclosing_class) {
         td = cpp_lookup_class_type(cls, v);
         if (td)
@@ -9087,10 +9104,55 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                     if (tok == ':') {
                         next();
                         if (tok == ':') {
-                            unget_tok(':');
-                            unget_tok(':');
-                            unget_tok(cls_tok);
-                            goto the_end;
+                            // G3 P3: "Class::name".  When `name` is a type
+                            // in Class scope (self + bases ONLY - never the
+                            // enclosing or global scope, rev.4 Blocker 2),
+                            // this is a qualified type name; otherwise give
+                            // the tokens back so Class::member expressions
+                            // keep working exactly as before.
+                            Sym *qcls = stsym;
+                            Sym *qtd;
+                            int levels = 0;
+                            next();
+                            for (;;) {
+                                qtd = tok >= TOK_UIDENT
+                                    ? cpp_lookup_class_type(qcls, tok) : NULL;
+                                if (!qtd) {
+                                    if (levels == 0) {
+                                        unget_tok(':');
+                                        unget_tok(':');
+                                        unget_tok(cls_tok);
+                                        goto the_end;
+                                    }
+                                    // O::I::T with no T in I must fail here,
+                                    // not fall back to the enclosing O::T.
+                                    tcc_error("no type '%s' in qualified class scope",
+                                              tok >= TOK_IDENT
+                                                  ? get_tok_str(tok, NULL) : "?");
+                                }
+                                next();
+                                if (tok == ':') {
+                                    next();
+                                    if (tok == ':') {
+                                        if ((qtd->type.t & VT_BTYPE) != VT_STRUCT
+                                            || !qtd->type.ref)
+                                            tcc_error("'::' applied to a non-class type");
+                                        qcls = qtd->type.ref;
+                                        levels++;
+                                        next();
+                                        continue;
+                                    }
+                                    unget_tok(':');
+                                }
+                                break;
+                            }
+                            type->t = (qtd->type.t & ~VT_STORAGE)
+                                | (t & (VT_STORAGE | VT_CONSTANT | VT_VOLATILE));
+                            type->ref = qtd->type.ref;
+                            typespec_found = 1;
+                            st = bt = -2;
+                            t = type->t;
+                            break;
                         }
                         unget_tok(':');
                     }
