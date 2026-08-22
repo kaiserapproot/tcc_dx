@@ -95,6 +95,11 @@ echo === a9\govl_link.bat ===
 call a9\govl_link.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem BUG-33: static members declared in a header and defined in another TU.
+echo === a9\bug33_link.bat ===
+call a9\bug33_link.bat
+if errorlevel 1 set /a FAILED+=1
+
 echo === run_all summary: !FAILED! gating failure(s) ===
 popd
 exit /b !FAILED!
