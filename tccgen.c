@@ -590,6 +590,9 @@ static int cpp_global_scope_expr;
 // member lookups stay off (non-static members in default args are
 // ill-formed in C++ anyway).
 static int cpp_default_arg_replay;
+// G4 (new/delete): `void *malloc(...)` / `void free(...)` and the plain
+// void / void* types they need.  Initialized in tccgen_init.
+static CType cpp_malloc_type, cpp_free_type, cpp_voidp_type, cpp_void_type;
 
 static int parse_cpp_scope_qualifier(int *v)
 {
@@ -3361,6 +3364,27 @@ ST_FUNC void tccgen_init(TCCState* s1)
     func_old_type.ref = sym_push(SYM_FIELD, &int_type, 0, 0);
     func_old_type.ref->f.func_call = FUNC_CDECL;
     func_old_type.ref->f.func_type = FUNC_OLD;
+
+    // G4 (new/delete): prototypes for the CRT allocator.  Built here, next
+    // to func_old_type, because sym_push lands on local_stack once we are
+    // inside a function - a lazily built type would be popped at the end of
+    // that function while the extern Sym referencing it lives on.
+    // FUNC_OLD (K&R): only the RETURN type matters to us, and it is what
+    // func_old_type gets wrong for malloc - `int` would truncate the
+    // pointer on x86_64.
+    cpp_voidp_type.t = VT_VOID;
+    cpp_voidp_type.ref = NULL;
+    mk_pointer(&cpp_voidp_type);
+    cpp_void_type.t = VT_VOID;
+    cpp_void_type.ref = NULL;
+    cpp_malloc_type.t = VT_FUNC;
+    cpp_malloc_type.ref = sym_push(SYM_FIELD, &cpp_voidp_type, 0, 0);
+    cpp_malloc_type.ref->f.func_call = FUNC_CDECL;
+    cpp_malloc_type.ref->f.func_type = FUNC_OLD;
+    cpp_free_type.t = VT_FUNC;
+    cpp_free_type.ref = sym_push(SYM_FIELD, &cpp_void_type, 0, 0);
+    cpp_free_type.ref->f.func_call = FUNC_CDECL;
+    cpp_free_type.ref->f.func_type = FUNC_OLD;
 #ifdef precedence_parser
     init_prec();
 #endif
@@ -10270,6 +10294,318 @@ parse_type:
     return 1;
 }
 
+// ---------------------------------------------------------------------
+// G4: new / delete
+//
+// Scope comes from what sample/cppunit actually writes (grep, 2026-08-22):
+// 13 x `new Class(args)` / `new Class()`, 4 x `new POD[n]` (all char), and
+// ZERO scalar POD `new`.  So the scalar path is class-only: `new int` is
+// rejected rather than half-implemented, because default-initialization
+// and value-initialization differ and guessing would silently hand back
+// uninitialized memory.  Element construction for `new Class[n]` needs a
+// stored element count, so it is rejected too.
+// Destructor dispatch here is the non-virtual direct call; the virtual /
+// complete-object form is G6.
+// ---------------------------------------------------------------------
+
+static Sym *cpp_heap_sym(const char *name, CType *ftype)
+{
+    return external_global_sym(tok_alloc(name, strlen(name))->tok, ftype);
+}
+
+// The function and its nb_args arguments are already on the vstack; emit
+// the call and leave the return value there.
+static void cpp_finish_heap_call(CType *ret_type, int nb_args)
+{
+    SValue ret;
+
+    ret.type = *ret_type;
+    ret.c.i = 0;
+    PUT_R_RET(&ret, ret.type.t);
+    gfunc_call(nb_args);
+    vsetc(&ret.type, ret.r, &ret.c);
+}
+
+// Store vtop (a pointer value) into a freshly reserved stack slot and
+// return its offset.  Every later use reads the slot instead of keeping a
+// register live across the ctor/dtor call - the BUG-23 lesson - and it is
+// what makes nested `new` safe.
+static int cpp_spill_ptr_to_temp(CType *ptype)
+{
+    int slot;
+
+    loc = (loc - PTR_SIZE) & -PTR_SIZE;
+    slot = loc;
+    vset(ptype, VT_LOCAL | VT_LVAL, slot);
+    vswap();
+    vstore();
+    vpop();
+    return slot;
+}
+
+// *(void**)((char*)p + ofs) = &vtable   (heap twin of cpp_write_local_vptr_slot)
+static void cpp_write_heap_vptr_slot(CType *ptype, int ptr_slot, int ofs,
+                                     int vtable_tok)
+{
+    Sym *vtable_sym;
+    CType voidp, voidpp;
+
+    vtable_sym = sym_find(vtable_tok);
+    if (!vtable_sym)
+        return;
+    voidp.t = VT_VOID;
+    voidp.ref = NULL;
+    mk_pointer(&voidp);
+    voidpp = voidp;
+    mk_pointer(&voidpp);
+    vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    vtop->type = char_pointer_type;
+    vpushi(ofs);
+    gen_op('+');
+    vtop->type = voidpp;
+    indir();
+    vpushsym(&voidp, vtable_sym);
+    vstore();
+    vpop();
+}
+
+static void cpp_init_heap_vptr_rec(CType *ptype, int ptr_slot, Sym *class_sym,
+                                   int base_ofs)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f))
+            continue;
+        if (!cpp_type_has_virtual(f->parent_class))
+            continue;
+        if (f->c > 0 && f->cpp_vtable_tok)
+            cpp_write_heap_vptr_slot(ptype, ptr_slot, base_ofs + f->c,
+                                     f->cpp_vtable_tok);
+        cpp_init_heap_vptr_rec(ptype, ptr_slot, f->parent_class,
+                               base_ofs + f->c);
+    }
+}
+
+// A heap object gets no declaration site, so the vptrs a local or global
+// would receive at its declaration have to be written here - otherwise a
+// virtual call through the returned pointer reads garbage.
+static void cpp_init_heap_vptr(CType *ptype, int ptr_slot, Sym *class_sym)
+{
+    if (!class_sym || nocode_wanted)
+        return;
+    if (class_sym->cpp_vtable_tok)
+        cpp_write_heap_vptr_slot(ptype, ptr_slot, 0, class_sym->cpp_vtable_tok);
+    cpp_init_heap_vptr_rec(ptype, ptr_slot, class_sym, 0);
+}
+
+// Emit __cpp_ctor_C(p, args) for the object whose address sits in
+// ptr_slot.  Argument handling mirrors cpp_emit_base_ctor_call: parse
+// first, resolve the overload from the raw types, then convert.
+static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
+                                    int parse_args)
+{
+    Sym *ctor_field, *ctor_global, *resolved, *sa;
+    CType ct;
+    SValue this_sv;
+    int nb_args, na, i;
+
+    ctor_field = cpp_find_ctor_field(class_sym);
+    if (!ctor_field) {
+        // No user constructor.  Arguments would have nowhere to go, so say
+        // so instead of dropping them; `new C` / `new C()` is fine (the
+        // storage is raw, exactly like `C c;` on the stack).
+        if (parse_args && tok != ')')
+            tcc_error("class has no constructor taking arguments");
+        return;
+    }
+    ct.t = VT_STRUCT;
+    ct.ref = class_sym;
+    ctor_global = cpp_lookup_member_func(ctor_field, &ct);
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    nb_args = 0;
+    if (parse_args) {
+        while (tok != ')' && tok != TOK_EOF) {
+            expr_eq();
+            nb_args++;
+            if (tok == ',')
+                next();
+        }
+    }
+    na = nb_args;
+    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
+    // `this` is read back out of the stack slot, so no register has to stay
+    // live while the arguments above were evaluated.
+    vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    this_sv = *vtop;
+    vpop();
+    if (na == 0) {
+        vpushv(&this_sv);
+        nb_args = 1;
+    } else {
+        vtop++;
+        nb_args = na + 1;
+        memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
+        vtop[-nb_args + 1] = this_sv;
+    }
+    // gfunc_call consumes the callee and its arguments and pushes nothing
+    // (the caller is what materializes a return value), so there is
+    // deliberately no vpop here - a ctor's void result is simply absent.
+    gfunc_call(nb_args);
+}
+
+static void cpp_parse_new(void)
+{
+    CType type, ptype;
+    AttributeDef ad;
+    Sym *class_sym;
+    int size, align, ptr_slot, parse_args;
+
+    next();                             /* consume 'new' */
+    if (!local_scope)
+        tcc_error("'new' is only supported inside a function");
+    if (!parse_btype(&type, &ad, 0))
+        expect("type name after 'new'");
+    while (tok == '*') {
+        next();
+        mk_pointer(&type);
+    }
+    ptype = type;
+    mk_pointer(&ptype);
+
+    if (tok == '[') {
+        /* new T[n] - POD elements only (see the scope note above) */
+        next();
+        if ((type.t & VT_BTYPE) == VT_STRUCT && type.ref
+            && (cpp_find_ctor_field(type.ref) || cpp_find_dtor_field(type.ref)))
+            tcc_error("new[] of a class with a constructor or destructor is not supported");
+        size = type_size(&type, &align);
+        if (size <= 0)
+            tcc_error("cannot allocate an incomplete type");
+        gexpr();
+        skip(']');
+        vpushi(size);
+        gen_op('*');
+        vpushsym(&cpp_malloc_type, cpp_heap_sym("malloc", &cpp_malloc_type));
+        vswap();                        /* [count*size, malloc] -> [malloc, n] */
+        cpp_finish_heap_call(&cpp_voidp_type, 1);
+        vtop->type = ptype;
+        return;
+    }
+
+    if ((type.t & VT_BTYPE) != VT_STRUCT || !type.ref)
+        tcc_error("'new' of a non-class type is not supported");
+    class_sym = type.ref;
+    if (class_sym->c < 0)
+        tcc_error("cannot allocate an incomplete type");
+    size = type_size(&type, &align);
+    if (size <= 0)
+        size = 1;
+    vpushsym(&cpp_malloc_type, cpp_heap_sym("malloc", &cpp_malloc_type));
+    vpushi(size);
+    cpp_finish_heap_call(&cpp_voidp_type, 1);
+    vtop->type = ptype;
+    ptr_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    // vptrs first: a constructor body may already call a virtual member.
+    cpp_init_heap_vptr(&ptype, ptr_slot, class_sym);
+
+    parse_args = 0;
+    if (tok == '(') {
+        next();
+        parse_args = 1;
+    }
+    cpp_emit_heap_ctor_call(class_sym, &ptype, ptr_slot, parse_args);
+    if (parse_args)
+        skip(')');
+    vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+}
+
+static void cpp_parse_delete(void)
+{
+    CType ptype, elem, ct;
+    Sym *dtor_field, *dtor_global;
+    int is_array, ptr_slot, skip_jmp;
+
+    next();                             /* consume 'delete' */
+    is_array = 0;
+    if (tok == '[') {
+        next();
+        skip(']');
+        is_array = 1;
+    }
+    if (!local_scope)
+        tcc_error("'delete' is only supported inside a function");
+    unary();                            /* the pointer expression */
+    if ((vtop->type.t & VT_BTYPE) != VT_PTR) {
+        // C++ lets the null pointer constant stand in for a pointer, and
+        // `delete 0;` must compile as a no-op (CPPUnit writes the pattern
+        // via NULL-valued members).  Anything else is a real type error.
+        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST
+            && vtop->c.i == 0) {
+            CType vp;
+            vp.t = VT_VOID;
+            vp.ref = NULL;
+            mk_pointer(&vp);
+            vtop->type = vp;
+        } else {
+            expect("pointer");
+        }
+    }
+    ptype = vtop->type;
+    elem = *pointed_type(&ptype);
+    ptr_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    // `delete 0;` and a NULL pointer must be no-ops, and the test has to
+    // come before the vptr is touched (a virtual dtor in G6 will read it).
+    vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    skip_jmp = gvtst(1, 0);
+
+    if ((elem.t & VT_BTYPE) == VT_STRUCT && elem.ref) {
+        dtor_field = cpp_find_dtor_field(elem.ref);
+        if (dtor_field) {
+            if (is_array)
+                tcc_error("delete[] of a class with a destructor is not supported");
+            ct.t = VT_STRUCT;
+            ct.ref = elem.ref;
+            dtor_global = cpp_lookup_member_func(dtor_field, &ct);
+            vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+            vtop->sym = dtor_global;
+            vtop->r &= ~VT_LVAL;
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            gfunc_call(1);
+        }
+    }
+    vpushsym(&cpp_free_type, cpp_heap_sym("free", &cpp_free_type));
+    vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    cpp_finish_heap_call(&cpp_void_type, 1);
+    vpop();
+    gsym(skip_jmp);
+    /* a delete-expression has type void */
+    vpushi(0);
+    vtop->type.t = VT_VOID;
+}
+
 ST_FUNC void unary(void)
 {
     int n, t, align, size, r;
@@ -10859,6 +11195,14 @@ tok_next:
         n = 0x7f800000;
         goto special_math_val;
 
+    case TOK_NEW:
+        // G4.  In C these tokens are demoted to identifiers
+        // (is_cpp_only_keyword), so this case is C++-only by construction.
+        cpp_parse_new();
+        break;
+    case TOK_DELETE:
+        cpp_parse_delete();
+        break;
     case TOK_THIS:
         if (!tcc_state->cpp || !cpp_this_sym)
             tcc_error("invalid use of 'this'");
