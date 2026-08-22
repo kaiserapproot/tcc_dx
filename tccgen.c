@@ -1340,16 +1340,56 @@ static Sym *cpp_class_typedef_find(Sym *cls, int v)
     return NULL;
 }
 
-// G3 P1: resolve a type name against the classes whose bodies are being
-// parsed right now, innermost first.  Class scope sits between block
-// scope and file scope, so callers consult this after local bindings
-// but before the global/typedef fallbacks.
-static Sym *cpp_parsing_class_typedef_find(int v)
+// G3 P2: resolve `v` as a type inside class `cls` ONLY: the class's own
+// typedef list first, then its direct bases merged per the plan's rule -
+// typedefs are compared by the type they NAME (not by declaration), so
+// A::T=int and B::T=int merge fine while differing types are an
+// ambiguity error.  "First base wins" is forbidden (silent miscompile).
+// This is the shared building block of both the unqualified lookup and
+// the P3 qualified lookup, which must NOT fall back beyond the class.
+static Sym *cpp_lookup_class_type(Sym *cls, int v)
+{
+    Sym *found, *f, *r;
+
+    if (!cls)
+        return NULL;
+    found = cpp_class_typedef_find(cls, v);
+    if (found)
+        return found;
+    for (f = cls->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !f->type.ref)
+            continue;
+        r = cpp_lookup_class_type(f->type.ref, v);
+        if (!r)
+            continue;
+        if (!found) {
+            found = r;
+        } else if (found != r) {
+            CType a, b;
+            a = found->type;
+            b = r->type;
+            a.t &= ~VT_STORAGE;
+            b.t &= ~VT_STORAGE;
+            if (!is_compatible_types(&a, &b))
+                tcc_error("'%s' is ambiguous (different types in multiple bases)",
+                          get_tok_str(v, NULL));
+        }
+    }
+    return found;
+}
+
+// G3 P2: unqualified class-scope type lookup, plan rules 2-3: the class
+// whose body (cpp_cur_class) or member function (cpp_cur_func_class) is
+// being compiled, its bases, then enclosing classes inner -> outer.
+// Rule 1 (block-scope, with non-type hiding) and rule 4 (file scope)
+// stay with the caller in parse_btype.
+static Sym *cpp_unqualified_class_type_find(int v)
 {
     Sym *cls, *td;
 
-    for (cls = cpp_cur_class; cls; cls = cls->cpp_enclosing_class) {
-        td = cpp_class_typedef_find(cls, v);
+    cls = cpp_cur_class ? cpp_cur_class : cpp_cur_func_class;
+    for (; cls; cls = cls->cpp_enclosing_class) {
+        td = cpp_lookup_class_type(cls, v);
         if (td)
             return td;
     }
@@ -9016,11 +9056,12 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                     tn = cpp_global_lookup_type_name(tok, &tn_kind);
                 } else {
                     Sym *ctd;
-                    // G3 P1: while a class body is being parsed, its own
-                    // typedefs (innermost class first, then enclosing
-                    // classes) hide file-scope names; block-scope locals
-                    // still win, so only override non-local bindings.
-                    ctd = cpp_parsing_class_typedef_find(tok);
+                    // G3 P1/P2: class scope (body being parsed, or the
+                    // class of the member function being compiled, plus
+                    // bases and enclosing classes) hides file-scope names;
+                    // block-scope locals still win, so only override
+                    // non-local bindings.
+                    ctd = cpp_unqualified_class_type_find(tok);
                     if (ctd && !(s && sym_scope(s))) {
                         s = ctd;
                         tn = NULL;
