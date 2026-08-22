@@ -14329,6 +14329,17 @@ static int decl(int l)
                             esym->st_value, esym->st_size, 1);
                     }
                 }
+                // BUG-31: a `Class::member` declarator leaves the class in
+                // cpp_qualified_class.  The function-definition and
+                // function-declaration paths above consume and clear it, but
+                // an out-of-class STATIC DATA member definition
+                // (`const S::size_type S::npos = ...;`) falls through to
+                // decl_initializer_alloc and used to leave it set, so the
+                // NEXT function definition in the TU was registered as a
+                // member of that class: gen_function then gave it an implicit
+                // `this` parameter while callers kept passing only the
+                // declared arguments, silently shifting every one of them.
+                cpp_qualified_class = NULL;
                 if (tok != ',') {
                     if (l == VT_JMP)
                         return 1;
