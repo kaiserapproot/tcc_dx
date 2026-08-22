@@ -241,6 +241,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-37 | `sym_copy_ref` がファイルスコープのクラスタグを複製し「Iterator を Iterator に変換できません」（同名の別 Sym） | **修正済み**（STRUCT 降下判定を変数の scope から**タグの scope**へ） |
 | BUG-38 | メンバ呼び出しの採点で基底の同名関数が派生 override に同点先勝ちし基底実装が呼ばれる（silent miscompile） | **修正済み**（名前隠蔽 — 自クラスレベルに宣言があれば基底へ降下しない） |
 | BUG-39 | 別名 typedef 修飾のネスト型宣言 `cu_List::iterator p;` が式に誤送され「static member not found」 | **修正済み**（`cpp_unget_scoped_expr` に typedef 別名→タグ解決を追加） |
+| BUG-40 | extern "C" ブロック直後の `#define` 本体が C 字句で貯蔵され C++ キーワードが識別子化（`cu_CATCH_ALL if (false)`） | **修正済み**（終端処理を `lex_c--` → `next()` の順に変更） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。
