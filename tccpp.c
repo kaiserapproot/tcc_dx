@@ -478,6 +478,8 @@ static int is_cpp_only_keyword(int t)
     case TOK_VIRTUAL:
     case TOK_THIS:
     case TOK_FRIEND:
+    case TOK_NEW:
+    case TOK_DELETE:
     case TOK_OPERATOR:
     case TOK_NAMESPACE:
     case TOK_TRUE:

@@ -57,6 +57,8 @@
      DEF(TOK_UNION, "union")
      DEF(TOK_TYPEDEF, "typedef")
      DEF(TOK_FRIEND, "friend")
+     DEF(TOK_NEW, "new")
+     DEF(TOK_DELETE, "delete")
      DEF(TOK_ENUM, "enum")
      DEF(TOK_SIZEOF, "sizeof")
      DEF(TOK_ATTRIBUTE1, "__attribute")
