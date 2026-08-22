@@ -197,6 +197,10 @@ static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
 // cpp_call_has_overloads.
 static int cpp_field_is_const(Sym *field);
 static int cpp_count_member_overloads(Sym *class_sym, int v1, int want_const);
+static int cpp_ctor_name_tok(int class_tok);
+// G-CONV: implicit converting-constructor hook shared by gen_assign_cast
+// and vstore (both defined before the C++ member helpers it needs).
+static int cpp_try_class_conversion(CType *dt);
 // BUG-33: the static-member lookup needs the same "declared here, defined
 // elsewhere" extern that BUG-30 introduced for ordinary members.
 static Sym *cpp_make_member_func_extern(Sym *field, Sym *class_sym, int v);
@@ -373,6 +377,24 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
             return 1;
         }
     }
+    // G-CONV: a reference-to-CLASS parameter must not swallow arbitrary
+    // pointers via the generic ptr/ptr rule below - `Str(const Str&)` was
+    // winning the overload for a const char* argument over
+    // `Str(const char*)`, and the argument then failed to convert.  A
+    // class reference matches only that class (handled above) or a class
+    // an lvalue can bind through (derived-to-base), at a lower score so
+    // the exact class still wins.
+    if (tcc_state->cpp && (param->t & VT_REFERENCE)) {
+        pt = pointed_type(param);
+        if (pt && (pt->t & VT_BTYPE) == VT_STRUCT) {
+            if ((arg->t & VT_BTYPE) == VT_STRUCT
+                && cpp_can_bind_lvalue_to_reference(param, arg)) {
+                *score_out = 5;
+                return 1;
+            }
+            return 0;
+        }
+    }
     p_bt = param->t & VT_BTYPE;
     a_bt = arg->t & VT_BTYPE;
     if ((is_float(p_bt) || is_integer_btype(p_bt)) &&
@@ -417,12 +439,20 @@ static int cpp_call_has_overloads(Sym *cur)
     // cast to the first declaration's parameters (or rejected outright as
     // "too many arguments") before resolution ever runs.
     if (cur->parent_class && (cur->v & ~SYM_FIELD) >= TOK_IDENT) {
+        int fv = cur->v & ~SYM_FIELD;
+        // G-CONV: a constructor's global lives under the MANGLED token
+        // (__cpp_ctor_C) while its fields sit under the class-name token;
+        // map back or ctor overload sets are invisible here.
+        if (fv == cpp_ctor_name_tok(cur->parent_class->v & ~SYM_STRUCT))
+            fv = cur->parent_class->v & ~SYM_STRUCT;
+        {
         int nf = cpp_count_member_overloads(cur->parent_class,
-                                            (cur->v & ~SYM_FIELD) | SYM_FIELD,
+                                            fv | SYM_FIELD,
                                             !!(cur->type.ref
                                                && cur->type.ref->f.func_const));
         if (nf >= 2)
             return 1;
+        }
     }
     return 0;
 }
@@ -472,8 +502,17 @@ static Sym *cpp_resolve_func_call(int v, int nb_args, Sym *cur)
             p = p->next;
         }
 
-        if (match && p && p->type.t != VT_VOID)
-            match = 0;
+        // G-CONV (same rule as BUG-32c gave the declaration-side scorer):
+        // trailing parameters that all carry default arguments keep the
+        // candidate viable for a shorter call; they add no score, so an
+        // exact-arity candidate still wins a tie.
+        while (match && p && p->type.t != VT_VOID) {
+            if (!p->inline_func_str) {
+                match = 0;
+                break;
+            }
+            p = p->next;
+        }
 
         if (match && score > best_score) {
             best_score = score;
@@ -4630,8 +4669,20 @@ static void sym_copy_ref_1(Sym* s, Sym** ps, int is_proto)
 {
     CPP_WALKER_DEPTH_GUARD("sym_copy_ref_1");
     int bt = s->type.t & VT_BTYPE;
+    // G-CONV follow-up to BUG-35: decide the struct descent from the TAG's
+    // scope (s->type.ref), not the variable sym's own sym_scope.  The
+    // point of the descent is "a struct type DEFINED inside the function
+    // dies with it, so its whole definition must be copied to the global
+    // stack" - and whether the type is local is a property of the tag.
+    // Reading the variable's field instead broke on a member-function
+    // PARAMETER sym whose union carried live-local bits (scope=1, r set):
+    // the walk then cloned a file-scope class tag, and the extern's
+    // parameter type pointed at the clone, so a later argument conversion
+    // failed with "'struct Iterator' cannot convert to 'struct Iterator'"
+    // (two Syms, same name - SimpleList.h:102).
     if (bt == VT_FUNC || bt == VT_PTR
-        || (bt == VT_STRUCT && !is_proto && s->sym_scope)) {
+        || (bt == VT_STRUCT && !is_proto
+            && s->type.ref && s->type.ref->sym_scope)) {
         Sym** sp = &s->type.ref;
         int is_func = (bt == VT_FUNC);
         int first = 1;
@@ -7191,6 +7242,12 @@ static void verify_assign_cast(CType* dt)
 
 static void gen_assign_cast(CType* dt)
 {
+    // G-CONV: give a converting constructor a chance before the type
+    // checks reject the operand (covers return statements, arguments and
+    // the copy-init path).  On failure the operand is untouched and the
+    // original diagnostics below fire unchanged.
+    if (tcc_state->cpp)
+        cpp_try_class_conversion(dt);
     verify_assign_cast(dt);
     gen_cast(dt);
 }
@@ -7200,6 +7257,10 @@ ST_FUNC void vstore(void)
 {
     int sbt, dbt, ft, r, size, align, bit_size, bit_pos, delayed_cast;
 
+    // G-CONV: assignments and member-initializer stores also accept a
+    // converting constructor (`m_name = name` with const char* -> class).
+    if (tcc_state->cpp)
+        cpp_try_class_conversion(&vtop[-1].type);
     ft = vtop[-1].type.t;
     sbt = vtop->type.t & VT_BTYPE;
     dbt = ft & VT_BTYPE;
@@ -7930,7 +7991,15 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
         return NULL;
     if ((cur->v & ~SYM_FIELD) < TOK_IDENT)
         return NULL;
-    v1 = (cur->v & ~SYM_FIELD) | SYM_FIELD;
+    v1 = cur->v & ~SYM_FIELD;
+    // G-CONV: constructors live under the mangled global token but their
+    // FIELDS sit under the class-name token; without this mapping the
+    // declaration-side candidate set (BUG-30) never sees ctor overloads,
+    // so a header-declared ctor could not be resolved before its
+    // definition ("SimpleString s(lhs)" died on the first declaration).
+    if (v1 == cpp_ctor_name_tok(class_sym->v & ~SYM_STRUCT))
+        v1 = class_sym->v & ~SYM_STRUCT;
+    v1 |= SYM_FIELD;
     want_const = !!(cur->type.ref && cur->type.ref->f.func_const);
     cpp_score_member_overloads(class_sym, v1, nb_args, want_const,
                                &best, &best_score);
@@ -7940,6 +8009,106 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
     // must be looked up (or created) under the declaring class.
     return cpp_member_func_global_exact(best, best->parent_class
                                         ? best->parent_class : class_sym);
+}
+
+// G-CONV: implicit application of a converting constructor.  When an
+// assignment / initialization / argument / return finds `class T <- expr S`
+// with incompatible types but T declares a ctor that is viable for the one
+// argument S (trailing params may be defaulted), build a temporary T on the
+// stack, run that ctor on it, and replace vtop with the temporary's lvalue.
+// The existing struct-copy / reference-binding machinery then proceeds
+// unchanged.  One user-defined conversion only (no chaining), and on any
+// bail-out the operand is left untouched so the original diagnostic fires.
+static int cpp_conv_depth;
+
+static int cpp_try_class_conversion(CType *dt)
+{
+    Sym *class_sym, *best, *fsym, *sa;
+    CType tt;
+    SValue this_sv;
+    int best_score, tslot, size, align, nb_args, na;
+
+    if (!tcc_state->cpp || tcc_state->extern_c || nocode_wanted)
+        return 0;
+    if (dt->t & VT_ARRAY)
+        return 0;
+    // Destination forms: a class object (VT_STRUCT), or a reference to one
+    // (the temporary is an lvalue, so the existing const T& binding takes
+    // it from there).
+    if ((dt->t & VT_BTYPE) == VT_STRUCT && dt->ref) {
+        class_sym = dt->ref;
+    } else if ((dt->t & VT_BTYPE) == VT_PTR && (dt->t & VT_REFERENCE)
+               && dt->ref
+               && (dt->ref->type.t & VT_BTYPE) == VT_STRUCT
+               && dt->ref->type.ref) {
+        class_sym = dt->ref->type.ref;
+    } else {
+        return 0;
+    }
+    if (class_sym->c < 0)
+        return 0;
+    // Already the destination class: the plain copy / bind paths handle it
+    // (this also keeps derived-to-base and same-class copies off this path
+    // unless the direct paths cannot - they run first and never get here
+    // for compatible types).
+    if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+        && vtop->type.ref == class_sym)
+        return 0;
+    if (cpp_conv_depth >= 4)
+        return 0;
+    if (!cpp_find_ctor_field(class_sym))
+        return 0;
+    best = NULL;
+    best_score = -1;
+    cpp_conv_depth++;
+    // The scorer reads the argument from the vstack (nb_args = 1 = vtop).
+    cpp_score_member_overloads(class_sym,
+                               (class_sym->v & ~SYM_STRUCT) | SYM_FIELD,
+                               1, 0, &best, &best_score);
+    if (!best) {
+        cpp_conv_depth--;
+        return 0;
+    }
+    fsym = cpp_member_func_global_exact(best, class_sym);
+    if (!fsym || (fsym->type.t & VT_BTYPE) != VT_FUNC || !fsym->type.ref) {
+        cpp_conv_depth--;
+        return 0;
+    }
+    tt.t = VT_STRUCT;
+    tt.ref = class_sym;
+    size = type_size(&tt, &align);
+    loc = (loc - size) & -align;
+    tslot = loc;
+    // stack: [arg] -> [ctor, arg], then convert the argument to the
+    // resolved parameter type (this may itself recurse one level).
+    vset(&fsym->type, fsym->r | VT_SYM, 0);
+    vtop->sym = fsym;
+    vtop->r &= ~VT_LVAL;
+    vswap();
+    sa = fsym->type.ref->next;
+    gfunc_param_typed(fsym->type.ref, sa);
+    nb_args = 1;
+    if (sa)
+        sa = sa->next;
+    if (sa)
+        cpp_apply_default_args(fsym->type.ref, &nb_args, &sa);
+    // `this` = &temporary, inserted as arg0 (same shape as
+    // cpp_emit_base_ctor_call; ctors return void so no sret shift).
+    vset(&tt, VT_LOCAL | VT_LVAL, tslot);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    this_sv = *vtop;
+    vpop();
+    na = nb_args;
+    vtop++;
+    nb_args = na + 1;
+    memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
+    vtop[-nb_args + 1] = this_sv;
+    gfunc_call(nb_args);
+    // result: the constructed temporary, as an lvalue of T
+    vset(&tt, VT_LOCAL | VT_LVAL, tslot);
+    cpp_conv_depth--;
+    return 1;
 }
 
 static Sym* find_field(CType* type, int v, int* cumofs)
