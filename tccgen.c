@@ -3040,16 +3040,41 @@ static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa)
             // expression itself calls a defaulted function) correct.
             Sym *saved_cls = cpp_cur_func_class;
             int saved_replay = cpp_default_arg_replay;
+            TokenString *replay, *pending;
+
+            // BUG-32a: end_macro() destroys whatever string it was handed -
+            // it frees it when alloc==1 and empties it (len = 0) when
+            // alloc==0 - so the copy stored on the parameter Sym must never
+            // be the one replayed, or the SECOND call that relies on the
+            // same default argument reads freed/emptied tokens.  Replay a
+            // duplicate, the way gen_function does for mem-initializers.
+            replay = tok_str_dup_for_default(sa->inline_func_str);
+            if (!replay)
+                tcc_error("cannot replay default argument");
+            // BUG-32b: begin_macro() does not preserve the current token.
+            // In the deferred-conversion path (an overloaded callee) the
+            // caller has already consumed the call's ')', so without this
+            // the token that follows the whole call is lost and the parser
+            // sees the replay's terminator instead - observed as
+            // "';' expected, found <eof>" at the end of the file.  Stash it
+            // and push it back the way unget_tok does.
+            pending = tok_str_alloc();
+            tok_str_add_tok(pending);
+            tok_str_add(pending, 0);
+
             if (sa->parent_class)
                 cpp_cur_func_class = sa->parent_class;
             cpp_default_arg_replay = 1;
-            begin_macro(sa->inline_func_str, 1);
+            begin_macro(replay, 1);
             next();
             expr_eq();
             gfunc_param_typed(func, sa);
             end_macro();
             cpp_cur_func_class = saved_cls;
             cpp_default_arg_replay = saved_replay;
+
+            begin_macro(pending, 1);
+            next();
             nb_args++;
         } else {
             tcc_error("too few arguments to function");
@@ -7584,8 +7609,20 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
                 score += arg_score;
                 p = p->next;
             }
-            if (match && p && p->type.t != VT_VOID)
-                match = 0;
+            // BUG-32c: a candidate whose remaining parameters all have
+            // DEFAULT arguments is viable for a shorter call - without this
+            // `erase(n)` could not see
+            // `erase(size_type pos, size_type n = 9)` and fell through to
+            // the unrelated `erase(iterator)` overload (SimpleString).
+            // Defaulted parameters add no score, so an exact-arity
+            // candidate still wins a tie.
+            while (match && p && p->type.t != VT_VOID) {
+                if (!p->inline_func_str) {
+                    match = 0;
+                    break;
+                }
+                p = p->next;
+            }
             if (match && score > *best_score) {
                 *best_score = score;
                 *best = f;
