@@ -10806,13 +10806,38 @@ static int cpp_try_functional_cast(void)
 parse_type:
     if (!parse_btype(&type, &ad, 0))
         return 0;
-    // A class-type temporary would need ctor selection and interacts
-    // with the G4 new/delete work, so refuse it loudly instead of
-    // guessing.  Same for the zero- and multi-argument forms: silently
-    // dropping to uninitialized or comma-operator semantics would be a
-    // miscompile the source never asked for.
-    if ((type.t & VT_BTYPE) == VT_STRUCT)
-        tcc_error("functional cast to a class type is not supported");
+    // A class-type temporary `T(expr)` constructs a ctor-initialized
+    // temporary (TestCase.cpp:159 `return cu_String(buf);`) - reuse the
+    // G-CONV stack-temporary machinery for it.  Classes WITHOUT a ctor
+    // keep the loud refusal (nothing could initialize the temporary),
+    // and the zero-/multi-argument forms stay rejected as before.
+    if ((type.t & VT_BTYPE) == VT_STRUCT) {
+        if (!type.ref || type.ref->c < 0 || !cpp_find_ctor_field(type.ref))
+            tcc_error("functional cast to a class type is not supported");
+        skip('(');
+        if (tok == ')')
+            tcc_error("'T()' value-initialization is not supported");
+        expr_eq();
+        if (tok == ',')
+            tcc_error("functional cast takes exactly one argument");
+        skip(')');
+        // Already a T: the expression itself is the value (T(t) copy
+        // form) - the conversion helper deliberately refuses same-class
+        // operands because the plain copy paths handle them.
+        if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+            && vtop->type.ref == type.ref)
+            return 1;
+        // Dead code (e.g. inside `if (false)`): the ctor call is never
+        // executed, only the TYPE matters downstream - and the G-CONV
+        // helper bails out under nocode_wanted.
+        if (nocode_wanted) {
+            vtop->type = type;
+            return 1;
+        }
+        if (!cpp_try_class_conversion(&type))
+            tcc_error("no viable constructor for functional cast");
+        return 1;
+    }
     skip('(');
     if (tok == ')')
         tcc_error("'T()' value-initialization is not supported");
@@ -15138,12 +15163,20 @@ static int decl(int l)
                             tcc_error("unclosed extern C block");
                         decl(l);
                     }
-                    next();
+                    // BUG-40: lower lex_c BEFORE the next() that consumes
+                    // the token after '}'.  That next() can cross pp
+                    // directives, and a `#define` body lexed there was
+                    // stored with DEMOTED C++ keywords (cuconfig.h's
+                    // `cu_CATCH_ALL if (false)` right after <stddef.h>'s
+                    // extern "C" block - TestCase.cpp:88).  BUG-11's
+                    // repromote only fixes the single lookahead token,
+                    // not tokens saved inside a macro body; lexing the
+                    // lookahead in C++ mode fixes both and makes the
+                    // repromote unnecessary here (the '{'-side symmetry
+                    // above is unchanged: '}' itself is still C-lexed).
                     tcc_state->lex_c--;
                     tcc_state->extern_c--;
-                    /* BUG-11: the next() above fetched the token after
-                       '}' in C mode - re-promote it. */
-                    cpp_repromote_stale_lookahead();
+                    next();
                     continue;
                 }
                 if (len == 3 && !memcmp(s, "C++", 3)) {
