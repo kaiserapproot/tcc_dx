@@ -4494,17 +4494,36 @@ static Sym* sym_copy(Sym* s0, Sym** ps)
 }
 
 /* VT_FUNC �� VT_PTR �̂��߂� s->type.ref ���X�^�b�N 'ps' �ɃR�s�[ */
-static void sym_copy_ref(Sym* s, Sym** ps)
+// BUG-35: `is_proto` marks the FIRST element of a function type's ref
+// chain - the prototype sym.  Its `type` is the function's RETURN type,
+// and the union that `sym_scope` lives in holds `struct FuncAttr` there,
+// so reading sym_scope yields attribute bits rather than a scope level.
+// A function returning a struct therefore looked like a locally declared
+// struct and this walk descended into that class's member chain.  In C
+// that chain is data only and the walk ends; in C++ it also holds member
+// functions whose signatures name the class again (`Iterator
+// operator++(int)`), so the recursion never terminates - tcc died with a
+// stack overflow and no diagnostic while compiling SimpleList.cpp.
+static void sym_copy_ref_1(Sym* s, Sym** ps, int is_proto)
 {
     int bt = s->type.t & VT_BTYPE;
-    if (bt == VT_FUNC || bt == VT_PTR || (bt == VT_STRUCT && s->sym_scope)) {
+    if (bt == VT_FUNC || bt == VT_PTR
+        || (bt == VT_STRUCT && !is_proto && s->sym_scope)) {
         Sym** sp = &s->type.ref;
+        int is_func = (bt == VT_FUNC);
+        int first = 1;
         for (s = *sp, *sp = NULL; s; s = s->next) {
             Sym* s2 = sym_copy(s, ps);
             sp = &(*sp = s2)->next;
-            sym_copy_ref(s2, ps);
+            sym_copy_ref_1(s2, ps, is_func && first);
+            first = 0;
         }
     }
+}
+
+static void sym_copy_ref(Sym* s, Sym** ps)
+{
+    sym_copy_ref_1(s, ps, 0);
 }
 static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
 {
