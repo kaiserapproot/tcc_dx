@@ -2000,6 +2000,25 @@ static int cpp_count_virtual_slots(Sym *class_sym)
     return maxslot;
 }
 
+// G6: the virtual destructor a class inherits through its PRIMARY chain.
+// Dtor FIELD tokens are class-specific (__cpp_dtor_fld_<Class>), so the
+// name matching used for ordinary overrides can never connect a derived
+// dtor to a base dtor slot; walk the chain explicitly instead.
+static Sym *cpp_find_virtual_dtor_in_chain(Sym *class_sym)
+{
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return NULL;
+    f = cpp_find_dtor_field(class_sym);
+    if (f && f->type.ref && f->type.ref->f.func_virtual)
+        return f;
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_find_virtual_dtor_in_chain(base_field->parent_class);
+    return NULL;
+}
+
 static void cpp_assign_virtual_slots(Sym *class_sym)
 {
     Sym *base_field, *base_class, *f;
@@ -2013,6 +2032,26 @@ static void cpp_assign_virtual_slots(Sym *class_sym)
     for (f = class_sym->next; f; f = f->next) {
         if ((f->type.t & VT_BTYPE) != VT_FUNC)
             continue;
+        // G6: destructors override by POSITION, not by name (the field
+        // token embeds the class name, so the name match below can never
+        // connect them).  And per C++'s implicit-virtual rule a derived
+        // dtor becomes virtual when any primary-chain base declared its
+        // dtor virtual, even without the keyword - flag it here, BEFORE
+        // the func_virtual filter, or it would be skipped entirely.
+        if (cpp_is_dtor_field(f)) {
+            Sym *bd = base_class ? cpp_find_virtual_dtor_in_chain(base_class)
+                                 : NULL;
+            if (bd) {
+                if (f->type.ref)
+                    f->type.ref->f.func_virtual = 1;
+                f->c = bd->c;
+                continue;
+            }
+            if (!f->type.ref || !f->type.ref->f.func_virtual)
+                continue;
+            f->c = nslots++;
+            continue;
+        }
         if (!f->type.ref || !f->type.ref->f.func_virtual)
             continue;
         member_tok = f->v & ~SYM_FIELD;
@@ -2170,8 +2209,20 @@ static void cpp_emit_vtable(Sym *class_sym)
     memset(&ad, 0, sizeof ad);
     vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
     sec = rodata_section;
-    addr = section_add(sec, (unsigned long)nslots * PTR_SIZE, PTR_SIZE);
-    put_extern_sym(vtable_sym, sec, addr, (unsigned long)nslots * PTR_SIZE);
+    // G6: one pointer-sized offset-to-top field sits IN FRONT of the
+    // function slots (the Itanium-ABI vptr[-1] idea).  The vtable SYMBOL
+    // keeps pointing at slot 0, so every existing vptr store, virtual
+    // call and thunk stays byte-for-byte unchanged - only `delete` of a
+    // virtual-dtor object reads the new field to recover the complete
+    // object before free().  For the class's own vtable the offset is 0.
+    addr = section_add(sec, (unsigned long)(nslots + 1) * PTR_SIZE, PTR_SIZE);
+#if PTR_SIZE == 8
+    write64le(sec->data + addr, 0);
+#else
+    write32le(sec->data + addr, 0);
+#endif
+    put_extern_sym(vtable_sym, sec, addr + PTR_SIZE,
+                   (unsigned long)nslots * PTR_SIZE);
     for (slot = 0; slot < nslots; slot++) {
         field = cpp_find_virtual_by_slot(class_sym, slot);
         if (!field)
@@ -2179,7 +2230,8 @@ static void cpp_emit_vtable(Sym *class_sym)
         impl = cpp_lookup_virtual_impl(field);
         if (!impl)
             continue;
-        greloca(sec, impl, addr + (unsigned long)slot * PTR_SIZE, R_DATA_PTR, 0);
+        greloca(sec, impl, addr + PTR_SIZE + (unsigned long)slot * PTR_SIZE,
+                R_DATA_PTR, 0);
     }
 }
 
@@ -2305,13 +2357,34 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
         memset(&ad, 0, sizeof ad);
         vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
         sec = rodata_section;
-        addr = section_add(sec, (unsigned long)nslots * PTR_SIZE, PTR_SIZE);
-        put_extern_sym(vtable_sym, sec, addr, (unsigned long)nslots * PTR_SIZE);
+        // G6: offset-to-top for a NON-primary base subobject is negative -
+        // "complete object = subobject + offset".  bf->c is final here
+        // because this runs after struct_layout.  (Deep-nested secondary
+        // bases keep the intermediate class's vtable, so their offset is
+        // relative to that class - same pre-existing Phase 2 limitation
+        // as the dispatch itself, documented in 実装済み.md.)
+        addr = section_add(sec, (unsigned long)(nslots + 1) * PTR_SIZE, PTR_SIZE);
+#if PTR_SIZE == 8
+        write64le(sec->data + addr, (uint64_t)-(int64_t)bf->c);
+#else
+        write32le(sec->data + addr, (uint32_t)-(int32_t)bf->c);
+#endif
+        put_extern_sym(vtable_sym, sec, addr + PTR_SIZE,
+                       (unsigned long)nslots * PTR_SIZE);
         for (slot = 0; slot < nslots; slot++) {
             bfield = cpp_find_virtual_by_slot(base_class, slot);
             if (!bfield)
                 continue;
             entry_sym = NULL;
+            // G6: a dtor slot overrides by POSITION (the field token is
+            // class-specific, so the name lookup below can never find the
+            // derived dtor); the overloaded-name guard is meaningless for
+            // it as well.
+            if (cpp_is_dtor_field(bfield)) {
+                ovr = cpp_find_dtor_field(class_sym);
+                if (ovr && !(ovr->type.ref && ovr->type.ref->f.func_virtual))
+                    ovr = NULL;
+            } else {
             /* Overrides are matched by NAME only, so an overloaded virtual on
                a non-primary base cannot be resolved: every slot sharing the
                name would bind to the same override and the other overload's
@@ -2324,6 +2397,7 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
                           get_tok_str(bfield->v & ~SYM_FIELD, NULL));
             ovr = cpp_find_virtual_field_by_name(class_sym,
                                                  bfield->v & ~SYM_FIELD);
+            }
             if (ovr) {
                 impl = cpp_lookup_virtual_impl(ovr);
                 if (impl)
@@ -2334,7 +2408,8 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
                 entry_sym = cpp_lookup_virtual_impl(bfield);
             if (!entry_sym)
                 continue;
-            greloca(sec, entry_sym, addr + (unsigned long)slot * PTR_SIZE,
+            greloca(sec, entry_sym,
+                    addr + PTR_SIZE + (unsigned long)slot * PTR_SIZE,
                     R_DATA_PTR, 0);
         }
     }
@@ -8980,6 +9055,7 @@ do_decl:
                 int skip_member_semi = 0;
                 int is_ctor_decl = 0;
                 int is_dtor_decl = 0;
+                int is_dtor_virtual = 0;
                 if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED) {
                     cur_access = (tok == TOK_PUBLIC) ? ACCESS_PUBLIC :
                                  (tok == TOK_PROTECTED) ? ACCESS_PROTECTED : ACCESS_PRIVATE;
@@ -9003,6 +9079,18 @@ do_decl:
                     }
                     unget_tok(saved);
                 }
+                // G6 / BUG-24: `virtual ~Class()`.  The dtor pre-check below
+                // fires on a leading '~', but `virtual` normally gets eaten
+                // by parse_btype, which the dtor path bypasses entirely -
+                // so a virtual dtor used to die with "identifier expected".
+                // Consume the keyword here and remember it for ad1.
+                if (tcc_state->cpp && is_class && tok == TOK_VIRTUAL) {
+                    next();
+                    if (tok == '~')
+                        is_dtor_virtual = 1;
+                    else
+                        unget_tok(TOK_VIRTUAL);
+                }
                 /* C++: `~Class(` is a destructor declaration with omitted
                  * return type (same pattern as ctor above). */
                 if (tcc_state->cpp && is_class && tok == '~') {
@@ -9016,12 +9104,19 @@ do_decl:
                             btype.t = VT_VOID;
                             btype.ref = NULL;
                             memset(&ad1, 0, sizeof ad1);
+                            // G6: post_type copies ad1.f onto the prototype
+                            // sym, which is where every func_virtual reader
+                            // (slot assignment, vtable emit, delete) looks.
+                            if (is_dtor_virtual)
+                                ad1.f.func_virtual = 1;
                         }
                         unget_tok(saved);
                     } else {
                         unget_tok('~');
                     }
                 }
+                if (is_dtor_virtual && !is_dtor_decl)
+                    tcc_error("'virtual ~' must introduce a destructor");
                 // G2: accept and discard "friend class Identifier;" only.
                 // Any other friend form (e.g. "friend int fn(C&);") is ALSO
                 // a declaration of fn, so silently skipping it would drop
@@ -10779,6 +10874,72 @@ static void cpp_parse_delete(void)
 
     if ((elem.t & VT_BTYPE) == VT_STRUCT && elem.ref) {
         dtor_field = cpp_find_dtor_field(elem.ref);
+        if (dtor_field && dtor_field->type.ref
+            && dtor_field->type.ref->f.func_virtual) {
+            // G6: virtual destructor - dynamic dispatch + complete-object
+            // free.  Through a non-primary base pointer (D : A, B with
+            // B* b = d) `b != d`, so free(b) would hand malloc an address
+            // it never returned: heap corruption that only shows up under
+            // multiple inheritance.  The vtable's offset-to-top (vptr[-1],
+            // emitted by cpp_emit_vtable / cpp_emit_secondary_vtables)
+            // recovers the complete object.  Selected by the STATIC type's
+            // dtor only - non-virtual dtors and PODs must keep the direct
+            // G4 path below, which never touches a vptr.
+            CType charpp, ip, ipp, cptr;
+            int complete_slot;
+            int it = PTR_SIZE == 8 ? VT_LLONG : VT_INT;
+
+            if (is_array)
+                tcc_error("delete[] of a class with a destructor is not supported");
+
+            // complete = p + vptr[-1], computed BEFORE the dtor runs and
+            // stashed in its own slot (the plan's ordering requirement).
+            charpp = char_pointer_type;
+            mk_pointer(&charpp);
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            vtop->type = charpp;
+            indir();                        /* char* rvalue-ish: the vptr */
+            vtop->type = char_pointer_type;
+            vpushi(-PTR_SIZE);
+            gen_op('+');                    /* char* = &offset-to-top     */
+            ip.t = it;
+            ip.ref = NULL;
+            ipp = ip;
+            mk_pointer(&ipp);
+            vtop->type = ipp;
+            indir();                        /* intptr = offset-to-top     */
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            vtop->type = char_pointer_type;
+            vswap();
+            gen_op('+');                    /* char* complete             */
+            cptr = char_pointer_type;
+            loc = (loc - PTR_SIZE) & -PTR_SIZE;
+            complete_slot = loc;
+            vset(&cptr, VT_LOCAL | VT_LVAL, complete_slot);
+            vswap();
+            vstore();
+            vpop();
+
+            // virtual dtor call: *p as the object, dispatched through its
+            // vptr exactly like p->method() (thunks in the secondary
+            // vtable adjust `this` for non-primary bases).
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            indir();
+            cpp_prepare_virtual_member_call(dtor_field, &elem);
+            indir();                        /* fn-ptr lvalue -> VT_FUNC   */
+            cpp_member_this_pending = 0;
+            vpushv(&cpp_member_this);
+            gfunc_call(1);
+
+            vpushsym(&cpp_free_type, cpp_heap_sym("free", &cpp_free_type));
+            vset(&cptr, VT_LOCAL | VT_LVAL, complete_slot);
+            cpp_finish_heap_call(&cpp_void_type, 1);
+            vpop();
+            gsym(skip_jmp);
+            vpushi(0);
+            vtop->type.t = VT_VOID;
+            return;
+        }
         if (dtor_field) {
             if (is_array)
                 tcc_error("delete[] of a class with a destructor is not supported");
@@ -11631,6 +11792,13 @@ post_ops:
                 if (!field)
                     tcc_error("no destructor for class");
                 obj_type = vtop->type;
+                // G6: an explicit p->~B() on a virtual dtor dispatches on
+                // the object's dynamic type, like any other virtual call.
+                // The '(' handler that follows completes the call.
+                if (field->type.ref && field->type.ref->f.func_virtual) {
+                    cpp_prepare_virtual_member_call(field, &obj_type);
+                    next();
+                } else {
                 gaddrof();
                 mk_pointer(&vtop->type);   /* BUG-15: `this` as pointer, not
                                               a by-value struct copy */
@@ -11642,6 +11810,7 @@ post_ops:
                 vtop->r &= ~VT_LVAL;
                 cpp_member_this_pending = 1;
                 next();
+                }
             } else {
             int mem_tok, operator_name;
 

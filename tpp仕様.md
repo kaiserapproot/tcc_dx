@@ -90,7 +90,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **RTTI** `typeid` / `<typeinfo>` | `#include <typeinfo>` | `インクルードファイル 'typeinfo' が見つかりません` |
 | **標準ライブラリ** `<iostream>` 等 | `#include <iostream>` | `インクルードファイル 'iostream' が見つかりません` |
 | ~~**純粋仮想関数 / 抽象クラス**~~ | — | **G5 で対応済み**（2026-08-22）。抽象クラスのオブジェクト宣言・`new` は明示エラー（ポインタ／参照は可）。未対応: 未 override スロットの実行時スタブ（NULL のまま。抽象判定で到達不能） |
-| **仮想デストラクタ** | `virtual ~B() {}` | `identifier が必要です` |
+| ~~**仮想デストラクタ**~~ | — | **G6 で対応済み**（2026-08-22）。`delete base_ptr` の動的ディスパッチ + MI の complete-object free（offset-to-top） |
 | **仮想継承** | `struct B : virtual public A {}` | `unknown base class` |
 | **`friend` 関数宣言** | `friend int peek(P&);` | `unsupported friend declaration`（G2 で明示エラー化。読み捨てると関数宣言自体が消えるため） |
 | **`explicit`** | `explicit P(int x) {...}` | `';' が必要です（"explicit" が見つかりました）` |
@@ -225,7 +225,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-21 | メンバ関数内でクラススコープがグローバルより優先されない | **修正済み** `a244e65` |
 | BUG-22 | 無修飾のメンバ関数呼び出しに `this` が渡らない | **修正済み** `a244e65` |
 | BUG-23 | 引数式が `this` を参照する呼び出しが落ちる | **修正済み** `8841ce4`（専用スタックスロットへ退避） |
-| BUG-24 | 仮想デストラクタが解析できない | 未修正（§3.1） |
+| BUG-24 | 仮想デストラクタが解析できない | **修正済み**（G6。`delete` の動的ディスパッチ + complete-object free 込み） |
 | BUG-25 | `struct X{}; int X;` が誤 redefinition | 未修正（§3.3） |
 | BUG-26 | グローバル変数をクラスのメソッド名と同名にできない | 未修正（§3.3） |
 | BUG-27 | thunk 名が 256 文字超で raw impl へフォールバックし `this` 未補正 | **修正済み** `7351a0d`（serial 命名＋エラー化） |
