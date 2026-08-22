@@ -1910,6 +1910,35 @@ static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
     return NULL;
 }
 
+// BUG-34: an override may target a virtual declared further up the PRIMARY
+// base chain that the immediate base never redeclared - `C : B : A` where
+// only A declares f() and C overrides it.  Looking at the direct base alone
+// made C::f take a NEW slot, so a call through an A* still reached A::f: a
+// silent miscompile of virtual dispatch.  Walk the same primary chain that
+// cpp_count_virtual_slots / cpp_find_virtual_by_slot walk.
+// Deliberately a separate helper: cpp_emit_secondary_vtables asks
+// cpp_find_virtual_field_by_name whether the MOST-DERIVED class itself
+// declares the name, and must not see a base's own declaration as an
+// override (it would build a this-adjusting thunk around the base impl).
+static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok);
+static Sym *cpp_get_anon_base_field(Sym *class_sym);
+
+static Sym *cpp_find_inherited_virtual_slot(Sym *class_sym, int member_tok)
+{
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return NULL;
+    f = cpp_find_virtual_field_by_name(class_sym, member_tok);
+    if (f)
+        return f;
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_find_inherited_virtual_slot(base_field->parent_class,
+                                               member_tok);
+    return NULL;
+}
+
 static int cpp_count_virtual_slots(Sym *class_sym)
 {
     Sym *f, *base_field;
@@ -1951,7 +1980,7 @@ static void cpp_assign_virtual_slots(Sym *class_sym)
             continue;
         member_tok = f->v & ~SYM_FIELD;
         if (base_class) {
-            Sym *bf = cpp_find_virtual_field_by_name(base_class, member_tok);
+            Sym *bf = cpp_find_inherited_virtual_slot(base_class, member_tok);
             if (bf) {
                 f->c = bf->c;
                 continue;
