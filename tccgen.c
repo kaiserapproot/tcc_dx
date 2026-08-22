@@ -10944,11 +10944,23 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
 
     ctor_field = cpp_find_ctor_field(class_sym);
     if (!ctor_field) {
-        // No user constructor.  Arguments would have nowhere to go, so say
-        // so instead of dropping them; `new C` / `new C()` is fine (the
-        // storage is raw, exactly like `C c;` on the stack).
-        if (parse_args && tok != ')')
+        // No user constructor.  `new T(obj)` with obj a T is still valid
+        // C++98 - the IMPLICIT copy ctor - and memberwise copy of a
+        // ctor-less class is a plain struct copy.  Any other argument
+        // has nowhere to go, so keep erroring for those.
+        if (parse_args && tok != ')') {
+            expr_eq();
+            if (tok == ')' && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+                && vtop->type.ref == class_sym) {
+                vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+                indir();
+                vswap();            // [dest, src] for vstore
+                vstore();
+                vpop();
+                return;
+            }
             tcc_error("class has no constructor taking arguments");
+        }
         return;
     }
     ct.t = VT_STRUCT;
@@ -10968,6 +10980,34 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
     }
     na = nb_args;
     resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    // C++98 implicit copy ctor: `new T(obj)` where obj is a T and no USER
+    // ctor is viable (TestResult.cpp:64 `new TestFailure(*failure)` - the
+    // only ctor takes Test*).  Memberwise copy is a raw struct copy here:
+    // the source has the same dynamic type, so the copied vptr is already
+    // the right one.  A user-declared copy ctor resolves above and never
+    // reaches this fallback.
+    // cpp_resolve_func_call never returns NULL (it falls back to
+    // sym_find), so "no viable user ctor" must be detected on the
+    // RESOLVED candidate: its first parameter accepting the same-class
+    // argument is what a real (user) copy ctor looks like.
+    if (na == 1 && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+        && vtop->type.ref == class_sym) {
+        Sym *p1 = resolved && resolved->type.ref
+            ? resolved->type.ref->next : NULL;
+        int cscore;
+        int viable = p1 && p1->type.t != VT_VOID
+            && cpp_arg_matches_param(&p1->type, &vtop->type, &cscore);
+        if (!viable) {
+            vswap();                // [ctor, src] -> [src, ctor]
+            vpop();                 // drop the unused ctor value
+            vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            indir();                // dest object lvalue
+            vswap();                // [dest, src] for vstore
+            vstore();
+            vpop();
+            return;
+        }
+    }
     if (resolved) {
         vtop[-na].sym = resolved;
         vtop[-na].type.ref = resolved->type.ref;
