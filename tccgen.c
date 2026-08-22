@@ -12285,6 +12285,8 @@ post_ops:
             Sym* sa;
             int nb_args, ret_nregs, ret_align, regsize, variadic;
             int cpp_defer, cpp_i;
+            int cpp_saved_this_pending;
+            SValue cpp_saved_member_this;
             TokenString* p, * p2;
 
             /* function call  */
@@ -12309,19 +12311,40 @@ post_ops:
                per-arg conversion so the overload can be resolved from the
                raw argument types (otherwise args get cast to the params
                of the initially bound overload before re-resolution).
-               Struct returns (sret slot) and reverse_funcargs keep the
-               eager behavior. */
+               reverse_funcargs keeps the eager behavior. */
             cpp_defer = tcc_state->cpp && !tcc_state->extern_c
                 && !tcc_state->reverse_funcargs
                 && (vtop->r & VT_SYM) && vtop->sym
-                && (s->type.t & VT_BTYPE) != VT_STRUCT
                 && cpp_call_has_overloads(vtop->sym);
+            // BUG-41: cpp_member_this / cpp_member_this_pending are single
+            // globals, so a NESTED member call inside the argument list -
+            // `insert(begin(), n, value)`, SimpleList.cpp:19 - consumed
+            // the OUTER call's pending flag: the outer call then ran
+            // WITHOUT `this` and every argument shifted one slot left
+            // (the callee read `this` == the first argument; AV at run
+            // time).  Stash this call's values across argument parsing
+            // (which includes default-arg replay) and restore before the
+            // this-injection below.
+            cpp_saved_this_pending = cpp_member_this_pending;
+            cpp_saved_member_this = cpp_member_this;
+            cpp_member_this_pending = 0;
             next();
             sa = s->next; /* first parameter */
             nb_args = regsize = 0;
             ret.r2 = VT_CONST;
+            // Overload sets may mix struct and non-struct returns
+            // (SimpleList: `iterator insert(it,v)` vs `void
+            // insert(it,n,v)` - the 3-arg call died with "too many
+            // arguments" because the struct return of the initial bind
+            // blocked the defer).  The sret slot depends on the RESOLVED
+            // overload, so under defer the whole return setup moves to
+            // after re-resolution (below); ret_nregs stays 0 here so the
+            // pre-call PUT_R_RET path is skipped.
+            ret_nregs = 0;
             /* compute first implicit argument if a structure is returned */
-            if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+            if (cpp_defer) {
+                ;
+            } else if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
                 variadic = (s->f.func_type == FUNC_ELLIPSIS);
                 ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
                     &ret_align, &regsize);
@@ -12443,7 +12466,54 @@ post_ops:
                 }
                 if (sa)
                     cpp_apply_default_args(s, &nb_args, &sa);
+                // Deferred return setup: now that `s` is the RESOLVED
+                // overload, run the same struct-return handling the
+                // eager path did before the args - the sret slot value
+                // is pushed on top and rotated below the args so it is
+                // the first argument, exactly where the eager path put
+                // it (the this-insertion below then lands at position 1
+                // via its has_sret logic, unchanged).
+                if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+                    variadic = (s->f.func_type == FUNC_ELLIPSIS);
+                    ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
+                        &ret_align, &regsize);
+                    if (ret_nregs <= 0) {
+                        size = type_size(&s->type, &align);
+#ifdef TCC_TARGET_ARM64
+                        if (size < 16)
+                            while (size & (size - 1))
+                                size = (size | (size - 1)) + 1;
+#endif
+                        loc = (loc - size) & -align;
+                        ret.type = s->type;
+                        ret.r = VT_LOCAL | VT_LVAL;
+                        vseti(VT_LOCAL, loc);
+#ifdef CONFIG_TCC_BCHECK
+                        if (tcc_state->do_bounds_check)
+                            --loc;
+#endif
+                        ret.c = vtop->c;
+                        if (ret_nregs < 0) {
+                            vtop--;
+                        } else {
+                            vrott(nb_args + 1);
+                            nb_args++;
+                        }
+                    }
+                } else {
+                    ret_nregs = 1;
+                    ret.type = s->type;
+                }
+                if (ret_nregs > 0) {
+                    ret.c.i = 0;
+                    PUT_R_RET(&ret, ret.type.t);
+                }
             }
+            // BUG-41: restore this call's stashed `this` (see above) -
+            // nested calls in the argument list have consumed their own
+            // by now.
+            cpp_member_this_pending = cpp_saved_this_pending;
+            cpp_member_this = cpp_saved_member_this;
             if (cpp_member_this_pending) {
                 int na = nb_args;
 
