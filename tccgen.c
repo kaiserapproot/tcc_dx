@@ -1325,6 +1325,37 @@ static Sym *cpp_lookup_type_name(int v, int *kind)
     return NULL;
 }
 
+// G3 P1: search ONE class's separate typedef list (see tcc.h
+// cpp_class_typedefs - linked via ->prev by sym_push2).  Base-class and
+// enclosing-class walks are layered on top by the P2/P3 lookups.
+static Sym *cpp_class_typedef_find(Sym *cls, int v)
+{
+    Sym *td;
+
+    if (!cls)
+        return NULL;
+    for (td = cls->cpp_class_typedefs; td; td = td->prev)
+        if (td->v == v)
+            return td;
+    return NULL;
+}
+
+// G3 P1: resolve a type name against the classes whose bodies are being
+// parsed right now, innermost first.  Class scope sits between block
+// scope and file scope, so callers consult this after local bindings
+// but before the global/typedef fallbacks.
+static Sym *cpp_parsing_class_typedef_find(int v)
+{
+    Sym *cls, *td;
+
+    for (cls = cpp_cur_class; cls; cls = cls->cpp_enclosing_class) {
+        td = cpp_class_typedef_find(cls, v);
+        if (td)
+            return td;
+    }
+    return NULL;
+}
+
 static int cpp_tok_starts_type_name(int v)
 {
     Sym *s;
@@ -8233,6 +8264,7 @@ static void struct_decl(CType* type, int u, int is_class)
     int v, c, size, align, flexible;
     int bit_size, bsize, bt, ut;
     Sym *s, *ss = NULL, **ps;
+    Sym *saved_cpp_cur_class = NULL;
     AttributeDef ad, ad1;
     CType type1, btype;
 
@@ -8318,8 +8350,16 @@ do_decl:
     }
 
     if (tok == '{') {
-        if (is_class)
+        saved_cpp_cur_class = cpp_cur_class;
+        if (tcc_state->cpp && u != VT_ENUM) {
+            // G3 P1: cpp_cur_class must nest like a stack - the old
+            // unconditional NULL reset at the end of struct_decl wiped the
+            // OUTER class whenever a nested class body finished.  Record
+            // the enclosing class on the tag so unqualified lookup can
+            // walk inner -> outer class scopes later.
+            s->cpp_enclosing_class = cpp_cur_class;
             cpp_cur_class = s;
+        }
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
@@ -8504,6 +8544,27 @@ do_decl:
                                 }
                             }
                         }
+                        // G3 P1: class-scope typedef.  Per the P0 audit it
+                        // must NOT enter the member chain (layout, brace-init,
+                        // debug and ABI walkers would each need synchronized
+                        // skips), so it goes on the separate per-class list
+                        // that only the C++ type-name lookups read.  Placed
+                        // before the type_size check because a typedef to an
+                        // incomplete type is legal.
+                        if (tcc_state->cpp && (type1.t & VT_TYPEDEF)) {
+                            Sym *td;
+                            if (v == 0)
+                                expect("identifier");
+                            if (cpp_class_typedef_find(s, v))
+                                tcc_error("redefinition of '%s'",
+                                          get_tok_str(v, NULL));
+                            td = sym_push2(&s->cpp_class_typedefs, v, type1.t, 0);
+                            td->type.ref = type1.ref;
+                            if (tok == ';' || tok == TOK_EOF)
+                                break;
+                            skip(',');
+                            continue;
+                        }
                         if (type_size(&type1, &align) < 0) {
                             if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
                                 flexible = 1;
@@ -8628,6 +8689,18 @@ do_decl:
                 if (is_class == 1 || !sym_find(tag_v))
                     sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
             }
+            // G3 P1: register a nested class/struct name on the enclosing
+            // class's typedef list too, so the P3 qualified lookup can
+            // resolve Outer::Inner without relying on the C tag hoisting.
+            if (tcc_state->cpp && u != VT_ENUM && s->cpp_enclosing_class) {
+                int tag_v2 = s->v & ~SYM_STRUCT;
+                if (tag_v2 < SYM_FIRST_ANOM
+                    && !cpp_class_typedef_find(s->cpp_enclosing_class, tag_v2)) {
+                    Sym *ntd = sym_push2(&s->cpp_enclosing_class->cpp_class_typedefs,
+                                         tag_v2, type->t | VT_TYPEDEF, 0);
+                    ntd->type.ref = s;
+                }
+            }
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
             if (is_class) {
@@ -8638,9 +8711,12 @@ do_decl:
                 /* Virtual MI (Phase 2): runs after struct_layout so the base
                  * fields carry their final offsets (thunk adjust values). */
                 cpp_emit_secondary_vtables(s);
-                cpp_cur_class = NULL;
             }
         }
+        // G3 P1: restore the outer class instead of wiping to NULL, so a
+        // nested class body no longer loses the enclosing class context.
+        if (tcc_state->cpp && u != VT_ENUM)
+            cpp_cur_class = saved_cpp_cur_class;
     }
 }
 
@@ -8939,7 +9015,19 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                     s = cpp_global_scope_find(tok);
                     tn = cpp_global_lookup_type_name(tok, &tn_kind);
                 } else {
-                    tn = cpp_lookup_type_name(tok, &tn_kind);
+                    Sym *ctd;
+                    // G3 P1: while a class body is being parsed, its own
+                    // typedefs (innermost class first, then enclosing
+                    // classes) hide file-scope names; block-scope locals
+                    // still win, so only override non-local bindings.
+                    ctd = cpp_parsing_class_typedef_find(tok);
+                    if (ctd && !(s && sym_scope(s))) {
+                        s = ctd;
+                        tn = NULL;
+                        tn_kind = CPP_TN_NONE;
+                    } else {
+                        tn = cpp_lookup_type_name(tok, &tn_kind);
+                    }
                 }
                 stsym = NULL;
                 if (tn_kind == CPP_TN_TYPEDEF) {
