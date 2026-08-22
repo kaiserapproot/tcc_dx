@@ -192,6 +192,11 @@ static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
 static void gfunc_param_typed(Sym *func, Sym *arg);
 static int cpp_func_param_count(Sym *field);
 static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
+// BUG-30: the overload set of a member call is read off the class's member
+// chain (declarations), so these member-side helpers are needed up here by
+// cpp_call_has_overloads.
+static int cpp_field_is_const(Sym *field);
+static int cpp_count_member_overloads(Sym *class_sym, int v1, int want_const);
 /* forward decl: cpp_collect_explicit_bases replays a saved mem-initializer
    list and is defined before the token-string helpers */
 static TokenString *tok_str_dup_for_default(TokenString *src);
@@ -400,6 +405,20 @@ static int cpp_call_has_overloads(Sym *cur)
             continue;
         n++;
         if (n >= 2)
+            return 1;
+    }
+    // BUG-30: an overload whose definition has not been parsed yet has no
+    // global at all, so the count above can say "1" for a set of five.
+    // Deferring the argument conversion is what lets the re-resolution
+    // below see the raw argument types, and without it the args would be
+    // cast to the first declaration's parameters (or rejected outright as
+    // "too many arguments") before resolution ever runs.
+    if (cur->parent_class && (cur->v & ~SYM_FIELD) >= TOK_IDENT) {
+        int nf = cpp_count_member_overloads(cur->parent_class,
+                                            (cur->v & ~SYM_FIELD) | SYM_FIELD,
+                                            !!(cur->type.ref
+                                               && cur->type.ref->f.func_const));
+        if (nf >= 2)
             return 1;
     }
     return 0;
@@ -906,6 +925,73 @@ static int cpp_is_dtor_field(Sym *field)
     return (field->v & ~SYM_FIELD) == fld_tok;
 }
 
+// BUG-30: the token a member function's global lives under (ctor and dtor
+// use their mangled names).  Returns 0 when there is none.
+static int cpp_member_global_tok(Sym *field)
+{
+    if (cpp_is_ctor_field(field))
+        return cpp_ctor_name_tok(field->v & ~SYM_FIELD);
+    if (cpp_is_dtor_field(field))
+        return cpp_dtor_name_tok(field->parent_class->v & ~SYM_STRUCT);
+    return field->v & ~SYM_FIELD;
+}
+
+// BUG-30: the global for a member that is declared but not defined yet.
+// Returning the FIELD (as this code used to) made every caller emit the
+// call against a Sym with no linkage - the ordinary ".h declares / .cpp
+// defines later" arrangement crashed at run time.  The extern created
+// here carries the class-qualified link name (BUG-14), so the definition
+// - later in this TU or in another one - binds to it.  VT_EXTERN is
+// required: without it patch_type() would report that definition as a
+// redefinition instead of completing this reference.
+static Sym *cpp_make_member_func_extern(Sym *field, Sym *class_sym, int v)
+{
+    CType ft;
+    AttributeDef ad;
+    Sym *ext;
+
+    if (!tcc_state->cpp || tcc_state->extern_c || v < TOK_IDENT || !class_sym)
+        return field;
+    if ((field->type.t & VT_BTYPE) != VT_FUNC || !field->type.ref)
+        return field;
+    ft = field->type;
+    ft.t |= VT_EXTERN;
+    memset(&ad, 0, sizeof ad);
+    cpp_pending_member_class = class_sym;
+    ext = external_sym(v, &ft, 0, &ad);
+    cpp_pending_member_class = NULL;
+    if (!ext)
+        return field;
+    ext->parent_class = class_sym;
+    return ext;
+}
+
+// BUG-30: signature-exact variant used by overload re-resolution.  The
+// arity-only fallback in cpp_lookup_member_func must NOT run there: with
+// forward declarations the only global in the chain may be the extern
+// created for a DIFFERENT same-arity overload, and returning it silently
+// calls the wrong function (observed with SimpleString::assign).
+static Sym *cpp_member_func_global_exact(Sym *field, Sym *class_sym)
+{
+    Sym *s;
+    int v;
+
+    if (!field || !class_sym)
+        return field;
+    v = cpp_member_global_tok(field);
+    if (!v)
+        return field;
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class != class_sym)
+            continue;
+        if (is_compatible_types(&s->type, &field->type))
+            return s;
+    }
+    return cpp_make_member_func_extern(field, class_sym, v);
+}
+
 static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
 {
     int v;
@@ -914,18 +1000,9 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     if (!field || !obj_type || !obj_type->ref)
         return field;
     class_sym = field->parent_class ? field->parent_class : obj_type->ref;
-    if (cpp_is_ctor_field(field)) {
-        /* ctor lives under the mangled global token. */
-        v = cpp_ctor_name_tok(field->v & ~SYM_FIELD);
-        if (!v)
-            return field;
-    } else if (cpp_is_dtor_field(field)) {
-        v = cpp_dtor_name_tok(field->parent_class->v & ~SYM_STRUCT);
-        if (!v)
-            return field;
-    } else {
-        v = field->v & ~SYM_FIELD;
-    }
+    v = cpp_member_global_tok(field);
+    if (!v)
+        return field;
     {
         int want_const;
 
@@ -959,7 +1036,8 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
             return s;
         }
     }
-    return field;
+    // BUG-30: nothing in the chain yet - the member is only declared so far.
+    return cpp_make_member_func_extern(field, class_sym, v);
 }
 
 static Sym *find_field(CType *type, int v, int *cumofs);
@@ -7444,6 +7522,112 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
     return NULL;
 }
 
+// BUG-30: how many member functions named v1 (already SYM_FIELD-tagged)
+// with the given const-ness does this class - including its base
+// subobjects - declare?  Counting declarations rather than globals is the
+// whole point: a not-yet-defined overload has no global.
+static int cpp_count_member_overloads(Sym *class_sym, int v1, int want_const)
+{
+    Sym *f;
+    int n = 0;
+
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->v == v1 && (f->type.t & VT_BTYPE) == VT_FUNC) {
+            if (!!cpp_field_is_const(f) == !!want_const)
+                n++;
+            continue;
+        }
+        if ((f->type.t & VT_BTYPE) == VT_STRUCT && f->type.ref
+            && f->v >= (SYM_FIRST_ANOM | SYM_FIELD))
+            n += cpp_count_member_overloads(f->type.ref, v1, want_const);
+    }
+    return n;
+}
+
+// BUG-30: score the class's DECLARED overloads named v1 against the
+// nb_args arguments already on the vstack.  Mirrors cpp_resolve_func_call
+// deliberately - same cpp_arg_matches_param scoring, same exact-arity
+// requirement - so a call that resolves correctly today keeps resolving
+// the same way; the only difference is where the candidates come from.
+static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
+                                       int want_const, Sym **best,
+                                       int *best_score)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->v == v1 && (f->type.t & VT_BTYPE) == VT_FUNC && f->type.ref) {
+            Sym *p;
+            int i, score = 0, match = 1;
+
+            if (!!cpp_field_is_const(f) != !!want_const)
+                continue;
+            p = f->type.ref->next;
+            for (i = 0; i < nb_args; i++) {
+                CType *arg_type = &vtop[-nb_args + 1 + i].type;
+                int arg_score;
+
+                if (!p || p->type.t == VT_VOID) {
+                    if (f->type.ref->f.func_type == FUNC_ELLIPSIS)
+                        break;
+                    match = 0;
+                    break;
+                }
+                if (!cpp_arg_matches_param(&p->type, arg_type, &arg_score)) {
+                    match = 0;
+                    break;
+                }
+                score += arg_score;
+                p = p->next;
+            }
+            if (match && p && p->type.t != VT_VOID)
+                match = 0;
+            if (match && score > *best_score) {
+                *best_score = score;
+                *best = f;
+            }
+            continue;
+        }
+        if ((f->type.t & VT_BTYPE) == VT_STRUCT && f->type.ref
+            && f->v >= (SYM_FIRST_ANOM | SYM_FIELD))
+            cpp_score_member_overloads(f->type.ref, v1, nb_args, want_const,
+                                       best, best_score);
+    }
+}
+
+// BUG-30: re-resolve a member call from the class's declarations and hand
+// back the global to call.  Returns NULL when nothing matches, so the
+// caller falls back to the existing global-based resolution and behaviour
+// is unchanged wherever that already worked (e.g. calls relying on default
+// arguments, which the exact-arity rule above deliberately does not take).
+static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
+{
+    Sym *class_sym, *best = NULL;
+    int v1, want_const, best_score = -1;
+
+    if (!tcc_state->cpp || tcc_state->extern_c || !cur)
+        return NULL;
+    class_sym = cur->parent_class;
+    if (!class_sym || (cur->type.t & VT_BTYPE) != VT_FUNC)
+        return NULL;
+    if ((cur->v & ~SYM_FIELD) < TOK_IDENT)
+        return NULL;
+    v1 = (cur->v & ~SYM_FIELD) | SYM_FIELD;
+    want_const = !!(cur->type.ref && cur->type.ref->f.func_const);
+    cpp_score_member_overloads(class_sym, v1, nb_args, want_const,
+                               &best, &best_score);
+    if (!best)
+        return NULL;
+    // A field inherited from a base belongs to that base, so its global
+    // must be looked up (or created) under the declaring class.
+    return cpp_member_func_global_exact(best, best->parent_class
+                                        ? best->parent_class : class_sym);
+}
+
 static Sym* find_field(CType* type, int v, int* cumofs)
 {
     Sym* s = type->ref;
@@ -11106,8 +11290,16 @@ post_ops:
                 && (vtop[-nb_args].r & VT_SYM)
                 && vtop[-nb_args].sym
                 && (vtop[-nb_args].type.t & VT_BTYPE) == VT_FUNC) {
-                Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
-                                                      vtop[-nb_args].sym);
+                // BUG-30: for a member call, try the class's declarations
+                // first - cpp_resolve_func_call only sees overloads that
+                // already have a global, so a definition further down the
+                // TU (or in another one) would be invisible and the call
+                // would stick to the first declaration.
+                Sym *resolved = cpp_resolve_member_func_call(vtop[-nb_args].sym,
+                                                             nb_args);
+                if (!resolved)
+                    resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
+                                                     vtop[-nb_args].sym);
                 if (resolved) {
                     vtop[-nb_args].sym = resolved;
                     vtop[-nb_args].type.ref = resolved->type.ref;
