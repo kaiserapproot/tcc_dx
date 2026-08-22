@@ -89,7 +89,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | `dynamic_cast` | `dynamic_cast<D*>(p)` | `'dynamic_cast' は宣言されていません` |
 | **RTTI** `typeid` / `<typeinfo>` | `#include <typeinfo>` | `インクルードファイル 'typeinfo' が見つかりません` |
 | **標準ライブラリ** `<iostream>` 等 | `#include <iostream>` | `インクルードファイル 'iostream' が見つかりません` |
-| **純粋仮想関数 / 抽象クラス** | `virtual int f() = 0;` | `',' が必要です（"=" が見つかりました）` |
+| ~~**純粋仮想関数 / 抽象クラス**~~ | — | **G5 で対応済み**（2026-08-22）。抽象クラスのオブジェクト宣言・`new` は明示エラー（ポインタ／参照は可）。未対応: 未 override スロットの実行時スタブ（NULL のまま。抽象判定で到達不能） |
 | **仮想デストラクタ** | `virtual ~B() {}` | `identifier が必要です` |
 | **仮想継承** | `struct B : virtual public A {}` | `unknown base class` |
 | **`friend` 関数宣言** | `friend int peek(P&);` | `unsupported friend declaration`（G2 で明示エラー化。読み捨てると関数宣言自体が消えるため） |
