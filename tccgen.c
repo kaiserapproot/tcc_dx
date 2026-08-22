@@ -197,6 +197,9 @@ static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
 // cpp_call_has_overloads.
 static int cpp_field_is_const(Sym *field);
 static int cpp_count_member_overloads(Sym *class_sym, int v1, int want_const);
+// BUG-33: the static-member lookup needs the same "declared here, defined
+// elsewhere" extern that BUG-30 introduced for ordinary members.
+static Sym *cpp_make_member_func_extern(Sym *field, Sym *class_sym, int v);
 /* forward decl: cpp_collect_explicit_bases replays a saved mem-initializer
    list and is defined before the token-string helpers */
 static TokenString *tok_str_dup_for_default(TokenString *src);
@@ -752,7 +755,28 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
         } else {
             if ((s->type.t & VT_BTYPE) != VT_FUNC && !(s->v & SYM_FIELD))
                 return s;
-                return s;
+        }
+    }
+    // BUG-33: the member is declared here but defined elsewhere - the very
+    // ordinary "declared in the .h, defined in its own .cpp" arrangement
+    // (TestUtility::trimFileName).  Reporting "static member not found"
+    // made that impossible; emit an extern reference and let the linker
+    // resolve it, exactly as BUG-30 does for non-static members.
+    if (tcc_state->cpp && !tcc_state->extern_c && mem_v >= TOK_IDENT) {
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            return cpp_make_member_func_extern(f, class_sym, mem_v);
+        else {
+            CType dt;
+            AttributeDef ad;
+
+            // A C++ static data member has external linkage; VT_STATIC on
+            // the field only marks it as "not part of the instance", so it
+            // must not travel to the global.  VT_EXTERN keeps a later
+            // definition from being rejected as a redefinition.
+            dt = f->type;
+            dt.t = (dt.t & ~VT_STATIC) | VT_EXTERN;
+            memset(&ad, 0, sizeof ad);
+            return external_sym(mem_v, &dt, VT_LVAL, &ad);
         }
     }
     return NULL;
@@ -2993,6 +3017,12 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         memset(&ad, 0, sizeof ad);
         type = f->type;
         type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
+        // BUG-33: VT_STORAGE above already strips VT_STATIC (it has to -
+        // it would mean internal linkage on the global), so the "C++ static
+        // member" fact has to travel separately or gen_function would give
+        // an inline `static` member an implicit `this`.
+        if ((f->type.t & VT_STATIC) && type.ref)
+            type.ref->f.func_static_member = 1;
         /* ctor: use a mangled token name to dodge the class typedef.
          * (See cpp_lookup_member_func for the matching lookup path.) */
         if (cpp_is_ctor_field(f)) {
@@ -3126,10 +3156,16 @@ static void cpp_inherit_decl_defaults(Sym *sym)
     }
     if (!field || !field->type.ref)
         return;
-    /* propagate VT_STATIC so gen_function() does not add an implicit
-     * `this` to a static member function defined outside the class. */
-    if (field->type.t & VT_STATIC)
-        sym->type.t |= VT_STATIC;
+    /* Record "C++ static member" so gen_function() does not add an implicit
+     * `this` to a static member function defined outside the class.
+     * BUG-33: this used to set VT_STATIC on the global, which to the rest of
+     * tcc means INTERNAL LINKAGE - the definition became file-local and no
+     * other TU could call it. */
+    if (field->type.t & VT_STATIC) {
+        sym->type.t &= ~VT_STATIC;
+        if (sym->type.ref)
+            sym->type.ref->f.func_static_member = 1;
+    }
     dp = field->type.ref->next;
     sp = sym->type.ref->next;
     while (dp && sp) {
@@ -4271,6 +4307,8 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_virtual = 1;
     if (fa1->func_const)
         fa->func_const = 1;
+    if (fa1->func_static_member)
+        fa->func_static_member = 1;
 }
 
 /* �������}�[�W���� */
@@ -14100,7 +14138,8 @@ static void gen_function(Sym* sym)
     saved_param_next = NULL;
     cpp_this_sym = NULL;
     cpp_cur_func_class = sym->parent_class;
-    if (sym->parent_class && tcc_state->cpp && !(sym->type.t & VT_STATIC)) {
+    if (sym->parent_class && tcc_state->cpp && !(sym->type.t & VT_STATIC)
+        && !(sym->type.ref && sym->type.ref->f.func_static_member)) {
         CType pt;
 
         /* Build `this` as a real pointer type via mk_pointer so that
