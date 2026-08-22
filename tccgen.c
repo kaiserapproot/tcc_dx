@@ -539,6 +539,7 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
 }
 
 static int cpp_dtor_name_tok(int class_tok);
+static Sym *cpp_lookup_class_type(Sym *cls, int v);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -563,45 +564,70 @@ static int cpp_parse_global_scope_qualifier(void)
 // which the plan explicitly forbids.
 static int cpp_global_scope_type_pending;
 static int cpp_global_scope_expr;
+// G3 P5: nonzero while default-argument tokens are being replayed at a
+// call site.  The tokens must resolve in their DEFINING scope: call-site
+// locals may not capture names, the owning class (restored into
+// cpp_cur_func_class) provides statics, and the this-based implicit
+// member lookups stay off (non-static members in default args are
+// ill-formed in C++ anyway).
+static int cpp_default_arg_replay;
 
 static int parse_cpp_scope_qualifier(int *v)
 {
     int class_v;
+    int any = 0;
 
-    if (!tcc_state->cpp || tok != ':')
-        return 0;
-    next();
-    if (tok != ':') {
-        unget_tok(':');
-        return 0;
-    }
-    next();
-    class_v = *v;
-    /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
-       a single-char token, so the generic member-name check below
-       would reject it.  Reuse the FEAT-4E mangled global token so the
-       existing auto/explicit dtor call paths link against this body. */
-    if (tok == '~') {
+    // G3 P4: loop so a doubly qualified out-of-class definition such as
+    // SimpleList::Iterator::operator++(int) works - each name read may
+    // itself be followed by another "::", in which case it becomes the
+    // next qualifying class and cpp_qualified_class ends up holding the
+    // INNERMOST class (the member's real owner).
+    for (;;) {
+        if (!tcc_state->cpp || tok != ':')
+            return any;
         next();
-        if (tok != class_v)
-            tcc_error("destructor name does not match class name");
+        if (tok != ':') {
+            unget_tok(':');
+            return any;
+        }
         next();
-        *v = cpp_dtor_name_tok(class_v);
-        if (!*v)
-            tcc_error("cannot build destructor name");
-        cpp_qualified_class = struct_find(class_v);
+        class_v = *v;
+        // Resolve the qualifier: at level 2+ prefer the nested-class
+        // entry recorded on the previous qualifying class (P1), so a
+        // same-named unrelated global class cannot hijack the lookup;
+        // level 1 and the fallback use the plain tag namespace.
+        if (any && cpp_qualified_class) {
+            Sym *nested = cpp_lookup_class_type(cpp_qualified_class, class_v);
+            if (nested && (nested->type.t & VT_BTYPE) == VT_STRUCT
+                && nested->type.ref)
+                cpp_qualified_class = nested->type.ref;
+            else
+                cpp_qualified_class = struct_find(class_v);
+        } else {
+            cpp_qualified_class = struct_find(class_v);
+        }
         if (!cpp_qualified_class)
             tcc_error("unknown class in qualified name");
-        return 1;
+        /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
+           a single-char token, so the generic member-name check below
+           would reject it.  Reuse the FEAT-4E mangled global token so the
+           existing auto/explicit dtor call paths link against this body. */
+        if (tok == '~') {
+            next();
+            if (tok != class_v)
+                tcc_error("destructor name does not match class name");
+            next();
+            *v = cpp_dtor_name_tok(class_v);
+            if (!*v)
+                tcc_error("cannot build destructor name");
+            return 1;
+        }
+        if (tok < TOK_IDENT)
+            tcc_error("expected member name after ::");
+        *v = tok;
+        next();
+        any = 1;
     }
-    if (tok < TOK_IDENT)
-        tcc_error("expected member name after ::");
-    *v = tok;
-    next();
-    cpp_qualified_class = struct_find(class_v);
-    if (!cpp_qualified_class)
-        tcc_error("unknown class in qualified name");
-    return 1;
 }
 
 /* If tok is Class::member, unget tokens for expression parsing. */
@@ -645,6 +671,16 @@ static int cpp_unget_scoped_expr(void)
     unget_tok(':');
     unget_tok(':');
     unget_tok(cls_tok);
+    // G3 P3: "Class::type" at a statement head is a DECLARATION
+    // ("C::T x;"), not a scoped expression.  When the qualified name
+    // resolves to a type in the class scope (self + bases), hand the
+    // statement back to the decl path; expressions like C::npos keep
+    // returning 1 exactly as before.
+    {
+        Sym *cls = struct_find(cls_tok);
+        if (cls && cpp_lookup_class_type(cls, mem_tok))
+            return 0;
+    }
     return 1;
 }
 
@@ -1321,6 +1357,83 @@ static Sym *cpp_lookup_type_name(int v, int *kind)
     if (s) {
         *kind = CPP_TN_TAG;
         return s;
+    }
+    return NULL;
+}
+
+// G3 P1: search ONE class's separate typedef list (see tcc.h
+// cpp_class_typedefs - linked via ->prev by sym_push2).  Base-class and
+// enclosing-class walks are layered on top by the P2/P3 lookups.
+static Sym *cpp_class_typedef_find(Sym *cls, int v)
+{
+    Sym *td;
+
+    if (!cls)
+        return NULL;
+    for (td = cls->cpp_class_typedefs; td; td = td->prev)
+        if (td->v == v)
+            return td;
+    return NULL;
+}
+
+// G3 P2: resolve `v` as a type inside class `cls` ONLY: the class's own
+// typedef list first, then its direct bases merged per the plan's rule -
+// typedefs are compared by the type they NAME (not by declaration), so
+// A::T=int and B::T=int merge fine while differing types are an
+// ambiguity error.  "First base wins" is forbidden (silent miscompile).
+// This is the shared building block of both the unqualified lookup and
+// the P3 qualified lookup, which must NOT fall back beyond the class.
+static Sym *cpp_lookup_class_type(Sym *cls, int v)
+{
+    Sym *found, *f, *r;
+
+    if (!cls)
+        return NULL;
+    found = cpp_class_typedef_find(cls, v);
+    if (found)
+        return found;
+    for (f = cls->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !f->type.ref)
+            continue;
+        r = cpp_lookup_class_type(f->type.ref, v);
+        if (!r)
+            continue;
+        if (!found) {
+            found = r;
+        } else if (found != r) {
+            CType a, b;
+            a = found->type;
+            b = r->type;
+            a.t &= ~VT_STORAGE;
+            b.t &= ~VT_STORAGE;
+            if (!is_compatible_types(&a, &b))
+                tcc_error("'%s' is ambiguous (different types in multiple bases)",
+                          get_tok_str(v, NULL));
+        }
+    }
+    return found;
+}
+
+// G3 P2: unqualified class-scope type lookup, plan rules 2-3: the class
+// whose body (cpp_cur_class) or member function (cpp_cur_func_class) is
+// being compiled, its bases, then enclosing classes inner -> outer.
+// Rule 1 (block-scope, with non-type hiding) and rule 4 (file scope)
+// stay with the caller in parse_btype.
+static Sym *cpp_unqualified_class_type_find(int v)
+{
+    Sym *cls, *td;
+
+    // G3 P3: cpp_qualified_class is live while an out-of-class member's
+    // declarator/parameter list is parsed (set by the scope qualifier,
+    // consumed and cleared by decl()), which is exactly when parameter
+    // types like `insert(iterator pos, value_type v)` must see class
+    // scope (SimpleList.cpp:114).
+    cls = cpp_cur_class ? cpp_cur_class
+        : cpp_cur_func_class ? cpp_cur_func_class : cpp_qualified_class;
+    for (; cls; cls = cls->cpp_enclosing_class) {
+        td = cpp_lookup_class_type(cls, v);
+        if (td)
+            return td;
     }
     return NULL;
 }
@@ -2714,6 +2827,11 @@ static void cpp_save_default_arg(Sym *param)
     }
     tok_str_add(def, TOK_EOF);
     param->inline_func_str = def;
+    // G3 P5: remember the defining class so the replay can restore the
+    // declaration scope (`= npos` must mean Class::npos at every call
+    // site).  cpp_cur_class covers in-class declarations; the qualified
+    // class covers an out-of-class definition's parameter list.
+    param->parent_class = cpp_cur_class ? cpp_cur_class : cpp_qualified_class;
 }
 
 static void cpp_save_mem_init_list(Sym *ctor)
@@ -2837,11 +2955,23 @@ static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa)
     nb_args = *pnb_args;
     while (sa) {
         if (sa->inline_func_str) {
+            // G3 P5: replay in the DEFINING scope - restore the owning
+            // class and raise the replay flag so `= npos` resolves to
+            // Class::npos and never to a same-named call-site local.
+            // Save/restore keeps nested replays (a default arg whose
+            // expression itself calls a defaulted function) correct.
+            Sym *saved_cls = cpp_cur_func_class;
+            int saved_replay = cpp_default_arg_replay;
+            if (sa->parent_class)
+                cpp_cur_func_class = sa->parent_class;
+            cpp_default_arg_replay = 1;
             begin_macro(sa->inline_func_str, 1);
             next();
             expr_eq();
             gfunc_param_typed(func, sa);
             end_macro();
+            cpp_cur_func_class = saved_cls;
+            cpp_default_arg_replay = saved_replay;
             nb_args++;
         } else {
             tcc_error("too few arguments to function");
@@ -2899,8 +3029,11 @@ static void cpp_inherit_decl_defaults(Sym *sym)
     while (dp && sp) {
         if (dp->type.t == VT_VOID || sp->type.t == VT_VOID)
             break;
-        if (!sp->inline_func_str && dp->inline_func_str)
+        if (!sp->inline_func_str && dp->inline_func_str) {
             sp->inline_func_str = tok_str_dup_for_default(dp->inline_func_str);
+            // G3 P5: the defining class travels with the tokens.
+            sp->parent_class = dp->parent_class;
+        }
         dp = dp->next;
         sp = sp->next;
     }
@@ -3131,6 +3264,7 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cstr_new(&initstr);
     cpp_qualified_class = NULL;
     cpp_cur_class = NULL;
+    cpp_default_arg_replay = 0;
     decl_once_flag = 0;
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
@@ -8233,6 +8367,7 @@ static void struct_decl(CType* type, int u, int is_class)
     int v, c, size, align, flexible;
     int bit_size, bsize, bt, ut;
     Sym *s, *ss = NULL, **ps;
+    Sym *saved_cpp_cur_class = NULL;
     AttributeDef ad, ad1;
     CType type1, btype;
 
@@ -8318,8 +8453,16 @@ do_decl:
     }
 
     if (tok == '{') {
-        if (is_class)
+        saved_cpp_cur_class = cpp_cur_class;
+        if (tcc_state->cpp && u != VT_ENUM) {
+            // G3 P1: cpp_cur_class must nest like a stack - the old
+            // unconditional NULL reset at the end of struct_decl wiped the
+            // OUTER class whenever a nested class body finished.  Record
+            // the enclosing class on the tag so unqualified lookup can
+            // walk inner -> outer class scopes later.
+            s->cpp_enclosing_class = cpp_cur_class;
             cpp_cur_class = s;
+        }
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
@@ -8504,6 +8647,27 @@ do_decl:
                                 }
                             }
                         }
+                        // G3 P1: class-scope typedef.  Per the P0 audit it
+                        // must NOT enter the member chain (layout, brace-init,
+                        // debug and ABI walkers would each need synchronized
+                        // skips), so it goes on the separate per-class list
+                        // that only the C++ type-name lookups read.  Placed
+                        // before the type_size check because a typedef to an
+                        // incomplete type is legal.
+                        if (tcc_state->cpp && (type1.t & VT_TYPEDEF)) {
+                            Sym *td;
+                            if (v == 0)
+                                expect("identifier");
+                            if (cpp_class_typedef_find(s, v))
+                                tcc_error("redefinition of '%s'",
+                                          get_tok_str(v, NULL));
+                            td = sym_push2(&s->cpp_class_typedefs, v, type1.t, 0);
+                            td->type.ref = type1.ref;
+                            if (tok == ';' || tok == TOK_EOF)
+                                break;
+                            skip(',');
+                            continue;
+                        }
                         if (type_size(&type1, &align) < 0) {
                             if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
                                 flexible = 1;
@@ -8628,6 +8792,18 @@ do_decl:
                 if (is_class == 1 || !sym_find(tag_v))
                     sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
             }
+            // G3 P1: register a nested class/struct name on the enclosing
+            // class's typedef list too, so the P3 qualified lookup can
+            // resolve Outer::Inner without relying on the C tag hoisting.
+            if (tcc_state->cpp && u != VT_ENUM && s->cpp_enclosing_class) {
+                int tag_v2 = s->v & ~SYM_STRUCT;
+                if (tag_v2 < SYM_FIRST_ANOM
+                    && !cpp_class_typedef_find(s->cpp_enclosing_class, tag_v2)) {
+                    Sym *ntd = sym_push2(&s->cpp_enclosing_class->cpp_class_typedefs,
+                                         tag_v2, type->t | VT_TYPEDEF, 0);
+                    ntd->type.ref = s;
+                }
+            }
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
             if (is_class) {
@@ -8638,9 +8814,12 @@ do_decl:
                 /* Virtual MI (Phase 2): runs after struct_layout so the base
                  * fields carry their final offsets (thunk adjust values). */
                 cpp_emit_secondary_vtables(s);
-                cpp_cur_class = NULL;
             }
         }
+        // G3 P1: restore the outer class instead of wiping to NULL, so a
+        // nested class body no longer loses the enclosing class context.
+        if (tcc_state->cpp && u != VT_ENUM)
+            cpp_cur_class = saved_cpp_cur_class;
     }
 }
 
@@ -8939,7 +9118,20 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                     s = cpp_global_scope_find(tok);
                     tn = cpp_global_lookup_type_name(tok, &tn_kind);
                 } else {
-                    tn = cpp_lookup_type_name(tok, &tn_kind);
+                    Sym *ctd;
+                    // G3 P1/P2: class scope (body being parsed, or the
+                    // class of the member function being compiled, plus
+                    // bases and enclosing classes) hides file-scope names;
+                    // block-scope locals still win, so only override
+                    // non-local bindings.
+                    ctd = cpp_unqualified_class_type_find(tok);
+                    if (ctd && !(s && sym_scope(s))) {
+                        s = ctd;
+                        tn = NULL;
+                        tn_kind = CPP_TN_NONE;
+                    } else {
+                        tn = cpp_lookup_type_name(tok, &tn_kind);
+                    }
                 }
                 stsym = NULL;
                 if (tn_kind == CPP_TN_TYPEDEF) {
@@ -8958,10 +9150,55 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                     if (tok == ':') {
                         next();
                         if (tok == ':') {
-                            unget_tok(':');
-                            unget_tok(':');
-                            unget_tok(cls_tok);
-                            goto the_end;
+                            // G3 P3: "Class::name".  When `name` is a type
+                            // in Class scope (self + bases ONLY - never the
+                            // enclosing or global scope, rev.4 Blocker 2),
+                            // this is a qualified type name; otherwise give
+                            // the tokens back so Class::member expressions
+                            // keep working exactly as before.
+                            Sym *qcls = stsym;
+                            Sym *qtd;
+                            int levels = 0;
+                            next();
+                            for (;;) {
+                                qtd = tok >= TOK_UIDENT
+                                    ? cpp_lookup_class_type(qcls, tok) : NULL;
+                                if (!qtd) {
+                                    if (levels == 0) {
+                                        unget_tok(':');
+                                        unget_tok(':');
+                                        unget_tok(cls_tok);
+                                        goto the_end;
+                                    }
+                                    // O::I::T with no T in I must fail here,
+                                    // not fall back to the enclosing O::T.
+                                    tcc_error("no type '%s' in qualified class scope",
+                                              tok >= TOK_IDENT
+                                                  ? get_tok_str(tok, NULL) : "?");
+                                }
+                                next();
+                                if (tok == ':') {
+                                    next();
+                                    if (tok == ':') {
+                                        if ((qtd->type.t & VT_BTYPE) != VT_STRUCT
+                                            || !qtd->type.ref)
+                                            tcc_error("'::' applied to a non-class type");
+                                        qcls = qtd->type.ref;
+                                        levels++;
+                                        next();
+                                        continue;
+                                    }
+                                    unget_tok(':');
+                                }
+                                break;
+                            }
+                            type->t = (qtd->type.t & ~VT_STORAGE)
+                                | (t & (VT_STORAGE | VT_CONSTANT | VT_VOLATILE));
+                            type->ref = qtd->type.ref;
+                            typespec_found = 1;
+                            st = bt = -2;
+                            t = type->t;
+                            break;
                         }
                         unget_tok(':');
                     }
@@ -10303,6 +10540,18 @@ tok_next:
             // qualified global must never rebind to a class member.
             s = cpp_global_scope_find(t);
         }
+        else if (tcc_state->cpp && cpp_default_arg_replay) {
+            // G3 P5: default-arg replay resolves in the defining scope -
+            // a call-site local must not capture the name, and the owning
+            // class (in cpp_cur_func_class) supplies its statics.
+            if (s && sym_scope(s))
+                s = cpp_global_scope_find(t);
+            if (!s && cpp_cur_func_class) {
+                Sym *st = cpp_lookup_static_member(cpp_cur_func_class, t);
+                if (st)
+                    s = st;
+            }
+        }
         /* BUG-22: an unqualified call to another member of the same class
            (`return helper(42);` inside a method) must pass `this`.  The name
            otherwise binds to the hoisted global that carries the method body,
@@ -10311,7 +10560,7 @@ tok_next:
            regular member-call path emit it, which also keeps virtual dispatch
            and MI base offsets working.  cross.h's C++ window_t relies on this
            throughout - init() calls init_common(). */
-        if (tcc_state->cpp && !cpp_global_scope_expr
+        if (tcc_state->cpp && !cpp_global_scope_expr && !cpp_default_arg_replay
             && cpp_cur_func_class && cpp_this_sym
             && tok == '('
             && (!s || sym_scope(s) == 0)) {
@@ -10348,7 +10597,8 @@ tok_next:
            Member FUNCTIONS are deliberately left to the existing global
            binding - calls resolve through cpp_find_field_for_call - so only
            data members are considered here. */
-        if (tcc_state->cpp && !cpp_global_scope_expr && cpp_cur_func_class) {
+        if (tcc_state->cpp && !cpp_global_scope_expr && !cpp_default_arg_replay
+            && cpp_cur_func_class) {
             Sym *mf = NULL;
             if (!s) {
                 mf = cpp_lookup_member_field(t, cpp_cur_func_class);

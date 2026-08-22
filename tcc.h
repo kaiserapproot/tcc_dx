@@ -573,6 +573,14 @@ typedef struct Sym {
     struct TokenString *cpp_mem_init_list;
     struct Sym *parent_class; /* owning class (C++ member) */
     int cpp_vtable_tok; /* FEAT-5A: __cpp_vtable_<Class> token, 0 if none */
+    /* G3: class-scope typedefs / nested type names live on this SEPARATE
+       list (linked via ->prev by sym_push2), never on the member chain -
+       the P0 audit showed layout/initializer/debug/ABI walkers would all
+       need synchronized skips otherwise.  Only C++ type lookups read it. */
+    struct Sym *cpp_class_typedefs;
+    /* G3: enclosing class of a nested class tag (NULL at namespace scope);
+       needed because unqualified lookup searches inner -> outer classes. */
+    struct Sym *cpp_enclosing_class;
 } Sym;
 
 /* section definition */
