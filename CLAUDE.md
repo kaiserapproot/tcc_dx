@@ -32,6 +32,16 @@ TCC (Tiny C Compiler) を **MSVC / Windows x64** でビルドし、段階的に 
 
 ---
 
+## 必須ルール — クラッシュ（最高重大度）
+
+> 詳細は [クラッシュ防止プラン.md](クラッシュ防止プラン.md)（C1 = VEH 最終網は実装済み）。
+
+- **tcc.exe のクラッシュ（負の exit code）は最高重大度**。発見したら現在のガイドを中断し、クラッシュ修正を先に行う。
+- **クラッシュする入力を繰り返し実行しない**。診断ビルド（別名 `dev\tcc_dbg.exe`）で **1 回だけ**捕捉する（VEH + `RtlCaptureStackBackTrace` + リンカ `.map` で解決。手順は 問題と原因.md の BUG-35 調査記録）。`dev\tcc.exe` 本体はクラッシュさせない。
+- tcc.c の **VEH クラッシュ網（`tcc_crash_net_veh`）を外さない**。stack overflow / AV を診断つき exit 1 に変換し、WER によるプロセスロック二次被害を防いでいる。`-run` 前後の arm/disarm も維持する。
+- **新しい再帰 walker を書くときは深さ上限を入れる**（C3 実装後は `CPP_RECURSION_GUARD` を必ず使用）。C++ の型グラフはメンバ関数のシグネチャ経由で**循環する**（BUG-35）。
+- **`Sym` の共用体メンバ（`sym_scope` / `f` / `jnext` 等）を読む前に Sym の種別を確認する**。特に「関数型 ref チェーンの先頭 = プロトタイプ Sym の共用体は FuncAttr」。
+
 ## 必須ルール — 規律・コミット
 
 - **1 ガイド = 1 feature branch = 1 コミット**。master で直接作業しない。
