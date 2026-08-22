@@ -83,7 +83,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **テンプレート**（関数・クラスとも） | `template<class T> T mx(T a,T b){...}` | `';' が必要です（"<" が見つかりました）` |
 | **名前空間** `namespace` | `namespace N { int f(){return 0;} }` | `';' が必要です（"N" が見つかりました）` |
 | **`using` 宣言 / ディレクティブ** | `using N::f;` | 同上 |
-| **`new` / `delete`** | `P* p = new P; delete p;` | `'new' は宣言されていません` |
+| ~~**`new` / `delete`**~~ | — | **G4 で対応済み**（2026-08-22）。`new Class(args)` / `delete p` / `new POD[n]` / `delete[]`。未対応は scalar POD の `new int`、ctor/dtor 付きクラスの `new C[n]`、`operator new` の置き換え（いずれも明示エラー） |
 | **例外** `try` / `catch` / `throw` | `try { throw 1; } catch(int e) {}` | `'try' は宣言されていません` |
 | **キャスト演算子** `static_cast` 等 | `static_cast<int>(d)` | `'static_cast' は宣言されていません` |
 | `dynamic_cast` | `dynamic_cast<D*>(p)` | `'dynamic_cast' は宣言されていません` |
