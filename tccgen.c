@@ -14934,6 +14934,12 @@ static void gen_function(Sym* sym)
                 if (member_field
                     && (member_field->type.t & VT_BTYPE) != VT_FUNC) {
                     cpp_push_member_var(member_field);
+                    // A mem-initializer INITIALIZES the member, it does
+                    // not assign to it, so a const member is legal here
+                    // (RepeatedTest.h `const int m_timesRepeat` died in
+                    // vstore's read-only check otherwise).  Strip the
+                    // qualifier from this store only.
+                    vtop->type.t &= ~VT_CONSTANT;
                     if (tok != ')') {
                         expr_eq();
                         vstore();
