@@ -128,6 +128,7 @@ template 等の大物は不要。
 | 10 | `new T[n]` / `delete[]` | 4 / 5（char 配列、型名はクラス内 typedef） | 同上 | G4 |
 | 11 | 純粋仮想 `= 0` + 抽象クラス | **宣言 9 件**（全て regular method、pure dtor 0） | `',' が必要です` | G5 |
 | 12 | 仮想デストラクタ（BUG-24） | 8 | `identifier が必要です` | G6 |
+| 13 | **同名オーバーロードの前方参照解決（BUG-30）** | SimpleString.cpp:38 ほか多数 | `関数への引数が多すぎます`／**誤オーバーロード（silent）** | **G-OVL**（新設・2026-08-22 G-CAST 実装中に露出） |
 
 > 使用数は 2026-08-09 の G0 実測で確定した値（rev.1 の「new 31 / delete 19 / 純粋仮想 27」は
 > コメント内使用例を含む粗 grep 数だったため廃止。詳細な分類は §7）。
@@ -157,6 +158,7 @@ G0 インベントリ + ベースラインゲート（小・実装なし）【�
 → G-OP 単項 operator* 呼び出し + operator->（小〜中、G0 で露出）
 → G3 クラス内typedef（大・P0監査 + P1〜P5 = 5コミット）
 → G-CAST 関数形式キャスト T(expr)（小、G3 依存、G0 で露出）
+→ G-OVL 同名オーバーロードの前方参照解決（中、G-CAST 実装中に露出。BUG-30）
 → G4 new/delete（中）→ G5 純粋仮想 metadata（中）
 → G6 仮想dtor + complete-object delete（中〜大）→ G7 CPPUnit フルゲート（小）
 ```
@@ -616,6 +618,73 @@ SimpleList::iterator SimpleList::insert(iterator pos, value_type value)  // Simp
 **依存**: G3 完了後（クラス内 typedef 名の解決を使うため）。G4 より先
 （`new value_type[n]` と同じ TU = SimpleString.cpp が両方を要求するが、
 コンパイル可否のゲートは G7 なので順序は G3 → G-CAST → G4 で整合）。
+
+### G-OVL: 同名オーバーロードの前方参照解決（BUG-30）— `fix/cpp-bug30-overload-forward`（G-CAST 実装中に露出）
+
+**露出の経緯**: G-CAST 完了後、SimpleString.cpp の停止地点が 33 行目から **38 行目**
+`assign((size_type)0, (value_type)0);` へ進んだ。プラン §1 の注意書き（「G7 以前は
+別の未対応構文が新たに露出しうる。露出したら本プランを改訂し、ガイドを追加してから
+実装する」）に従い、実装前に本節を追加する。
+
+**実測で確定した真因（2026-08-22、スクラッチの最小再現 11 本で二分探索）**:
+
+同名オーバーロードのメンバ関数呼び出しで、**その時点までに定義（本体）が現れている
+オーバーロードしか候補にならない**。クラス内の宣言だけでは候補にならず、解決は
+クラス内の**最初の宣言**へ落ちる。
+
+| 条件 | 結果 |
+|---|---|
+| 全オーバーロードの定義が呼び出しより**前**にある | ✅ 正しく解決（`ovl7`） |
+| 定義が呼び出しより**後**にある | ❌ 誤解決（`ovl11`） |
+| 同 TU に定義が無い（宣言のみ = ヘッダ利用の通常形） | ❌ 誤解決（`ovl10`） |
+| 呼び出し形（unqualified / `obj.f()` / `this->f()`） | 3 形とも同じ（`ovl5` / `ovl6`） |
+
+- 引数の**個数が合わない**場合は `関数への引数が多すぎます` で停止する（CPPUnit の実害）。
+- 引数の個数がたまたま合う場合は **誤ったオーバーロードを黙って呼ぶ = silent miscompile**。
+  重大度はコンパイルエラーより高い。`.h` に宣言・`.cpp` に定義という C++ の通常構成が
+  そのまま該当するため、影響範囲は CPPUnit に限らない。
+- 番号は [問題と原因.md](問題と原因.md) **BUG-30**。
+
+**着手前に必須の確認（実機）**:
+
+```
+findstr /n "cpp_resolve_func_call cpp_lookup_member_func cpp_find_field_for_call" tccgen.c
+findstr /n "external_sym cpp_pending_member_class" tccgen.c
+```
+
+`cpp_resolve_func_call` が候補を**グローバル Sym チェーン**（`sym_find(v)` → `prev_tok`）
+から集めているか、クラスの**メンバチェーン**（宣言側 field）から集めているかを確認する。
+前者なら「定義が無い＝グローバル Sym が無い＝候補にならない」という上記の実測と整合する。
+
+**設計方針（実装は確認後に確定。以下は候補）**:
+
+- 候補集合を「グローバル Sym チェーン」ではなく **クラスのメンバチェーン（宣言側 field）**
+  から作る。field は宣言だけで必ず存在するため前方参照が解消する。
+- 選ばれた field に対応する実体（グローバル Sym）は既存の `cpp_lookup_member_func` /
+  `external_sym`（BUG-14 のクラス修飾マングル）で**解決後に**引く。
+  未定義なら従来どおり extern 参照を作る（リンク時解決）。
+- **const オーバーロード**（FEAT-6B / BUG-7）、**arity フィルタ**（FEAT-6A-ext3）、
+  **完全シグネチャ照合 + 引数変換遅延**（`feat/cpp-sig-match`）の既存規則を壊さないこと。
+  これらは既に field ベースの `cpp_find_field_for_call` / `cpp_pick_func_field` を
+  持っているので、そちらへ寄せる方向で整合が取りやすい。
+- 曖昧時の挙動は現行どおり（完全一致 10 / 変換 1、同点は先頭勝ち）を維持し、
+  **本ガイドでスコア規則自体は変更しない**（スコープを膨らませない）。
+
+**受け入れテスト**（`a9/govl_*.cpp`。すべて実行値検証 + 修正前バイナリでの**負の対照**必須）:
+
+- 正例: 宣言のみ（定義は呼び出しより後）の 5 オーバーロードで
+  `s.assign((size_type)0, (value_type)0)` が**正しい 2 引数版**を呼ぶこと（実行値）
+- 正例: 同形の unqualified 呼び出し（メンバ本体内）と `this->` 明示形
+- 正例: **silent miscompile の直接検出** — 引数個数が同じ 2 オーバーロード
+  （例 `f(int)` と `f(const char*)`）を定義より前に呼び、戻り値で**どちらが呼ばれたか**を判定
+- 正例（回帰）: const / 非 const オーバーロード（`feat6b_overload*`）、arity 単項/二項
+  （`feat6a_ext3_arity`）、同 arity 型違い（`sig_member_types*`）が従来どおり
+- 正例（回帰）: ヘッダ宣言のみで**同 TU に定義が無い**メンバ呼び出しが、
+  従来どおり extern 参照としてリンクできること（別 TU 定義 + `mixed_link` 相当）
+- 負例: 引数の型がどのオーバーロードにも合わない呼び出しが従来どおりエラー
+
+**完了ゲート**: 上記に加え SimpleString.cpp の停止地点が 38 行目から前進すること
+（次の停止地点を計測して記録する）。
 
 ### G4: `new` / `delete`（+配列形）— `feat/cpp-new-delete`
 
