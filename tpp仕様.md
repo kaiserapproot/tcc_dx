@@ -237,6 +237,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-33 | 静的メンバが TU をまたげない（宣言のみで解決不可 / 定義が内部リンケージ） | **修正済み**（extern 参照の生成 + `FuncAttr.func_static_member`） |
 | BUG-34 | 祖父母の仮想を孫が override すると別 vtable スロットになり基底実装が呼ばれる | **修正済み**（primary 基底チェーンを辿る `cpp_find_inherited_virtual_slot`） |
 | BUG-35 | 自クラスを値返しするメンバを持つクラスで **tcc 自身がスタックオーバーフロー**（診断なしで即死） | **修正済み**（`sym_copy_ref` がプロトタイプ Sym の FuncAttr を `sym_scope` と誤読していた） |
+| BUG-36 | ネスト型宣言 `struct Inner {...};` が外側クラスの**匿名メンバ**になりレイアウト肥大 + 同名メンバの重複誤検出 | **修正済み**（C++ では名前付きタグの宣言子なし宣言を型宣言のみとする） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。
