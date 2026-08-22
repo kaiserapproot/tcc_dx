@@ -568,41 +568,59 @@ static int cpp_global_scope_expr;
 static int parse_cpp_scope_qualifier(int *v)
 {
     int class_v;
+    int any = 0;
 
-    if (!tcc_state->cpp || tok != ':')
-        return 0;
-    next();
-    if (tok != ':') {
-        unget_tok(':');
-        return 0;
-    }
-    next();
-    class_v = *v;
-    /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
-       a single-char token, so the generic member-name check below
-       would reject it.  Reuse the FEAT-4E mangled global token so the
-       existing auto/explicit dtor call paths link against this body. */
-    if (tok == '~') {
+    // G3 P4: loop so a doubly qualified out-of-class definition such as
+    // SimpleList::Iterator::operator++(int) works - each name read may
+    // itself be followed by another "::", in which case it becomes the
+    // next qualifying class and cpp_qualified_class ends up holding the
+    // INNERMOST class (the member's real owner).
+    for (;;) {
+        if (!tcc_state->cpp || tok != ':')
+            return any;
         next();
-        if (tok != class_v)
-            tcc_error("destructor name does not match class name");
+        if (tok != ':') {
+            unget_tok(':');
+            return any;
+        }
         next();
-        *v = cpp_dtor_name_tok(class_v);
-        if (!*v)
-            tcc_error("cannot build destructor name");
-        cpp_qualified_class = struct_find(class_v);
+        class_v = *v;
+        // Resolve the qualifier: at level 2+ prefer the nested-class
+        // entry recorded on the previous qualifying class (P1), so a
+        // same-named unrelated global class cannot hijack the lookup;
+        // level 1 and the fallback use the plain tag namespace.
+        if (any && cpp_qualified_class) {
+            Sym *nested = cpp_lookup_class_type(cpp_qualified_class, class_v);
+            if (nested && (nested->type.t & VT_BTYPE) == VT_STRUCT
+                && nested->type.ref)
+                cpp_qualified_class = nested->type.ref;
+            else
+                cpp_qualified_class = struct_find(class_v);
+        } else {
+            cpp_qualified_class = struct_find(class_v);
+        }
         if (!cpp_qualified_class)
             tcc_error("unknown class in qualified name");
-        return 1;
+        /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
+           a single-char token, so the generic member-name check below
+           would reject it.  Reuse the FEAT-4E mangled global token so the
+           existing auto/explicit dtor call paths link against this body. */
+        if (tok == '~') {
+            next();
+            if (tok != class_v)
+                tcc_error("destructor name does not match class name");
+            next();
+            *v = cpp_dtor_name_tok(class_v);
+            if (!*v)
+                tcc_error("cannot build destructor name");
+            return 1;
+        }
+        if (tok < TOK_IDENT)
+            tcc_error("expected member name after ::");
+        *v = tok;
+        next();
+        any = 1;
     }
-    if (tok < TOK_IDENT)
-        tcc_error("expected member name after ::");
-    *v = tok;
-    next();
-    cpp_qualified_class = struct_find(class_v);
-    if (!cpp_qualified_class)
-        tcc_error("unknown class in qualified name");
-    return 1;
 }
 
 /* If tok is Class::member, unget tokens for expression parsing. */
