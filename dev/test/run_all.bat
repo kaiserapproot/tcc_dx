@@ -88,6 +88,13 @@ echo === a2\mixed_link.bat ===
 call a2\mixed_link.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem BUG-30: a member declared in a header and defined in another TU must
+rem link and still resolve to the right overload (a9\link\ is a subdirectory
+rem so the a9\*.cpp globs above never pick these two up individually).
+echo === a9\govl_link.bat ===
+call a9\govl_link.bat
+if errorlevel 1 set /a FAILED+=1
+
 echo === run_all summary: !FAILED! gating failure(s) ===
 popd
 exit /b !FAILED!
