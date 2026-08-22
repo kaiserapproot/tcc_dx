@@ -9163,6 +9163,22 @@ do_decl:
                             else {
                                 int v = btype.ref->v;
                                 if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
+                                    // BUG-36: in C++ a NAMED tag with no
+                                    // declarator (`struct Inner {...};`) is a
+                                    // nested TYPE declaration and nothing
+                                    // else.  The ms-extensions fallthrough
+                                    // turned it into an anonymous MEMBER of
+                                    // that type: the outer class silently
+                                    // grew an Inner-sized field (layout
+                                    // corruption), and check_fields saw
+                                    // Inner's member names as the outer
+                                    // class's own, so a same-named member
+                                    // (`TestResult::m_mutex` vs
+                                    // `AutoMutexLock::m_mutex`) was reported
+                                    // as duplicated.  Untagged `struct {...};`
+                                    // stays on the anonymous-member path.
+                                    if (tcc_state->cpp)
+                                        break;
                                     if (tcc_state->ms_extensions == 0)
                                         expect("identifier");
                                 }
