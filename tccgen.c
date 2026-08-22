@@ -9038,6 +9038,7 @@ static void struct_decl(CType* type, int u, int is_class)
     int bit_size, bsize, bt, ut;
     Sym *s, *ss = NULL, **ps;
     Sym *saved_cpp_cur_class = NULL;
+    Sym *ooc_nested_outer = NULL;
     AttributeDef ad, ad1;
     CType type1, btype;
 
@@ -9048,6 +9049,29 @@ static void struct_decl(CType* type, int u, int is_class)
     v = 0;
     if (tok >= TOK_IDENT) /* struct/enum tag */
         v = tok, next();
+    // Out-of-class definition of a forward-declared NESTED class:
+    // `class TestRunner::Utility { ... };` (TestRunner.cpp:31).  Each
+    // qualifier level narrows to the inner tag; the enclosing class is
+    // remembered so the body sees the outer scope (G3) and the nested
+    // name gets registered on the outer's typedef list as if it had been
+    // defined in-body.  A single ':' is a base clause and stays untouched.
+    if (tcc_state->cpp && is_class && v && tok == ':') {
+        while (tok == ':') {
+            next();
+            if (tok != ':') {
+                unget_tok(':');
+                break;
+            }
+            next();
+            if (tok < TOK_IDENT)
+                expect("identifier");
+            ooc_nested_outer = struct_find(v);
+            if (!ooc_nested_outer)
+                tcc_error("unknown class in qualified class definition");
+            v = tok;
+            next();
+        }
+    }
 
     bt = ut = 0;
     if (u == VT_ENUM) {
@@ -9129,8 +9153,11 @@ do_decl:
             // unconditional NULL reset at the end of struct_decl wiped the
             // OUTER class whenever a nested class body finished.  Record
             // the enclosing class on the tag so unqualified lookup can
-            // walk inner -> outer class scopes later.
-            s->cpp_enclosing_class = cpp_cur_class;
+            // walk inner -> outer class scopes later.  For an OUT-of-class
+            // nested definition the enclosing class comes from the
+            // qualifier, not from any class body being parsed.
+            s->cpp_enclosing_class = ooc_nested_outer ? ooc_nested_outer
+                                                      : cpp_cur_class;
             cpp_cur_class = s;
         }
         next();
@@ -12067,6 +12094,28 @@ post_ops:
                 tcc_error("expected member name after ::");
             mem_tok = tok;
             next();
+            // Nested-class hop: in `Runner::Utility::add(...)` the middle
+            // name is a TYPE in the enclosing class, not a static member -
+            // descend to the nested class and read the next `:: member`,
+            // as many levels as the source nests.
+            while (tok == ':') {
+                Sym *ncls = cpp_lookup_class_type(class_sym, mem_tok);
+                if (!ncls || (ncls->type.t & VT_BTYPE) != VT_STRUCT
+                    || !ncls->type.ref)
+                    break;
+                next();
+                if (tok != ':') {
+                    unget_tok(':');
+                    break;
+                }
+                next();
+                if (tok < TOK_IDENT)
+                    tcc_error("expected member name after ::");
+                class_sym = ncls->type.ref;
+                cls_tok = mem_tok;
+                mem_tok = tok;
+                next();
+            }
             ss = cpp_lookup_static_member(class_sym, mem_tok);
             if (!ss)
                 tcc_error("static member not found");
