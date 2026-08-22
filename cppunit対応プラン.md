@@ -862,6 +862,55 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
 - 既存の `a9/negative` に「仮想 dtor が今まで通り拒否されること」を期待する負例は**無い**ことを
   確認済み（bug22 テストのコメントには「未対応」と書いたので、G6 で本文コメントを更新する）。
 
+### G-CONV: 変換コンストラクタの暗黙適用 — `feat/cpp-converting-ctor`（BUG-36 修正後に露出）
+
+**露出の経緯**: G6 + BUG-36 の後、残 9 TU の停止を分類した結果、最多（4〜5 TU）が
+「引数・代入・mem-init・`return` 位置での **変換 ctor の暗黙適用**」だった。
+プラン §1 の規定（露出 → プラン改訂 → 実装）に従い本節を追加する。
+
+**実測の実形**:
+- `return m_node->next;` — `Node*` → `Iterator`（`Iterator(Node* node = 0)`）
+  （SimpleList.cpp:19 / SimpleList.h:90）
+- `: m_name(name)` / 代入・引数 — `const char*` → `SimpleString`
+  （`SimpleString(const value_type* p, size_type n = npos)`）
+  （TestCase.cpp:25 / TestSuite.cpp:13 ほか）
+- `SimpleString s(lhs);` — **コピー ctor**
+  `SimpleString(const SimpleString&, size_type pos = 0, size_type n = npos)` への
+  1 引数直接初期化が「関数への引数が多すぎます」（SimpleString.h:149）。
+  真因は ctor のオーバーロード解決が (a) デフォルト引数で埋まる候補を不可視、
+  (b) BUG-30 の宣言側候補集合が **ctor に効かない**（ctor グローバルはマングル
+  トークン `__cpp_ctor_C`、フィールドはクラス名トークンで、対応付けが無い）こと。
+
+**実装（2 部構成）**:
+
+1. **ctor のオーバーロード解決を通常メンバと同格にする**:
+   - `cpp_resolve_member_func_call` / `cpp_call_has_overloads`（BUG-30 の宣言側
+     候補集合）に **ctor トークン対応**を追加 — `cur->v == cpp_ctor_name_tok(親)` なら
+     フィールド検索キーを**クラス名トークン**にする。これで宣言のみ（`.h` 宣言・
+     `.cpp` 定義）の ctor も前方参照で解決・extern 化される（BUG-30 と同じ機構）。
+   - `cpp_resolve_func_call`（グローバル側）に **BUG-32c と同じ
+     「残りが全部デフォルト引数なら可」**の viability を追加（現在は完全 arity 一致のみ）。
+2. **暗黙変換の 1 フック**: `verify_assign_cast` 系の共通入口
+   （`gen_assign_cast` と `vstore` の先頭）に C++ 専用フックを置く —
+   「宛先が クラス T（`VT_STRUCT`+ref）」かつ「ソースが T と非互換」かつ
+   「T に**その 1 引数で viable な ctor**（残りはデフォルトで埋まる）がある」とき、
+   スタック上に **T の一時オブジェクト**を確保して ctor を呼び、vtop を
+   その一時 lvalue に差し替える。以降は既存の struct コピー / return / 引数渡しが
+   そのまま動く（新しいコピー機構は書かない）。
+   - 候補探索は BUG-30 の `cpp_score_member_overloads`（デフォルト viability 済み）を
+     クラス名トークンで呼ぶだけ。実体は `cpp_member_func_global_exact`（extern 化込み）。
+   - **1 段のみ**（ユーザー定義変換の連鎖はしない）。再帰は浅い深度カウンタで
+     打ち切り、**打ち切り時は変換を試みず従来のエラーへ落とす**（診断を消さない）。
+   - `explicit` は `-Dcu_NO_EXPLICIT` で空マクロのため本ガイドでは考慮不要
+     （tpp の explicit 対応自体が未実装のまま）。
+
+**受け入れ**（実行値検証）:
+- `return` 位置: `Iterator it = l.begin();` 相当（`Node*` を返す本体）で正しい node を指す
+- mem-init / 代入 / 引数渡しの `const char*` → `SimpleString`（内容比較まで）
+- `SimpleString s(lhs);`（コピー ctor + デフォルト 2 個）と `s2(lhs, 1, 2)` の共存
+- 変換 ctor が**無い**型への非互換代入が従来どおりエラー（負例）
+- 既存回帰: `feat6a_vec2*`（struct 代入の memcpy 経路）・`ctor_ov_*`・`bug32_*` が不変
+
 ### G7: CPPUnit ビルドゲート — `feat/cppunit-build-gate`
 
 1. **`all_test_tpp.cpp` を新規作成**（案 A・§7.4 の決定どおり）: 例外なし・
