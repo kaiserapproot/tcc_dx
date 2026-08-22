@@ -235,6 +235,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-31 | 静的データメンバのクラス外定義が、次の関数定義へクラスを漏らし暗黙 `this` を付ける | **修正済み**（`decl()` の宣言子ループ末尾で `cpp_qualified_class` を後始末） |
 | BUG-32 | デフォルト引数の再生 3 件（保存列の use-after-free / 呼び出し直後トークンの消失 / 解決がデフォルト引数を無視） | **修正済み**（複製再生・トークン退避・デフォルト考慮の候補判定） |
 | BUG-33 | 静的メンバが TU をまたげない（宣言のみで解決不可 / 定義が内部リンケージ） | **修正済み**（extern 参照の生成 + `FuncAttr.func_static_member`） |
+| BUG-34 | 祖父母の仮想を孫が override すると別 vtable スロットになり基底実装が呼ばれる | **修正済み**（primary 基底チェーンを辿る `cpp_find_inherited_virtual_slot`） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。
