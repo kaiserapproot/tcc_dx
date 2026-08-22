@@ -236,6 +236,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-32 | デフォルト引数の再生 3 件（保存列の use-after-free / 呼び出し直後トークンの消失 / 解決がデフォルト引数を無視） | **修正済み**（複製再生・トークン退避・デフォルト考慮の候補判定） |
 | BUG-33 | 静的メンバが TU をまたげない（宣言のみで解決不可 / 定義が内部リンケージ） | **修正済み**（extern 参照の生成 + `FuncAttr.func_static_member`） |
 | BUG-34 | 祖父母の仮想を孫が override すると別 vtable スロットになり基底実装が呼ばれる | **修正済み**（primary 基底チェーンを辿る `cpp_find_inherited_virtual_slot`） |
+| BUG-35 | 自クラスを値返しするメンバを持つクラスで **tcc 自身がスタックオーバーフロー**（診断なしで即死） | **修正済み**（`sym_copy_ref` がプロトタイプ Sym の FuncAttr を `sym_scope` と誤読していた） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。
