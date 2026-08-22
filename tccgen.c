@@ -9927,6 +9927,128 @@ static void parse_atomic(int atok)
     }
 }
 
+// G-CAST: does token v name a type usable as a functional-cast head?
+// Kept separate from cpp_tok_starts_type_name (whose callers decide
+// declaration-vs-expression) so this cannot perturb them, and it also
+// consults the G3 class-scope typedefs - SimpleString.cpp:33's
+// size_type is a member typedef.
+static int cpp_tok_is_cast_type_name(int v)
+{
+    int kind;
+
+    switch (v) {
+    case TOK_CHAR:
+    case TOK_VOID:
+    case TOK_SHORT:
+    case TOK_INT:
+    case TOK_LONG:
+    case TOK_BOOL:
+    case TOK_BOOL2:
+    case TOK_FLOAT:
+    case TOK_DOUBLE:
+    case TOK_SIGNED1:
+    case TOK_SIGNED2:
+    case TOK_SIGNED3:
+    case TOK_UNSIGNED:
+        return 1;
+    }
+    if (v < TOK_UIDENT)
+        return 0;
+    if (cpp_unqualified_class_type_find(v))
+        return 1;
+    return cpp_lookup_type_name(v, &kind) != NULL;
+}
+
+// G-CAST: the class Sym a type name denotes, or NULL if it names a
+// non-class type.  Accepts both the class-scope typedefs added by G3
+// and the ordinary tag / typedef bindings.
+static Sym *cpp_class_sym_of_type_name(int v)
+{
+    Sym *tn;
+    int kind = CPP_TN_TYPEDEF;
+
+    tn = cpp_unqualified_class_type_find(v);
+    if (!tn)
+        tn = cpp_lookup_type_name(v, &kind);
+    if (!tn)
+        return NULL;
+    if (kind == CPP_TN_TAG)
+        return tn;
+    if ((tn->type.t & VT_BTYPE) == VT_STRUCT)
+        return tn->type.ref;
+    return NULL;
+}
+
+// G-CAST: functional-style cast "T(expr)" - SimpleString.cpp:33 writes
+// `size_type(-1)`.  It fires only when the expression head is a type
+// NAME immediately followed by '(' (the decision is the type lookup
+// itself, not a heuristic), and then hands the work to the ordinary
+// (T)expr cast machinery.  Returns 0 with the token stream restored
+// when this is not a functional cast, so `Class::member` expressions
+// and ordinary calls are untouched.  C TUs never reach here, so C's
+// `int(x);` declaration rule is unaffected.
+static int cpp_try_functional_cast(void)
+{
+    CType type;
+    AttributeDef ad;
+    int name_tok, mem_tok;
+
+    if (!cpp_tok_is_cast_type_name(tok))
+        return 0;
+    name_tok = tok;
+    next();
+    if (tok != '(') {
+        // "Class::type(expr)" is a functional cast too, but "Class::fn()"
+        // is a static member CALL - the type lookup in the class scope is
+        // what tells them apart, so a non-type after '::' restores every
+        // token and leaves the existing static-member path alone.
+        if (tok == ':' && name_tok >= TOK_UIDENT) {
+            Sym *qcls = cpp_class_sym_of_type_name(name_tok);
+            next();
+            if (tok == ':') {
+                next();
+                if (tok >= TOK_UIDENT && qcls
+                    && cpp_lookup_class_type(qcls, tok)) {
+                    mem_tok = tok;
+                    next();
+                    if (tok == '(') {
+                        unget_tok(mem_tok);
+                        unget_tok(':');
+                        unget_tok(':');
+                        unget_tok(name_tok);
+                        goto parse_type;
+                    }
+                    unget_tok(mem_tok);
+                }
+                unget_tok(':');
+            }
+            unget_tok(':');
+        }
+        unget_tok(name_tok);
+        return 0;
+    }
+    unget_tok(name_tok);        /* stream is back to: T ( ... */
+parse_type:
+    if (!parse_btype(&type, &ad, 0))
+        return 0;
+    // A class-type temporary would need ctor selection and interacts
+    // with the G4 new/delete work, so refuse it loudly instead of
+    // guessing.  Same for the zero- and multi-argument forms: silently
+    // dropping to uninitialized or comma-operator semantics would be a
+    // miscompile the source never asked for.
+    if ((type.t & VT_BTYPE) == VT_STRUCT)
+        tcc_error("functional cast to a class type is not supported");
+    skip('(');
+    if (tok == ')')
+        tcc_error("'T()' value-initialization is not supported");
+    expr_eq();
+    if (tok == ',')
+        tcc_error("functional cast takes exactly one argument");
+    skip(')');
+    gen_cast(&type);
+    return 1;
+}
+
 ST_FUNC void unary(void)
 {
     int n, t, align, size, r;
@@ -9942,6 +10064,10 @@ ST_FUNC void unary(void)
     /* XXX: GCC 2.95.3 does not generate a table although it should be
        better here */
 tok_next:
+    // G-CAST: "T(expr)" is a cast, not a call - check before the switch
+    // so the type name never reaches the identifier path.
+    if (tcc_state->cpp && cpp_try_functional_cast())
+        goto post_ops;
     switch (tok) {
     case TOK_EXTENSION:
         next();
@@ -10676,6 +10802,7 @@ tok_next:
         break;
     }
 
+post_ops:
     /* post operations */
     while (1) {
         if (tok == TOK_INC || tok == TOK_DEC) {
