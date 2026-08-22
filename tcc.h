@@ -539,9 +539,14 @@ struct FuncAttr {
        VT_STATIC (that is what excludes it from the instance layout);
        the global carries this flag instead. */
     func_static_member : 1,
+    /* G5: C++ pure virtual (`virtual R f() = 0;`).  Kept as explicit
+       metadata rather than inferred from a NULL vtable slot - a slot can be
+       NULL for other reasons, and the abstract-class check has to be able
+       to tell "not overridden yet" from "no implementation emitted". */
+    func_pure   : 1,
     func_args   : 8, /* PE __stdcall args */
     func_alwinl : 1, /* always_inline */
-    xxxx        : 11;
+    xxxx        : 10;
 };
 
 /* symbol management */
