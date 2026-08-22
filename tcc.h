@@ -532,9 +532,16 @@ struct FuncAttr {
     func_dtor   : 1, /* attribute((destructor)) */
     func_virtual : 1, /* C++ virtual member function */
     func_const  : 1, /* C++ const member function */
+    /* BUG-33: C++ `static` member function.  It used to be recorded by
+       copying VT_STATIC onto the hoisted global, but VT_STATIC means
+       INTERNAL LINKAGE to the rest of tcc, so the definition became
+       file-local and no other TU could call it.  The field keeps
+       VT_STATIC (that is what excludes it from the instance layout);
+       the global carries this flag instead. */
+    func_static_member : 1,
     func_args   : 8, /* PE __stdcall args */
     func_alwinl : 1, /* always_inline */
-    xxxx        : 12;
+    xxxx        : 11;
 };
 
 /* symbol management */
