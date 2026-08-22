@@ -2066,6 +2066,43 @@ static Sym *cpp_lookup_virtual_impl(Sym *field)
     return NULL;
 }
 
+// G5: is this class abstract?  Walk the FINAL vtable layout: for every
+// slot, cpp_find_virtual_by_slot returns the most-derived declaration, so
+// a slot still resolving to a pure declaration means nothing overrode it.
+// That is what makes abstractness inherit correctly - `struct B : A {}`
+// with A's pure f() unoverridden is abstract too, while a class that
+// overrides every slot is concrete.
+static int cpp_class_is_abstract(Sym *class_sym)
+{
+    Sym *field;
+    int nslots, slot;
+
+    if (!class_sym || !tcc_state->cpp)
+        return 0;
+    nslots = cpp_count_virtual_slots(class_sym);
+    for (slot = 0; slot < nslots; slot++) {
+        field = cpp_find_virtual_by_slot(class_sym, slot);
+        if (field && field->type.ref && field->type.ref->f.func_pure)
+            return 1;
+    }
+    return 0;
+}
+
+// G5: an abstract class has no objects - only pointers and references.
+// Checked wherever storage would be created (declarations and `new`).
+static void cpp_check_not_abstract(CType *type, const char *what)
+{
+    // VT_BTYPE is a small enum, not a bitmask: a pointer to the class has
+    // VT_BTYPE == VT_PTR and never gets here, so this test alone already
+    // lets pointers and references through.  An ARRAY of the class does
+    // reach it, and C++ forbids that too.
+    if (!tcc_state->cpp || (type->t & VT_BTYPE) != VT_STRUCT || !type->ref)
+        return;
+    if (cpp_class_is_abstract(type->ref))
+        tcc_error("cannot %s an object of abstract class '%s'", what,
+                  get_tok_str(type->ref->v & ~SYM_STRUCT, NULL));
+}
+
 static void cpp_emit_vtable(Sym *class_sym)
 {
     char buf[256];
@@ -4338,6 +4375,8 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_const = 1;
     if (fa1->func_static_member)
         fa->func_static_member = 1;
+    if (fa1->func_pure)
+        fa->func_pure = 1;
 }
 
 /* �������}�[�W���� */
@@ -8994,6 +9033,19 @@ do_decl:
                             ((type1.t & VT_STORAGE) && !(is_class && (type1.t & VT_STATIC))))
                             tcc_error("'%s' �ɑ΂��閳���Ȍ^",
                                 get_tok_str(v, NULL));
+                        // G5: pure virtual `virtual R f() = 0;`.  Only the
+                        // literal 0 is a pure-specifier; anything else after
+                        // '=' would be a C++11 defaulted/deleted function,
+                        // which is out of scope and must not be guessed at.
+                        if (tcc_state->cpp && is_class && tok == '='
+                            && (type1.t & VT_BTYPE) == VT_FUNC && type1.ref
+                            && type1.ref->f.func_virtual) {
+                            next();
+                            if (tok != TOK_CINT || tokc.i != 0)
+                                tcc_error("only '= 0' is allowed here (pure virtual)");
+                            next();
+                            type1.ref->f.func_pure = 1;
+                        }
                     }
                     if (tok == ':' && !is_ctor_decl) {
                         next();
@@ -10585,6 +10637,7 @@ static void cpp_parse_new(void)
     class_sym = type.ref;
     if (class_sym->c < 0)
         tcc_error("cannot allocate an incomplete type");
+    cpp_check_not_abstract(&type, "allocate");   /* G5 */
     size = type_size(&type, &align);
     if (size <= 0)
         size = 1;
@@ -13820,6 +13873,12 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
 #endif
     init_params p = { 0 };
     int cpp_needs_vptr = 0;
+
+    // G5: every object definition funnels through here (locals, globals and
+    // statics alike), which makes it the one place that has to refuse an
+    // abstract class.  Pointers and references never reach it with the
+    // class type itself.
+    cpp_check_not_abstract(type, "declare");
 
     /* Always allocate static or global variables */
     if (v && (r & VT_VALMASK) == VT_CONST)
