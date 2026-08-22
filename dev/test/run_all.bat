@@ -2,7 +2,13 @@
 setlocal enabledelayedexpansion
 pushd "%~dp0"
 set "TCC=..\tcc.exe"
+rem C2 (crash gate): TCC_EXE overrides the compiler under test - used ONLY
+rem by the one-shot negative verification with a scratch binary, so the
+rem gate itself can be proven to catch a crash without touching dev\tcc.exe.
+if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set /a FAILED=0
+set /a CRASHES=0
+set "CRLOG=%TEMP%\tcc_gate_err.log"
 
 rem === Known investigation sources (compile failure is a documented gap,
 rem     NOT a regression) -> excluded from gating, shown for info only.
@@ -15,10 +21,24 @@ rem === Phase 1: compile-only (every source must pass -c) ===
 rem   a9\*.c is enumerated too: the C-mode non-regression guard for the C++
 rem   name-hiding fix (bug20_c_mode.c) is a .c file, and without this it would
 rem   never actually be gated.
+rem C2: a compiler CRASH is gating even for KNOWNFAIL sources.  Since C1's
+rem crash net converts stack overflow / AV into "tcc: internal error" +
+rem exit 1, crash detection needs BOTH checks: a negative errorlevel (raw
+rem crash, net missed it) and the internal-error marker on stderr.
 for %%f in (smoke\*.c smoke\*.cpp a2\*.c a2\*.cpp a3\*.c a3\*.cpp a4\*.cpp a5\*.cpp a6\*.cpp a8\*.cpp a9\*.c a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp a7\typedef_class.cpp) do (
     echo === %%f ===
-    "%TCC%" -c "%%f" -o "%%~dpnf.o"
-    if errorlevel 1 (
+    "%TCC%" -c "%%f" -o "%%~dpnf.o" 2>"%CRLOG%"
+    set "EC=!errorlevel!"
+    set "ISCRASH="
+    if !EC! lss 0 set "ISCRASH=1"
+    findstr /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
+    if defined ISCRASH (
+        echo   [CRASH] %%f exit=!EC!
+        type "%CRLOG%"
+        set /a CRASHES+=1
+        set /a FAILED+=1
+    ) else if !EC! neq 0 (
+        type "%CRLOG%"
         set "ISKNOWN="
         echo !KNOWNFAIL! | findstr /c:" %%~nxf " >nul && set "ISKNOWN=1"
         if defined ISKNOWN (
@@ -38,11 +58,21 @@ rem Exes go to a temp dir so the working tree stays clean.
 set "EXEOUT=%TEMP%\tcc_exec_gate"
 if not exist "%EXEOUT%" mkdir "%EXEOUT%"
 for %%f in (a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp a7\typedef_class.cpp smoke\hello.c) do (
-    "%TCC%" "%%f" -o "%EXEOUT%\%%~nf.exe" >nul
+    "%TCC%" "%%f" -o "%EXEOUT%\%%~nf.exe" >nul 2>"%CRLOG%"
     rem Use `neq 0` (not `errorlevel 1`): a crash exits with a NEGATIVE code
     rem (e.g. 0xC0000005 access violation), which `if errorlevel 1` misses.
-    if !errorlevel! neq 0 (
-        echo   [BUILD FAIL] %%f
+    set "EC=!errorlevel!"
+    if !EC! neq 0 (
+        type "%CRLOG%"
+        set "ISCRASH="
+        if !EC! lss 0 set "ISCRASH=1"
+        findstr /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
+        if defined ISCRASH (
+            echo   [CRASH] %%f exit=!EC!
+            set /a CRASHES+=1
+        ) else (
+            echo   [BUILD FAIL] %%f
+        )
         set /a FAILED+=1
     ) else (
         "%EXEOUT%\%%~nf.exe" >nul
@@ -67,7 +97,16 @@ if not exist "%NEGOUT%" mkdir "%NEGOUT%"
 for %%f in (a9\negative\*.cpp) do (
     echo === %%f [negative] ===
     "%TCC%" -c "%%f" -o "%NEGOUT%\%%~nf.o" >"%NEGOUT%\%%~nf.log" 2>&1
-    if not errorlevel 1 (
+    set "EC=!errorlevel!"
+    set "ISCRASH="
+    if !EC! lss 0 set "ISCRASH=1"
+    findstr /c:"internal error" "%NEGOUT%\%%~nf.log" >nul 2>nul && set "ISCRASH=1"
+    if defined ISCRASH (
+        echo   [CRASH] %%f exit=!EC!
+        type "%NEGOUT%\%%~nf.log"
+        set /a CRASHES+=1
+        set /a FAILED+=1
+    ) else if !EC! equ 0 (
         echo   [NEGATIVE FAIL] %%f compiled but was expected to be rejected
         set /a FAILED+=1
     ) else (
@@ -100,6 +139,29 @@ echo === a9\bug33_link.bat ===
 call a9\bug33_link.bat
 if errorlevel 1 set /a FAILED+=1
 
-echo === run_all summary: !FAILED! gating failure(s) ===
+rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
+rem Real-world sources that are NOT expected to compile yet - only the
+rem compiler surviving them is gated.  Diagnostics are fine; a crash
+rem (negative exit, or C1's "tcc: internal error" net firing) is not.
+rem This keeps "tcc never crashes on the cppunit corpus" true at every
+rem commit, long before G7 makes the corpus actually compile.
+set "CCOUT=%TEMP%\tcc_crash_corpus"
+if not exist "%CCOUT%" mkdir "%CCOUT%"
+for %%f in (..\..\sample\cppunit\*.cpp) do (
+    "%TCC%" -c -DMINIMUM_SET -Dcu_NO_EXPLICIT -I ..\..\sample\cppunit "%%f" -o "%CCOUT%\%%~nf.o" >nul 2>"%CRLOG%"
+    set "EC=!errorlevel!"
+    set "ISCRASH="
+    if !EC! lss 0 set "ISCRASH=1"
+    findstr /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
+    if defined ISCRASH (
+        echo   [CRASH] cppunit corpus: %%~nxf exit=!EC!
+        type "%CRLOG%"
+        set /a CRASHES+=1
+        set /a FAILED+=1
+    )
+)
+echo === crash corpus: done ^(crashes so far: !CRASHES!^) ===
+
+echo === run_all summary: !FAILED! gating failure(s), !CRASHES! crash(es) ===
 popd
 exit /b !FAILED!
