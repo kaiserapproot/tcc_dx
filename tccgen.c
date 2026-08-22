@@ -597,6 +597,39 @@ static int cpp_default_arg_replay;
 // void / void* types they need.  Initialized in tccgen_init.
 static CType cpp_malloc_type, cpp_free_type, cpp_voidp_type, cpp_void_type;
 
+// C3 (crash-prevention plan): recursion guards.  Depth is measured by
+// STACK ADDRESS distance from the anchor tccgen_compile plants, not by a
+// call counter - tcc_error longjmps out of the recursion, so a paired
+// increment/decrement counter would be left corrupted for the next
+// compilation, while the stack anchor is simply re-planted per compile.
+// The limit leaves ~400KB of the default 1MB stack as headroom for the
+// error path itself.  Two flavors on purpose:
+//  - the WALKER guard fires on cyclic data structures (C++ type graphs
+//    are cyclic through member-function signatures - BUG-35) and says
+//    "internal error" so the C2 crash gate counts it as a crash;
+//  - the SYNTAX guard fires on pathologically nested INPUT, which is a
+//    plain user-facing rejection, not a compiler bug.
+static char *cpp_stack_guard_base;
+
+static int cpp_stack_used_over(unsigned long limit)
+{
+    char probe;
+    return cpp_stack_guard_base
+        && cpp_stack_guard_base > &probe
+        && (unsigned long)(cpp_stack_guard_base - &probe) > limit;
+}
+
+#define CPP_WALKER_DEPTH_GUARD(name) do { \
+    if (cpp_stack_used_over(600000UL)) \
+        tcc_error("internal error: runaway recursion in %s (compiler bug)", \
+                  name); \
+} while (0)
+
+#define CPP_SYNTAX_DEPTH_GUARD() do { \
+    if (cpp_stack_used_over(600000UL)) \
+        tcc_error("expression or declaration nested too deeply"); \
+} while (0)
+
 static int parse_cpp_scope_qualifier(int *v)
 {
     int class_v;
@@ -1490,6 +1523,7 @@ static Sym *cpp_class_typedef_find(Sym *cls, int v)
 // the P3 qualified lookup, which must NOT fall back beyond the class.
 static Sym *cpp_lookup_class_type(Sym *cls, int v)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_lookup_class_type");
     Sym *found, *f, *r;
 
     if (!cls)
@@ -1857,6 +1891,7 @@ static Sym *cpp_get_anon_base_field(Sym *class_sym)
 
 static int cpp_type_has_virtual(Sym *class_sym)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_type_has_virtual");
     Sym *f, *base_field;
 
     if (!class_sym)
@@ -1925,6 +1960,7 @@ static Sym *cpp_get_anon_base_field(Sym *class_sym);
 
 static Sym *cpp_find_inherited_virtual_slot(Sym *class_sym, int member_tok)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_find_inherited_virtual_slot");
     Sym *f, *base_field;
 
     if (!class_sym)
@@ -1941,6 +1977,7 @@ static Sym *cpp_find_inherited_virtual_slot(Sym *class_sym, int member_tok)
 
 static int cpp_count_virtual_slots(Sym *class_sym)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_count_virtual_slots");
     Sym *f, *base_field;
     int n, maxslot;
 
@@ -2018,6 +2055,7 @@ static void cpp_insert_vptr_field(Sym *class_sym)
 
 static Sym *cpp_find_virtual_by_slot(Sym *class_sym, int slot)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_find_virtual_by_slot");
     Sym *f, *base_field;
 
     if (!class_sym)
@@ -2356,6 +2394,7 @@ static void cpp_finish_virtual_thunks(TCCState *s1)
    the second subobject still carries a vptr that must be written. */
 static int cpp_class_needs_vptr_init(Sym *class_sym)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_class_needs_vptr_init");
     Sym *f;
 
     if (!class_sym)
@@ -2399,6 +2438,7 @@ static void cpp_write_local_vptr_slot(Sym *obj_sym, int ofs, int vtable_tok)
    them as a direct base (deep re-override is a documented limitation). */
 static void cpp_init_local_vptr_rec(Sym *obj_sym, Sym *class_sym, int base_ofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_init_local_vptr_rec");
     Sym *f;
 
     if (!class_sym)
@@ -2433,6 +2473,7 @@ static void cpp_init_local_vptr(Sym *obj_sym)
 static void cpp_init_global_vptr_rec(Section *sec, unsigned long addr,
                                      Sym *class_sym, int base_ofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_init_global_vptr_rec");
     Sym *f, *vtable_sym;
 
     if (!class_sym)
@@ -2611,6 +2652,7 @@ static int cpp_peek_out_of_class_ctor(int *class_tok)
    pick the wrong Sym.  Returns 0 when the field is not reachable. */
 static int cpp_field_cumofs_in_class(Sym *cls, Sym *field, int *ofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_field_cumofs_in_class");
     Sym *f;
     int inner;
 
@@ -2945,6 +2987,7 @@ static void cpp_emit_implicit_base_ctors(Sym *class_sym, TokenString *mem_init)
    reverse order.  Called with class_sym->next. */
 static void cpp_emit_base_dtor_calls(Sym *field)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_base_dtor_calls");
     Sym *base_class;
     Sym *dtor_field;
     Sym *dtor_global;
@@ -3507,6 +3550,10 @@ ST_FUNC void tccgen_init(TCCState* s1)
 
 ST_FUNC int tccgen_compile(TCCState* s1)
 {
+    char stack_anchor;
+    // C3: plant the recursion-guard anchor at the top of this compile's
+    // stack; every guarded recursive function measures against it.
+    cpp_stack_guard_base = &stack_anchor;
     funcname = "";
     func_ind = -1;
     anon_sym = SYM_FIRST_ANOM;
@@ -4506,6 +4553,7 @@ static Sym* sym_copy(Sym* s0, Sym** ps)
 // stack overflow and no diagnostic while compiling SimpleList.cpp.
 static void sym_copy_ref_1(Sym* s, Sym** ps, int is_proto)
 {
+    CPP_WALKER_DEPTH_GUARD("sym_copy_ref_1");
     int bt = s->type.t & VT_BTYPE;
     if (bt == VT_FUNC || bt == VT_PTR
         || (bt == VT_STRUCT && !is_proto && s->sym_scope)) {
@@ -6055,6 +6103,7 @@ static int is_compatible_func(CType* type1, CType* type2)
 /* type1 �� type2 �������Ȃ�^��Ԃ��Bunqualified ���^�Ȃ�A�^�̏C���q�͖��������B */
 static int compare_types(CType* type1, CType* type2, int unqualified)
 {
+    CPP_WALKER_DEPTH_GUARD("compare_types");
     int bt1, t1, t2;
 
     if (IS_ENUM(type1->t)) {
@@ -7567,6 +7616,7 @@ static int cpp_func_param_count(Sym *field)
    pass -1 to accept any.  Falls back to any-arity when nothing matches. */
 static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs, int want_args)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_find_operator_member");
     Sym *s, *class_sym;
     Sym *const_match, *nonconst_match, *ret;
     Sym *any_const_match, *any_nonconst_match;
@@ -7642,6 +7692,7 @@ static int cpp_has_free_func(int v)
 /* C++: find class member for call; resolves get() vs get() const overloads. */
 static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_find_field_for_call");
     Sym *s, *class_sym;
     Sym *const_match, *nonconst_match, *ret;
     int v1, obj_const;
@@ -7702,6 +7753,7 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
 // whole point: a not-yet-defined overload has no global.
 static int cpp_count_member_overloads(Sym *class_sym, int v1, int want_const)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_count_member_overloads");
     Sym *f;
     int n = 0;
 
@@ -7729,6 +7781,7 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
                                        int want_const, Sym **best,
                                        int *best_score)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_score_member_overloads");
     Sym *f;
 
     if (!class_sym)
@@ -7816,6 +7869,7 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
 
 static Sym* find_field(CType* type, int v, int* cumofs)
 {
+    CPP_WALKER_DEPTH_GUARD("find_field");
     Sym* s = type->ref;
     int v1 = v | SYM_FIELD;
     if (!(v & SYM_FIELD)) { /* top-level call */
@@ -7854,6 +7908,7 @@ static Sym* find_field(CType* type, int v, int* cumofs)
    single-path inheritance only - a diamond returns the first path found. */
 static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_base_subobject_offset");
     Sym *f;
 
     if (!obj_class || !target_class)
@@ -8734,6 +8789,7 @@ static void struct_layout(CType* type, AttributeDef* ad)
 /* enum/struct/union declaration. u is VT_ENUM/VT_STRUCT/VT_UNION */
 static void struct_decl(CType* type, int u, int is_class)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int v, c, size, align, flexible;
     int bit_size, bsize, bt, ut;
     Sym *s, *ss = NULL, **ps;
@@ -9920,6 +9976,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
    pointer), otherwise returns type itself, that's used for recursive calls.  */
 static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     CType* post, * ret;
     int qualifiers, storage;
 
@@ -10747,6 +10804,7 @@ static void cpp_parse_delete(void)
 
 ST_FUNC void unary(void)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int n, t, align, size, r;
     CType type;
     Sym* s;
@@ -12100,6 +12158,7 @@ static void expr_landor(int op);
 
 static void expr_infix(int p)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int t = tok, p2;
     while ((p2 = precedence(t)) >= p) {
         if (t == TOK_LOR || t == TOK_LAND) {
@@ -12176,6 +12235,7 @@ static int is_cond_bool(SValue* sv)
 
 static void expr_cond(void)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int tt, u, r1, r2, rc, t1, t2, islv, c, g;
     SValue sv;
     CType type;
@@ -12754,6 +12814,7 @@ static void lblock(int* bsym, int* csym)
 
 static void block(int flags)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int a, b, c, d, e, t;
     struct scope o;
     Sym* s;
