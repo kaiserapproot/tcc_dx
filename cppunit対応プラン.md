@@ -409,6 +409,41 @@ typedef 用の別チェーン（クラス Sym にぶら下げる独立リスト�
 逆に全 consumer が局所 skip で安全なら件数が多くても member chain のままでよい。
 監査表は本プランへ追記してから P1 に着手する。
 
+#### P0 監査結果（2026-08-22 実測）— **判定: 別チェーン方式に確定**
+
+grep + 実読で member チェーン（tag Sym の `->next` 単方向リスト、`SYM_FIELD`、`->c` =
+オフセット/仮想スロット番号）の walker を全列挙した（tccgen.c / tccdbg.c / tccelf.c /
+tccpe.c / x86_64-gen.c / i386-gen.c / libtcc.c）。関数**引数**リスト walk（`type.ref->next`）、
+local_stack / cleanup / goto チェーン、ELF/PE シンボルテーブルは member チェーン非該当として
+除外済み。member チェーン consumer の監査表（行番号は 2026-08-22 時点の tccgen.c）:
+
+| 分類 | consumer（関数 @ 行） | 既存スキップ | VT_TYPEDEF 混入時 |
+|---|---|---|---|
+| レイアウト | `struct_layout` pass1 @7984 / pass2 @8153 | VT_FUNC・VT_STATIC を skip | 局所 skip 追加で対処可能（ただし要追加） |
+| 名前引き | `find_field` @7326、`cpp_find_field_for_call` @7278、`cpp_find_operator_member` @7201、`cpp_lookup_static_member` @684 | 名前一致で即返す（find_field は VT_FUNC すら無差別） | **危険**: typedef を実メンバとして返し `->c`（=0 ゴミ）をオフセット使用 → silent miscompile |
+| 基底判定 | `cpp_find_base_field` @2388（VT_STRUCT + tag 名のみで判定、anon/parent_class 未確認） | 緩い | **危険**: `typedef Base base_type;` メンバを基底 subobject と誤認しうる |
+| ctor/dtor | `cpp_find_ctor_field` @1165、`cpp_class_has_default_ctor` @1185、`cpp_find_dtor_field` @1203、`cpp_emit_implicit_base_ctors` @2644、`cpp_emit_base_dtor_calls` @2671 | VT_FUNC / cpp_is_base_field で自然 skip | 安全 |
+| vtable/vptr | `cpp_assign_virtual_slots` @1729、`cpp_emit_vtable` @1853、`cpp_emit_secondary_vtables` @1957、`cpp_count/find_virtual*` @1667-1778、`cpp_init_{local,global}_vptr_rec` @2122/2156、`cpp_class_needs_vptr_init` @2081 | VT_FUNC+virtual / cpp_is_base_field で自然 skip | 安全 |
+| 重複検査 | `check_fields` @7943 | cpp では VT_FUNC・基底 subobject を skip | typedef 名の重複検出には別途対応要 |
+| 初期化子 | `decl_designator` @12280、`decl_initializer` @12704/12736、`decl_initializer_alloc`（flex array 判定）@12832 | **VT_FUNC / VT_STATIC すら skip しない** | **危険**: typedef が brace 初期化子のスロット/flex array 候補として消費される。skip 追加は 3 箇所同期が必要 |
+| デバッグ情報 | stabs @tccdbg.c:1637、DWARF 3 パス @1750/1775/1805 | STRUCT_NODEBUG のみ（VT_FUNC skip なし） | **危険**: 3 パスの skip 述語が 1 箇所でもズレると `pos_type[]` が脱同期（監査で明示確認） |
+| ABI 分類 | `classify_x86_64_inner` @x86_64-gen.c:1117（SysV） | **無フィルタ** | **危険**: typedef が引数クラス分類へ混入 |
+| 複写 | `sym_copy_ref` @4135（ローカル struct の昇格複写） | VT_STRUCT は sym_scope 付きのみ再帰 | ほぼ安全（field は sym_scope=0） |
+| inline 接続 | `cpp_finish_member_inlines` @2783、`cpp_inherit_decl_defaults` @2886 | VT_FUNC + inline_func_str で自然 skip | 安全 |
+| チェーン構築 | 基底 append @8296-8317、tail seek @8330、member push @8574-8581、仕上げ順 @8614-8640 | — | 追加自体は可能だが上記 consumer に波及 |
+
+**判定**: 「局所 skip で自然に処理できない」consumer が複数存在する
+（初期化子 3 箇所の同期、DWARF 3 パスの述語同期、ABI 分類、find_field 系の名前一致、
+`cpp_find_base_field` の緩い基底判定）。判定基準に従い **typedef はメンバチェーンに
+混ぜず、クラス Sym にぶら下げる独立リスト（`Sym.cpp_class_typedefs`、`sym_push2` で
+プール確保・`->prev` 連結）に格納する**。既存 consumer は 1 箇所も変更不要になり、
+新設の lookup（P2 の `lookup_unqualified_type` / P3 の `lookup_qualified_class_type`）
+だけが新チェーンを読む。ネストクラスの登録（P3 の `Class::Inner`）も同チェーンに
+「クラス名 typedef（tag_v 相当）」として載せる。あわせて P1 で
+`Sym.cpp_enclosing_class`（外側クラス参照 — 既存構造に無いことを実機確認済み）を追加し、
+`cpp_cur_class` は単一ポインタのため**ネストクラス終端で外側を失う既存問題**
+（@8641 で無条件 NULL 化）を save/restore 化する。
+
 #### P1 — クラス本体内の typedef 宣言（コミット 1）
 
 `struct_decl()` のメンバ解析で `VT_TYPEDEF` ストレージを受理し、P0 の監査結果に
