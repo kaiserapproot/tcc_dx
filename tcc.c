@@ -283,6 +283,61 @@ static unsigned getclock_ms(void)
 #endif
 }
 
+#ifdef _WIN32
+// C1 (crash-prevention plan): last-resort crash net.  A compiler bug must
+// never kill the process silently - BUG-35 died with 0xC00000FD, no output
+// at all, and Windows' crash handling then kept the zombie process holding
+// a lock on dev\tcc.exe, breaking every following build.  This handler
+// turns stack overflow / access violation inside the COMPILER into a
+// printed diagnostic + regular exit(1), and terminates the process itself
+// so no crash-reporting machinery ever grabs it.
+// It stays disarmed while tcc -run executes user code: tccrun.c installs
+// SetUnhandledExceptionFilter for that, and a vectored handler would fire
+// first and steal the user program's exceptions from it.
+static volatile LONG tcc_crash_net_armed;
+
+static LONG CALLBACK tcc_crash_net_veh(EXCEPTION_POINTERS *ep)
+{
+    // Static storage throughout: on stack overflow only one guard page of
+    // stack remains, so the handler must not need any.  wsprintfA +
+    // WriteFile proved to work in that state during the BUG-35
+    // investigation; the CRT (fprintf/exit) is deliberately avoided.
+    static void *frames[40];
+    static char msg[2048];
+    DWORD code, written;
+    USHORT nf, i;
+    int pos;
+    HANDLE h;
+
+    if (!tcc_crash_net_armed)
+        return EXCEPTION_CONTINUE_SEARCH;
+    code = ep->ExceptionRecord->ExceptionCode;
+    if (code != EXCEPTION_STACK_OVERFLOW && code != EXCEPTION_ACCESS_VIOLATION)
+        return EXCEPTION_CONTINUE_SEARCH;
+    h = GetStdHandle(STD_ERROR_HANDLE);
+    pos = wsprintfA(msg,
+        "tcc: internal error: %s (this is a compiler bug, not an error in "
+        "the source being compiled)\n",
+        code == EXCEPTION_STACK_OVERFLOW
+            ? "stack overflow (runaway recursion)" : "invalid memory access");
+    WriteFile(h, msg, pos, &written, NULL);
+    // Raw return addresses: with the linker .map (base below) they resolve
+    // to functions even without a debugger attached.
+    nf = RtlCaptureStackBackTrace(0, 40, frames, NULL);
+    for (i = 0; i < nf; i++) {
+        pos = wsprintfA(msg, "tcc:   #%02u %p\n", i, frames[i]);
+        WriteFile(h, msg, pos, &written, NULL);
+    }
+    pos = wsprintfA(msg, "tcc:   module base %p\n",
+                    (void *)GetModuleHandleA(NULL));
+    WriteFile(h, msg, pos, &written, NULL);
+    // exit(1), same as tcc_error: build scripts see an ordinary failure,
+    // and no WER/zombie process is left holding the executable open.
+    TerminateProcess(GetCurrentProcess(), 1);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 int main(int argc0, char **argv0)
 {
     TCCState *s, *s1;
@@ -292,6 +347,10 @@ int main(int argc0, char **argv0)
     int argc; char **argv;
     FILE *ppfp = stdout;
 
+#ifdef _WIN32
+    AddVectoredExceptionHandler(1, tcc_crash_net_veh);
+    tcc_crash_net_armed = 1;
+#endif
 redo:
     argc = argc0, argv = argv0;
     s = s1 = tcc_new();
@@ -394,7 +453,16 @@ redo:
     } else if (0 == ret) {
         if (s->output_type == TCC_OUTPUT_MEMORY) {
 #ifdef TCC_IS_NATIVE
+#ifdef _WIN32
+            // C1: user code is about to run in-process; its exceptions
+            // belong to tccrun.c's unhandled-exception filter, and a
+            // vectored handler would see them first - stand down.
+            tcc_crash_net_armed = 0;
+#endif
             ret = tcc_run(s, argc, argv);
+#ifdef _WIN32
+            tcc_crash_net_armed = 1;
+#endif
 #endif
         } else {
             if (!s->outfile)
