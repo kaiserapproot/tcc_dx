@@ -775,6 +775,17 @@ static int cpp_unget_scoped_expr(void)
     // returning 1 exactly as before.
     {
         Sym *cls = struct_find(cls_tok);
+        // A typedef ALIAS of a class ("typedef SimpleList cu_List;",
+        // cuconfig.h) is not a tag, so struct_find alone missed it and
+        // "cu_List::iterator p;" was mis-fed to gexpr, which died in the
+        // static-member path (TestResult.cpp:25).  Resolve the alias to
+        // its class before the nested-type check.
+        if (!cls) {
+            Sym *td = sym_find(cls_tok);
+            if (td && (td->type.t & VT_TYPEDEF)
+                && (td->type.t & VT_BTYPE) == VT_STRUCT)
+                cls = td->type.ref;
+        }
         if (cls && cpp_lookup_class_type(cls, mem_tok))
             return 0;
     }
@@ -7919,6 +7930,7 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
 {
     CPP_WALKER_DEPTH_GUARD("cpp_score_member_overloads");
     Sym *f;
+    int own_declares = 0;
 
     if (!class_sym)
         return;
@@ -7927,6 +7939,11 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
             Sym *p;
             int i, score = 0, match = 1;
 
+            // C++ name hiding: a member declared HERE hides every base
+            // member of the same name (by name, before viability), so
+            // remember the declaration even when the const filter or the
+            // arg match rejects this candidate.
+            own_declares = 1;
             if (!!cpp_field_is_const(f) != !!want_const)
                 continue;
             p = f->type.ref->next;
@@ -7967,6 +7984,17 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
             }
             continue;
         }
+    }
+    // Base subobjects sit BEFORE own members in the field chain, so a
+    // single interleaved walk scored the base's candidate first and the
+    // tying derived override lost on `score > best` - `Deco::run(x)`
+    // (and plain non-virtual shadowing) bound Base::run, measured as 16
+    // instead of 31 in dev/test/a9/qual_base_call.cpp.  Score the own
+    // level first and descend only when this class does not declare the
+    // name at all (C++ name hiding).
+    if (own_declares)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
         if ((f->type.t & VT_BTYPE) == VT_STRUCT && f->type.ref
             && f->v >= (SYM_FIRST_ANOM | SYM_FIELD))
             cpp_score_member_overloads(f->type.ref, v1, nb_args, want_const,
@@ -12115,6 +12143,56 @@ post_ops:
                 cls_tok = mem_tok;
                 mem_tok = tok;
                 next();
+            }
+            // `Base::method(args)` inside a member body: an explicit,
+            // NON-virtual call to that class's implementation (the C++
+            // way to reach a base override from a derived one -
+            // TestSetup.cpp:51 `TestDecorator::run(m_result);`).  Only
+            // taken when the named class's member is reachable from
+            // *this, so unrelated classes still fall through to the
+            // static-member diagnostic below.
+            if (cpp_this_sym && cpp_cur_func_class
+                && cpp_lookup_member_field_opt(mem_tok, class_sym)
+                && cpp_lookup_member_field_opt(mem_tok, cpp_cur_func_class)) {
+                CType qct;
+                int qofs;
+                Sym *qf;
+
+                qct.t = VT_STRUCT;
+                qct.ref = class_sym;
+                // prefer the NAMED class's own declaration: base
+                // subobjects sit before own members in the field chain,
+                // so cpp_find_field_for_call would recurse into the base
+                // first and `Deco::run(x)` (Deco overrides run) would
+                // bind Base::run - measured as 16 instead of 31 in
+                // dev/test/a9/qual_base_call.cpp.
+                for (qf = class_sym->next; qf; qf = qf->next) {
+                    if (qf->v == (mem_tok | SYM_FIELD)
+                        && (qf->type.t & VT_BTYPE) == VT_FUNC)
+                        break;
+                }
+                if (!qf)
+                    qf = cpp_find_field_for_call(&qct, mem_tok, &qofs);
+                if (qf && (qf->type.t & VT_BTYPE) == VT_FUNC
+                    && !(qf->type.t & VT_STATIC)) {
+                    // drop the class-name placeholder the type path
+                    // pushed - the static path below does the same vpop
+                    vpop();
+                    vset(&cpp_this_sym->type, cpp_this_sym->r,
+                         cpp_this_sym->c);
+                    vtop->sym = cpp_this_sym;
+                    indir();            // *this as the object (lvalue)
+                    // cpp_prepare_member_func_call binds the DECLARING
+                    // class's implementation directly (no vtable) and
+                    // adjusts `this` to that base subobject - exactly the
+                    // qualified-call semantics.
+                    cpp_prepare_member_func_call(qf);
+                    // without the pending flag the '(' handler does not
+                    // inject the stashed `this` and the callee reads
+                    // garbage arguments (crashed at run time)
+                    cpp_member_this_pending = 1;
+                    continue;           // the '(' case completes the call
+                }
             }
             ss = cpp_lookup_static_member(class_sym, mem_tok);
             if (!ss)
