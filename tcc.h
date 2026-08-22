@@ -550,6 +550,29 @@ struct FuncAttr {
 };
 
 /* symbol management */
+/* C4 (crash-prevention plan, sym-union audit): which union member is live
+   depends on WHAT KIND of Sym this is - check the kind before reading, a
+   wrong read compiles fine and returns plausible garbage (BUG-35 died of
+   exactly that).  Rules, per kind:
+     - function-type ref chain, FIRST element (the prototype sym): `f`
+       holds the FuncAttr.  Its `type` is the RETURN type, so a struct
+       return makes it look like a struct sym - never read sym_scope
+       from it (BUG-35).  is_compatible_func / gfunc_call read `f` here.
+     - parameters (later ref-chain elements, SYM_FIELD): inner union is
+       unused (zero); default-arg tokens live in inline_func_str.
+     - struct/union members (SYM_FIELD): `c` = byte offset, except C++
+       virtual member functions where `c` = vtable SLOT NUMBER after
+       cpp_assign_virtual_slots; `auxtype` only when VT_BITFIELD.
+     - struct/union/enum tags (SYM_STRUCT): `c` = size (-1 undefined,
+       -2 being defined), `sym_scope` = scope of the declaration.
+     - ordinary identifiers (vars/typedefs): `c` = value/ELF sym index,
+       `sym_scope` = scope level (0 = file scope).
+     - labels / cleanups: `jnext` / `jind`.
+     - enum CONSTANTS (IS_ENUM_VAL): `enum_val` overlaps `c` AND the
+       inner union entirely - reading sym_scope from one yields the low
+       bits of the value.  Use the sym_scope() helper (tccgen.c), which
+       redirects to the enum tag; the remaining raw reads on identifier
+       chains are an inherited upstream quirk (see the plan's C4 notes). */
 typedef struct Sym {
     int v; /* symbol token */
     unsigned short r; /* associated register or VT_CONST/VT_LOCAL and LVAL type */
