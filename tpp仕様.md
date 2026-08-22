@@ -243,6 +243,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-39 | 別名 typedef 修飾のネスト型宣言 `cu_List::iterator p;` が式に誤送され「static member not found」 | **修正済み**（`cpp_unget_scoped_expr` に typedef 別名→タグ解決を追加） |
 | BUG-40 | extern "C" ブロック直後の `#define` 本体が C 字句で貯蔵され C++ キーワードが識別子化（`cu_CATCH_ALL if (false)`） | **修正済み**（終端処理を `lex_c--` → `next()` の順に変更） |
 | BUG-41 | 引数リスト内の入れ子メンバ呼び出し `insert(begin(), ...)` が外側の this を消費し全引数が 1 スロットずれて AV | **修正済み**（'(' ハンドラで cpp_member_this/pending を退避・復元） |
+| BUG-42 | 局所クラス（関数内定義）のインライン本体が TU 終端再生時にダングリング（タグ/フィールドが local_stack で解放済み） | **修正済み**（クラス定義 Sym を global_stack へ格納。**制限**: タグ名が関数終了後もファイルスコープに残るため、同名の局所クラスを複数関数で定義不可） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。
