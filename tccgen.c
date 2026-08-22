@@ -601,6 +601,8 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
 
 static int cpp_dtor_name_tok(int class_tok);
 static Sym *cpp_lookup_class_type(Sym *cls, int v);
+// BUG-42: class-definition syms go to the global stack for LOCAL classes
+static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -2135,7 +2137,9 @@ static void cpp_insert_vptr_field(Sym *class_sym)
         return;
     pt.t = VT_VOID | VT_PTR;
     pt.ref = NULL;
-    vptr = sym_push(anon_sym++ | SYM_FIELD, &pt, 0, 0);
+    // BUG-42: part of the class definition - must survive for the
+    // end-of-TU inline replay when the class is function-local.
+    vptr = cpp_class_sym_push(anon_sym++ | SYM_FIELD, &pt, 0, 0);
     vptr->a.access = ACCESS_PRIVATE;
     first = class_sym->next;
     vptr->next = first;
@@ -4080,6 +4084,41 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
                 tcc_error("�Ē�`: '%s'",
                 get_tok_str(v & ~SYM_STRUCT, NULL));
         }
+    }
+    return s;
+}
+
+// BUG-42: syms that make up a CLASS DEFINITION (tag, base subobject
+// fields, member fields, vptr) must survive until end-of-TU in C++ -
+// the inline-member replay (gen_inline_functions) walks them via
+// sym->parent_class, and for a class defined INSIDE a function the
+// local-stack pop had already freed them ("field not found: m_ptr",
+// TestRunner.cpp:255's SIMPLE_AUTO_PTR local class).  Route those syms
+// to the global stack when the class is local.  Deliberate trade-off,
+// documented in tpp仕様.md: the tag NAME stays visible at file scope
+// after the function returns (C++ would end its scope), so two
+// functions cannot define different local classes under one name.
+// sym_scope is left 0 (file scope) on purpose - the BUG-37 walk then
+// does not clone the tag, which would resurrect the type split.
+static Sym *cpp_class_sym_push(int v, CType *type, int r, int c)
+{
+    Sym *s;
+
+    if (tcc_state->cpp && local_stack) {
+        s = sym_push2(&global_stack, v, type->t, c);
+        s->type.ref = type->ref;
+        s->r = r;
+        if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
+            TokenSym *ts;
+            Sym **ps;
+
+            ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
+            ps = (v & SYM_STRUCT) ? &ts->sym_struct : &ts->sym_identifier;
+            s->prev_tok = *ps;
+            *ps = s;
+        }
+    } else {
+        s = sym_push(v, type, r, c);
     }
     return s;
 }
@@ -9133,7 +9172,10 @@ static void struct_decl(CType* type, int u, int is_class)
     type1.t = u | ut;
     type1.ref = NULL;
     /* we put an undefined size for struct/union */
-    s = sym_push(v | SYM_STRUCT, &type1, 0, bt ? 0 : -1);
+    // BUG-42: a function-local class definition must outlive the
+    // function (inline-member replay at end of TU), see
+    // cpp_class_sym_push.
+    s = cpp_class_sym_push(v | SYM_STRUCT, &type1, 0, bt ? 0 : -1);
     s->r = 0; /* default alignment is zero as gcc */
 do_decl:
     type->t = s->type.t;
@@ -9162,7 +9204,8 @@ do_decl:
             next();
             base_type.t = VT_STRUCT;
             base_type.ref = base_class_sym;
-            base_field = sym_push(anon_sym++ | SYM_FIELD, &base_type, 0, 0);
+            base_field = cpp_class_sym_push(anon_sym++ | SYM_FIELD,
+                                            &base_type, 0, 0);
             base_field->a.access = ACCESS_PUBLIC;
             base_field->parent_class = base_class_sym;
             base_field->next = *base_tail;
@@ -9510,7 +9553,7 @@ do_decl:
                         v = anon_sym++;
                     }
                     if (v) {
-                        ss = sym_push(v | SYM_FIELD, &type1, 0, 0);
+                        ss = cpp_class_sym_push(v | SYM_FIELD, &type1, 0, 0);
                         ss->a = ad1.a;
                         ss->a.access = cur_access;
                         if ((type1.t & VT_BTYPE) == VT_FUNC)
