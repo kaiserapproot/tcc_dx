@@ -603,6 +603,10 @@ static int cpp_dtor_name_tok(int class_tok);
 static Sym *cpp_lookup_class_type(Sym *cls, int v);
 // BUG-42: class-definition syms go to the global stack for LOCAL classes
 static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
+// G7: ctor call sites resolve from the DECLARATION side first (BUG-30) -
+// a ctor that is only declared has no global yet, and the global-side
+// fallback then binds whatever single extern happened to exist.
+static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -1400,6 +1404,27 @@ static Sym *cpp_find_ctor_field(Sym *class_sym)
 
 /* FEAT-4F: does the class declare a 0-arg (default) constructor?
    Used to decide whether `Foo f;` should call the ctor implicitly. */
+// BUG-44: a ctor is usable for `T t;` (zero explicit arguments) when
+// EVERY parameter has a default, not only when it declares literally
+// zero parameters - `R2(Mux* m = 0)` (TestResult's real ctor shape) IS
+// a default constructor in C++.  The old exact-zero check made
+// cpp_class_has_default_ctor return false for it, so every call site
+// below skipped emitting the ctor call entirely: `TestResult r;` left
+// m_mutex as uninitialized stack garbage, and the first virtual call
+// through it crashed (or hung, depending on what garbage happened to
+// be there) - found while building the G7 CPPUnit driver, whose first
+// test declares exactly this pattern.
+static int cpp_ctor_viable_with_zero_args(Sym *f)
+{
+    Sym *p;
+
+    for (p = f->type.ref ? f->type.ref->next : NULL; p; p = p->next) {
+        if (!p->inline_func_str)
+            return 0;
+    }
+    return 1;
+}
+
 static int cpp_class_has_default_ctor(Sym *class_sym)
 {
     Sym *f;
@@ -1413,7 +1438,7 @@ static int cpp_class_has_default_ctor(Sym *class_sym)
             continue;
         if ((f->type.t & VT_BTYPE) != VT_FUNC)
             continue;
-        if (cpp_func_param_count(f) == 0)
+        if (cpp_ctor_viable_with_zero_args(f))
             return 1;
     }
     return 0;
@@ -1779,7 +1804,10 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
         end_macro();
     }
     na = nb_args;
-    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
     if (resolved) {
         vtop[-na].sym = resolved;
         vtop[-na].type.ref = resolved->type.ref;
@@ -2194,7 +2222,17 @@ static Sym *cpp_lookup_virtual_impl(Sym *field)
         if (s->parent_class == class_sym)
             return s;
     }
-    return NULL;
+    // BUG-43: a virtual defined OUT-OF-CLASS (`void Mux::lock() {}`
+    // after the class body - TestResult.h/TestResult.cpp) has no global
+    // yet when the vtable is emitted at the class's closing brace; the
+    // slot was left NULL and the FIRST virtual call jumped to address 0.
+    // Emit the reloc against a BUG-30 extern instead - the definition
+    // that follows (same TU or another) provides the symbol at link
+    // time.  Pure virtuals never reach here (their slot legitimately
+    // stays NULL until an override fills it).
+    if (field->type.ref->f.func_pure)
+        return NULL;
+    return cpp_make_member_func_extern(field, class_sym, v);
 }
 
 // G5: is this class abstract?  Walk the FINAL vtable layout: for every
@@ -2261,6 +2299,11 @@ static void cpp_emit_vtable(Sym *class_sym)
     arr_type.t = VT_PTR | VT_ARRAY;
     arr_type.ref = sym_push(SYM_FIELD, &fptr_type, 0, nslots);
     memset(&ad, 0, sizeof ad);
+    // G7: every TU that sees the class definition emits this vtable
+    // (there is no COMDAT), so linking two such objects died with
+    // "defined twice".  WEAK lets the linker keep one copy - the
+    // contents are identical by construction.
+    ad.a.weak = 1;
     vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
     sec = rodata_section;
     // G6: one pointer-sized offset-to-top field sits IN FRONT of the
@@ -2409,6 +2452,8 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
         arr_type.t = VT_PTR | VT_ARRAY;
         arr_type.ref = sym_push(SYM_FIELD, &fptr_type, 0, nslots);
         memset(&ad, 0, sizeof ad);
+        // G7: WEAK for the same cross-TU reason as the primary vtable
+        ad.a.weak = 1;
         vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
         sec = rodata_section;
         // G6: offset-to-top for a NON-primary base subobject is negative -
@@ -2891,7 +2936,10 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
        to the resolved prototype: args are the top na entries (func below),
        so na rotations of vrotb(na) visit each arg once and restore the
        original order */
-    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
     if (resolved) {
         vtop[-na].sym = resolved;
         vtop[-na].type.ref = resolved->type.ref;
@@ -2999,7 +3047,10 @@ static void cpp_emit_base_default_ctor_call(Sym *base_field)
        0.  Bail out instead of emitting a wrong call when no 0-arg global
        exists: the field-level check above only proves it was declared, and
        cpp_resolve_func_call falls back to sym_find on no match. */
-    resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, 0);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
     if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC
         || cpp_func_param_count(resolved) != 0)
         return;
@@ -3142,6 +3193,185 @@ static void cpp_emit_base_dtor_calls(Sym *field)
     cpp_push_member_var(field);
     gaddrof();
     mk_pointer(&vtop->type);    /* BUG-15/16: pass `this` as a pointer. */
+    gfunc_call(1);
+}
+
+// G7: is this field a CLASS-TYPE data member (not a base subobject, not
+// a function, not static, not an array, not the anonymous vptr)?  Only
+// these take part in implicit member construction / destruction.
+static int cpp_is_class_data_member(Sym *f)
+{
+    if (!f || cpp_is_base_field(f))
+        return 0;
+    if ((f->type.t & VT_BTYPE) != VT_STRUCT || (f->type.t & VT_ARRAY))
+        return 0;
+    if (f->type.t & (VT_STATIC | VT_EXTERN))
+        return 0;
+    if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+        return 0;
+    return 1;
+}
+
+// G7: default-construct a class-type data member (0-arg ctor on
+// this->member).  Same bail-out rules as the base variant: a class
+// without a viable 0-arg ctor is left alone rather than erroring.
+static void cpp_emit_member_default_ctor_call(Sym *field)
+{
+    Sym *member_class;
+    Sym *ctor_field;
+    Sym *ctor_global;
+    Sym *resolved;
+    CType mt;
+
+    if (!field || !cpp_this_sym)
+        return;
+    member_class = field->type.ref;
+    if (!member_class)
+        return;
+    ctor_field = cpp_find_ctor_field(member_class);
+    if (!ctor_field || !cpp_class_has_default_ctor(member_class))
+        return;
+    mt.t = VT_STRUCT;
+    mt.ref = member_class;
+    ctor_global = cpp_lookup_member_func(ctor_field, &mt);
+    if (!ctor_global || (ctor_global->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, 0);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC
+        || cpp_func_param_count(resolved) != 0)
+        return;
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    cpp_push_member_var(field);
+    gaddrof();
+    mk_pointer(&vtop->type);    // BUG-15/16: pass `this` as a pointer.
+    gfunc_call(1);
+}
+
+// G7: which data members does the mem-initializer list name?  Mirror of
+// cpp_collect_explicit_bases with the member/base filter inverted.
+static int cpp_collect_explicit_members(Sym *class_sym, TokenString *mem_init,
+                                        Sym **out, int max_out)
+{
+    TokenString *copy;
+    Sym *member_field;
+    int n, name_tok, paren;
+
+    n = 0;
+    if (!mem_init)
+        return 0;
+    copy = tok_str_dup_for_default(mem_init);
+    if (!copy)
+        return 0;
+    begin_macro(copy, 1);
+    next();
+    for (;;) {
+        if (tok < TOK_IDENT)
+            break;
+        name_tok = tok;
+        next();
+        if (tok != '(')
+            break;
+        next();
+        paren = 0;
+        while (tok != TOK_EOF) {
+            if (tok == '(') {
+                paren++;
+            } else if (tok == ')') {
+                if (paren == 0)
+                    break;
+                paren--;
+            }
+            next();
+        }
+        if (tok != ')')
+            break;
+        next();
+        member_field = cpp_lookup_member_field(name_tok, class_sym);
+        if (member_field && (member_field->type.t & VT_BTYPE) != VT_FUNC) {
+            if (n >= max_out) {
+                n = -1;
+                break;
+            }
+            out[n++] = member_field;
+        }
+        if (tok == ',')
+            next();
+    }
+    end_macro();
+    return n;
+}
+
+// G7: C++ default-constructs every class-type data member the ctor's
+// mem-initializer list does not name.  TestResult's three SimpleList
+// members were never constructed, so its dtor walked a garbage list
+// head and `TestResult r;` alone crashed - measured on the first run
+// of the G7 driver.  Emitted after the implicit base ctors and before
+// the mem-init expansion (deviation from strict declaration-order
+// interleaving is accepted and documented).
+static void cpp_emit_implicit_member_ctors(Sym *class_sym,
+                                           TokenString *mem_init)
+{
+    Sym *done[32];
+    Sym *f;
+    int nb_done;
+    int seen;
+    int i;
+
+    if (!class_sym || !cpp_this_sym)
+        return;
+    nb_done = cpp_collect_explicit_members(class_sym, mem_init, done,
+                                           (int)(sizeof done / sizeof done[0]));
+    if (nb_done < 0)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_class_data_member(f))
+            continue;
+        seen = 0;
+        for (i = 0; i < nb_done; i++) {
+            if (done[i] == f)
+                seen = 1;
+        }
+        if (!seen)
+            cpp_emit_member_default_ctor_call(f);
+    }
+}
+
+// G7: destroy class-type data members at the end of the dtor, in
+// reverse declaration order (recurse-to-tail like the base variant),
+// BEFORE the base subobjects are destroyed.
+static void cpp_emit_member_dtor_calls(Sym *field)
+{
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_member_dtor_calls");
+    Sym *member_class;
+    Sym *dtor_field;
+    Sym *dtor_global;
+    CType mt;
+
+    if (!field || !cpp_this_sym)
+        return;
+    cpp_emit_member_dtor_calls(field->next);
+    if (!cpp_is_class_data_member(field))
+        return;
+    member_class = field->type.ref;
+    dtor_field = member_class ? cpp_find_dtor_field(member_class) : NULL;
+    if (!dtor_field)
+        return;
+    mt.t = VT_STRUCT;
+    mt.ref = member_class;
+    dtor_global = cpp_lookup_member_func(dtor_field, &mt);
+    if (!dtor_global || (dtor_global->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+    vtop->sym = dtor_global;
+    vtop->r &= ~VT_LVAL;
+    cpp_push_member_var(field);
+    gaddrof();
+    mk_pointer(&vtop->type);    // BUG-15/16: pass `this` as a pointer.
     gfunc_call(1);
 }
 
@@ -3382,13 +3612,26 @@ static TokenString *tok_str_dup_for_default(TokenString *src)
 static void cpp_inherit_decl_defaults(Sym *sym)
 {
     Sym *field, *dp, *sp;
+    int field_v;
 
     if (!sym || !sym->parent_class || !tcc_state->cpp)
         return;
     if ((sym->type.t & VT_BTYPE) != VT_FUNC || !sym->type.ref)
         return;
+    // BUG-44 follow-up: a ctor's out-of-class definition lives under the
+    // MANGLED token (__cpp_ctor_C, see cpp_ctor_name_tok / G-CONV), but
+    // its declaration FIELD sits under the class-NAME token - the same
+    // split BUG-30's cpp_resolve_member_func_call maps around.  Without
+    // this remap the field search below never matched a ctor, so
+    // `R2(Mux* m = 0);` declared in-class then defined out-of-class
+    // never propagated the default to the definition's parameter, and
+    // `R2 r;` (which now correctly calls the 0-arg-viable ctor per
+    // BUG-44) died with "too few arguments to function".
+    field_v = sym->v;
+    if (field_v == cpp_ctor_name_tok(sym->parent_class->v & ~SYM_STRUCT))
+        field_v = sym->parent_class->v & ~SYM_STRUCT;
     for (field = sym->parent_class->next; field; field = field->next) {
-        if (field->v == (sym->v | SYM_FIELD)
+        if (field->v == (field_v | SYM_FIELD)
             && (field->type.t & VT_BTYPE) == VT_FUNC)
             break;
     }
@@ -8178,6 +8421,89 @@ static int cpp_try_class_conversion(CType *dt)
     return 1;
 }
 
+// G-FCAST-N: `T(a1, ..., an)` builds a ctor-initialized stack temporary
+// for class T with n >= 1 arguments (SimpleString.h:118
+// `return SimpleString(*this, pos, n);` - the substr inline replays as
+// soon as any driver calls it).  Entered from cpp_try_functional_cast
+// with the FIRST argument already evaluated on vtop and tok at ',' or
+// ')'.  Same call shape as cpp_emit_base_ctor_call: resolve the ctor
+// from the raw args, convert, then run it on a fresh stack slot which
+// is left on vtop as an lvalue of T.
+static void cpp_functional_ctor_temp(CType *type)
+{
+    Sym *class_sym, *ctor_field, *ctor_global, *resolved, *sa;
+    CType ct;
+    SValue this_sv;
+    int nb_args, na, i, tslot, size, align;
+
+    class_sym = type->ref;
+    ctor_field = cpp_find_ctor_field(class_sym);
+    ct.t = VT_STRUCT;
+    ct.ref = class_sym;
+    ctor_global = cpp_lookup_member_func(ctor_field, &ct);
+    // the callee must sit BELOW the arguments; arg1 is already on vtop,
+    // so push and swap under it
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    vswap();
+    nb_args = 1;
+    while (tok == ',') {
+        next();
+        expr_eq();
+        nb_args++;
+    }
+    skip(')');
+    na = nb_args;
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
+    size = type_size(&ct, &align);
+    loc = (loc - size) & -align;
+    tslot = loc;
+    // vptr before the ctor body, like every other construction site;
+    // cpp_init_local_vptr only reads type.ref / r / c, so a stack Sym
+    // describing the slot is enough.
+    if (cpp_type_has_virtual(class_sym)) {
+        Sym tmp_obj;
+
+        memset(&tmp_obj, 0, sizeof(tmp_obj));
+        tmp_obj.type = ct;
+        tmp_obj.r = VT_LOCAL;
+        tmp_obj.c = tslot;
+        cpp_init_local_vptr(&tmp_obj);
+    }
+    vset(&ct, VT_LOCAL | VT_LVAL, tslot);
+    gaddrof();
+    mk_pointer(&vtop->type);    // BUG-16: `this` as a pointer, not by-value
+    this_sv = *vtop;
+    vpop();
+    vtop++;
+    nb_args = na + 1;
+    memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
+    vtop[-nb_args + 1] = this_sv;
+    gfunc_call(nb_args);
+    // result: the constructed temporary as an lvalue of T
+    vset(&ct, VT_LOCAL | VT_LVAL, tslot);
+}
+
 static Sym* find_field(CType* type, int v, int* cumofs)
 {
     CPP_WALKER_DEPTH_GUARD("find_field");
@@ -10861,8 +11187,23 @@ parse_type:
         if (tok == ')')
             tcc_error("'T()' value-initialization is not supported");
         expr_eq();
-        if (tok == ',')
-            tcc_error("functional cast takes exactly one argument");
+        if (tok == ',') {
+            // G-FCAST-N: multi-argument ctor temporary
+            // (`SimpleString(*this, pos, n)`, SimpleString.h:118)
+            if (nocode_wanted) {
+                // dead code: only the resulting TYPE matters downstream
+                while (tok == ',') {
+                    next();
+                    expr_eq();
+                    vpop();
+                }
+                skip(')');
+                vtop->type = type;
+                return 1;
+            }
+            cpp_functional_ctor_temp(&type);
+            return 1;
+        }
         skip(')');
         // Already a T: the expression itself is the value (T(t) copy
         // form) - the conversion helper deliberately refuses same-class
@@ -11047,7 +11388,10 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
         }
     }
     na = nb_args;
-    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
     // C++98 implicit copy ctor: `new T(obj)` where obj is a T and no USER
     // ctor is viable (TestResult.cpp:64 `new TestFailure(*failure)` - the
     // only ctor takes Test*).  Memberwise copy is a raw struct copy here:
@@ -11981,6 +12325,32 @@ tok_next:
                     cpp_member_this_pending = 1;
                 }
                 break;
+            }
+            // BUG-45: an unqualified call to a STATIC member of the same
+            // class (`frobSize(n+1)` inside `assign()`, SimpleString's own
+            // shape) is exactly the case BUG-22 excludes above (no `this`
+            // to pass) - but nothing else in this identifier-lookup chain
+            // is class-aware for a FUNCTION either (BUG-21's data-member
+            // fallback explicitly leaves functions alone).  Before this
+            // fix a static member called before its own out-of-class
+            // definition fell all the way through to the plain C
+            // "implicit declaration of function" path (`int foo()`,
+            // K&R/unknown-args), a total type mismatch with the real
+            // `size_type frobSize(size_type)` - the miscompiled call
+            // jumped to a raw stack value (RIP==RSP, confirmed with a
+            // VEH+CONTEXT diagnostic harness: the crash lands exactly
+            // between `frobSize` being entered and returning, never
+            // reaching its body).  Route it through the same
+            // BUG-33 static-member lookup (declaration-side, extern
+            // creation for a not-yet-defined member) that the QUALIFIED
+            // `Class::staticmember` path already uses, then let it fall
+            // through to the ordinary "found symbol" tail below exactly
+            // like any other resolved global function.
+            if (mfn && (mfn->type.t & VT_BTYPE) == VT_FUNC
+                && (mfn->type.t & VT_STATIC)) {
+                Sym *ss = cpp_lookup_static_member(cpp_cur_func_class, t);
+                if (ss)
+                    s = ss;
             }
         }
         /* BUG-21: C++ unqualified lookup inside a member function searches
@@ -15041,8 +15411,14 @@ static void gen_function(Sym* sym)
      * constructed first, so a member initializer may legally read a base
      * member.  MI Phase 1 only handled explicitly listed bases. */
     if (tcc_state->cpp && cpp_this_sym && sym->parent_class
-        && cpp_is_ctor_global(sym))
+        && cpp_is_ctor_global(sym)) {
         cpp_emit_implicit_base_ctors(sym->parent_class, sym->cpp_mem_init_list);
+        // G7: class-type data members the list does not name are
+        // default-constructed too (C++ semantics; TestResult's
+        // SimpleList members crashed the first driver run otherwise).
+        cpp_emit_implicit_member_ctors(sym->parent_class,
+                                       sym->cpp_mem_init_list);
+    }
 
     /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
      * the ctor sym into `this->a = x; this->b = y;` instructions before the
@@ -15070,6 +15446,21 @@ static void gen_function(Sym* sym)
 
                 member_field = cpp_lookup_member_field(member_tok, class_sym);
                 if (member_field
+                    && (member_field->type.t & VT_BTYPE) != VT_FUNC
+                    && cpp_is_class_data_member(member_field)
+                    && member_field->type.ref
+                    && cpp_find_ctor_field(member_field->type.ref)) {
+                    // G7: a CLASS member with a user ctor is initialized
+                    // by RUNNING that ctor on it (`m_message(msg)` -
+                    // TestFailure).  The old vstore path SHALLOW-copied
+                    // the source (shared heap buffer -> double free) and
+                    // could not take multi-argument forms at all.  The
+                    // base-ctor emitter works for any field: it parses
+                    // the args and calls the resolved ctor on
+                    // this->field.
+                    cpp_emit_base_ctor_call(member_field,
+                                            member_field->type.ref);
+                } else if (member_field
                     && (member_field->type.t & VT_BTYPE) != VT_FUNC) {
                     cpp_push_member_var(member_field);
                     // A mem-initializer INITIALIZES the member, it does
@@ -15130,8 +15521,12 @@ static void gen_function(Sym* sym)
      * pop_local_syms because cpp_this_sym and local_stack must still be
      * live to address the subobjects. */
     if (tcc_state->cpp && cpp_this_sym && sym->parent_class
-        && cpp_is_dtor_global(sym))
+        && cpp_is_dtor_global(sym)) {
+        // G7: members die first (reverse declaration order), then the
+        // bases - the C++ destruction sequence.
+        cpp_emit_member_dtor_calls(sym->parent_class->next);
         cpp_emit_base_dtor_calls(sym->parent_class->next);
+    }
 
     /* reset local stack */
     pop_local_syms(NULL, 0);
