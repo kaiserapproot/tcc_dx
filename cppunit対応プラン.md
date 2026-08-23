@@ -913,6 +913,14 @@ B subobject を free する** — 即クラッシュまたは heap corruption。
 
 ### G7: CPPUnit ビルドゲート — `feat/cppunit-build-gate`
 
+> **進捗（2026-08-23）**: `all_test_tpp.cpp`（N=17）は作成済み・実行中に
+> **既存の実行時クラッシュ 3 件（BUG-43/44/45）を発見・修正**（詳細は
+> [問題と原因.md](問題と原因.md)、完了記録は [次の実装.md](次の実装.md) 冒頭）。
+> 現在 17 テスト中 2 件通過（test_case_lifecycle / test_case_failure_record）で、
+> **test #3 の直前、`TestResult::~TestResult()` が `SimpleList`（push_back 済み
+> 1 要素）を反復する箇所でハング**しており未完了。`build_cppunit.bat` / 手順 3〜5
+> （実行結果ゲート・原本無改変ゲート）はこのハング解消後に着手する。
+
 1. **`all_test_tpp.cpp` を新規作成**（案 A・§7.4 の決定どおり）: 例外なし・
    TEST_ASSERT/TEST_FAIL 系のみ。意図的失敗を含めないため
    **failures = 0 / errors = 0 / exit 0 が正**。
