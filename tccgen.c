@@ -11340,6 +11340,134 @@ static void cpp_init_heap_vptr(CType *ptype, int ptr_slot, Sym *class_sym)
     cpp_init_heap_vptr_rec(ptype, ptr_slot, class_sym, 0);
 }
 
+// BUG-46: after a flat vstore() struct copy (the C++98 implicit
+// memberwise-copy fallback a few lines down, used when no user ctor is
+// viable for `new T(obj)`), any class-typed member that OWNS a heap
+// resource is left ALIASED between the two objects - vstore() copies
+// raw bytes, so a member like SimpleString's `m_data` pointer is
+// duplicated verbatim rather than re-allocated.  Confirmed root cause
+// of a hang deep in TestResult.cpp:64 `new TestFailure(*failure)`:
+// TestFailure.m_message (a SimpleString) ended up pointing at the SAME
+// heap buffer as the stack `failure` object in TestCase::addFailure;
+// both later ran ~SimpleString() on it, and the second delete[]
+// corrupted the CRT heap - the NEXT allocation deadlocked walking its
+// corrupted free-list, which is why the hang surfaced one call site
+// later (in TestResult::~TestResult()) with no crash in between.
+//
+// Fix: after the flat copy, re-run each such member's OWN copy
+// constructor on top of the aliased bytes.  The copy ctor's own
+// mem-initializer list unconditionally sets m_data (etc.) to 0 before
+// its body runs, so the aliased pointer from the memcpy is simply
+// discarded here (never freed - the SOURCE object still owns and
+// frees it exactly once) and the member's body allocates dst's own,
+// independent buffer.  Only members that themselves declare a
+// constructor are touched; a ctor-less member has no resource to
+// duplicate and the raw copy is already correct for it (matching the
+// same test used everywhere else to detect "no user ctor").
+static void cpp_reconstruct_copied_class_members(Sym *class_sym,
+                                                 CType *dst_ptype,
+                                                 int dst_ptr_slot,
+                                                 int src_ptr_slot)
+{
+    Sym *f;
+
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT || !f->type.ref)
+            continue;
+        if (f->type.t & VT_STATIC)
+            continue;
+        if (cpp_is_base_field(f)) {
+            // MI: a non-primary base could sit at a non-zero offset;
+            // out of scope here (no CPPUnit class needing this fix
+            // has a base at all) - recursing at offset 0 covers the
+            // single/primary-base case correctly.
+            cpp_reconstruct_copied_class_members(f->parent_class, dst_ptype,
+                                                 dst_ptr_slot, src_ptr_slot);
+            continue;
+        }
+        if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+            continue;               // vptr etc., not user data
+        if (!cpp_find_ctor_field(f->type.ref))
+            continue;               // no ctor: raw copy is correct
+        {
+            Sym *best = NULL, *g;
+            Sym *sa2;
+            int best_score = -1;
+            int nb_args2;
+            CType fct;
+            SValue this_sv;
+
+            fct.t = VT_STRUCT;
+            fct.ref = f->type.ref;
+
+            // arg1 = src->field, as an lvalue of the field's own class
+            // (address-then-offset-then-retype: the same idiom the
+            // ordinary '.'-member-access path uses for field offsets)
+            vset(dst_ptype, VT_LOCAL | VT_LVAL, src_ptr_slot);
+            indir();
+            gaddrof();
+            vtop->type = char_pointer_type;
+            vpushi(f->c);
+            gen_op('+');
+            vtop->type = fct;
+            vtop->r |= VT_LVAL;
+
+            cpp_score_member_overloads(f->type.ref,
+                (f->type.ref->v & ~SYM_STRUCT) | SYM_FIELD, 1, 0,
+                &best, &best_score);
+            if (!best) {
+                vpop();
+                continue;
+            }
+            g = cpp_member_func_global_exact(best, f->type.ref);
+            if (!g || (g->type.t & VT_BTYPE) != VT_FUNC) {
+                vpop();
+                continue;
+            }
+            // callee below the already-pushed arg1 (same push+vswap
+            // idiom as cpp_functional_ctor_temp)
+            vset(&g->type, g->r | VT_SYM, 0);
+            vtop->sym = g;
+            vtop->r &= ~VT_LVAL;
+            vswap();
+            gfunc_param_typed(g->type.ref, g->type.ref->next);
+
+            // BUG-47: SimpleString(const SimpleString&, pos=0, n=npos)
+            // のように、コピー扱いの1引数呼び出しの後ろに既定値付き
+            // パラメータが続くctorがある。既定値をレジスタへ積まずに
+            // gfunc_call(2)固定で呼ぶと pos/n がゴミ値のまま読まれ、
+            // 「assertion failed: !(len < pos)」やヒープ破壊(不正な
+            // delete[])を引き起こす(rc5.exe実測でSimpleString.cpp:82の
+            // assert再現、外部アタッチではntdll内フリーズも確認)。
+            // cpp_emit_heap_ctor_call本体の「viableなctor」経路と同じ
+            // cpp_apply_default_argsで残りパラメータの既定値を積む。
+            nb_args2 = 1;
+            sa2 = g->type.ref->next->next;
+            if (sa2)
+                cpp_apply_default_args(g->type.ref, &nb_args2, &sa2);
+
+            // this = &dst->field
+            vset(dst_ptype, VT_LOCAL | VT_LVAL, dst_ptr_slot);
+            indir();
+            gaddrof();
+            vtop->type = char_pointer_type;
+            vpushi(f->c);
+            gen_op('+');
+            this_sv = *vtop;
+            vpop();
+
+            // insert `this` below the nb_args2 converted args (general
+            // form: cpp_emit_heap_ctor_call本体の「viableなctor」経路と
+            // 同じmemmoveパターン。BUG-47修正でnb_args2が1を超えうる
+            // ようになったため、na==1専用の旧コードでは足りない)
+            vtop++;
+            memmove(vtop - nb_args2 + 1, vtop - nb_args2, nb_args2 * sizeof(SValue));
+            vtop[-nb_args2] = this_sv;
+            gfunc_call(nb_args2 + 1);
+        }
+    }
+}
+
 // Emit __cpp_ctor_C(p, args) for the object whose address sits in
 // ptr_slot.  Argument handling mirrors cpp_emit_base_ctor_call: parse
 // first, resolve the overload from the raw types, then convert.
@@ -11361,11 +11489,26 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
             expr_eq();
             if (tok == ')' && (vtop->type.t & VT_BTYPE) == VT_STRUCT
                 && vtop->type.ref == class_sym) {
+                // BUG-46: spill the source's ADDRESS (not just copy it
+                // by value) so cpp_reconstruct_copied_class_members can
+                // re-derive it below, after the flat copy has run.
+                int src_slot;
+
+                gaddrof();
+                mk_pointer(&vtop->type);
+                src_slot = cpp_spill_ptr_to_temp(&vtop->type);
+                // dest を先に積むと [dest, src] の順で既に vstore が
+                // 求める並びになる。旧コードの末尾 vswap() を残すと
+                // [src, dest] へ反転し、逆アドレスへ書き込んで即クラッシュ
+                // する不具合を実測したため、ここでは vswap() を入れない。
                 vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
-                indir();
-                vswap();            // [dest, src] for vstore
+                indir();                // dest object lvalue
+                vset(ptype, VT_LOCAL | VT_LVAL, src_slot);
+                indir();                // [dest, src] for vstore
                 vstore();
                 vpop();
+                cpp_reconstruct_copied_class_members(class_sym, ptype,
+                                                     ptr_slot, src_slot);
                 return;
             }
             tcc_error("class has no constructor taking arguments");
@@ -11410,13 +11553,28 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
         int viable = p1 && p1->type.t != VT_VOID
             && cpp_arg_matches_param(&p1->type, &vtop->type, &cscore);
         if (!viable) {
+            // BUG-46: spill the source's ADDRESS so
+            // cpp_reconstruct_copied_class_members can re-derive it
+            // after the flat copy below (see its comment for why).
+            int src_slot;
+
             vswap();                // [ctor, src] -> [src, ctor]
             vpop();                 // drop the unused ctor value
+            gaddrof();
+            mk_pointer(&vtop->type);
+            src_slot = cpp_spill_ptr_to_temp(&vtop->type);
+            // dest を先に積むと [dest, src] の順で既に vstore が求める
+            // 並びになる。末尾に vswap() を残すと [src, dest] へ反転し、
+            // 逆アドレスへ書き込んで即クラッシュする不具合を実測したため
+            // ここでは入れない（上のヒープ ctor-less 分岐と同じ理由）。
             vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
             indir();                // dest object lvalue
-            vswap();                // [dest, src] for vstore
+            vset(ptype, VT_LOCAL | VT_LVAL, src_slot);
+            indir();                // [dest, src] for vstore
             vstore();
             vpop();
+            cpp_reconstruct_copied_class_members(class_sym, ptype,
+                                                 ptr_slot, src_slot);
             return;
         }
     }
