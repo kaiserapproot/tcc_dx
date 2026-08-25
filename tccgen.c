@@ -608,7 +608,10 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
 // a ctor that is only declared has no global yet, and the global-side
 // fallback then binds whatever single extern happened to exist.
 static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
+static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
+static void cpp_validate_explicit_ctor_members(Sym *class_sym);
+static void cpp_validate_explicit_dtor_members(Sym *class_sym);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -3296,8 +3299,10 @@ static void cpp_emit_member_default_ctor_call(Sym *field)
     if (!member_class)
         return;
     ctor_field = cpp_find_ctor_field(member_class);
-    if (!ctor_field)
+    if (!ctor_field) {
+        cpp_validate_implicit_default_ctor(member_class, 1);
         return;
+    }
     if (!cpp_class_has_default_ctor(member_class))
         tcc_error("class member has no default constructor");
     mt.t = VT_STRUCT;
@@ -3393,11 +3398,14 @@ static void cpp_emit_implicit_member_ctors(Sym *class_sym,
 
     if (!class_sym || !cpp_this_sym)
         return;
+    cpp_validate_explicit_ctor_members(class_sym);
     nb_done = cpp_collect_explicit_members(class_sym, mem_init, done,
                                            (int)(sizeof done / sizeof done[0]));
     if (nb_done < 0)
         return;
     for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit default construction of class member array is unsupported");
         if (!cpp_is_class_data_member(f))
             continue;
         seen = 0;
@@ -3481,9 +3489,59 @@ static void cpp_validate_implicit_dtor(Sym *class_sym, int relation)
             cpp_validate_implicit_dtor(f->parent_class, 2);
             continue;
         }
+        if (cpp_is_class_data_member_array(f)) {
+            if (cpp_find_ctor_field(class_sym))
+                tcc_error("implicit default construction of class member array is unsupported");
+            tcc_error("implicit destruction of class member array is unsupported");
+        }
+        if (cpp_is_class_data_member(f))
+            cpp_validate_implicit_dtor(f->type.ref, 1);
+    }
+}
+
+/* Validate the implicit subobjects of a user-declared constructor.  A direct
+   member with its own constructor is emitted by the existing path; a member
+   without one must still be checked recursively before the outer body is
+   accepted.  Arrays have no element walker in this subset. */
+static void cpp_validate_explicit_ctor_members(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_explicit_ctor_members");
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit default construction of class member array is unsupported");
+        if (!cpp_is_class_data_member(f))
+            continue;
+        if (f->type.ref && !cpp_find_ctor_field(f->type.ref))
+            cpp_validate_implicit_default_ctor(f->type.ref, 1);
+    }
+}
+
+/* Validate the implicit subobjects of a user-declared destructor.  Direct
+   member/base destructors are emitted separately; recurse only through an
+   intermediate class that has no destructor of its own, so nested cleanup
+   cannot be silently skipped. */
+static void cpp_validate_explicit_dtor_members(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_explicit_dtor_members");
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            if (f->parent_class && !cpp_find_dtor_field(f->parent_class))
+                cpp_validate_explicit_dtor_members(f->parent_class);
+            continue;
+        }
         if (cpp_is_class_data_member_array(f))
             tcc_error("implicit destruction of class member array is unsupported");
-        if (cpp_is_class_data_member(f))
+        if (!cpp_is_class_data_member(f))
+            continue;
+        if (f->type.ref && !cpp_find_dtor_field(f->type.ref))
             cpp_validate_implicit_dtor(f->type.ref, 1);
     }
 }
@@ -3502,12 +3560,17 @@ static void cpp_emit_member_dtor_calls(Sym *field)
     if (!field || !cpp_this_sym)
         return;
     cpp_emit_member_dtor_calls(field->next);
+    if (cpp_is_class_data_member_array(field))
+        tcc_error("implicit destruction of class member array is unsupported");
     if (!cpp_is_class_data_member(field))
         return;
     member_class = field->type.ref;
     dtor_field = member_class ? cpp_find_dtor_field(member_class) : NULL;
-    if (!dtor_field)
+    if (!dtor_field) {
+        if (member_class)
+            cpp_validate_implicit_dtor(member_class, 1);
         return;
+    }
     mt.t = VT_STRUCT;
     mt.ref = member_class;
     dtor_global = cpp_lookup_member_func(dtor_field, &mt);
@@ -11855,6 +11918,10 @@ static void cpp_parse_new(void)
         next();
         parse_args = 1;
     }
+    if (cpp_find_ctor_field(class_sym))
+        cpp_validate_explicit_ctor_members(class_sym);
+    if (cpp_find_dtor_field(class_sym))
+        cpp_validate_explicit_dtor_members(class_sym);
     if (!cpp_find_dtor_field(class_sym))
         cpp_validate_implicit_dtor(class_sym, 0);
     if ((!parse_args || tok == ')') && !cpp_find_ctor_field(class_sym))
@@ -11907,7 +11974,9 @@ static void cpp_parse_delete(void)
 
     if ((elem.t & VT_BTYPE) == VT_STRUCT && elem.ref) {
         dtor_field = cpp_find_dtor_field(elem.ref);
-        if (!dtor_field)
+        if (dtor_field)
+            cpp_validate_explicit_dtor_members(elem.ref);
+        else
             cpp_validate_implicit_dtor(elem.ref, 0);
         if (dtor_field && dtor_field->type.ref
             && dtor_field->type.ref->f.func_virtual) {
@@ -15867,6 +15936,7 @@ static void gen_function(Sym* sym)
         && cpp_is_dtor_global(sym)) {
         // G7: members die first (reverse declaration order), then the
         // bases - the C++ destruction sequence.
+        cpp_validate_explicit_dtor_members(sym->parent_class);
         cpp_emit_member_dtor_calls(sym->parent_class->next);
         cpp_emit_base_dtor_calls(sym->parent_class->next);
     }
@@ -16476,6 +16546,19 @@ static int decl(int l)
                     has_init = (tok == '=');
                     if (has_init && (type.t & VT_VLA))
                         tcc_error("�ϒ��z��͏������ł��܂���");
+                    if (tcc_state->cpp
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_explicit_ctor_members(type.ref);
+                    if (tcc_state->cpp
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && cpp_find_dtor_field(type.ref)
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_explicit_dtor_members(type.ref);
                     if (tcc_state->cpp && !has_init
                         && (l == VT_LOCAL || l == VT_CONST)
                         && (type.t & VT_BTYPE) == VT_STRUCT
