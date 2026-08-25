@@ -608,6 +608,7 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
 // a ctor that is only declared has no global yet, and the global-side
 // fallback then binds whatever single extern happened to exist.
 static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
+static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -1486,8 +1487,10 @@ static void cpp_emit_local_dtor(Sym *obj_sym)
         return;
     class_sym = obj_sym->type.ref;
     dtor_field = cpp_find_dtor_field(class_sym);
-    if (!dtor_field)
+    if (!dtor_field) {
+        cpp_validate_implicit_dtor(class_sym, 0);
         return;
+    }
     obj_type.t = VT_STRUCT;
     obj_type.ref = class_sym;
     dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
@@ -1723,6 +1726,8 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
         class_sym = obj_sym->type.ref;
+        if (class_sym && !cpp_find_dtor_field(class_sym))
+            cpp_validate_implicit_dtor(class_sym, 0);
         if (class_sym && cpp_find_dtor_field(class_sym)) {
             ent = tcc_malloc(sizeof(CppGlobalDynEntry));
             ent->obj_sym = obj_sym;
@@ -3214,8 +3219,13 @@ static void cpp_emit_base_dtor_calls(Sym *field)
         return;
     base_class = field->parent_class;
     dtor_field = cpp_find_dtor_field(base_class);
-    if (!dtor_field)
+    if (!dtor_field) {
+        /* An intermediate base may rely on its own implicit destructor.
+           Recurse through its base chain so an explicit outer destructor
+           does not silently skip a non-trivial base-of-base subobject. */
+        cpp_emit_base_dtor_calls(base_class->next);
         return;
+    }
     base_type.t = VT_STRUCT;
     base_type.ref = base_class;
     dtor_global = cpp_lookup_member_func(dtor_field, &base_type);
@@ -3443,6 +3453,38 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
             tcc_error("implicit default construction of class member array is unsupported");
         if (cpp_is_class_data_member(f))
             cpp_validate_implicit_default_ctor(f->type.ref, 1);
+    }
+}
+
+/* Validate the subobjects required by an implicitly declared destructor.
+   The current subset only materializes a user-declared destructor body, so
+   accepting an outer class with an unmaterialized member/base destructor
+   would silently skip cleanup and release raw storage instead. */
+static void cpp_validate_implicit_dtor(Sym *class_sym, int relation)
+{
+    Sym *dtor_field;
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_implicit_dtor");
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (dtor_field) {
+        if (relation == 2)
+            tcc_error("implicit destruction of non-trivial base is unsupported");
+        if (relation == 1)
+            tcc_error("implicit destruction of non-trivial member is unsupported");
+        return;
+    }
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            cpp_validate_implicit_dtor(f->parent_class, 2);
+            continue;
+        }
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit destruction of class member array is unsupported");
+        if (cpp_is_class_data_member(f))
+            cpp_validate_implicit_dtor(f->type.ref, 1);
     }
 }
 
@@ -11813,6 +11855,8 @@ static void cpp_parse_new(void)
         next();
         parse_args = 1;
     }
+    if (!cpp_find_dtor_field(class_sym))
+        cpp_validate_implicit_dtor(class_sym, 0);
     if ((!parse_args || tok == ')') && !cpp_find_ctor_field(class_sym))
         cpp_validate_implicit_default_ctor(class_sym, 0);
     cpp_emit_heap_ctor_call(class_sym, &ptype, ptr_slot, parse_args);
@@ -11863,6 +11907,8 @@ static void cpp_parse_delete(void)
 
     if ((elem.t & VT_BTYPE) == VT_STRUCT && elem.ref) {
         dtor_field = cpp_find_dtor_field(elem.ref);
+        if (!dtor_field)
+            cpp_validate_implicit_dtor(elem.ref, 0);
         if (dtor_field && dtor_field->type.ref
             && dtor_field->type.ref->f.func_virtual) {
             // G6: virtual destructor - dynamic dispatch + complete-object
@@ -16437,6 +16483,13 @@ static int decl(int l)
                         && !cpp_find_ctor_field(type.ref)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_implicit_default_ctor(type.ref, 0);
+                    if (tcc_state->cpp
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && !cpp_find_dtor_field(type.ref)
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_implicit_dtor(type.ref, 0);
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
