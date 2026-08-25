@@ -3379,6 +3379,45 @@ static void cpp_emit_implicit_member_ctors(Sym *class_sym,
     }
 }
 
+/* Validate the subobjects required by an implicitly declared default
+   constructor.  The current subset does not materialize every implicit
+   constructor body, but it must still reject an object whose base/member
+   could not be default-constructed instead of silently leaving it raw. */
+static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
+{
+    Sym *ctor_field;
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_implicit_default_ctor");
+    ctor_field = cpp_find_ctor_field(class_sym);
+    if (ctor_field) {
+        if (cpp_class_has_default_ctor(class_sym))
+            return;
+        /* A direct user constructor without a zero-argument overload is
+           handled by the existing explicit `obj.Ctor(args)` subset.  The
+           validator is only entered for an outer class with no user ctor;
+           keep that established path intact while rejecting such a class
+           when it is an implicitly constructed subobject. */
+        if (relation == 0)
+            return;
+        if (relation == 2)
+            tcc_error("base class has no default constructor");
+        if (relation == 1)
+            tcc_error("class member has no default constructor");
+        tcc_error("class has no default constructor");
+    }
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            cpp_validate_implicit_default_ctor(f->parent_class, 2);
+            continue;
+        }
+        if (cpp_is_class_data_member(f))
+            cpp_validate_implicit_default_ctor(f->type.ref, 1);
+    }
+}
+
 // G7: destroy class-type data members at the end of the dtor, in
 // reverse declaration order (recurse-to-tail like the base variant),
 // BEFORE the base subobjects are destroyed.
@@ -11746,6 +11785,8 @@ static void cpp_parse_new(void)
         next();
         parse_args = 1;
     }
+    if ((!parse_args || tok == ')') && !cpp_find_ctor_field(class_sym))
+        cpp_validate_implicit_default_ctor(class_sym, 0);
     cpp_emit_heap_ctor_call(class_sym, &ptype, ptr_slot, parse_args);
     if (parse_args)
         skip(')');
@@ -16361,6 +16402,13 @@ static int decl(int l)
                     has_init = (tok == '=');
                     if (has_init && (type.t & VT_VLA))
                         tcc_error("�ϒ��z��͏������ł��܂���");
+                    if (tcc_state->cpp && !has_init
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && !cpp_find_ctor_field(type.ref)
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_implicit_default_ctor(type.ref, 0);
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
