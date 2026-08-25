@@ -73,6 +73,7 @@ static int g_after_fail = 0;
 class FailTest : public TestCase {
   public:
     FailTest() : TestCase("helper_fail") {}
+    virtual ~FailTest() {}
     virtual void runTest()
     {
         TEST_ASSERT(1 == 2);
@@ -84,6 +85,7 @@ class FailTest : public TestCase {
 class ErrTest : public TestCase {
   public:
     ErrTest() : TestCase("helper_error") {}
+    virtual ~ErrTest() {}
     virtual void runTest() { TEST_ERROR("boom"); }
 };
 
@@ -91,6 +93,7 @@ class ErrTest : public TestCase {
 class LifeTest : public TestCase {
   public:
     LifeTest() : TestCase("helper_life") {}
+    virtual ~LifeTest() {}
     virtual void setUp() { log_add('S'); }
     virtual void runTest() { log_add('R'); }
     virtual void tearDown() { log_add('T'); }
@@ -101,6 +104,7 @@ static int g_eq_done = 0;
 class EqTest : public TestCase {
   public:
     EqTest() : TestCase("helper_eq") {}
+    virtual ~EqTest() {}
     virtual void runTest()
     {
         TEST_ASSERT_EQUALS(2, 1 + 1);
@@ -111,6 +115,7 @@ static int g_neq_after = 0;
 class NeqTest : public TestCase {
   public:
     NeqTest() : TestCase("helper_neq") {}
+    virtual ~NeqTest() {}
     virtual void runTest()
     {
         TEST_ASSERT_EQUALS(3, 1 + 1);
@@ -141,6 +146,7 @@ class DerivedProbe : public Probe {
 class CaseLifecycleTest : public TestCase {
   public:
     CaseLifecycleTest() : TestCase("test_case_lifecycle") {}
+    virtual ~CaseLifecycleTest() {}
     virtual void runTest()
     {
         LifeTest lt;
@@ -158,6 +164,7 @@ class CaseLifecycleTest : public TestCase {
 class CaseFailureRecordTest : public TestCase {
   public:
     CaseFailureRecordTest() : TestCase("test_case_failure_record") {}
+    virtual ~CaseFailureRecordTest() {}
     virtual void runTest()
     {
         FailTest ft;
@@ -176,6 +183,7 @@ class CaseFailureRecordTest : public TestCase {
 class AssertEqualsTest : public TestCase {
   public:
     AssertEqualsTest() : TestCase("test_assert_equals") {}
+    virtual ~AssertEqualsTest() {}
     virtual void runTest()
     {
         EqTest et;
@@ -199,6 +207,7 @@ class AssertEqualsTest : public TestCase {
 class ResultCountsTest : public TestCase {
   public:
     ResultCountsTest() : TestCase("test_result_counts") {}
+    virtual ~ResultCountsTest() {}
     virtual void runTest()
     {
         TestResult r;
@@ -222,6 +231,7 @@ class ResultCountsTest : public TestCase {
 class FailureDetailTest : public TestCase {
   public:
     FailureDetailTest() : TestCase("test_failure_detail") {}
+    virtual ~FailureDetailTest() {}
     virtual void runTest()
     {
         PassTest pt("victim");
@@ -239,6 +249,7 @@ class FailureDetailTest : public TestCase {
 class SuiteRunTest : public TestCase {
   public:
     SuiteRunTest() : TestCase("test_suite_run") {}
+    virtual ~SuiteRunTest() {}
     virtual void runTest()
     {
         TestResult r;
@@ -263,6 +274,7 @@ class SuiteRunTest : public TestCase {
 class RegistryTest : public TestCase {
   public:
     RegistryTest() : TestCase("test_registry") {}
+    virtual ~RegistryTest() {}
     virtual void runTest()
     {
         TestResult r;
@@ -290,6 +302,7 @@ class RegistryTest : public TestCase {
 class RunnerRunTest : public TestCase {
   public:
     RunnerRunTest() : TestCase("test_runner_run") {}
+    virtual ~RunnerRunTest() {}
     virtual void runTest()
     {
         int before = g_live;
@@ -309,13 +322,20 @@ class RunnerRunTest : public TestCase {
 };
 
 // 9
+class TppRepeatedTest : public RepeatedTest {
+  public:
+    TppRepeatedTest(Test *test, int repeat) : RepeatedTest(test, repeat) {}
+    virtual ~TppRepeatedTest() {}
+};
+
 class RepeatedRunTest : public TestCase {
   public:
     RepeatedRunTest() : TestCase("test_repeated") {}
+    virtual ~RepeatedRunTest() {}
     virtual void runTest()
     {
         TestResult r;
-        RepeatedTest rep(new PassTest("p"), 5);
+        TppRepeatedTest rep(new PassTest("p"), 5);
 
         TEST_ASSERT(rep.countTestCases() == 5);
         rep.run(&r);
@@ -328,6 +348,7 @@ class RepeatedRunTest : public TestCase {
 class DecoratorTest : public TestCase {
   public:
     DecoratorTest() : TestCase("test_decorator") {}
+    virtual ~DecoratorTest() {}
     virtual void runTest()
     {
         TestResult r;
@@ -345,12 +366,14 @@ class DecoratorTest : public TestCase {
 class MySetup : public TestSetup {
   public:
     MySetup(Test *t) : TestSetup(t) {}
+    virtual ~MySetup() {}
     virtual void setUp() { log_add('['); }
     virtual void tearDown() { log_add(']'); }
 };
 class SetupHooksTest : public TestCase {
   public:
     SetupHooksTest() : TestCase("test_setup_hooks") {}
+    virtual ~SetupHooksTest() {}
     virtual void runTest()
     {
         TestResult r;
@@ -367,6 +390,7 @@ class SetupHooksTest : public TestCase {
 class MyListener : public TestListener {
   public:
     MyListener() {}
+    virtual ~MyListener() {}
     virtual void startTest(Test *test) { log_add('s'); }
     virtual void endTest(Test *test) { log_add('e'); }
     virtual void addFailure(const TestFailure *failure) { log_add('f'); }
@@ -375,6 +399,7 @@ class MyListener : public TestListener {
 class ListenerTest : public TestCase {
   public:
     ListenerTest() : TestCase("test_listener") {}
+    virtual ~ListenerTest() {}
     virtual void runTest()
     {
         TestResult r;
@@ -393,6 +418,7 @@ class ListenerTest : public TestCase {
 class SimpleStringTest : public TestCase {
   public:
     SimpleStringTest() : TestCase("test_simple_string") {}
+    virtual ~SimpleStringTest() {}
     virtual void runTest()
     {
         SimpleString a("abc");
@@ -420,6 +446,7 @@ class SimpleStringTest : public TestCase {
 class SimpleStringGrowTest : public TestCase {
   public:
     SimpleStringGrowTest() : TestCase("test_simple_string_grow") {}
+    virtual ~SimpleStringGrowTest() {}
     virtual void runTest()
     {
         SimpleString s("x");
@@ -439,6 +466,7 @@ class SimpleStringGrowTest : public TestCase {
 class SimpleListTest : public TestCase {
   public:
     SimpleListTest() : TestCase("test_simple_list") {}
+    virtual ~SimpleListTest() {}
     virtual void runTest()
     {
         SimpleList l;
@@ -470,6 +498,7 @@ class SimpleListTest : public TestCase {
 class SimpleListIterTest : public TestCase {
   public:
     SimpleListIterTest() : TestCase("test_simple_list_iter") {}
+    virtual ~SimpleListIterTest() {}
     virtual void runTest()
     {
         SimpleList l;
@@ -517,6 +546,7 @@ class SimpleListIterTest : public TestCase {
 class AutoPtrTest : public TestCase {
   public:
     AutoPtrTest() : TestCase("test_auto_ptr") {}
+    virtual ~AutoPtrTest() {}
     virtual void runTest()
     {
         Probe *raw;
