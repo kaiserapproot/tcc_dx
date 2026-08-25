@@ -22,6 +22,7 @@ struct Mid {
 
 struct Top {
     Mid mid;
+    Top() : mid(1) {}
 };
 
 int main()
@@ -31,7 +32,6 @@ int main()
 
     storage_a = 41;
     storage_b = 0;
-    source.mid.leaf.p = &storage_a;
     copy = new Top(source);
     if (copy->mid.leaf.p == source.mid.leaf.p)
         return 1;

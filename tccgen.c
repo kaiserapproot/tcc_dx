@@ -3247,8 +3247,10 @@ static int cpp_is_class_data_member(Sym *f)
 }
 
 // G7: default-construct a class-type data member (0-arg ctor on
-// this->member).  Same bail-out rules as the base variant: a class
-// without a viable 0-arg ctor is left alone rather than erroring.
+// this->member).  A class with no user-declared constructor has no
+// constructor call to emit.  A class with user-declared constructors must,
+// however, have a viable zero-argument overload here; otherwise accepting
+// the enclosing object would leave the member subobject unconstructed.
 static void cpp_emit_member_default_ctor_call(Sym *field)
 {
     Sym *member_class;
@@ -3263,8 +3265,10 @@ static void cpp_emit_member_default_ctor_call(Sym *field)
     if (!member_class)
         return;
     ctor_field = cpp_find_ctor_field(member_class);
-    if (!ctor_field || !cpp_class_has_default_ctor(member_class))
+    if (!ctor_field)
         return;
+    if (!cpp_class_has_default_ctor(member_class))
+        tcc_error("class member has no default constructor");
     mt.t = VT_STRUCT;
     mt.ref = member_class;
     ctor_global = cpp_lookup_member_func(ctor_field, &mt);
@@ -11403,6 +11407,84 @@ static void cpp_init_heap_vptr(CType *ptype, int ptr_slot, Sym *class_sym)
 // constructor is rebuilt directly; otherwise the class is walked
 // recursively, because one of its nested members may have non-trivial copy
 // semantics even when the class has unrelated user constructors.
+static int cpp_emit_copied_class_subobject(Sym *class_sym,
+                                           CType *dst_ptype,
+                                           int dst_ptr_slot,
+                                           int src_ptr_slot,
+                                           int dst_base_ofs,
+                                           int src_base_ofs)
+{
+    Sym *best;
+    Sym *g;
+    Sym *sa2;
+    int best_score;
+    int nb_args2;
+    CType fct;
+    SValue this_sv;
+
+    if (!class_sym || !cpp_find_ctor_field(class_sym))
+        return 0;
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_copied_class_subobject");
+    best = NULL;
+    best_score = -1;
+    fct.t = VT_STRUCT;
+    fct.ref = class_sym;
+
+    // arg1 = the source subobject as an lvalue of its own class
+    vset(dst_ptype, VT_LOCAL | VT_LVAL, src_ptr_slot);
+    indir();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(src_base_ofs);
+    gen_op('+');
+    vtop->type = fct;
+    vtop->r |= VT_LVAL;
+
+    cpp_score_member_overloads(class_sym,
+        (class_sym->v & ~SYM_STRUCT) | SYM_FIELD, 1, 0,
+        &best, &best_score);
+    if (!best) {
+        vpop();
+        return 0;
+    }
+    g = cpp_member_func_global_exact(best, class_sym);
+    if (!g || (g->type.t & VT_BTYPE) != VT_FUNC) {
+        vpop();
+        tcc_error("internal error: implicit copy constructor lookup failed");
+    }
+
+    // Put the callee below the already-pushed source argument.
+    vset(&g->type, g->r | VT_SYM, 0);
+    vtop->sym = g;
+    vtop->r &= ~VT_LVAL;
+    vswap();
+    gfunc_param_typed(g->type.ref, g->type.ref->next);
+
+    // A copy constructor may have trailing defaulted parameters.
+    nb_args2 = 1;
+    sa2 = g->type.ref->next->next;
+    if (sa2)
+        cpp_apply_default_args(g->type.ref, &nb_args2, &sa2);
+
+    // this = the destination subobject
+    vset(dst_ptype, VT_LOCAL | VT_LVAL, dst_ptr_slot);
+    indir();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(dst_base_ofs);
+    gen_op('+');
+    this_sv = *vtop;
+    vpop();
+
+    // Insert `this` below all converted arguments.
+    vtop++;
+    memmove(vtop - nb_args2 + 1, vtop - nb_args2,
+        nb_args2 * sizeof(SValue));
+    vtop[-nb_args2] = this_sv;
+    gfunc_call(nb_args2 + 1);
+    return 1;
+}
+
 static void cpp_reconstruct_copied_class_members(Sym *class_sym,
                                                  CType *dst_ptype,
                                                  int dst_ptr_slot,
@@ -11424,9 +11506,14 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
                most-derived adjustment is available. */
             if (f->c != 0)
                 tcc_error("implicit copy of a non-primary base is unsupported");
+            if (cpp_emit_copied_class_subobject(f->parent_class, dst_ptype,
+                    dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                    src_base_ofs + f->c))
+                continue;
             cpp_reconstruct_copied_class_members(f->parent_class, dst_ptype,
                                                  dst_ptr_slot, src_ptr_slot,
-                                                 dst_base_ofs, src_base_ofs);
+                                                 dst_base_ofs + f->c,
+                                                 src_base_ofs + f->c);
             continue;
         }
         if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
@@ -11439,89 +11526,15 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
                 src_base_ofs + f->c);
             continue;
         }
-        {
-            Sym *best = NULL, *g;
-            Sym *sa2;
-            int best_score = -1;
-            int nb_args2;
-            CType fct;
-            SValue this_sv;
-
-            fct.t = VT_STRUCT;
-            fct.ref = f->type.ref;
-
-            // arg1 = src->field, as an lvalue of the field's own class
-            // (address-then-offset-then-retype: the same idiom the
-            // ordinary '.'-member-access path uses for field offsets)
-            vset(dst_ptype, VT_LOCAL | VT_LVAL, src_ptr_slot);
-            indir();
-            gaddrof();
-            vtop->type = char_pointer_type;
-            vpushi(src_base_ofs + f->c);
-            gen_op('+');
-            vtop->type = fct;
-            vtop->r |= VT_LVAL;
-
-            cpp_score_member_overloads(f->type.ref,
-                (f->type.ref->v & ~SYM_STRUCT) | SYM_FIELD, 1, 0,
-                &best, &best_score);
-            if (!best) {
-                vpop();
-                /* A user constructor unrelated to the source type does
-                   not suppress the implicitly declared copy constructor.
-                   The raw copy therefore still needs recursive memberwise
-                   repair. */
-                cpp_reconstruct_copied_class_members(f->type.ref, dst_ptype,
-                    dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
-                    src_base_ofs + f->c);
-                continue;
-            }
-            g = cpp_member_func_global_exact(best, f->type.ref);
-            if (!g || (g->type.t & VT_BTYPE) != VT_FUNC) {
-                vpop();
-                tcc_error("internal error: implicit copy constructor lookup failed");
-            }
-            // callee below the already-pushed arg1 (same push+vswap
-            // idiom as cpp_functional_ctor_temp)
-            vset(&g->type, g->r | VT_SYM, 0);
-            vtop->sym = g;
-            vtop->r &= ~VT_LVAL;
-            vswap();
-            gfunc_param_typed(g->type.ref, g->type.ref->next);
-
-            // BUG-47: SimpleString(const SimpleString&, pos=0, n=npos)
-            // のように、コピー扱いの1引数呼び出しの後ろに既定値付き
-            // パラメータが続くctorがある。既定値をレジスタへ積まずに
-            // gfunc_call(2)固定で呼ぶと pos/n がゴミ値のまま読まれ、
-            // 「assertion failed: !(len < pos)」やヒープ破壊(不正な
-            // delete[])を引き起こす(rc5.exe実測でSimpleString.cpp:82の
-            // assert再現、外部アタッチではntdll内フリーズも確認)。
-            // cpp_emit_heap_ctor_call本体の「viableなctor」経路と同じ
-            // cpp_apply_default_argsで残りパラメータの既定値を積む。
-            nb_args2 = 1;
-            sa2 = g->type.ref->next->next;
-            if (sa2)
-                cpp_apply_default_args(g->type.ref, &nb_args2, &sa2);
-
-            // this = &dst->field
-            vset(dst_ptype, VT_LOCAL | VT_LVAL, dst_ptr_slot);
-            indir();
-            gaddrof();
-            vtop->type = char_pointer_type;
-            vpushi(dst_base_ofs + f->c);
-            gen_op('+');
-            this_sv = *vtop;
-            vpop();
-
-            // insert `this` below the nb_args2 converted args (general
-            // form: cpp_emit_heap_ctor_call本体の「viableなctor」経路と
-            // 同じmemmoveパターン。BUG-47修正でnb_args2が1を超えうる
-            // ようになったため、na==1専用の旧コードでは足りない)
-            vtop++;
-            memmove(vtop - nb_args2 + 1, vtop - nb_args2, nb_args2 * sizeof(SValue));
-            vtop[-nb_args2] = this_sv;
-            gfunc_call(nb_args2 + 1);
-        }
+        if (!cpp_emit_copied_class_subobject(f->type.ref, dst_ptype,
+                dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                src_base_ofs + f->c))
+            /* A user constructor unrelated to the source type does not
+               suppress the implicitly declared copy constructor.  The raw
+               copy therefore still needs recursive memberwise repair. */
+            cpp_reconstruct_copied_class_members(f->type.ref, dst_ptype,
+                dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                src_base_ofs + f->c);
     }
 }
 
