@@ -1,0 +1,110 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{d08e5259-1c39-4181-b5fa-68a27bfe199f}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{af57f26c-f70b-48da-a51e-b234b63ac4bf}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="RepeatedTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SimpleList.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SimpleString.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestCase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestDecorator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestFailure.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestRegistry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestResult.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestRunner.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestSetup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestSuite.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestUtility.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cuconfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cudebug.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="custdio.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RepeatedTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SimpleAutoPtr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SimpleList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SimpleString.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Test.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestCaller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestCase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestDecorator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestFailure.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestListener.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestRegistry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestResult.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestRunner.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestSetup.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestSuite.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TestUtility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
