@@ -660,9 +660,19 @@ static char *cpp_stack_guard_base;
 static int cpp_stack_used_over(unsigned long limit)
 {
     char probe;
-    return cpp_stack_guard_base
-        && cpp_stack_guard_base > &probe
-        && (unsigned long)(cpp_stack_guard_base - &probe) > limit;
+    addr_t anchor;
+    addr_t current;
+
+    if (!cpp_stack_guard_base)
+        return 0;
+    /* Comparing or subtracting pointers to separate stack objects is not
+       defined by C.  The target address integer is the implementation
+       boundary here; converting both addresses first keeps the guard free
+       of cross-object pointer arithmetic while matching the Windows stack
+       direction used by the supported targets. */
+    anchor = (addr_t)(void *)cpp_stack_guard_base;
+    current = (addr_t)(void *)&probe;
+    return anchor > current && anchor - current > (addr_t)limit;
 }
 
 #define CPP_WALKER_DEPTH_GUARD(name) do { \
@@ -2009,6 +2019,28 @@ static int cpp_count_virtuals_named(Sym *class_sym, int member_tok)
     return n;
 }
 
+/* A secondary vtable nested inside a non-primary base needs the final
+   most-derived offset-to-top.  The current vtable representation only has
+   the direct base offset available, so reject that shape before emitting a
+   table with an intermediate-class-relative adjustment. */
+static int cpp_has_deep_secondary_virtual_base(Sym *class_sym)
+{
+    Sym *f;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_has_deep_secondary_virtual_base");
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !cpp_type_has_virtual(f->parent_class))
+            continue;
+        if (f->c != 0)
+            return 1;
+        if (cpp_has_deep_secondary_virtual_base(f->parent_class))
+            return 1;
+    }
+    return 0;
+}
+
 static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
 {
     Sym *f;
@@ -2435,6 +2467,8 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
             continue;
         if (!cpp_type_has_virtual(base_class))
             continue;
+        if (cpp_has_deep_secondary_virtual_base(base_class))
+            tcc_error("deep secondary virtual inheritance is unsupported");
         nslots = cpp_count_virtual_slots(base_class);
         if (nslots <= 0)
             continue;
@@ -2459,10 +2493,9 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
         sec = rodata_section;
         // G6: offset-to-top for a NON-primary base subobject is negative -
         // "complete object = subobject + offset".  bf->c is final here
-        // because this runs after struct_layout.  (Deep-nested secondary
-        // bases keep the intermediate class's vtable, so their offset is
-        // relative to that class - same pre-existing Phase 2 limitation
-        // as the dispatch itself, documented in 実装済み.md.)
+        // because this runs after struct_layout.  Deep-nested secondary
+        // bases are rejected above until their most-derived adjustment can
+        // be represented safely.
         addr = section_add(sec, (unsigned long)(nslots + 1) * PTR_SIZE, PTR_SIZE);
 #if PTR_SIZE == 8
         write64le(sec->data + addr, (uint64_t)-(int64_t)bf->c);
@@ -11366,10 +11399,10 @@ static void cpp_init_heap_vptr(CType *ptype, int ptr_slot, Sym *class_sym)
 // its body runs, so the aliased pointer from the memcpy is simply
 // discarded here (never freed - the SOURCE object still owns and
 // frees it exactly once) and the member's body allocates dst's own,
-// independent buffer.  Only members that themselves declare a
-// constructor is rebuilt by its own copy constructor.  A class without a
-// direct constructor is still walked recursively, because one of its nested
-// members may have non-trivial copy semantics.
+// independent buffer.  A member with a viable user-declared copy
+// constructor is rebuilt directly; otherwise the class is walked
+// recursively, because one of its nested members may have non-trivial copy
+// semantics even when the class has unrelated user constructors.
 static void cpp_reconstruct_copied_class_members(Sym *class_sym,
                                                  CType *dst_ptype,
                                                  int dst_ptr_slot,
@@ -11379,6 +11412,7 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
 {
     Sym *f;
 
+    CPP_WALKER_DEPTH_GUARD("cpp_reconstruct_copied_class_members");
     for (f = class_sym->next; f; f = f->next) {
         if ((f->type.t & VT_BTYPE) != VT_STRUCT || !f->type.ref)
             continue;
@@ -11433,12 +11467,19 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
                 &best, &best_score);
             if (!best) {
                 vpop();
+                /* A user constructor unrelated to the source type does
+                   not suppress the implicitly declared copy constructor.
+                   The raw copy therefore still needs recursive memberwise
+                   repair. */
+                cpp_reconstruct_copied_class_members(f->type.ref, dst_ptype,
+                    dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                    src_base_ofs + f->c);
                 continue;
             }
             g = cpp_member_func_global_exact(best, f->type.ref);
             if (!g || (g->type.t & VT_BTYPE) != VT_FUNC) {
                 vpop();
-                continue;
+                tcc_error("internal error: implicit copy constructor lookup failed");
             }
             // callee below the already-pushed arg1 (same push+vswap
             // idiom as cpp_functional_ctor_temp)
