@@ -3246,6 +3246,27 @@ static int cpp_is_class_data_member(Sym *f)
     return 1;
 }
 
+/* Class-type member arrays need one constructor call per element.  The
+   current implicit-construction path has no element walker, so identify
+   them separately and reject them before raw storage is accepted. */
+static int cpp_is_class_data_member_array(Sym *f)
+{
+    CType *elem_type;
+
+    if (!f || cpp_is_base_field(f))
+        return 0;
+    if (!(f->type.t & VT_ARRAY))
+        return 0;
+    elem_type = pointed_type(&f->type);
+    if ((elem_type->t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    if (f->type.t & (VT_STATIC | VT_EXTERN))
+        return 0;
+    if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+        return 0;
+    return 1;
+}
+
 // G7: default-construct a class-type data member (0-arg ctor on
 // this->member).  A class with no user-declared constructor has no
 // constructor call to emit.  A class with user-declared constructors must,
@@ -3393,8 +3414,13 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
     CPP_WALKER_DEPTH_GUARD("cpp_validate_implicit_default_ctor");
     ctor_field = cpp_find_ctor_field(class_sym);
     if (ctor_field) {
-        if (cpp_class_has_default_ctor(class_sym))
+        if (cpp_class_has_default_ctor(class_sym)) {
+            if (relation == 2)
+                tcc_error("implicit default construction of non-trivial base is unsupported");
+            if (relation == 1)
+                tcc_error("implicit default construction of non-trivial member is unsupported");
             return;
+        }
         /* A direct user constructor without a zero-argument overload is
            handled by the existing explicit `obj.Ctor(args)` subset.  The
            validator is only entered for an outer class with no user ctor;
@@ -3413,6 +3439,8 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
             cpp_validate_implicit_default_ctor(f->parent_class, 2);
             continue;
         }
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit default construction of class member array is unsupported");
         if (cpp_is_class_data_member(f))
             cpp_validate_implicit_default_ctor(f->type.ref, 1);
     }
