@@ -189,6 +189,7 @@ static Sym *cpp_pending_member_class;
 static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
+static void sym_copy_ref(Sym *s, Sym **ps);
 static void gfunc_param_typed(Sym *func, Sym *arg);
 static int cpp_func_param_count(Sym *field);
 static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
@@ -4363,6 +4364,11 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c)
     } else {
         s = sym_push(v, type, r, c);
     }
+    /* A local class survives until inline-member replay.  Its field chain
+       therefore needs the pointer/function type refs that were built on
+       local_stack to survive too. */
+    if (local_stack)
+        sym_copy_ref(s, &global_stack);
     return s;
 }
 
@@ -11361,13 +11367,15 @@ static void cpp_init_heap_vptr(CType *ptype, int ptr_slot, Sym *class_sym)
 // discarded here (never freed - the SOURCE object still owns and
 // frees it exactly once) and the member's body allocates dst's own,
 // independent buffer.  Only members that themselves declare a
-// constructor are touched; a ctor-less member has no resource to
-// duplicate and the raw copy is already correct for it (matching the
-// same test used everywhere else to detect "no user ctor").
+// constructor is rebuilt by its own copy constructor.  A class without a
+// direct constructor is still walked recursively, because one of its nested
+// members may have non-trivial copy semantics.
 static void cpp_reconstruct_copied_class_members(Sym *class_sym,
                                                  CType *dst_ptype,
                                                  int dst_ptr_slot,
-                                                 int src_ptr_slot)
+                                                 int src_ptr_slot,
+                                                 int dst_base_ofs,
+                                                 int src_base_ofs)
 {
     Sym *f;
 
@@ -11377,18 +11385,26 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
         if (f->type.t & VT_STATIC)
             continue;
         if (cpp_is_base_field(f)) {
-            // MI: a non-primary base could sit at a non-zero offset;
-            // out of scope here (no CPPUnit class needing this fix
-            // has a base at all) - recursing at offset 0 covers the
-            // single/primary-base case correctly.
+            /* A secondary base is not safe to treat as offset zero.  The
+               implicit-copy fallback must fail closed until the complete
+               most-derived adjustment is available. */
+            if (f->c != 0)
+                tcc_error("implicit copy of a non-primary base is unsupported");
             cpp_reconstruct_copied_class_members(f->parent_class, dst_ptype,
-                                                 dst_ptr_slot, src_ptr_slot);
+                                                 dst_ptr_slot, src_ptr_slot,
+                                                 dst_base_ofs, src_base_ofs);
             continue;
         }
         if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
             continue;               // vptr etc., not user data
-        if (!cpp_find_ctor_field(f->type.ref))
-            continue;               // no ctor: raw copy is correct
+        if (!cpp_find_ctor_field(f->type.ref)) {
+            /* A class without a directly declared constructor may still
+               contain a class member with non-trivial copy semantics. */
+            cpp_reconstruct_copied_class_members(f->type.ref, dst_ptype,
+                dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                src_base_ofs + f->c);
+            continue;
+        }
         {
             Sym *best = NULL, *g;
             Sym *sa2;
@@ -11407,7 +11423,7 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
             indir();
             gaddrof();
             vtop->type = char_pointer_type;
-            vpushi(f->c);
+            vpushi(src_base_ofs + f->c);
             gen_op('+');
             vtop->type = fct;
             vtop->r |= VT_LVAL;
@@ -11451,7 +11467,7 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
             indir();
             gaddrof();
             vtop->type = char_pointer_type;
-            vpushi(f->c);
+            vpushi(dst_base_ofs + f->c);
             gen_op('+');
             this_sv = *vtop;
             vpop();
@@ -11508,7 +11524,7 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
                 vstore();
                 vpop();
                 cpp_reconstruct_copied_class_members(class_sym, ptype,
-                                                     ptr_slot, src_slot);
+                                                     ptr_slot, src_slot, 0, 0);
                 return;
             }
             tcc_error("class has no constructor taking arguments");
@@ -11574,7 +11590,7 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
             vstore();
             vpop();
             cpp_reconstruct_copied_class_members(class_sym, ptype,
-                                                 ptr_slot, src_slot);
+                                                 ptr_slot, src_slot, 0, 0);
             return;
         }
     }
