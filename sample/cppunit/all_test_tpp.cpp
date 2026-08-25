@@ -296,9 +296,11 @@ class RunnerRunTest : public TestCase {
         int rc;
         {
             TestRunner tr;
+            char *argv[1];
 
             tr.addTest(new PassTest("p"));
-            rc = tr.runTests();
+            argv[0] = 0;
+            rc = tr.run(1, argv);
         }
         TEST_ASSERT(rc == 0);
         TEST_ASSERT(g_live == before);

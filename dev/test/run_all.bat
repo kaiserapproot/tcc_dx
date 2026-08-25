@@ -162,6 +162,13 @@ for %%f in (..\..\sample\cppunit\*.cpp) do (
 )
 echo === crash corpus: done ^(crashes so far: !CRASHES!^) ===
 
+rem === Phase 5: G7 CPPUnit machine gate ===
+rem This gate owns its temporary outputs and verifies the exact 17-test
+rem contract plus the baseline-derived untouched-source set.
+echo === ..\..\sample\cppunit\build_cppunit.bat ===
+call ..\..\sample\cppunit\build_cppunit.bat
+if errorlevel 1 set /a FAILED+=1
+
 echo === run_all summary: !FAILED! gating failure(s), !CRASHES! crash(es) ===
 popd
 exit /b !FAILED!
