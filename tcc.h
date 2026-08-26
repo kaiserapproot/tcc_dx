@@ -532,12 +532,47 @@ struct FuncAttr {
     func_dtor   : 1, /* attribute((destructor)) */
     func_virtual : 1, /* C++ virtual member function */
     func_const  : 1, /* C++ const member function */
+    /* BUG-33: C++ `static` member function.  It used to be recorded by
+       copying VT_STATIC onto the hoisted global, but VT_STATIC means
+       INTERNAL LINKAGE to the rest of tcc, so the definition became
+       file-local and no other TU could call it.  The field keeps
+       VT_STATIC (that is what excludes it from the instance layout);
+       the global carries this flag instead. */
+    func_static_member : 1,
+    /* G5: C++ pure virtual (`virtual R f() = 0;`).  Kept as explicit
+       metadata rather than inferred from a NULL vtable slot - a slot can be
+       NULL for other reasons, and the abstract-class check has to be able
+       to tell "not overridden yet" from "no implementation emitted". */
+    func_pure   : 1,
     func_args   : 8, /* PE __stdcall args */
     func_alwinl : 1, /* always_inline */
-    xxxx        : 12;
+    xxxx        : 10;
 };
 
 /* symbol management */
+/* C4 (crash-prevention plan, sym-union audit): which union member is live
+   depends on WHAT KIND of Sym this is - check the kind before reading, a
+   wrong read compiles fine and returns plausible garbage (BUG-35 died of
+   exactly that).  Rules, per kind:
+     - function-type ref chain, FIRST element (the prototype sym): `f`
+       holds the FuncAttr.  Its `type` is the RETURN type, so a struct
+       return makes it look like a struct sym - never read sym_scope
+       from it (BUG-35).  is_compatible_func / gfunc_call read `f` here.
+     - parameters (later ref-chain elements, SYM_FIELD): inner union is
+       unused (zero); default-arg tokens live in inline_func_str.
+     - struct/union members (SYM_FIELD): `c` = byte offset, except C++
+       virtual member functions where `c` = vtable SLOT NUMBER after
+       cpp_assign_virtual_slots; `auxtype` only when VT_BITFIELD.
+     - struct/union/enum tags (SYM_STRUCT): `c` = size (-1 undefined,
+       -2 being defined), `sym_scope` = scope of the declaration.
+     - ordinary identifiers (vars/typedefs): `c` = value/ELF sym index,
+       `sym_scope` = scope level (0 = file scope).
+     - labels / cleanups: `jnext` / `jind`.
+     - enum CONSTANTS (IS_ENUM_VAL): `enum_val` overlaps `c` AND the
+       inner union entirely - reading sym_scope from one yields the low
+       bits of the value.  Use the sym_scope() helper (tccgen.c), which
+       redirects to the enum tag; the remaining raw reads on identifier
+       chains are an inherited upstream quirk (see the plan's C4 notes). */
 typedef struct Sym {
     int v; /* symbol token */
     unsigned short r; /* associated register or VT_CONST/VT_LOCAL and LVAL type */
@@ -573,6 +608,14 @@ typedef struct Sym {
     struct TokenString *cpp_mem_init_list;
     struct Sym *parent_class; /* owning class (C++ member) */
     int cpp_vtable_tok; /* FEAT-5A: __cpp_vtable_<Class> token, 0 if none */
+    /* G3: class-scope typedefs / nested type names live on this SEPARATE
+       list (linked via ->prev by sym_push2), never on the member chain -
+       the P0 audit showed layout/initializer/debug/ABI walkers would all
+       need synchronized skips otherwise.  Only C++ type lookups read it. */
+    struct Sym *cpp_class_typedefs;
+    /* G3: enclosing class of a nested class tag (NULL at namespace scope);
+       needed because unqualified lookup searches inner -> outer classes. */
+    struct Sym *cpp_enclosing_class;
 } Sym;
 
 /* section definition */

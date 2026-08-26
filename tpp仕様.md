@@ -61,16 +61,16 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 
 | 分類 | 動作するもの |
 |---|---|
-| クラス | `class` / `struct`、アクセス指定子（パース）、メンバ変数・メンバ関数、クラス内インライン定義、クラス外定義（`int Foo::bar()`） |
+| クラス | `class` / `struct`、アクセス指定子（パース）、メンバ変数・メンバ関数、クラス内インライン定義、クラス外定義（`int Foo::bar()`）、**クラス内 typedef**（unqualified / `Class::type` 修飾 / 基底・外側クラスからの継承解決、G3）、二重修飾クラス外定義 `Outer::Inner::member`、デフォルト引数の定義スコープ解決（`= npos`）（いずれも 2026-08-22） |
 | 型 | `bool` / `true` / `false`、参照 `&`（引数・戻り値・ローカル・**メンバ**）、クラス名 typedef |
 | 関数 | オーバーロード、デフォルト引数、無名引数、`const` メンバ関数、`const` によるオーバーロード |
 | 構築・破棄 | コンストラクタ（初期化子リスト含む）、デストラクタ、ローカルのブロック終了時 dtor、グローバルの自動 ctor/dtor（`.init_array` / `.fini_array`）、暗黙の基底 ctor / 自動基底 dtor |
 | 継承 | 単一継承、多重継承（非仮想）、`D*`→`B*` / `D&`→`B&` アップキャスト |
 | 仮想関数 | `virtual` 宣言、vtable / vptr、動的ディスパッチ（値・ポインタ経由）、派生 override、多重継承下の仮想（primary vptr 共有 + セカンダリ vtable + this 調整 thunk） |
 | メンバポインタ | データメンバポインタ `T C::*`、非仮想 / 仮想メンバ関数ポインタ |
-| 演算子 | `+ - * / % & \| ^ << >>`、比較 `== != < > <= >=`、代入 `= += -= *= /=` と各種複合代入、単項 `! - ~`、前置・後置 `++ --`、`[]`、メンバ / 非メンバの両方 |
+| 演算子 | `+ - * / % & \| ^ << >>`、比較 `== != < > <= >=`、代入 `= += -= *= /=` と各種複合代入、単項 `! - ~`、前置・後置 `++ --`、`[]`、**単項 `operator*`（deref）/ `operator->`**（G-OP、2026-08-22。`->` は 1 段適用・非ポインタ返却はエラー、メンバのみ）、メンバ / 非メンバの両方 |
 | リンケージ | `extern "C" { ... }` ブロック、`extern "C" void f();` 単一宣言 |
-| その他 | `this` / `*this` / `this->x`、`Class::member` / `Class::func()`、ネストしたクラス定義 |
+| その他 | `this` / `*this` / `this->x`、`Class::member` / `Class::func()`、ネストしたクラス定義、関数形式キャスト `T(expr)`（typedef・基本型・`Class::type` のみ。クラス型の一時オブジェクト `Foo(1)` は明示エラー。G-CAST、2026-08-22）、`friend class X;`（受理して読み捨て。アクセス制御は元々未実装のため意味差なし。friend **関数**宣言は明示エラー。G2、2026-08-22）、先頭 `::`（グローバルスコープ修飾。型位置 `typedef ::C D;` / 式位置 `::gfn()`。**正式 lookup 実装** — ローカルや同名メンバが隠していてもグローバル束縛へ解決し、shadow テストは exit 0。G1、2026-08-22） |
 
 ---
 
@@ -83,16 +83,16 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **テンプレート**（関数・クラスとも） | `template<class T> T mx(T a,T b){...}` | `';' が必要です（"<" が見つかりました）` |
 | **名前空間** `namespace` | `namespace N { int f(){return 0;} }` | `';' が必要です（"N" が見つかりました）` |
 | **`using` 宣言 / ディレクティブ** | `using N::f;` | 同上 |
-| **`new` / `delete`** | `P* p = new P; delete p;` | `'new' は宣言されていません` |
+| ~~**`new` / `delete`**~~ | — | **G4 で対応済み**（2026-08-22）。`new Class(args)` / `delete p` / `new POD[n]` / `delete[]`。未対応は scalar POD の `new int`、ctor/dtor 付きクラスの `new C[n]`、`operator new` の置き換え（いずれも明示エラー） |
 | **例外** `try` / `catch` / `throw` | `try { throw 1; } catch(int e) {}` | `'try' は宣言されていません` |
 | **キャスト演算子** `static_cast` 等 | `static_cast<int>(d)` | `'static_cast' は宣言されていません` |
 | `dynamic_cast` | `dynamic_cast<D*>(p)` | `'dynamic_cast' は宣言されていません` |
 | **RTTI** `typeid` / `<typeinfo>` | `#include <typeinfo>` | `インクルードファイル 'typeinfo' が見つかりません` |
 | **標準ライブラリ** `<iostream>` 等 | `#include <iostream>` | `インクルードファイル 'iostream' が見つかりません` |
-| **純粋仮想関数 / 抽象クラス** | `virtual int f() = 0;` | `',' が必要です（"=" が見つかりました）` |
-| **仮想デストラクタ** | `virtual ~B() {}` | `identifier が必要です` |
+| ~~**純粋仮想関数 / 抽象クラス**~~ | — | **G5 で対応済み**（2026-08-22）。抽象クラスのオブジェクト宣言・`new` は明示エラー（ポインタ／参照は可）。未対応: 未 override スロットの実行時スタブ（NULL のまま。抽象判定で到達不能） |
+| ~~**仮想デストラクタ**~~ | — | **G6 で対応済み**（2026-08-22）。`delete base_ptr` の動的ディスパッチ + MI の complete-object free（offset-to-top） |
 | **仮想継承** | `struct B : virtual public A {}` | `unknown base class` |
-| **`friend`** | `friend int peek(P&);` | `';' が必要です（"friend" が見つかりました）` |
+| **`friend` 関数宣言** | `friend int peek(P&);` | `unsupported friend declaration`（G2 で明示エラー化。読み捨てると関数宣言自体が消えるため） |
 | **`explicit`** | `explicit P(int x) {...}` | `';' が必要です（"explicit" が見つかりました）` |
 | **`mutable`** | `mutable int v;` | `';' が必要です（"mutable" が見つかりました）` |
 | **クラス内 `enum`** | `struct C{ enum E{A,B}; };` | `identifier が必要です` |
@@ -111,6 +111,11 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | B | **委譲コンストラクタの本体が走らない**（C++11） | `P() : P(3) {}` | `p.v == 3` | **`p.v == 0`** |
 | C | **`return` 経路の自動デストラクタが呼ばれない** | `int f(){ P p; return p.v; }` | dtor 実行 | **未実行**（ブロック `}` 終了時のみ） |
 | D | **ローカル `static` オブジェクトの ctor が走らない** | `static P s;`（関数内） | `s.v == 7` | **`s.v == 0`** |
+> **BUG-30 / BUG-31 は修正済み**（2026-08-22）。BUG-30: メンバ関数を定義より前に
+> 呼ぶと（`.h` 宣言＋`.cpp` 定義の通常構成を含む）、単一メンバは実行時クラッシュ、
+> オーバーロードは誤解決していた。BUG-31: 静的データメンバのクラス外定義が次の
+> 関数定義へクラスを漏らし、暗黙 `this` で引数が 1 つずれていた。
+> 回帰テストは `dev/test/a9/govl_*.cpp` / `bug31_static_member_leak.cpp`。
 
 > **BUG-23 は修正済み**（`8841ce4`）。`bump(v + 1)` のように引数式が `this` を
 > 参照する呼び出しが実行時クラッシュしていた（`this->bump(this->v + 1)` も同様）。
@@ -220,12 +225,28 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-21 | メンバ関数内でクラススコープがグローバルより優先されない | **修正済み** `a244e65` |
 | BUG-22 | 無修飾のメンバ関数呼び出しに `this` が渡らない | **修正済み** `a244e65` |
 | BUG-23 | 引数式が `this` を参照する呼び出しが落ちる | **修正済み** `8841ce4`（専用スタックスロットへ退避） |
-| BUG-24 | 仮想デストラクタが解析できない | 未修正（§3.1） |
+| BUG-24 | 仮想デストラクタが解析できない | **修正済み**（G6。`delete` の動的ディスパッチ + complete-object free 込み） |
 | BUG-25 | `struct X{}; int X;` が誤 redefinition | 未修正（§3.3） |
 | BUG-26 | グローバル変数をクラスのメソッド名と同名にできない | 未修正（§3.3） |
 | BUG-27 | thunk 名が 256 文字超で raw impl へフォールバックし `this` 未補正 | **修正済み** `7351a0d`（serial 命名＋エラー化） |
 | BUG-28 | 非 primary 基底のオーバーロード仮想が同一 thunk へ潰れる | **修正済み** `7351a0d`（明示エラー化） |
 | BUG-29 | 非 primary 基底への NULL アップキャストが NULL でなくなる | **修正済み** `7351a0d`（branchless で NULL 保持） |
+| BUG-30 | メンバ関数の**前方参照呼び出し**が壊れる（単一なら実行時クラッシュ、オーバーロードなら誤解決） | **修正済み**（ガイド G-OVL。extern 参照の生成 + 宣言側からの候補集合） |
+| BUG-31 | 静的データメンバのクラス外定義が、次の関数定義へクラスを漏らし暗黙 `this` を付ける | **修正済み**（`decl()` の宣言子ループ末尾で `cpp_qualified_class` を後始末） |
+| BUG-32 | デフォルト引数の再生 3 件（保存列の use-after-free / 呼び出し直後トークンの消失 / 解決がデフォルト引数を無視） | **修正済み**（複製再生・トークン退避・デフォルト考慮の候補判定） |
+| BUG-33 | 静的メンバが TU をまたげない（宣言のみで解決不可 / 定義が内部リンケージ） | **修正済み**（extern 参照の生成 + `FuncAttr.func_static_member`） |
+| BUG-34 | 祖父母の仮想を孫が override すると別 vtable スロットになり基底実装が呼ばれる | **修正済み**（primary 基底チェーンを辿る `cpp_find_inherited_virtual_slot`） |
+| BUG-35 | 自クラスを値返しするメンバを持つクラスで **tcc 自身がスタックオーバーフロー**（診断なしで即死） | **修正済み**（`sym_copy_ref` がプロトタイプ Sym の FuncAttr を `sym_scope` と誤読していた） |
+| BUG-36 | ネスト型宣言 `struct Inner {...};` が外側クラスの**匿名メンバ**になりレイアウト肥大 + 同名メンバの重複誤検出 | **修正済み**（C++ では名前付きタグの宣言子なし宣言を型宣言のみとする） |
+| BUG-37 | `sym_copy_ref` がファイルスコープのクラスタグを複製し「Iterator を Iterator に変換できません」（同名の別 Sym） | **修正済み**（STRUCT 降下判定を変数の scope から**タグの scope**へ） |
+| BUG-38 | メンバ呼び出しの採点で基底の同名関数が派生 override に同点先勝ちし基底実装が呼ばれる（silent miscompile） | **修正済み**（名前隠蔽 — 自クラスレベルに宣言があれば基底へ降下しない） |
+| BUG-39 | 別名 typedef 修飾のネスト型宣言 `cu_List::iterator p;` が式に誤送され「static member not found」 | **修正済み**（`cpp_unget_scoped_expr` に typedef 別名→タグ解決を追加） |
+| BUG-40 | extern "C" ブロック直後の `#define` 本体が C 字句で貯蔵され C++ キーワードが識別子化（`cu_CATCH_ALL if (false)`） | **修正済み**（終端処理を `lex_c--` → `next()` の順に変更） |
+| BUG-41 | 引数リスト内の入れ子メンバ呼び出し `insert(begin(), ...)` が外側の this を消費し全引数が 1 スロットずれて AV | **修正済み**（'(' ハンドラで cpp_member_this/pending を退避・復元） |
+| BUG-42 | 局所クラス（関数内定義）のインライン本体が TU 終端再生時にダングリング（タグ/フィールドが local_stack で解放済み） | **修正済み**（クラス定義 Sym を global_stack へ格納。**制限**: タグ名が関数終了後もファイルスコープに残るため、同名の局所クラスを複数関数で定義不可） |
+| BUG-43 | クラス外定義の仮想関数が vtable 構築時点で未解決 → 初回呼び出しで NULL 関数ポインタ経由のクラッシュ | **修正済み**（`cpp_lookup_virtual_impl` が既存グローバル未検出時に BUG-30 式の extern 作成へフォールバック。純粋仮想は対象外） |
+| BUG-44 | 全パラメータにデフォルトがある 1 引数以上の ctor が `cpp_class_has_default_ctor` で「既定 ctor でない」と誤判定され、`T t;` が ctor 呼び出しごと欠落（メンバ未初期化） | **修正済み**（ゼロ引数で呼べるか判定する `cpp_ctor_viable_with_zero_args` へ置換。副次的に `cpp_inherit_decl_defaults` のコンストラクタ探索がマングルトークン↔クラス名トークンの対応漏れで別オーバーロードを拾うバグも修正） |
+| BUG-45 | 同クラスの static メンバ関数への非修飾呼び出しが、定義より前の位置からだと C の「暗黙関数宣言」（無型 K&R）経路に落ちて呼び出し規約が不一致になり不正アドレスへジャンプ | **修正済み**（`cpp_lookup_static_member`（BUG-33 の extern 生成機構）で解決してから通常の解決済みシンボル経路へフォールスルー） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。

@@ -189,9 +189,22 @@ static Sym *cpp_pending_member_class;
 static Sym *cpp_this_sym;
 static Sym *cpp_cur_func_class;
 static Sym *external_sym(int v, CType *type, int r, AttributeDef *ad);
+static void sym_copy_ref(Sym *s, Sym **ps);
 static void gfunc_param_typed(Sym *func, Sym *arg);
 static int cpp_func_param_count(Sym *field);
 static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa);
+// BUG-30: the overload set of a member call is read off the class's member
+// chain (declarations), so these member-side helpers are needed up here by
+// cpp_call_has_overloads.
+static int cpp_field_is_const(Sym *field);
+static int cpp_count_member_overloads(Sym *class_sym, int v1, int want_const);
+static int cpp_ctor_name_tok(int class_tok);
+// G-CONV: implicit converting-constructor hook shared by gen_assign_cast
+// and vstore (both defined before the C++ member helpers it needs).
+static int cpp_try_class_conversion(CType *dt);
+// BUG-33: the static-member lookup needs the same "declared here, defined
+// elsewhere" extern that BUG-30 introduced for ordinary members.
+static Sym *cpp_make_member_func_extern(Sym *field, Sym *class_sym, int v);
 /* forward decl: cpp_collect_explicit_bases replays a saved mem-initializer
    list and is defined before the token-string helpers */
 static TokenString *tok_str_dup_for_default(TokenString *src);
@@ -365,6 +378,24 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
             return 1;
         }
     }
+    // G-CONV: a reference-to-CLASS parameter must not swallow arbitrary
+    // pointers via the generic ptr/ptr rule below - `Str(const Str&)` was
+    // winning the overload for a const char* argument over
+    // `Str(const char*)`, and the argument then failed to convert.  A
+    // class reference matches only that class (handled above) or a class
+    // an lvalue can bind through (derived-to-base), at a lower score so
+    // the exact class still wins.
+    if (tcc_state->cpp && (param->t & VT_REFERENCE)) {
+        pt = pointed_type(param);
+        if (pt && (pt->t & VT_BTYPE) == VT_STRUCT) {
+            if ((arg->t & VT_BTYPE) == VT_STRUCT
+                && cpp_can_bind_lvalue_to_reference(param, arg)) {
+                *score_out = 5;
+                return 1;
+            }
+            return 0;
+        }
+    }
     p_bt = param->t & VT_BTYPE;
     a_bt = arg->t & VT_BTYPE;
     if ((is_float(p_bt) || is_integer_btype(p_bt)) &&
@@ -401,6 +432,28 @@ static int cpp_call_has_overloads(Sym *cur)
         n++;
         if (n >= 2)
             return 1;
+    }
+    // BUG-30: an overload whose definition has not been parsed yet has no
+    // global at all, so the count above can say "1" for a set of five.
+    // Deferring the argument conversion is what lets the re-resolution
+    // below see the raw argument types, and without it the args would be
+    // cast to the first declaration's parameters (or rejected outright as
+    // "too many arguments") before resolution ever runs.
+    if (cur->parent_class && (cur->v & ~SYM_FIELD) >= TOK_IDENT) {
+        int fv = cur->v & ~SYM_FIELD;
+        // G-CONV: a constructor's global lives under the MANGLED token
+        // (__cpp_ctor_C) while its fields sit under the class-name token;
+        // map back or ctor overload sets are invisible here.
+        if (fv == cpp_ctor_name_tok(cur->parent_class->v & ~SYM_STRUCT))
+            fv = cur->parent_class->v & ~SYM_STRUCT;
+        {
+        int nf = cpp_count_member_overloads(cur->parent_class,
+                                            fv | SYM_FIELD,
+                                            !!(cur->type.ref
+                                               && cur->type.ref->f.func_const));
+        if (nf >= 2)
+            return 1;
+        }
     }
     return 0;
 }
@@ -450,8 +503,17 @@ static Sym *cpp_resolve_func_call(int v, int nb_args, Sym *cur)
             p = p->next;
         }
 
-        if (match && p && p->type.t != VT_VOID)
-            match = 0;
+        // G-CONV (same rule as BUG-32c gave the declaration-side scorer):
+        // trailing parameters that all carry default arguments keep the
+        // candidate viable for a shorter call; they add no score, so an
+        // exact-arity candidate still wins a tie.
+        while (match && p && p->type.t != VT_VOID) {
+            if (!p->inline_func_str) {
+                match = 0;
+                break;
+            }
+            p = p->next;
+        }
 
         if (match && score > best_score) {
             best_score = score;
@@ -539,11 +601,23 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
 }
 
 static int cpp_dtor_name_tok(int class_tok);
+static Sym *cpp_lookup_class_type(Sym *cls, int v);
+// BUG-42: class-definition syms go to the global stack for LOCAL classes
+static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
+// G7: ctor call sites resolve from the DECLARATION side first (BUG-30) -
+// a ctor that is only declared has no global yet, and the global-side
+// fallback then binds whatever single extern happened to exist.
+static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
+static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
+static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
+static void cpp_validate_explicit_ctor_members(Sym *class_sym);
+static void cpp_validate_explicit_dtor_members(Sym *class_sym);
 
-static int parse_cpp_scope_qualifier(int *v)
+// G1 (leading ::): consume a global-scope qualifier "::" at the current
+// token position.  "::" arrives as two ':' tokens, so a lone ':' must be
+// pushed back untouched or ternary parsing in C++ TUs would break.
+static int cpp_parse_global_scope_qualifier(void)
 {
-    int class_v;
-
     if (!tcc_state->cpp || tok != ':')
         return 0;
     next();
@@ -552,32 +626,126 @@ static int parse_cpp_scope_qualifier(int *v)
         return 0;
     }
     next();
-    class_v = *v;
-    /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
-       a single-char token, so the generic member-name check below
-       would reject it.  Reuse the FEAT-4E mangled global token so the
-       existing auto/explicit dtor call paths link against this body. */
-    if (tok == '~') {
+    return 1;
+}
+
+// G1: set right after cpp_parse_global_scope_qualifier() succeeded in a
+// type-head / expression-head position; the next identifier lookup must
+// then use the file-scope (global) binding only.  A plain skip would
+// silently resolve to a shadowing local (wrong code, no diagnostic),
+// which the plan explicitly forbids.
+static int cpp_global_scope_type_pending;
+static int cpp_global_scope_expr;
+// G3 P5: nonzero while default-argument tokens are being replayed at a
+// call site.  The tokens must resolve in their DEFINING scope: call-site
+// locals may not capture names, the owning class (restored into
+// cpp_cur_func_class) provides statics, and the this-based implicit
+// member lookups stay off (non-static members in default args are
+// ill-formed in C++ anyway).
+static int cpp_default_arg_replay;
+// G4 (new/delete): `void *malloc(...)` / `void free(...)` and the plain
+// void / void* types they need.  Initialized in tccgen_init.
+static CType cpp_malloc_type, cpp_free_type, cpp_voidp_type, cpp_void_type;
+
+// C3 (crash-prevention plan): recursion guards.  Depth is measured by
+// STACK ADDRESS distance from the anchor tccgen_compile plants, not by a
+// call counter - tcc_error longjmps out of the recursion, so a paired
+// increment/decrement counter would be left corrupted for the next
+// compilation, while the stack anchor is simply re-planted per compile.
+// The limit leaves ~400KB of the default 1MB stack as headroom for the
+// error path itself.  Two flavors on purpose:
+//  - the WALKER guard fires on cyclic data structures (C++ type graphs
+//    are cyclic through member-function signatures - BUG-35) and says
+//    "internal error" so the C2 crash gate counts it as a crash;
+//  - the SYNTAX guard fires on pathologically nested INPUT, which is a
+//    plain user-facing rejection, not a compiler bug.
+static char *cpp_stack_guard_base;
+
+static int cpp_stack_used_over(unsigned long limit)
+{
+    char probe;
+    addr_t anchor;
+    addr_t current;
+
+    if (!cpp_stack_guard_base)
+        return 0;
+    /* Comparing or subtracting pointers to separate stack objects is not
+       defined by C.  The target address integer is the implementation
+       boundary here; converting both addresses first keeps the guard free
+       of cross-object pointer arithmetic while matching the Windows stack
+       direction used by the supported targets. */
+    anchor = (addr_t)(void *)cpp_stack_guard_base;
+    current = (addr_t)(void *)&probe;
+    return anchor > current && anchor - current > (addr_t)limit;
+}
+
+#define CPP_WALKER_DEPTH_GUARD(name) do { \
+    if (cpp_stack_used_over(600000UL)) \
+        tcc_error("internal error: runaway recursion in %s (compiler bug)", \
+                  name); \
+} while (0)
+
+#define CPP_SYNTAX_DEPTH_GUARD() do { \
+    if (cpp_stack_used_over(600000UL)) \
+        tcc_error("expression or declaration nested too deeply"); \
+} while (0)
+
+static int parse_cpp_scope_qualifier(int *v)
+{
+    int class_v;
+    int any = 0;
+
+    // G3 P4: loop so a doubly qualified out-of-class definition such as
+    // SimpleList::Iterator::operator++(int) works - each name read may
+    // itself be followed by another "::", in which case it becomes the
+    // next qualifying class and cpp_qualified_class ends up holding the
+    // INNERMOST class (the member's real owner).
+    for (;;) {
+        if (!tcc_state->cpp || tok != ':')
+            return any;
         next();
-        if (tok != class_v)
-            tcc_error("destructor name does not match class name");
+        if (tok != ':') {
+            unget_tok(':');
+            return any;
+        }
         next();
-        *v = cpp_dtor_name_tok(class_v);
-        if (!*v)
-            tcc_error("cannot build destructor name");
-        cpp_qualified_class = struct_find(class_v);
+        class_v = *v;
+        // Resolve the qualifier: at level 2+ prefer the nested-class
+        // entry recorded on the previous qualifying class (P1), so a
+        // same-named unrelated global class cannot hijack the lookup;
+        // level 1 and the fallback use the plain tag namespace.
+        if (any && cpp_qualified_class) {
+            Sym *nested = cpp_lookup_class_type(cpp_qualified_class, class_v);
+            if (nested && (nested->type.t & VT_BTYPE) == VT_STRUCT
+                && nested->type.ref)
+                cpp_qualified_class = nested->type.ref;
+            else
+                cpp_qualified_class = struct_find(class_v);
+        } else {
+            cpp_qualified_class = struct_find(class_v);
+        }
         if (!cpp_qualified_class)
             tcc_error("unknown class in qualified name");
-        return 1;
+        /* FEAT-4E-P2: Class::~Class out-of-class dtor definition.  '~' is
+           a single-char token, so the generic member-name check below
+           would reject it.  Reuse the FEAT-4E mangled global token so the
+           existing auto/explicit dtor call paths link against this body. */
+        if (tok == '~') {
+            next();
+            if (tok != class_v)
+                tcc_error("destructor name does not match class name");
+            next();
+            *v = cpp_dtor_name_tok(class_v);
+            if (!*v)
+                tcc_error("cannot build destructor name");
+            return 1;
+        }
+        if (tok < TOK_IDENT)
+            tcc_error("expected member name after ::");
+        *v = tok;
+        next();
+        any = 1;
     }
-    if (tok < TOK_IDENT)
-        tcc_error("expected member name after ::");
-    *v = tok;
-    next();
-    cpp_qualified_class = struct_find(class_v);
-    if (!cpp_qualified_class)
-        tcc_error("unknown class in qualified name");
-    return 1;
 }
 
 /* If tok is Class::member, unget tokens for expression parsing. */
@@ -585,7 +753,11 @@ static int cpp_unget_scoped_expr(void)
 {
     int cls_tok, mem_tok;
 
-    if (!tcc_state->cpp || tok < TOK_IDENT)
+    // G1: keywords sit in [TOK_IDENT, TOK_UIDENT) and can never be a
+    // class name, but "return ::gfn()" made "return" reach here as
+    // cls_tok and the whole statement was mis-fed to gexpr().  Only a
+    // user identifier may start a scoped expression.
+    if (!tcc_state->cpp || tok < TOK_UIDENT)
         return 0;
     cls_tok = tok;
     next();
@@ -617,6 +789,27 @@ static int cpp_unget_scoped_expr(void)
     unget_tok(':');
     unget_tok(':');
     unget_tok(cls_tok);
+    // G3 P3: "Class::type" at a statement head is a DECLARATION
+    // ("C::T x;"), not a scoped expression.  When the qualified name
+    // resolves to a type in the class scope (self + bases), hand the
+    // statement back to the decl path; expressions like C::npos keep
+    // returning 1 exactly as before.
+    {
+        Sym *cls = struct_find(cls_tok);
+        // A typedef ALIAS of a class ("typedef SimpleList cu_List;",
+        // cuconfig.h) is not a tag, so struct_find alone missed it and
+        // "cu_List::iterator p;" was mis-fed to gexpr, which died in the
+        // static-member path (TestResult.cpp:25).  Resolve the alias to
+        // its class before the nested-type check.
+        if (!cls) {
+            Sym *td = sym_find(cls_tok);
+            if (td && (td->type.t & VT_TYPEDEF)
+                && (td->type.t & VT_BTYPE) == VT_STRUCT)
+                cls = td->type.ref;
+        }
+        if (cls && cpp_lookup_class_type(cls, mem_tok))
+            return 0;
+    }
     return 1;
 }
 
@@ -666,7 +859,28 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
         } else {
             if ((s->type.t & VT_BTYPE) != VT_FUNC && !(s->v & SYM_FIELD))
                 return s;
-                return s;
+        }
+    }
+    // BUG-33: the member is declared here but defined elsewhere - the very
+    // ordinary "declared in the .h, defined in its own .cpp" arrangement
+    // (TestUtility::trimFileName).  Reporting "static member not found"
+    // made that impossible; emit an extern reference and let the linker
+    // resolve it, exactly as BUG-30 does for non-static members.
+    if (tcc_state->cpp && !tcc_state->extern_c && mem_v >= TOK_IDENT) {
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            return cpp_make_member_func_extern(f, class_sym, mem_v);
+        else {
+            CType dt;
+            AttributeDef ad;
+
+            // A C++ static data member has external linkage; VT_STATIC on
+            // the field only marks it as "not part of the instance", so it
+            // must not travel to the global.  VT_EXTERN keeps a later
+            // definition from being rejected as a redefinition.
+            dt = f->type;
+            dt.t = (dt.t & ~VT_STATIC) | VT_EXTERN;
+            memset(&ad, 0, sizeof ad);
+            return external_sym(mem_v, &dt, VT_LVAL, &ad);
         }
     }
     return NULL;
@@ -747,6 +961,10 @@ static const char *cpp_operator_suffix(int op_tok)
     case TOK_GT: return "gt";
     case TOK_LE: return "le";
     case TOK_GE: return "ge";
+    // G-OP: operator-> ("arrow").  With the suffix registered, declaration,
+    // out-of-class definition and explicit a.operator->() all ride the same
+    // ext1-6 machinery; the implicit dispatch hook is in postfix '->'.
+    case TOK_ARROW: return "arrow";
     /* FEAT-6A-ext6: remaining binary bitwise / shift / modulo operators and
        their compound-assignment forms.  Binary ones route through expr_infix
        (like ext5); the compound ones route through expr_eq's struct
@@ -838,6 +1056,73 @@ static int cpp_is_dtor_field(Sym *field)
     return (field->v & ~SYM_FIELD) == fld_tok;
 }
 
+// BUG-30: the token a member function's global lives under (ctor and dtor
+// use their mangled names).  Returns 0 when there is none.
+static int cpp_member_global_tok(Sym *field)
+{
+    if (cpp_is_ctor_field(field))
+        return cpp_ctor_name_tok(field->v & ~SYM_FIELD);
+    if (cpp_is_dtor_field(field))
+        return cpp_dtor_name_tok(field->parent_class->v & ~SYM_STRUCT);
+    return field->v & ~SYM_FIELD;
+}
+
+// BUG-30: the global for a member that is declared but not defined yet.
+// Returning the FIELD (as this code used to) made every caller emit the
+// call against a Sym with no linkage - the ordinary ".h declares / .cpp
+// defines later" arrangement crashed at run time.  The extern created
+// here carries the class-qualified link name (BUG-14), so the definition
+// - later in this TU or in another one - binds to it.  VT_EXTERN is
+// required: without it patch_type() would report that definition as a
+// redefinition instead of completing this reference.
+static Sym *cpp_make_member_func_extern(Sym *field, Sym *class_sym, int v)
+{
+    CType ft;
+    AttributeDef ad;
+    Sym *ext;
+
+    if (!tcc_state->cpp || tcc_state->extern_c || v < TOK_IDENT || !class_sym)
+        return field;
+    if ((field->type.t & VT_BTYPE) != VT_FUNC || !field->type.ref)
+        return field;
+    ft = field->type;
+    ft.t |= VT_EXTERN;
+    memset(&ad, 0, sizeof ad);
+    cpp_pending_member_class = class_sym;
+    ext = external_sym(v, &ft, 0, &ad);
+    cpp_pending_member_class = NULL;
+    if (!ext)
+        return field;
+    ext->parent_class = class_sym;
+    return ext;
+}
+
+// BUG-30: signature-exact variant used by overload re-resolution.  The
+// arity-only fallback in cpp_lookup_member_func must NOT run there: with
+// forward declarations the only global in the chain may be the extern
+// created for a DIFFERENT same-arity overload, and returning it silently
+// calls the wrong function (observed with SimpleString::assign).
+static Sym *cpp_member_func_global_exact(Sym *field, Sym *class_sym)
+{
+    Sym *s;
+    int v;
+
+    if (!field || !class_sym)
+        return field;
+    v = cpp_member_global_tok(field);
+    if (!v)
+        return field;
+    for (s = sym_find(v); s; s = s->prev_tok) {
+        if ((s->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (s->parent_class != class_sym)
+            continue;
+        if (is_compatible_types(&s->type, &field->type))
+            return s;
+    }
+    return cpp_make_member_func_extern(field, class_sym, v);
+}
+
 static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
 {
     int v;
@@ -846,18 +1131,9 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
     if (!field || !obj_type || !obj_type->ref)
         return field;
     class_sym = field->parent_class ? field->parent_class : obj_type->ref;
-    if (cpp_is_ctor_field(field)) {
-        /* ctor lives under the mangled global token. */
-        v = cpp_ctor_name_tok(field->v & ~SYM_FIELD);
-        if (!v)
-            return field;
-    } else if (cpp_is_dtor_field(field)) {
-        v = cpp_dtor_name_tok(field->parent_class->v & ~SYM_STRUCT);
-        if (!v)
-            return field;
-    } else {
-        v = field->v & ~SYM_FIELD;
-    }
+    v = cpp_member_global_tok(field);
+    if (!v)
+        return field;
     {
         int want_const;
 
@@ -891,7 +1167,8 @@ static Sym *cpp_lookup_member_func(Sym *field, CType *obj_type)
             return s;
         }
     }
-    return field;
+    // BUG-30: nothing in the chain yet - the member is only declared so far.
+    return cpp_make_member_func_extern(field, class_sym, v);
 }
 
 static Sym *find_field(CType *type, int v, int *cumofs);
@@ -1142,6 +1419,27 @@ static Sym *cpp_find_ctor_field(Sym *class_sym)
 
 /* FEAT-4F: does the class declare a 0-arg (default) constructor?
    Used to decide whether `Foo f;` should call the ctor implicitly. */
+// BUG-44: a ctor is usable for `T t;` (zero explicit arguments) when
+// EVERY parameter has a default, not only when it declares literally
+// zero parameters - `R2(Mux* m = 0)` (TestResult's real ctor shape) IS
+// a default constructor in C++.  The old exact-zero check made
+// cpp_class_has_default_ctor return false for it, so every call site
+// below skipped emitting the ctor call entirely: `TestResult r;` left
+// m_mutex as uninitialized stack garbage, and the first virtual call
+// through it crashed (or hung, depending on what garbage happened to
+// be there) - found while building the G7 CPPUnit driver, whose first
+// test declares exactly this pattern.
+static int cpp_ctor_viable_with_zero_args(Sym *f)
+{
+    Sym *p;
+
+    for (p = f->type.ref ? f->type.ref->next : NULL; p; p = p->next) {
+        if (!p->inline_func_str)
+            return 0;
+    }
+    return 1;
+}
+
 static int cpp_class_has_default_ctor(Sym *class_sym)
 {
     Sym *f;
@@ -1155,7 +1453,7 @@ static int cpp_class_has_default_ctor(Sym *class_sym)
             continue;
         if ((f->type.t & VT_BTYPE) != VT_FUNC)
             continue;
-        if (cpp_func_param_count(f) == 0)
+        if (cpp_ctor_viable_with_zero_args(f))
             return 1;
     }
     return 0;
@@ -1192,8 +1490,10 @@ static void cpp_emit_local_dtor(Sym *obj_sym)
         return;
     class_sym = obj_sym->type.ref;
     dtor_field = cpp_find_dtor_field(class_sym);
-    if (!dtor_field)
+    if (!dtor_field) {
+        cpp_validate_implicit_dtor(class_sym, 0);
         return;
+    }
     obj_type.t = VT_STRUCT;
     obj_type.ref = class_sym;
     dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
@@ -1293,6 +1593,84 @@ static Sym *cpp_lookup_type_name(int v, int *kind)
     return NULL;
 }
 
+// G3 P1: search ONE class's separate typedef list (see tcc.h
+// cpp_class_typedefs - linked via ->prev by sym_push2).  Base-class and
+// enclosing-class walks are layered on top by the P2/P3 lookups.
+static Sym *cpp_class_typedef_find(Sym *cls, int v)
+{
+    Sym *td;
+
+    if (!cls)
+        return NULL;
+    for (td = cls->cpp_class_typedefs; td; td = td->prev)
+        if (td->v == v)
+            return td;
+    return NULL;
+}
+
+// G3 P2: resolve `v` as a type inside class `cls` ONLY: the class's own
+// typedef list first, then its direct bases merged per the plan's rule -
+// typedefs are compared by the type they NAME (not by declaration), so
+// A::T=int and B::T=int merge fine while differing types are an
+// ambiguity error.  "First base wins" is forbidden (silent miscompile).
+// This is the shared building block of both the unqualified lookup and
+// the P3 qualified lookup, which must NOT fall back beyond the class.
+static Sym *cpp_lookup_class_type(Sym *cls, int v)
+{
+    CPP_WALKER_DEPTH_GUARD("cpp_lookup_class_type");
+    Sym *found, *f, *r;
+
+    if (!cls)
+        return NULL;
+    found = cpp_class_typedef_find(cls, v);
+    if (found)
+        return found;
+    for (f = cls->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !f->type.ref)
+            continue;
+        r = cpp_lookup_class_type(f->type.ref, v);
+        if (!r)
+            continue;
+        if (!found) {
+            found = r;
+        } else if (found != r) {
+            CType a, b;
+            a = found->type;
+            b = r->type;
+            a.t &= ~VT_STORAGE;
+            b.t &= ~VT_STORAGE;
+            if (!is_compatible_types(&a, &b))
+                tcc_error("'%s' is ambiguous (different types in multiple bases)",
+                          get_tok_str(v, NULL));
+        }
+    }
+    return found;
+}
+
+// G3 P2: unqualified class-scope type lookup, plan rules 2-3: the class
+// whose body (cpp_cur_class) or member function (cpp_cur_func_class) is
+// being compiled, its bases, then enclosing classes inner -> outer.
+// Rule 1 (block-scope, with non-type hiding) and rule 4 (file scope)
+// stay with the caller in parse_btype.
+static Sym *cpp_unqualified_class_type_find(int v)
+{
+    Sym *cls, *td;
+
+    // G3 P3: cpp_qualified_class is live while an out-of-class member's
+    // declarator/parameter list is parsed (set by the scope qualifier,
+    // consumed and cleared by decl()), which is exactly when parameter
+    // types like `insert(iterator pos, value_type v)` must see class
+    // scope (SimpleList.cpp:114).
+    cls = cpp_cur_class ? cpp_cur_class
+        : cpp_cur_func_class ? cpp_cur_func_class : cpp_qualified_class;
+    for (; cls; cls = cls->cpp_enclosing_class) {
+        td = cpp_lookup_class_type(cls, v);
+        if (td)
+            return td;
+    }
+    return NULL;
+}
+
 static int cpp_tok_starts_type_name(int v)
 {
     Sym *s;
@@ -1351,6 +1729,8 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
         class_sym = obj_sym->type.ref;
+        if (class_sym && !cpp_find_dtor_field(class_sym))
+            cpp_validate_implicit_dtor(class_sym, 0);
         if (class_sym && cpp_find_dtor_field(class_sym)) {
             ent = tcc_malloc(sizeof(CppGlobalDynEntry));
             ent->obj_sym = obj_sym;
@@ -1443,7 +1823,10 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
         end_macro();
     }
     na = nb_args;
-    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
     if (resolved) {
         vtop[-na].sym = resolved;
         vtop[-na].type.ref = resolved->type.ref;
@@ -1607,6 +1990,7 @@ static Sym *cpp_get_anon_base_field(Sym *class_sym)
 
 static int cpp_type_has_virtual(Sym *class_sym)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_type_has_virtual");
     Sym *f, *base_field;
 
     if (!class_sym)
@@ -1643,6 +2027,28 @@ static int cpp_count_virtuals_named(Sym *class_sym, int member_tok)
     return n;
 }
 
+/* A secondary vtable nested inside a non-primary base needs the final
+   most-derived offset-to-top.  The current vtable representation only has
+   the direct base offset available, so reject that shape before emitting a
+   table with an intermediate-class-relative adjustment. */
+static int cpp_has_deep_secondary_virtual_base(Sym *class_sym)
+{
+    Sym *f;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_has_deep_secondary_virtual_base");
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !cpp_type_has_virtual(f->parent_class))
+            continue;
+        if (f->c != 0)
+            return 1;
+        if (cpp_has_deep_secondary_virtual_base(f->parent_class))
+            return 1;
+    }
+    return 0;
+}
+
 static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
 {
     Sym *f;
@@ -1660,8 +2066,39 @@ static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
     return NULL;
 }
 
+// BUG-34: an override may target a virtual declared further up the PRIMARY
+// base chain that the immediate base never redeclared - `C : B : A` where
+// only A declares f() and C overrides it.  Looking at the direct base alone
+// made C::f take a NEW slot, so a call through an A* still reached A::f: a
+// silent miscompile of virtual dispatch.  Walk the same primary chain that
+// cpp_count_virtual_slots / cpp_find_virtual_by_slot walk.
+// Deliberately a separate helper: cpp_emit_secondary_vtables asks
+// cpp_find_virtual_field_by_name whether the MOST-DERIVED class itself
+// declares the name, and must not see a base's own declaration as an
+// override (it would build a this-adjusting thunk around the base impl).
+static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok);
+static Sym *cpp_get_anon_base_field(Sym *class_sym);
+
+static Sym *cpp_find_inherited_virtual_slot(Sym *class_sym, int member_tok)
+{
+    CPP_WALKER_DEPTH_GUARD("cpp_find_inherited_virtual_slot");
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return NULL;
+    f = cpp_find_virtual_field_by_name(class_sym, member_tok);
+    if (f)
+        return f;
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_find_inherited_virtual_slot(base_field->parent_class,
+                                               member_tok);
+    return NULL;
+}
+
 static int cpp_count_virtual_slots(Sym *class_sym)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_count_virtual_slots");
     Sym *f, *base_field;
     int n, maxslot;
 
@@ -1684,6 +2121,25 @@ static int cpp_count_virtual_slots(Sym *class_sym)
     return maxslot;
 }
 
+// G6: the virtual destructor a class inherits through its PRIMARY chain.
+// Dtor FIELD tokens are class-specific (__cpp_dtor_fld_<Class>), so the
+// name matching used for ordinary overrides can never connect a derived
+// dtor to a base dtor slot; walk the chain explicitly instead.
+static Sym *cpp_find_virtual_dtor_in_chain(Sym *class_sym)
+{
+    Sym *f, *base_field;
+
+    if (!class_sym)
+        return NULL;
+    f = cpp_find_dtor_field(class_sym);
+    if (f && f->type.ref && f->type.ref->f.func_virtual)
+        return f;
+    base_field = cpp_get_anon_base_field(class_sym);
+    if (base_field && base_field->parent_class)
+        return cpp_find_virtual_dtor_in_chain(base_field->parent_class);
+    return NULL;
+}
+
 static void cpp_assign_virtual_slots(Sym *class_sym)
 {
     Sym *base_field, *base_class, *f;
@@ -1697,11 +2153,31 @@ static void cpp_assign_virtual_slots(Sym *class_sym)
     for (f = class_sym->next; f; f = f->next) {
         if ((f->type.t & VT_BTYPE) != VT_FUNC)
             continue;
+        // G6: destructors override by POSITION, not by name (the field
+        // token embeds the class name, so the name match below can never
+        // connect them).  And per C++'s implicit-virtual rule a derived
+        // dtor becomes virtual when any primary-chain base declared its
+        // dtor virtual, even without the keyword - flag it here, BEFORE
+        // the func_virtual filter, or it would be skipped entirely.
+        if (cpp_is_dtor_field(f)) {
+            Sym *bd = base_class ? cpp_find_virtual_dtor_in_chain(base_class)
+                                 : NULL;
+            if (bd) {
+                if (f->type.ref)
+                    f->type.ref->f.func_virtual = 1;
+                f->c = bd->c;
+                continue;
+            }
+            if (!f->type.ref || !f->type.ref->f.func_virtual)
+                continue;
+            f->c = nslots++;
+            continue;
+        }
         if (!f->type.ref || !f->type.ref->f.func_virtual)
             continue;
         member_tok = f->v & ~SYM_FIELD;
         if (base_class) {
-            Sym *bf = cpp_find_virtual_field_by_name(base_class, member_tok);
+            Sym *bf = cpp_find_inherited_virtual_slot(base_class, member_tok);
             if (bf) {
                 f->c = bf->c;
                 continue;
@@ -1730,7 +2206,9 @@ static void cpp_insert_vptr_field(Sym *class_sym)
         return;
     pt.t = VT_VOID | VT_PTR;
     pt.ref = NULL;
-    vptr = sym_push(anon_sym++ | SYM_FIELD, &pt, 0, 0);
+    // BUG-42: part of the class definition - must survive for the
+    // end-of-TU inline replay when the class is function-local.
+    vptr = cpp_class_sym_push(anon_sym++ | SYM_FIELD, &pt, 0, 0);
     vptr->a.access = ACCESS_PRIVATE;
     first = class_sym->next;
     vptr->next = first;
@@ -1739,6 +2217,7 @@ static void cpp_insert_vptr_field(Sym *class_sym)
 
 static Sym *cpp_find_virtual_by_slot(Sym *class_sym, int slot)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_find_virtual_by_slot");
     Sym *f, *base_field;
 
     if (!class_sym)
@@ -1784,7 +2263,54 @@ static Sym *cpp_lookup_virtual_impl(Sym *field)
         if (s->parent_class == class_sym)
             return s;
     }
-    return NULL;
+    // BUG-43: a virtual defined OUT-OF-CLASS (`void Mux::lock() {}`
+    // after the class body - TestResult.h/TestResult.cpp) has no global
+    // yet when the vtable is emitted at the class's closing brace; the
+    // slot was left NULL and the FIRST virtual call jumped to address 0.
+    // Emit the reloc against a BUG-30 extern instead - the definition
+    // that follows (same TU or another) provides the symbol at link
+    // time.  Pure virtuals never reach here (their slot legitimately
+    // stays NULL until an override fills it).
+    if (field->type.ref->f.func_pure)
+        return NULL;
+    return cpp_make_member_func_extern(field, class_sym, v);
+}
+
+// G5: is this class abstract?  Walk the FINAL vtable layout: for every
+// slot, cpp_find_virtual_by_slot returns the most-derived declaration, so
+// a slot still resolving to a pure declaration means nothing overrode it.
+// That is what makes abstractness inherit correctly - `struct B : A {}`
+// with A's pure f() unoverridden is abstract too, while a class that
+// overrides every slot is concrete.
+static int cpp_class_is_abstract(Sym *class_sym)
+{
+    Sym *field;
+    int nslots, slot;
+
+    if (!class_sym || !tcc_state->cpp)
+        return 0;
+    nslots = cpp_count_virtual_slots(class_sym);
+    for (slot = 0; slot < nslots; slot++) {
+        field = cpp_find_virtual_by_slot(class_sym, slot);
+        if (field && field->type.ref && field->type.ref->f.func_pure)
+            return 1;
+    }
+    return 0;
+}
+
+// G5: an abstract class has no objects - only pointers and references.
+// Checked wherever storage would be created (declarations and `new`).
+static void cpp_check_not_abstract(CType *type, const char *what)
+{
+    // VT_BTYPE is a small enum, not a bitmask: a pointer to the class has
+    // VT_BTYPE == VT_PTR and never gets here, so this test alone already
+    // lets pointers and references through.  An ARRAY of the class does
+    // reach it, and C++ forbids that too.
+    if (!tcc_state->cpp || (type->t & VT_BTYPE) != VT_STRUCT || !type->ref)
+        return;
+    if (cpp_class_is_abstract(type->ref))
+        tcc_error("cannot %s an object of abstract class '%s'", what,
+                  get_tok_str(type->ref->v & ~SYM_STRUCT, NULL));
 }
 
 static void cpp_emit_vtable(Sym *class_sym)
@@ -1814,10 +2340,27 @@ static void cpp_emit_vtable(Sym *class_sym)
     arr_type.t = VT_PTR | VT_ARRAY;
     arr_type.ref = sym_push(SYM_FIELD, &fptr_type, 0, nslots);
     memset(&ad, 0, sizeof ad);
+    // G7: every TU that sees the class definition emits this vtable
+    // (there is no COMDAT), so linking two such objects died with
+    // "defined twice".  WEAK lets the linker keep one copy - the
+    // contents are identical by construction.
+    ad.a.weak = 1;
     vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
     sec = rodata_section;
-    addr = section_add(sec, (unsigned long)nslots * PTR_SIZE, PTR_SIZE);
-    put_extern_sym(vtable_sym, sec, addr, (unsigned long)nslots * PTR_SIZE);
+    // G6: one pointer-sized offset-to-top field sits IN FRONT of the
+    // function slots (the Itanium-ABI vptr[-1] idea).  The vtable SYMBOL
+    // keeps pointing at slot 0, so every existing vptr store, virtual
+    // call and thunk stays byte-for-byte unchanged - only `delete` of a
+    // virtual-dtor object reads the new field to recover the complete
+    // object before free().  For the class's own vtable the offset is 0.
+    addr = section_add(sec, (unsigned long)(nslots + 1) * PTR_SIZE, PTR_SIZE);
+#if PTR_SIZE == 8
+    write64le(sec->data + addr, 0);
+#else
+    write32le(sec->data + addr, 0);
+#endif
+    put_extern_sym(vtable_sym, sec, addr + PTR_SIZE,
+                   (unsigned long)nslots * PTR_SIZE);
     for (slot = 0; slot < nslots; slot++) {
         field = cpp_find_virtual_by_slot(class_sym, slot);
         if (!field)
@@ -1825,7 +2368,8 @@ static void cpp_emit_vtable(Sym *class_sym)
         impl = cpp_lookup_virtual_impl(field);
         if (!impl)
             continue;
-        greloca(sec, impl, addr + (unsigned long)slot * PTR_SIZE, R_DATA_PTR, 0);
+        greloca(sec, impl, addr + PTR_SIZE + (unsigned long)slot * PTR_SIZE,
+                R_DATA_PTR, 0);
     }
 }
 
@@ -1931,6 +2475,8 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
             continue;
         if (!cpp_type_has_virtual(base_class))
             continue;
+        if (cpp_has_deep_secondary_virtual_base(base_class))
+            tcc_error("deep secondary virtual inheritance is unsupported");
         nslots = cpp_count_virtual_slots(base_class);
         if (nslots <= 0)
             continue;
@@ -1949,15 +2495,37 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
         arr_type.t = VT_PTR | VT_ARRAY;
         arr_type.ref = sym_push(SYM_FIELD, &fptr_type, 0, nslots);
         memset(&ad, 0, sizeof ad);
+        // G7: WEAK for the same cross-TU reason as the primary vtable
+        ad.a.weak = 1;
         vtable_sym = external_sym(ts->tok, &arr_type, VT_CONST, &ad);
         sec = rodata_section;
-        addr = section_add(sec, (unsigned long)nslots * PTR_SIZE, PTR_SIZE);
-        put_extern_sym(vtable_sym, sec, addr, (unsigned long)nslots * PTR_SIZE);
+        // G6: offset-to-top for a NON-primary base subobject is negative -
+        // "complete object = subobject + offset".  bf->c is final here
+        // because this runs after struct_layout.  Deep-nested secondary
+        // bases are rejected above until their most-derived adjustment can
+        // be represented safely.
+        addr = section_add(sec, (unsigned long)(nslots + 1) * PTR_SIZE, PTR_SIZE);
+#if PTR_SIZE == 8
+        write64le(sec->data + addr, (uint64_t)-(int64_t)bf->c);
+#else
+        write32le(sec->data + addr, (uint32_t)-(int32_t)bf->c);
+#endif
+        put_extern_sym(vtable_sym, sec, addr + PTR_SIZE,
+                       (unsigned long)nslots * PTR_SIZE);
         for (slot = 0; slot < nslots; slot++) {
             bfield = cpp_find_virtual_by_slot(base_class, slot);
             if (!bfield)
                 continue;
             entry_sym = NULL;
+            // G6: a dtor slot overrides by POSITION (the field token is
+            // class-specific, so the name lookup below can never find the
+            // derived dtor); the overloaded-name guard is meaningless for
+            // it as well.
+            if (cpp_is_dtor_field(bfield)) {
+                ovr = cpp_find_dtor_field(class_sym);
+                if (ovr && !(ovr->type.ref && ovr->type.ref->f.func_virtual))
+                    ovr = NULL;
+            } else {
             /* Overrides are matched by NAME only, so an overloaded virtual on
                a non-primary base cannot be resolved: every slot sharing the
                name would bind to the same override and the other overload's
@@ -1970,6 +2538,7 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
                           get_tok_str(bfield->v & ~SYM_FIELD, NULL));
             ovr = cpp_find_virtual_field_by_name(class_sym,
                                                  bfield->v & ~SYM_FIELD);
+            }
             if (ovr) {
                 impl = cpp_lookup_virtual_impl(ovr);
                 if (impl)
@@ -1980,7 +2549,8 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
                 entry_sym = cpp_lookup_virtual_impl(bfield);
             if (!entry_sym)
                 continue;
-            greloca(sec, entry_sym, addr + (unsigned long)slot * PTR_SIZE,
+            greloca(sec, entry_sym,
+                    addr + PTR_SIZE + (unsigned long)slot * PTR_SIZE,
                     R_DATA_PTR, 0);
         }
     }
@@ -2040,6 +2610,7 @@ static void cpp_finish_virtual_thunks(TCCState *s1)
    the second subobject still carries a vptr that must be written. */
 static int cpp_class_needs_vptr_init(Sym *class_sym)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_class_needs_vptr_init");
     Sym *f;
 
     if (!class_sym)
@@ -2083,6 +2654,7 @@ static void cpp_write_local_vptr_slot(Sym *obj_sym, int ofs, int vtable_tok)
    them as a direct base (deep re-override is a documented limitation). */
 static void cpp_init_local_vptr_rec(Sym *obj_sym, Sym *class_sym, int base_ofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_init_local_vptr_rec");
     Sym *f;
 
     if (!class_sym)
@@ -2117,6 +2689,7 @@ static void cpp_init_local_vptr(Sym *obj_sym)
 static void cpp_init_global_vptr_rec(Section *sec, unsigned long addr,
                                      Sym *class_sym, int base_ofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_init_global_vptr_rec");
     Sym *f, *vtable_sym;
 
     if (!class_sym)
@@ -2295,6 +2868,7 @@ static int cpp_peek_out_of_class_ctor(int *class_tok)
    pick the wrong Sym.  Returns 0 when the field is not reachable. */
 static int cpp_field_cumofs_in_class(Sym *cls, Sym *field, int *ofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_field_cumofs_in_class");
     Sym *f;
     int inner;
 
@@ -2404,7 +2978,10 @@ static void cpp_emit_base_ctor_call(Sym *base_field, Sym *base_class)
        to the resolved prototype: args are the top na entries (func below),
        so na rotations of vrotb(na) visit each arg once and restore the
        original order */
-    resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
     if (resolved) {
         vtop[-na].sym = resolved;
         vtop[-na].type.ref = resolved->type.ref;
@@ -2483,9 +3060,8 @@ static int cpp_is_dtor_global(Sym *fsym)
    arguments.  C++ requires every base to be constructed before the derived
    ctor body runs, but MI Phase 1 only constructed bases named in the
    mem-initializer list, so `D(int x) { ... }` left its bases raw.
-   Does nothing when the base has no 0-arg ctor: C++ would diagnose that, but
-   erroring here would reject existing sources whose bases only declare
-   argument-taking ctors and never relied on implicit construction. */
+   A base without a viable zero-argument ctor is rejected instead of leaving
+   its subobject unconstructed. */
 static void cpp_emit_base_default_ctor_call(Sym *base_field)
 {
     Sym *base_class;
@@ -2500,8 +3076,12 @@ static void cpp_emit_base_default_ctor_call(Sym *base_field)
     if (!base_class)
         return;
     ctor_field = cpp_find_ctor_field(base_class);
-    if (!ctor_field || !cpp_class_has_default_ctor(base_class))
+    if (!ctor_field) {
+        cpp_validate_implicit_default_ctor(base_class, 2);
         return;
+    }
+    if (!cpp_class_has_default_ctor(base_class))
+        tcc_error("base class has no default constructor");
     base_type.t = VT_STRUCT;
     base_type.ref = base_class;
     ctor_global = cpp_lookup_member_func(ctor_field, &base_type);
@@ -2512,10 +3092,14 @@ static void cpp_emit_base_default_ctor_call(Sym *base_field)
        0.  Bail out instead of emitting a wrong call when no 0-arg global
        exists: the field-level check above only proves it was declared, and
        cpp_resolve_func_call falls back to sym_find on no match. */
-    resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
-    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC
-        || cpp_func_param_count(resolved) != 0)
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, 0);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC)
         return;
+    if (cpp_func_param_count(resolved) != 0)
+        tcc_error("implicit default construction via default arguments is unsupported");
     vset(&resolved->type, resolved->r | VT_SYM, 0);
     vtop->sym = resolved;
     vtop->r &= ~VT_LVAL;
@@ -2629,6 +3213,7 @@ static void cpp_emit_implicit_base_ctors(Sym *class_sym, TokenString *mem_init)
    reverse order.  Called with class_sym->next. */
 static void cpp_emit_base_dtor_calls(Sym *field)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_base_dtor_calls");
     Sym *base_class;
     Sym *dtor_field;
     Sym *dtor_global;
@@ -2641,8 +3226,13 @@ static void cpp_emit_base_dtor_calls(Sym *field)
         return;
     base_class = field->parent_class;
     dtor_field = cpp_find_dtor_field(base_class);
-    if (!dtor_field)
+    if (!dtor_field) {
+        /* An intermediate base may rely on its own implicit destructor.
+           Recurse through its base chain so an explicit outer destructor
+           does not silently skip a non-trivial base-of-base subobject. */
+        cpp_emit_base_dtor_calls(base_class->next);
         return;
+    }
     base_type.t = VT_STRUCT;
     base_type.ref = base_class;
     dtor_global = cpp_lookup_member_func(dtor_field, &base_type);
@@ -2654,6 +3244,349 @@ static void cpp_emit_base_dtor_calls(Sym *field)
     cpp_push_member_var(field);
     gaddrof();
     mk_pointer(&vtop->type);    /* BUG-15/16: pass `this` as a pointer. */
+    gfunc_call(1);
+}
+
+// G7: is this field a CLASS-TYPE data member (not a base subobject, not
+// a function, not static, not an array, not the anonymous vptr)?  Only
+// these take part in implicit member construction / destruction.
+static int cpp_is_class_data_member(Sym *f)
+{
+    if (!f || cpp_is_base_field(f))
+        return 0;
+    if ((f->type.t & VT_BTYPE) != VT_STRUCT || (f->type.t & VT_ARRAY))
+        return 0;
+    if (f->type.t & (VT_STATIC | VT_EXTERN))
+        return 0;
+    if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+        return 0;
+    return 1;
+}
+
+/* Class-type member arrays need one constructor call per element.  The
+   current implicit-construction path has no element walker, so identify
+   them separately and reject them before raw storage is accepted. */
+static int cpp_is_class_data_member_array(Sym *f)
+{
+    CType *elem_type;
+
+    if (!f || cpp_is_base_field(f))
+        return 0;
+    if (!(f->type.t & VT_ARRAY))
+        return 0;
+    elem_type = pointed_type(&f->type);
+    if ((elem_type->t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    if (f->type.t & (VT_STATIC | VT_EXTERN))
+        return 0;
+    if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+        return 0;
+    return 1;
+}
+
+// G7: default-construct a class-type data member (0-arg ctor on
+// this->member).  A class with no user-declared constructor has no
+// constructor call to emit.  A class with user-declared constructors must,
+// however, have a viable zero-argument overload here; otherwise accepting
+// the enclosing object would leave the member subobject unconstructed.
+static void cpp_emit_member_default_ctor_call(Sym *field)
+{
+    Sym *member_class;
+    Sym *ctor_field;
+    Sym *ctor_global;
+    Sym *resolved;
+    CType mt;
+
+    if (!field || !cpp_this_sym)
+        return;
+    member_class = field->type.ref;
+    if (!member_class)
+        return;
+    ctor_field = cpp_find_ctor_field(member_class);
+    if (!ctor_field) {
+        cpp_validate_implicit_default_ctor(member_class, 1);
+        return;
+    }
+    if (!cpp_class_has_default_ctor(member_class))
+        tcc_error("class member has no default constructor");
+    mt.t = VT_STRUCT;
+    mt.ref = member_class;
+    ctor_global = cpp_lookup_member_func(ctor_field, &mt);
+    if (!ctor_global || (ctor_global->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, 0);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    if (cpp_func_param_count(resolved) != 0)
+        tcc_error("implicit default construction via default arguments is unsupported");
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    cpp_push_member_var(field);
+    gaddrof();
+    mk_pointer(&vtop->type);    // BUG-15/16: pass `this` as a pointer.
+    gfunc_call(1);
+}
+
+// G7: which data members does the mem-initializer list name?  Mirror of
+// cpp_collect_explicit_bases with the member/base filter inverted.
+static int cpp_collect_explicit_members(Sym *class_sym, TokenString *mem_init,
+                                        Sym **out, int max_out)
+{
+    TokenString *copy;
+    Sym *member_field;
+    int n, name_tok, paren;
+
+    n = 0;
+    if (!mem_init)
+        return 0;
+    copy = tok_str_dup_for_default(mem_init);
+    if (!copy)
+        return 0;
+    begin_macro(copy, 1);
+    next();
+    for (;;) {
+        if (tok < TOK_IDENT)
+            break;
+        name_tok = tok;
+        next();
+        if (tok != '(')
+            break;
+        next();
+        paren = 0;
+        while (tok != TOK_EOF) {
+            if (tok == '(') {
+                paren++;
+            } else if (tok == ')') {
+                if (paren == 0)
+                    break;
+                paren--;
+            }
+            next();
+        }
+        if (tok != ')')
+            break;
+        next();
+        member_field = cpp_lookup_member_field(name_tok, class_sym);
+        if (member_field && (member_field->type.t & VT_BTYPE) != VT_FUNC) {
+            if (n >= max_out) {
+                n = -1;
+                break;
+            }
+            out[n++] = member_field;
+        }
+        if (tok == ',')
+            next();
+    }
+    end_macro();
+    return n;
+}
+
+// G7: C++ default-constructs every class-type data member the ctor's
+// mem-initializer list does not name.  TestResult's three SimpleList
+// members were never constructed, so its dtor walked a garbage list
+// head and `TestResult r;` alone crashed - measured on the first run
+// of the G7 driver.  Emitted after the implicit base ctors and before
+// the mem-init expansion (deviation from strict declaration-order
+// interleaving is accepted and documented).
+static void cpp_emit_implicit_member_ctors(Sym *class_sym,
+                                           TokenString *mem_init)
+{
+    Sym *done[32];
+    Sym *f;
+    int nb_done;
+    int seen;
+    int i;
+
+    if (!class_sym || !cpp_this_sym)
+        return;
+    cpp_validate_explicit_ctor_members(class_sym);
+    nb_done = cpp_collect_explicit_members(class_sym, mem_init, done,
+                                           (int)(sizeof done / sizeof done[0]));
+    if (nb_done < 0)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit default construction of class member array is unsupported");
+        if (!cpp_is_class_data_member(f))
+            continue;
+        seen = 0;
+        for (i = 0; i < nb_done; i++) {
+            if (done[i] == f)
+                seen = 1;
+        }
+        if (!seen)
+            cpp_emit_member_default_ctor_call(f);
+    }
+}
+
+/* Validate the subobjects required by an implicitly declared default
+   constructor.  The current subset does not materialize every implicit
+   constructor body, but it must still reject an object whose base/member
+   could not be default-constructed instead of silently leaving it raw. */
+static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
+{
+    Sym *ctor_field;
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_implicit_default_ctor");
+    ctor_field = cpp_find_ctor_field(class_sym);
+    if (ctor_field) {
+        if (cpp_class_has_default_ctor(class_sym)) {
+            if (relation == 2)
+                tcc_error("implicit default construction of non-trivial base is unsupported");
+            if (relation == 1)
+                tcc_error("implicit default construction of non-trivial member is unsupported");
+            return;
+        }
+        /* A direct user constructor without a zero-argument overload is
+           handled by the existing explicit `obj.Ctor(args)` subset.  The
+           validator is only entered for an outer class with no user ctor;
+           keep that established path intact while rejecting such a class
+           when it is an implicitly constructed subobject. */
+        if (relation == 0)
+            return;
+        if (relation == 2)
+            tcc_error("base class has no default constructor");
+        if (relation == 1)
+            tcc_error("class member has no default constructor");
+        tcc_error("class has no default constructor");
+    }
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            cpp_validate_implicit_default_ctor(f->parent_class, 2);
+            continue;
+        }
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit default construction of class member array is unsupported");
+        if (cpp_is_class_data_member(f))
+            cpp_validate_implicit_default_ctor(f->type.ref, 1);
+    }
+}
+
+/* Validate the subobjects required by an implicitly declared destructor.
+   The current subset only materializes a user-declared destructor body, so
+   accepting an outer class with an unmaterialized member/base destructor
+   would silently skip cleanup and release raw storage instead. */
+static void cpp_validate_implicit_dtor(Sym *class_sym, int relation)
+{
+    Sym *dtor_field;
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_implicit_dtor");
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (dtor_field) {
+        if (relation == 2)
+            tcc_error("implicit destruction of non-trivial base is unsupported");
+        if (relation == 1)
+            tcc_error("implicit destruction of non-trivial member is unsupported");
+        return;
+    }
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            cpp_validate_implicit_dtor(f->parent_class, 2);
+            continue;
+        }
+        if (cpp_is_class_data_member_array(f)) {
+            if (cpp_find_ctor_field(class_sym))
+                tcc_error("implicit default construction of class member array is unsupported");
+            tcc_error("implicit destruction of class member array is unsupported");
+        }
+        if (cpp_is_class_data_member(f))
+            cpp_validate_implicit_dtor(f->type.ref, 1);
+    }
+}
+
+/* Validate the implicit subobjects of a user-declared constructor.  A direct
+   member with its own constructor is emitted by the existing path; a member
+   without one must still be checked recursively before the outer body is
+   accepted.  Arrays have no element walker in this subset. */
+static void cpp_validate_explicit_ctor_members(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_explicit_ctor_members");
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit default construction of class member array is unsupported");
+        if (!cpp_is_class_data_member(f))
+            continue;
+        if (f->type.ref && !cpp_find_ctor_field(f->type.ref))
+            cpp_validate_implicit_default_ctor(f->type.ref, 1);
+    }
+}
+
+/* Validate the implicit subobjects of a user-declared destructor.  Direct
+   member/base destructors are emitted separately; recurse only through an
+   intermediate class that has no destructor of its own, so nested cleanup
+   cannot be silently skipped. */
+static void cpp_validate_explicit_dtor_members(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    CPP_WALKER_DEPTH_GUARD("cpp_validate_explicit_dtor_members");
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            if (f->parent_class && !cpp_find_dtor_field(f->parent_class))
+                cpp_validate_explicit_dtor_members(f->parent_class);
+            continue;
+        }
+        if (cpp_is_class_data_member_array(f))
+            tcc_error("implicit destruction of class member array is unsupported");
+        if (!cpp_is_class_data_member(f))
+            continue;
+        if (f->type.ref && !cpp_find_dtor_field(f->type.ref))
+            cpp_validate_implicit_dtor(f->type.ref, 1);
+    }
+}
+
+// G7: destroy class-type data members at the end of the dtor, in
+// reverse declaration order (recurse-to-tail like the base variant),
+// BEFORE the base subobjects are destroyed.
+static void cpp_emit_member_dtor_calls(Sym *field)
+{
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_member_dtor_calls");
+    Sym *member_class;
+    Sym *dtor_field;
+    Sym *dtor_global;
+    CType mt;
+
+    if (!field || !cpp_this_sym)
+        return;
+    cpp_emit_member_dtor_calls(field->next);
+    if (cpp_is_class_data_member_array(field))
+        tcc_error("implicit destruction of class member array is unsupported");
+    if (!cpp_is_class_data_member(field))
+        return;
+    member_class = field->type.ref;
+    dtor_field = member_class ? cpp_find_dtor_field(member_class) : NULL;
+    if (!dtor_field) {
+        if (member_class)
+            cpp_validate_implicit_dtor(member_class, 1);
+        return;
+    }
+    mt.t = VT_STRUCT;
+    mt.ref = member_class;
+    dtor_global = cpp_lookup_member_func(dtor_field, &mt);
+    if (!dtor_global || (dtor_global->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+    vtop->sym = dtor_global;
+    vtop->r &= ~VT_LVAL;
+    cpp_push_member_var(field);
+    gaddrof();
+    mk_pointer(&vtop->type);    // BUG-15/16: pass `this` as a pointer.
     gfunc_call(1);
 }
 
@@ -2682,6 +3615,11 @@ static void cpp_save_default_arg(Sym *param)
     }
     tok_str_add(def, TOK_EOF);
     param->inline_func_str = def;
+    // G3 P5: remember the defining class so the replay can restore the
+    // declaration scope (`= npos` must mean Class::npos at every call
+    // site).  cpp_cur_class covers in-class declarations; the qualified
+    // class covers an out-of-class definition's parameter list.
+    param->parent_class = cpp_cur_class ? cpp_cur_class : cpp_qualified_class;
 }
 
 static void cpp_save_mem_init_list(Sym *ctor)
@@ -2762,6 +3700,12 @@ static void cpp_finish_member_inlines(Sym *class_sym)
         memset(&ad, 0, sizeof ad);
         type = f->type;
         type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
+        // BUG-33: VT_STORAGE above already strips VT_STATIC (it has to -
+        // it would mean internal linkage on the global), so the "C++ static
+        // member" fact has to travel separately or gen_function would give
+        // an inline `static` member an implicit `this`.
+        if ((f->type.t & VT_STATIC) && type.ref)
+            type.ref->f.func_static_member = 1;
         /* ctor: use a mangled token name to dodge the class typedef.
          * (See cpp_lookup_member_func for the matching lookup path.) */
         if (cpp_is_ctor_field(f)) {
@@ -2805,11 +3749,48 @@ static void cpp_apply_default_args(Sym *func, int *pnb_args, Sym **psa)
     nb_args = *pnb_args;
     while (sa) {
         if (sa->inline_func_str) {
-            begin_macro(sa->inline_func_str, 1);
+            // G3 P5: replay in the DEFINING scope - restore the owning
+            // class and raise the replay flag so `= npos` resolves to
+            // Class::npos and never to a same-named call-site local.
+            // Save/restore keeps nested replays (a default arg whose
+            // expression itself calls a defaulted function) correct.
+            Sym *saved_cls = cpp_cur_func_class;
+            int saved_replay = cpp_default_arg_replay;
+            TokenString *replay, *pending;
+
+            // BUG-32a: end_macro() destroys whatever string it was handed -
+            // it frees it when alloc==1 and empties it (len = 0) when
+            // alloc==0 - so the copy stored on the parameter Sym must never
+            // be the one replayed, or the SECOND call that relies on the
+            // same default argument reads freed/emptied tokens.  Replay a
+            // duplicate, the way gen_function does for mem-initializers.
+            replay = tok_str_dup_for_default(sa->inline_func_str);
+            if (!replay)
+                tcc_error("cannot replay default argument");
+            // BUG-32b: begin_macro() does not preserve the current token.
+            // In the deferred-conversion path (an overloaded callee) the
+            // caller has already consumed the call's ')', so without this
+            // the token that follows the whole call is lost and the parser
+            // sees the replay's terminator instead - observed as
+            // "';' expected, found <eof>" at the end of the file.  Stash it
+            // and push it back the way unget_tok does.
+            pending = tok_str_alloc();
+            tok_str_add_tok(pending);
+            tok_str_add(pending, 0);
+
+            if (sa->parent_class)
+                cpp_cur_func_class = sa->parent_class;
+            cpp_default_arg_replay = 1;
+            begin_macro(replay, 1);
             next();
             expr_eq();
             gfunc_param_typed(func, sa);
             end_macro();
+            cpp_cur_func_class = saved_cls;
+            cpp_default_arg_replay = saved_replay;
+
+            begin_macro(pending, 1);
+            next();
             nb_args++;
         } else {
             tcc_error("too few arguments to function");
@@ -2846,29 +3827,51 @@ static TokenString *tok_str_dup_for_default(TokenString *src)
 static void cpp_inherit_decl_defaults(Sym *sym)
 {
     Sym *field, *dp, *sp;
+    int field_v;
 
     if (!sym || !sym->parent_class || !tcc_state->cpp)
         return;
     if ((sym->type.t & VT_BTYPE) != VT_FUNC || !sym->type.ref)
         return;
+    // BUG-44 follow-up: a ctor's out-of-class definition lives under the
+    // MANGLED token (__cpp_ctor_C, see cpp_ctor_name_tok / G-CONV), but
+    // its declaration FIELD sits under the class-NAME token - the same
+    // split BUG-30's cpp_resolve_member_func_call maps around.  Without
+    // this remap the field search below never matched a ctor, so
+    // `R2(Mux* m = 0);` declared in-class then defined out-of-class
+    // never propagated the default to the definition's parameter, and
+    // `R2 r;` (which now correctly calls the 0-arg-viable ctor per
+    // BUG-44) died with "too few arguments to function".
+    field_v = sym->v;
+    if (field_v == cpp_ctor_name_tok(sym->parent_class->v & ~SYM_STRUCT))
+        field_v = sym->parent_class->v & ~SYM_STRUCT;
     for (field = sym->parent_class->next; field; field = field->next) {
-        if (field->v == (sym->v | SYM_FIELD)
+        if (field->v == (field_v | SYM_FIELD)
             && (field->type.t & VT_BTYPE) == VT_FUNC)
             break;
     }
     if (!field || !field->type.ref)
         return;
-    /* propagate VT_STATIC so gen_function() does not add an implicit
-     * `this` to a static member function defined outside the class. */
-    if (field->type.t & VT_STATIC)
-        sym->type.t |= VT_STATIC;
+    /* Record "C++ static member" so gen_function() does not add an implicit
+     * `this` to a static member function defined outside the class.
+     * BUG-33: this used to set VT_STATIC on the global, which to the rest of
+     * tcc means INTERNAL LINKAGE - the definition became file-local and no
+     * other TU could call it. */
+    if (field->type.t & VT_STATIC) {
+        sym->type.t &= ~VT_STATIC;
+        if (sym->type.ref)
+            sym->type.ref->f.func_static_member = 1;
+    }
     dp = field->type.ref->next;
     sp = sym->type.ref->next;
     while (dp && sp) {
         if (dp->type.t == VT_VOID || sp->type.t == VT_VOID)
             break;
-        if (!sp->inline_func_str && dp->inline_func_str)
+        if (!sp->inline_func_str && dp->inline_func_str) {
             sp->inline_func_str = tok_str_dup_for_default(dp->inline_func_str);
+            // G3 P5: the defining class travels with the tokens.
+            sp->parent_class = dp->parent_class;
+        }
         dp = dp->next;
         sp = sp->next;
     }
@@ -3093,12 +4096,34 @@ ST_FUNC void tccgen_init(TCCState* s1)
     func_old_type.ref = sym_push(SYM_FIELD, &int_type, 0, 0);
     func_old_type.ref->f.func_call = FUNC_CDECL;
     func_old_type.ref->f.func_type = FUNC_OLD;
+
+    // G4 (new/delete): prototypes for the CRT allocator.  Built here, next
+    // to func_old_type, because sym_push lands on local_stack once we are
+    // inside a function - a lazily built type would be popped at the end of
+    // that function while the extern Sym referencing it lives on.
+    // FUNC_OLD (K&R): only the RETURN type matters to us, and it is what
+    // func_old_type gets wrong for malloc - `int` would truncate the
+    // pointer on x86_64.
+    cpp_voidp_type.t = VT_VOID;
+    cpp_voidp_type.ref = NULL;
+    mk_pointer(&cpp_voidp_type);
+    cpp_void_type.t = VT_VOID;
+    cpp_void_type.ref = NULL;
+    cpp_malloc_type.t = VT_FUNC;
+    cpp_malloc_type.ref = sym_push(SYM_FIELD, &cpp_voidp_type, 0, 0);
+    cpp_malloc_type.ref->f.func_call = FUNC_CDECL;
+    cpp_malloc_type.ref->f.func_type = FUNC_OLD;
+    cpp_free_type.t = VT_FUNC;
+    cpp_free_type.ref = sym_push(SYM_FIELD, &cpp_void_type, 0, 0);
+    cpp_free_type.ref->f.func_call = FUNC_CDECL;
+    cpp_free_type.ref->f.func_type = FUNC_OLD;
 #ifdef precedence_parser
     init_prec();
 #endif
     cstr_new(&initstr);
     cpp_qualified_class = NULL;
     cpp_cur_class = NULL;
+    cpp_default_arg_replay = 0;
     decl_once_flag = 0;
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
@@ -3112,6 +4137,10 @@ ST_FUNC void tccgen_init(TCCState* s1)
 
 ST_FUNC int tccgen_compile(TCCState* s1)
 {
+    char stack_anchor;
+    // C3: plant the recursion-guard anchor at the top of this compile's
+    // stack; every guarded recursive function measures against it.
+    cpp_stack_guard_base = &stack_anchor;
     funcname = "";
     func_ind = -1;
     anon_sym = SYM_FIRST_ANOM;
@@ -3426,6 +4455,59 @@ static int sym_scope(Sym* s)
         return s->sym_scope;
 }
 
+// G1 (leading ::): return only the file-scope binding of identifier v.
+// sym_find() returns the innermost binding, so using it directly after
+// "::" would pick a shadowing local; walk prev_tok to the global side,
+// the same idiom external_sym() already uses.
+static Sym* cpp_global_scope_find(int v)
+{
+    Sym* s = sym_find(v);
+    // Hoisted member bodies (and class statics) sit on this chain at
+    // scope 0 with parent_class set, but they are not global-namespace
+    // entities, so "::name" must skip them too - the same filter the
+    // free-function overload walk applies.
+    while (s && (sym_scope(s) || s->parent_class))
+        s = s->prev_tok;
+    return s;
+}
+
+// G1: file-scope-only variant of struct_find() for the tag namespace.
+// sym_push() records sym_scope on the sym_struct chain too, so the same
+// prev_tok walk selects the global tag.
+static Sym* cpp_global_scope_struct_find(int v)
+{
+    Sym* s = struct_find(v);
+    while (s && sym_scope(s))
+        s = s->prev_tok;
+    return s;
+}
+
+// G1: global-binding-only variant of cpp_lookup_type_name(), with the
+// same hiding rule (a non-type object at file scope hides a same-named
+// class for "::N", and the tag chain is consulted only when nothing is
+// bound in the ordinary namespace).
+static Sym* cpp_global_lookup_type_name(int v, int* kind)
+{
+    Sym* s;
+
+    *kind = CPP_TN_NONE;
+    if (v < TOK_IDENT)
+        return NULL;
+    s = cpp_global_scope_find(v);
+    if (s) {
+        if (!(s->type.t & VT_TYPEDEF))
+            return NULL;
+        *kind = CPP_TN_TYPEDEF;
+        return s;
+    }
+    s = cpp_global_scope_struct_find(v & ~SYM_FIELD);
+    if (s) {
+        *kind = CPP_TN_TAG;
+        return s;
+    }
+    return NULL;
+}
+
 /* �w�肳�ꂽ�V���{�����V���{���X�^�b�N�Ƀv�b�V�� */
 ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
 {
@@ -3461,6 +4543,46 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
                 get_tok_str(v & ~SYM_STRUCT, NULL));
         }
     }
+    return s;
+}
+
+// BUG-42: syms that make up a CLASS DEFINITION (tag, base subobject
+// fields, member fields, vptr) must survive until end-of-TU in C++ -
+// the inline-member replay (gen_inline_functions) walks them via
+// sym->parent_class, and for a class defined INSIDE a function the
+// local-stack pop had already freed them ("field not found: m_ptr",
+// TestRunner.cpp:255's SIMPLE_AUTO_PTR local class).  Route those syms
+// to the global stack when the class is local.  Deliberate trade-off,
+// documented in tpp仕様.md: the tag NAME stays visible at file scope
+// after the function returns (C++ would end its scope), so two
+// functions cannot define different local classes under one name.
+// sym_scope is left 0 (file scope) on purpose - the BUG-37 walk then
+// does not clone the tag, which would resurrect the type split.
+static Sym *cpp_class_sym_push(int v, CType *type, int r, int c)
+{
+    Sym *s;
+
+    if (tcc_state->cpp && local_stack) {
+        s = sym_push2(&global_stack, v, type->t, c);
+        s->type.ref = type->ref;
+        s->r = r;
+        if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
+            TokenSym *ts;
+            Sym **ps;
+
+            ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
+            ps = (v & SYM_STRUCT) ? &ts->sym_struct : &ts->sym_identifier;
+            s->prev_tok = *ps;
+            *ps = s;
+        }
+    } else {
+        s = sym_push(v, type, r, c);
+    }
+    /* A local class survives until inline-member replay.  Its field chain
+       therefore needs the pointer/function type refs that were built on
+       local_stack to survive too. */
+    if (local_stack)
+        sym_copy_ref(s, &global_stack);
     return s;
 }
 
@@ -3925,6 +5047,10 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_virtual = 1;
     if (fa1->func_const)
         fa->func_const = 1;
+    if (fa1->func_static_member)
+        fa->func_static_member = 1;
+    if (fa1->func_pure)
+        fa->func_pure = 1;
 }
 
 /* �������}�[�W���� */
@@ -4042,17 +5168,49 @@ static Sym* sym_copy(Sym* s0, Sym** ps)
 }
 
 /* VT_FUNC �� VT_PTR �̂��߂� s->type.ref ���X�^�b�N 'ps' �ɃR�s�[ */
-static void sym_copy_ref(Sym* s, Sym** ps)
+// BUG-35: `is_proto` marks the FIRST element of a function type's ref
+// chain - the prototype sym.  Its `type` is the function's RETURN type,
+// and the union that `sym_scope` lives in holds `struct FuncAttr` there,
+// so reading sym_scope yields attribute bits rather than a scope level.
+// A function returning a struct therefore looked like a locally declared
+// struct and this walk descended into that class's member chain.  In C
+// that chain is data only and the walk ends; in C++ it also holds member
+// functions whose signatures name the class again (`Iterator
+// operator++(int)`), so the recursion never terminates - tcc died with a
+// stack overflow and no diagnostic while compiling SimpleList.cpp.
+static void sym_copy_ref_1(Sym* s, Sym** ps, int is_proto)
 {
+    CPP_WALKER_DEPTH_GUARD("sym_copy_ref_1");
     int bt = s->type.t & VT_BTYPE;
-    if (bt == VT_FUNC || bt == VT_PTR || (bt == VT_STRUCT && s->sym_scope)) {
+    // G-CONV follow-up to BUG-35: decide the struct descent from the TAG's
+    // scope (s->type.ref), not the variable sym's own sym_scope.  The
+    // point of the descent is "a struct type DEFINED inside the function
+    // dies with it, so its whole definition must be copied to the global
+    // stack" - and whether the type is local is a property of the tag.
+    // Reading the variable's field instead broke on a member-function
+    // PARAMETER sym whose union carried live-local bits (scope=1, r set):
+    // the walk then cloned a file-scope class tag, and the extern's
+    // parameter type pointed at the clone, so a later argument conversion
+    // failed with "'struct Iterator' cannot convert to 'struct Iterator'"
+    // (two Syms, same name - SimpleList.h:102).
+    if (bt == VT_FUNC || bt == VT_PTR
+        || (bt == VT_STRUCT && !is_proto
+            && s->type.ref && s->type.ref->sym_scope)) {
         Sym** sp = &s->type.ref;
+        int is_func = (bt == VT_FUNC);
+        int first = 1;
         for (s = *sp, *sp = NULL; s; s = s->next) {
             Sym* s2 = sym_copy(s, ps);
             sp = &(*sp = s2)->next;
-            sym_copy_ref(s2, ps);
+            sym_copy_ref_1(s2, ps, is_func && first);
+            first = 0;
         }
     }
+}
+
+static void sym_copy_ref(Sym* s, Sym** ps)
+{
+    sym_copy_ref_1(s, ps, 0);
 }
 static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
 {
@@ -5584,6 +6742,7 @@ static int is_compatible_func(CType* type1, CType* type2)
 /* type1 �� type2 �������Ȃ�^��Ԃ��Bunqualified ���^�Ȃ�A�^�̏C���q�͖��������B */
 static int compare_types(CType* type1, CType* type2, int unqualified)
 {
+    CPP_WALKER_DEPTH_GUARD("compare_types");
     int bt1, t1, t2;
 
     if (IS_ENUM(type1->t)) {
@@ -6596,6 +7755,12 @@ static void verify_assign_cast(CType* dt)
 
 static void gen_assign_cast(CType* dt)
 {
+    // G-CONV: give a converting constructor a chance before the type
+    // checks reject the operand (covers return statements, arguments and
+    // the copy-init path).  On failure the operand is untouched and the
+    // original diagnostics below fire unchanged.
+    if (tcc_state->cpp)
+        cpp_try_class_conversion(dt);
     verify_assign_cast(dt);
     gen_cast(dt);
 }
@@ -6605,6 +7770,10 @@ ST_FUNC void vstore(void)
 {
     int sbt, dbt, ft, r, size, align, bit_size, bit_pos, delayed_cast;
 
+    // G-CONV: assignments and member-initializer stores also accept a
+    // converting constructor (`m_name = name` with const char* -> class).
+    if (tcc_state->cpp)
+        cpp_try_class_conversion(&vtop[-1].type);
     ft = vtop[-1].type.t;
     sbt = vtop->type.t & VT_BTYPE;
     dbt = ft & VT_BTYPE;
@@ -7096,6 +8265,7 @@ static int cpp_func_param_count(Sym *field)
    pass -1 to accept any.  Falls back to any-arity when nothing matches. */
 static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs, int want_args)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_find_operator_member");
     Sym *s, *class_sym;
     Sym *const_match, *nonconst_match, *ret;
     Sym *any_const_match, *any_nonconst_match;
@@ -7171,6 +8341,7 @@ static int cpp_has_free_func(int v)
 /* C++: find class member for call; resolves get() vs get() const overloads. */
 static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_find_field_for_call");
     Sym *s, *class_sym;
     Sym *const_match, *nonconst_match, *ret;
     int v1, obj_const;
@@ -7225,8 +8396,337 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
     return NULL;
 }
 
+// BUG-30: how many member functions named v1 (already SYM_FIELD-tagged)
+// with the given const-ness does this class - including its base
+// subobjects - declare?  Counting declarations rather than globals is the
+// whole point: a not-yet-defined overload has no global.
+static int cpp_count_member_overloads(Sym *class_sym, int v1, int want_const)
+{
+    CPP_WALKER_DEPTH_GUARD("cpp_count_member_overloads");
+    Sym *f;
+    int n = 0;
+
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->v == v1 && (f->type.t & VT_BTYPE) == VT_FUNC) {
+            if (!!cpp_field_is_const(f) == !!want_const)
+                n++;
+            continue;
+        }
+        if ((f->type.t & VT_BTYPE) == VT_STRUCT && f->type.ref
+            && f->v >= (SYM_FIRST_ANOM | SYM_FIELD))
+            n += cpp_count_member_overloads(f->type.ref, v1, want_const);
+    }
+    return n;
+}
+
+// BUG-30: score the class's DECLARED overloads named v1 against the
+// nb_args arguments already on the vstack.  Mirrors cpp_resolve_func_call
+// deliberately - same cpp_arg_matches_param scoring, same exact-arity
+// requirement - so a call that resolves correctly today keeps resolving
+// the same way; the only difference is where the candidates come from.
+static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
+                                       int want_const, Sym **best,
+                                       int *best_score)
+{
+    CPP_WALKER_DEPTH_GUARD("cpp_score_member_overloads");
+    Sym *f;
+    int own_declares = 0;
+
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->v == v1 && (f->type.t & VT_BTYPE) == VT_FUNC && f->type.ref) {
+            Sym *p;
+            int i, score = 0, match = 1;
+
+            // C++ name hiding: a member declared HERE hides every base
+            // member of the same name (by name, before viability), so
+            // remember the declaration even when the const filter or the
+            // arg match rejects this candidate.
+            own_declares = 1;
+            if (!!cpp_field_is_const(f) != !!want_const)
+                continue;
+            p = f->type.ref->next;
+            for (i = 0; i < nb_args; i++) {
+                CType *arg_type = &vtop[-nb_args + 1 + i].type;
+                int arg_score;
+
+                if (!p || p->type.t == VT_VOID) {
+                    if (f->type.ref->f.func_type == FUNC_ELLIPSIS)
+                        break;
+                    match = 0;
+                    break;
+                }
+                if (!cpp_arg_matches_param(&p->type, arg_type, &arg_score)) {
+                    match = 0;
+                    break;
+                }
+                score += arg_score;
+                p = p->next;
+            }
+            // BUG-32c: a candidate whose remaining parameters all have
+            // DEFAULT arguments is viable for a shorter call - without this
+            // `erase(n)` could not see
+            // `erase(size_type pos, size_type n = 9)` and fell through to
+            // the unrelated `erase(iterator)` overload (SimpleString).
+            // Defaulted parameters add no score, so an exact-arity
+            // candidate still wins a tie.
+            while (match && p && p->type.t != VT_VOID) {
+                if (!p->inline_func_str) {
+                    match = 0;
+                    break;
+                }
+                p = p->next;
+            }
+            if (match && score > *best_score) {
+                *best_score = score;
+                *best = f;
+            }
+            continue;
+        }
+    }
+    // Base subobjects sit BEFORE own members in the field chain, so a
+    // single interleaved walk scored the base's candidate first and the
+    // tying derived override lost on `score > best` - `Deco::run(x)`
+    // (and plain non-virtual shadowing) bound Base::run, measured as 16
+    // instead of 31 in dev/test/a9/qual_base_call.cpp.  Score the own
+    // level first and descend only when this class does not declare the
+    // name at all (C++ name hiding).
+    if (own_declares)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) == VT_STRUCT && f->type.ref
+            && f->v >= (SYM_FIRST_ANOM | SYM_FIELD))
+            cpp_score_member_overloads(f->type.ref, v1, nb_args, want_const,
+                                       best, best_score);
+    }
+}
+
+// BUG-30: re-resolve a member call from the class's declarations and hand
+// back the global to call.  Returns NULL when nothing matches, so the
+// caller falls back to the existing global-based resolution and behaviour
+// is unchanged wherever that already worked (e.g. calls relying on default
+// arguments, which the exact-arity rule above deliberately does not take).
+static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
+{
+    Sym *class_sym, *best = NULL;
+    int v1, want_const, best_score = -1;
+
+    if (!tcc_state->cpp || tcc_state->extern_c || !cur)
+        return NULL;
+    class_sym = cur->parent_class;
+    if (!class_sym || (cur->type.t & VT_BTYPE) != VT_FUNC)
+        return NULL;
+    if ((cur->v & ~SYM_FIELD) < TOK_IDENT)
+        return NULL;
+    v1 = cur->v & ~SYM_FIELD;
+    // G-CONV: constructors live under the mangled global token but their
+    // FIELDS sit under the class-name token; without this mapping the
+    // declaration-side candidate set (BUG-30) never sees ctor overloads,
+    // so a header-declared ctor could not be resolved before its
+    // definition ("SimpleString s(lhs)" died on the first declaration).
+    if (v1 == cpp_ctor_name_tok(class_sym->v & ~SYM_STRUCT))
+        v1 = class_sym->v & ~SYM_STRUCT;
+    v1 |= SYM_FIELD;
+    want_const = !!(cur->type.ref && cur->type.ref->f.func_const);
+    cpp_score_member_overloads(class_sym, v1, nb_args, want_const,
+                               &best, &best_score);
+    if (!best)
+        return NULL;
+    // A field inherited from a base belongs to that base, so its global
+    // must be looked up (or created) under the declaring class.
+    return cpp_member_func_global_exact(best, best->parent_class
+                                        ? best->parent_class : class_sym);
+}
+
+// G-CONV: implicit application of a converting constructor.  When an
+// assignment / initialization / argument / return finds `class T <- expr S`
+// with incompatible types but T declares a ctor that is viable for the one
+// argument S (trailing params may be defaulted), build a temporary T on the
+// stack, run that ctor on it, and replace vtop with the temporary's lvalue.
+// The existing struct-copy / reference-binding machinery then proceeds
+// unchanged.  One user-defined conversion only (no chaining), and on any
+// bail-out the operand is left untouched so the original diagnostic fires.
+static int cpp_conv_depth;
+
+static int cpp_try_class_conversion(CType *dt)
+{
+    Sym *class_sym, *best, *fsym, *sa;
+    CType tt;
+    SValue this_sv;
+    int best_score, tslot, size, align, nb_args, na;
+
+    if (!tcc_state->cpp || tcc_state->extern_c || nocode_wanted)
+        return 0;
+    if (dt->t & VT_ARRAY)
+        return 0;
+    // Destination forms: a class object (VT_STRUCT), or a reference to one
+    // (the temporary is an lvalue, so the existing const T& binding takes
+    // it from there).
+    if ((dt->t & VT_BTYPE) == VT_STRUCT && dt->ref) {
+        class_sym = dt->ref;
+    } else if ((dt->t & VT_BTYPE) == VT_PTR && (dt->t & VT_REFERENCE)
+               && dt->ref
+               && (dt->ref->type.t & VT_BTYPE) == VT_STRUCT
+               && dt->ref->type.ref) {
+        class_sym = dt->ref->type.ref;
+    } else {
+        return 0;
+    }
+    if (class_sym->c < 0)
+        return 0;
+    // Already the destination class: the plain copy / bind paths handle it
+    // (this also keeps derived-to-base and same-class copies off this path
+    // unless the direct paths cannot - they run first and never get here
+    // for compatible types).
+    if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+        && vtop->type.ref == class_sym)
+        return 0;
+    if (cpp_conv_depth >= 4)
+        return 0;
+    if (!cpp_find_ctor_field(class_sym))
+        return 0;
+    best = NULL;
+    best_score = -1;
+    cpp_conv_depth++;
+    // The scorer reads the argument from the vstack (nb_args = 1 = vtop).
+    cpp_score_member_overloads(class_sym,
+                               (class_sym->v & ~SYM_STRUCT) | SYM_FIELD,
+                               1, 0, &best, &best_score);
+    if (!best) {
+        cpp_conv_depth--;
+        return 0;
+    }
+    fsym = cpp_member_func_global_exact(best, class_sym);
+    if (!fsym || (fsym->type.t & VT_BTYPE) != VT_FUNC || !fsym->type.ref) {
+        cpp_conv_depth--;
+        return 0;
+    }
+    tt.t = VT_STRUCT;
+    tt.ref = class_sym;
+    size = type_size(&tt, &align);
+    loc = (loc - size) & -align;
+    tslot = loc;
+    // stack: [arg] -> [ctor, arg], then convert the argument to the
+    // resolved parameter type (this may itself recurse one level).
+    vset(&fsym->type, fsym->r | VT_SYM, 0);
+    vtop->sym = fsym;
+    vtop->r &= ~VT_LVAL;
+    vswap();
+    sa = fsym->type.ref->next;
+    gfunc_param_typed(fsym->type.ref, sa);
+    nb_args = 1;
+    if (sa)
+        sa = sa->next;
+    if (sa)
+        cpp_apply_default_args(fsym->type.ref, &nb_args, &sa);
+    // `this` = &temporary, inserted as arg0 (same shape as
+    // cpp_emit_base_ctor_call; ctors return void so no sret shift).
+    vset(&tt, VT_LOCAL | VT_LVAL, tslot);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    this_sv = *vtop;
+    vpop();
+    na = nb_args;
+    vtop++;
+    nb_args = na + 1;
+    memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
+    vtop[-nb_args + 1] = this_sv;
+    gfunc_call(nb_args);
+    // result: the constructed temporary, as an lvalue of T
+    vset(&tt, VT_LOCAL | VT_LVAL, tslot);
+    cpp_conv_depth--;
+    return 1;
+}
+
+// G-FCAST-N: `T(a1, ..., an)` builds a ctor-initialized stack temporary
+// for class T with n >= 1 arguments (SimpleString.h:118
+// `return SimpleString(*this, pos, n);` - the substr inline replays as
+// soon as any driver calls it).  Entered from cpp_try_functional_cast
+// with the FIRST argument already evaluated on vtop and tok at ',' or
+// ')'.  Same call shape as cpp_emit_base_ctor_call: resolve the ctor
+// from the raw args, convert, then run it on a fresh stack slot which
+// is left on vtop as an lvalue of T.
+static void cpp_functional_ctor_temp(CType *type)
+{
+    Sym *class_sym, *ctor_field, *ctor_global, *resolved, *sa;
+    CType ct;
+    SValue this_sv;
+    int nb_args, na, i, tslot, size, align;
+
+    class_sym = type->ref;
+    ctor_field = cpp_find_ctor_field(class_sym);
+    ct.t = VT_STRUCT;
+    ct.ref = class_sym;
+    ctor_global = cpp_lookup_member_func(ctor_field, &ct);
+    // the callee must sit BELOW the arguments; arg1 is already on vtop,
+    // so push and swap under it
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    vswap();
+    nb_args = 1;
+    while (tok == ',') {
+        next();
+        expr_eq();
+        nb_args++;
+    }
+    skip(')');
+    na = nb_args;
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
+    size = type_size(&ct, &align);
+    loc = (loc - size) & -align;
+    tslot = loc;
+    // vptr before the ctor body, like every other construction site;
+    // cpp_init_local_vptr only reads type.ref / r / c, so a stack Sym
+    // describing the slot is enough.
+    if (cpp_type_has_virtual(class_sym)) {
+        Sym tmp_obj;
+
+        memset(&tmp_obj, 0, sizeof(tmp_obj));
+        tmp_obj.type = ct;
+        tmp_obj.r = VT_LOCAL;
+        tmp_obj.c = tslot;
+        cpp_init_local_vptr(&tmp_obj);
+    }
+    vset(&ct, VT_LOCAL | VT_LVAL, tslot);
+    gaddrof();
+    mk_pointer(&vtop->type);    // BUG-16: `this` as a pointer, not by-value
+    this_sv = *vtop;
+    vpop();
+    vtop++;
+    nb_args = na + 1;
+    memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
+    vtop[-nb_args + 1] = this_sv;
+    gfunc_call(nb_args);
+    // result: the constructed temporary as an lvalue of T
+    vset(&ct, VT_LOCAL | VT_LVAL, tslot);
+}
+
 static Sym* find_field(CType* type, int v, int* cumofs)
 {
+    CPP_WALKER_DEPTH_GUARD("find_field");
     Sym* s = type->ref;
     int v1 = v | SYM_FIELD;
     if (!(v & SYM_FIELD)) { /* top-level call */
@@ -7265,6 +8765,7 @@ static Sym* find_field(CType* type, int v, int* cumofs)
    single-path inheritance only - a diamond returns the first path found. */
 static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class)
 {
+    CPP_WALKER_DEPTH_GUARD("cpp_base_subobject_offset");
     Sym *f;
 
     if (!obj_class || !target_class)
@@ -8145,9 +9646,12 @@ static void struct_layout(CType* type, AttributeDef* ad)
 /* enum/struct/union declaration. u is VT_ENUM/VT_STRUCT/VT_UNION */
 static void struct_decl(CType* type, int u, int is_class)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int v, c, size, align, flexible;
     int bit_size, bsize, bt, ut;
     Sym *s, *ss = NULL, **ps;
+    Sym *saved_cpp_cur_class = NULL;
+    Sym *ooc_nested_outer = NULL;
     AttributeDef ad, ad1;
     CType type1, btype;
 
@@ -8158,6 +9662,29 @@ static void struct_decl(CType* type, int u, int is_class)
     v = 0;
     if (tok >= TOK_IDENT) /* struct/enum tag */
         v = tok, next();
+    // Out-of-class definition of a forward-declared NESTED class:
+    // `class TestRunner::Utility { ... };` (TestRunner.cpp:31).  Each
+    // qualifier level narrows to the inner tag; the enclosing class is
+    // remembered so the body sees the outer scope (G3) and the nested
+    // name gets registered on the outer's typedef list as if it had been
+    // defined in-body.  A single ':' is a base clause and stays untouched.
+    if (tcc_state->cpp && is_class && v && tok == ':') {
+        while (tok == ':') {
+            next();
+            if (tok != ':') {
+                unget_tok(':');
+                break;
+            }
+            next();
+            if (tok < TOK_IDENT)
+                expect("identifier");
+            ooc_nested_outer = struct_find(v);
+            if (!ooc_nested_outer)
+                tcc_error("unknown class in qualified class definition");
+            v = tok;
+            next();
+        }
+    }
 
     bt = ut = 0;
     if (u == VT_ENUM) {
@@ -8191,7 +9718,10 @@ static void struct_decl(CType* type, int u, int is_class)
     type1.t = u | ut;
     type1.ref = NULL;
     /* we put an undefined size for struct/union */
-    s = sym_push(v | SYM_STRUCT, &type1, 0, bt ? 0 : -1);
+    // BUG-42: a function-local class definition must outlive the
+    // function (inline-member replay at end of TU), see
+    // cpp_class_sym_push.
+    s = cpp_class_sym_push(v | SYM_STRUCT, &type1, 0, bt ? 0 : -1);
     s->r = 0; /* default alignment is zero as gcc */
 do_decl:
     type->t = s->type.t;
@@ -8220,7 +9750,8 @@ do_decl:
             next();
             base_type.t = VT_STRUCT;
             base_type.ref = base_class_sym;
-            base_field = sym_push(anon_sym++ | SYM_FIELD, &base_type, 0, 0);
+            base_field = cpp_class_sym_push(anon_sym++ | SYM_FIELD,
+                                            &base_type, 0, 0);
             base_field->a.access = ACCESS_PUBLIC;
             base_field->parent_class = base_class_sym;
             base_field->next = *base_tail;
@@ -8233,8 +9764,19 @@ do_decl:
     }
 
     if (tok == '{') {
-        if (is_class)
+        saved_cpp_cur_class = cpp_cur_class;
+        if (tcc_state->cpp && u != VT_ENUM) {
+            // G3 P1: cpp_cur_class must nest like a stack - the old
+            // unconditional NULL reset at the end of struct_decl wiped the
+            // OUTER class whenever a nested class body finished.  Record
+            // the enclosing class on the tag so unqualified lookup can
+            // walk inner -> outer class scopes later.  For an OUT-of-class
+            // nested definition the enclosing class comes from the
+            // qualifier, not from any class body being parsed.
+            s->cpp_enclosing_class = ooc_nested_outer ? ooc_nested_outer
+                                                      : cpp_cur_class;
             cpp_cur_class = s;
+        }
         next();
         if (s->c != -1
             && !(u == VT_ENUM && s->c == 0)) /* not yet defined typed enum */
@@ -8326,6 +9868,7 @@ do_decl:
                 int skip_member_semi = 0;
                 int is_ctor_decl = 0;
                 int is_dtor_decl = 0;
+                int is_dtor_virtual = 0;
                 if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED) {
                     cur_access = (tok == TOK_PUBLIC) ? ACCESS_PUBLIC :
                                  (tok == TOK_PROTECTED) ? ACCESS_PROTECTED : ACCESS_PRIVATE;
@@ -8349,6 +9892,18 @@ do_decl:
                     }
                     unget_tok(saved);
                 }
+                // G6 / BUG-24: `virtual ~Class()`.  The dtor pre-check below
+                // fires on a leading '~', but `virtual` normally gets eaten
+                // by parse_btype, which the dtor path bypasses entirely -
+                // so a virtual dtor used to die with "identifier expected".
+                // Consume the keyword here and remember it for ad1.
+                if (tcc_state->cpp && is_class && tok == TOK_VIRTUAL) {
+                    next();
+                    if (tok == '~')
+                        is_dtor_virtual = 1;
+                    else
+                        unget_tok(TOK_VIRTUAL);
+                }
                 /* C++: `~Class(` is a destructor declaration with omitted
                  * return type (same pattern as ctor above). */
                 if (tcc_state->cpp && is_class && tok == '~') {
@@ -8362,11 +9917,34 @@ do_decl:
                             btype.t = VT_VOID;
                             btype.ref = NULL;
                             memset(&ad1, 0, sizeof ad1);
+                            // G6: post_type copies ad1.f onto the prototype
+                            // sym, which is where every func_virtual reader
+                            // (slot assignment, vtable emit, delete) looks.
+                            if (is_dtor_virtual)
+                                ad1.f.func_virtual = 1;
                         }
                         unget_tok(saved);
                     } else {
                         unget_tok('~');
                     }
+                }
+                if (is_dtor_virtual && !is_dtor_decl)
+                    tcc_error("'virtual ~' must introduce a destructor");
+                // G2: accept and discard "friend class Identifier;" only.
+                // Any other friend form (e.g. "friend int fn(C&);") is ALSO
+                // a declaration of fn, so silently skipping it would drop
+                // that declaration (silent miscompile) - reject loudly.
+                if (tcc_state->cpp && tok == TOK_FRIEND) {
+                    next();
+                    if (tok == TOK_CLASS) {
+                        next();
+                        if (tok < TOK_UIDENT)
+                            expect("identifier");
+                        next();
+                        skip(';');
+                        continue;
+                    }
+                    tcc_error("unsupported friend declaration (only 'friend class X;' is accepted)");
                 }
                 if (!is_ctor_decl && !is_dtor_decl && !parse_btype(&btype, &ad1, 0)) {
                     if (tok == TOK_STATIC_ASSERT) {
@@ -8398,10 +9976,47 @@ do_decl:
                             else {
                                 int v = btype.ref->v;
                                 if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
+                                    // BUG-36: in C++ a NAMED tag with no
+                                    // declarator (`struct Inner {...};`) is a
+                                    // nested TYPE declaration and nothing
+                                    // else.  The ms-extensions fallthrough
+                                    // turned it into an anonymous MEMBER of
+                                    // that type: the outer class silently
+                                    // grew an Inner-sized field (layout
+                                    // corruption), and check_fields saw
+                                    // Inner's member names as the outer
+                                    // class's own, so a same-named member
+                                    // (`TestResult::m_mutex` vs
+                                    // `AutoMutexLock::m_mutex`) was reported
+                                    // as duplicated.  Untagged `struct {...};`
+                                    // stays on the anonymous-member path.
+                                    if (tcc_state->cpp)
+                                        break;
                                     if (tcc_state->ms_extensions == 0)
                                         expect("identifier");
                                 }
                             }
+                        }
+                        // G3 P1: class-scope typedef.  Per the P0 audit it
+                        // must NOT enter the member chain (layout, brace-init,
+                        // debug and ABI walkers would each need synchronized
+                        // skips), so it goes on the separate per-class list
+                        // that only the C++ type-name lookups read.  Placed
+                        // before the type_size check because a typedef to an
+                        // incomplete type is legal.
+                        if (tcc_state->cpp && (type1.t & VT_TYPEDEF)) {
+                            Sym *td;
+                            if (v == 0)
+                                expect("identifier");
+                            if (cpp_class_typedef_find(s, v))
+                                tcc_error("redefinition of '%s'",
+                                          get_tok_str(v, NULL));
+                            td = sym_push2(&s->cpp_class_typedefs, v, type1.t, 0);
+                            td->type.ref = type1.ref;
+                            if (tok == ';' || tok == TOK_EOF)
+                                break;
+                            skip(',');
+                            continue;
                         }
                         if (type_size(&type1, &align) < 0) {
                             if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
@@ -8417,6 +10032,19 @@ do_decl:
                             ((type1.t & VT_STORAGE) && !(is_class && (type1.t & VT_STATIC))))
                             tcc_error("'%s' �ɑ΂��閳���Ȍ^",
                                 get_tok_str(v, NULL));
+                        // G5: pure virtual `virtual R f() = 0;`.  Only the
+                        // literal 0 is a pure-specifier; anything else after
+                        // '=' would be a C++11 defaulted/deleted function,
+                        // which is out of scope and must not be guessed at.
+                        if (tcc_state->cpp && is_class && tok == '='
+                            && (type1.t & VT_BTYPE) == VT_FUNC && type1.ref
+                            && type1.ref->f.func_virtual) {
+                            next();
+                            if (tok != TOK_CINT || tokc.i != 0)
+                                tcc_error("only '= 0' is allowed here (pure virtual)");
+                            next();
+                            type1.ref->f.func_pure = 1;
+                        }
                     }
                     if (tok == ':' && !is_ctor_decl) {
                         next();
@@ -8471,7 +10099,7 @@ do_decl:
                         v = anon_sym++;
                     }
                     if (v) {
-                        ss = sym_push(v | SYM_FIELD, &type1, 0, 0);
+                        ss = cpp_class_sym_push(v | SYM_FIELD, &type1, 0, 0);
                         ss->a = ad1.a;
                         ss->a.access = cur_access;
                         if ((type1.t & VT_BTYPE) == VT_FUNC)
@@ -8527,6 +10155,18 @@ do_decl:
                 if (is_class == 1 || !sym_find(tag_v))
                     sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
             }
+            // G3 P1: register a nested class/struct name on the enclosing
+            // class's typedef list too, so the P3 qualified lookup can
+            // resolve Outer::Inner without relying on the C tag hoisting.
+            if (tcc_state->cpp && u != VT_ENUM && s->cpp_enclosing_class) {
+                int tag_v2 = s->v & ~SYM_STRUCT;
+                if (tag_v2 < SYM_FIRST_ANOM
+                    && !cpp_class_typedef_find(s->cpp_enclosing_class, tag_v2)) {
+                    Sym *ntd = sym_push2(&s->cpp_enclosing_class->cpp_class_typedefs,
+                                         tag_v2, type->t | VT_TYPEDEF, 0);
+                    ntd->type.ref = s;
+                }
+            }
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
             if (is_class) {
@@ -8537,9 +10177,12 @@ do_decl:
                 /* Virtual MI (Phase 2): runs after struct_layout so the base
                  * fields carry their final offsets (thunk adjust values). */
                 cpp_emit_secondary_vtables(s);
-                cpp_cur_class = NULL;
             }
         }
+        // G3 P1: restore the outer class instead of wiping to NULL, so a
+        // nested class body no longer loses the enclosing class context.
+        if (tcc_state->cpp && u != VT_ENUM)
+            cpp_cur_class = saved_cpp_cur_class;
     }
 }
 
@@ -8795,6 +10438,28 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             goto basic_type2;
         case TOK_THREAD_LOCAL:
             tcc_error("_Thread_local �͎�������Ă��܂���");
+        case ':':
+            // G1 (leading ::): a type head "::Name".  Resolve against the
+            // global binding only; when the global side has no type there,
+            // push "::" back so the expression parser sees "::name" intact
+            // (a statement like "::x = 1;" must not lose its qualifier).
+            // In C ':' never starts a type, so bail out unconsumed, which
+            // matches the old default-case behavior byte-for-byte.
+            if (!tcc_state->cpp || typespec_found)
+                goto the_end;
+            if (!cpp_parse_global_scope_qualifier())
+                goto the_end;
+            {
+                int gkind;
+                if (tok >= TOK_IDENT
+                    && cpp_global_lookup_type_name(tok, &gkind) != NULL) {
+                    cpp_global_scope_type_pending = 1;
+                    continue;
+                }
+            }
+            unget_tok(':');
+            unget_tok(':');
+            goto the_end;
         default:
             if (typespec_found)
                 goto the_end;
@@ -8808,7 +10473,29 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                    innermost binding wins, so a parameter or variable named
                    like a class hides it and the token starts an expression,
                    not a declaration. */
-                tn = cpp_lookup_type_name(tok, &tn_kind);
+                if (cpp_global_scope_type_pending) {
+                    // G1: "::" was just consumed by the ':' case above, so
+                    // both the ordinary and the type lookup must ignore any
+                    // shadowing local binding and use the file-scope one.
+                    cpp_global_scope_type_pending = 0;
+                    s = cpp_global_scope_find(tok);
+                    tn = cpp_global_lookup_type_name(tok, &tn_kind);
+                } else {
+                    Sym *ctd;
+                    // G3 P1/P2: class scope (body being parsed, or the
+                    // class of the member function being compiled, plus
+                    // bases and enclosing classes) hides file-scope names;
+                    // block-scope locals still win, so only override
+                    // non-local bindings.
+                    ctd = cpp_unqualified_class_type_find(tok);
+                    if (ctd && !(s && sym_scope(s))) {
+                        s = ctd;
+                        tn = NULL;
+                        tn_kind = CPP_TN_NONE;
+                    } else {
+                        tn = cpp_lookup_type_name(tok, &tn_kind);
+                    }
+                }
                 stsym = NULL;
                 if (tn_kind == CPP_TN_TYPEDEF) {
                     /* Only a typedef *to a struct* is handled here; a plain
@@ -8826,10 +10513,55 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                     if (tok == ':') {
                         next();
                         if (tok == ':') {
-                            unget_tok(':');
-                            unget_tok(':');
-                            unget_tok(cls_tok);
-                            goto the_end;
+                            // G3 P3: "Class::name".  When `name` is a type
+                            // in Class scope (self + bases ONLY - never the
+                            // enclosing or global scope, rev.4 Blocker 2),
+                            // this is a qualified type name; otherwise give
+                            // the tokens back so Class::member expressions
+                            // keep working exactly as before.
+                            Sym *qcls = stsym;
+                            Sym *qtd;
+                            int levels = 0;
+                            next();
+                            for (;;) {
+                                qtd = tok >= TOK_UIDENT
+                                    ? cpp_lookup_class_type(qcls, tok) : NULL;
+                                if (!qtd) {
+                                    if (levels == 0) {
+                                        unget_tok(':');
+                                        unget_tok(':');
+                                        unget_tok(cls_tok);
+                                        goto the_end;
+                                    }
+                                    // O::I::T with no T in I must fail here,
+                                    // not fall back to the enclosing O::T.
+                                    tcc_error("no type '%s' in qualified class scope",
+                                              tok >= TOK_IDENT
+                                                  ? get_tok_str(tok, NULL) : "?");
+                                }
+                                next();
+                                if (tok == ':') {
+                                    next();
+                                    if (tok == ':') {
+                                        if ((qtd->type.t & VT_BTYPE) != VT_STRUCT
+                                            || !qtd->type.ref)
+                                            tcc_error("'::' applied to a non-class type");
+                                        qcls = qtd->type.ref;
+                                        levels++;
+                                        next();
+                                        continue;
+                                    }
+                                    unget_tok(':');
+                                }
+                                break;
+                            }
+                            type->t = (qtd->type.t & ~VT_STORAGE)
+                                | (t & (VT_STORAGE | VT_CONSTANT | VT_VOLATILE));
+                            type->ref = qtd->type.ref;
+                            typespec_found = 1;
+                            st = bt = -2;
+                            t = type->t;
+                            break;
                         }
                         unget_tok(':');
                     }
@@ -9168,6 +10900,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
    pointer), otherwise returns type itself, that's used for recursive calls.  */
 static CType* type_decl(CType* type, AttributeDef* ad, int* v, int td)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     CType* post, * ret;
     int qualifiers, storage;
 
@@ -9558,8 +11291,790 @@ static void parse_atomic(int atok)
     }
 }
 
+// G-CAST: does token v name a type usable as a functional-cast head?
+// Kept separate from cpp_tok_starts_type_name (whose callers decide
+// declaration-vs-expression) so this cannot perturb them, and it also
+// consults the G3 class-scope typedefs - SimpleString.cpp:33's
+// size_type is a member typedef.
+static int cpp_tok_is_cast_type_name(int v)
+{
+    int kind;
+
+    switch (v) {
+    case TOK_CHAR:
+    case TOK_VOID:
+    case TOK_SHORT:
+    case TOK_INT:
+    case TOK_LONG:
+    case TOK_BOOL:
+    case TOK_BOOL2:
+    case TOK_FLOAT:
+    case TOK_DOUBLE:
+    case TOK_SIGNED1:
+    case TOK_SIGNED2:
+    case TOK_SIGNED3:
+    case TOK_UNSIGNED:
+        return 1;
+    }
+    if (v < TOK_UIDENT)
+        return 0;
+    if (cpp_unqualified_class_type_find(v))
+        return 1;
+    return cpp_lookup_type_name(v, &kind) != NULL;
+}
+
+// G-CAST: the class Sym a type name denotes, or NULL if it names a
+// non-class type.  Accepts both the class-scope typedefs added by G3
+// and the ordinary tag / typedef bindings.
+static Sym *cpp_class_sym_of_type_name(int v)
+{
+    Sym *tn;
+    int kind = CPP_TN_TYPEDEF;
+
+    tn = cpp_unqualified_class_type_find(v);
+    if (!tn)
+        tn = cpp_lookup_type_name(v, &kind);
+    if (!tn)
+        return NULL;
+    if (kind == CPP_TN_TAG)
+        return tn;
+    if ((tn->type.t & VT_BTYPE) == VT_STRUCT)
+        return tn->type.ref;
+    return NULL;
+}
+
+// G-CAST: functional-style cast "T(expr)" - SimpleString.cpp:33 writes
+// `size_type(-1)`.  It fires only when the expression head is a type
+// NAME immediately followed by '(' (the decision is the type lookup
+// itself, not a heuristic), and then hands the work to the ordinary
+// (T)expr cast machinery.  Returns 0 with the token stream restored
+// when this is not a functional cast, so `Class::member` expressions
+// and ordinary calls are untouched.  C TUs never reach here, so C's
+// `int(x);` declaration rule is unaffected.
+static int cpp_try_functional_cast(void)
+{
+    CType type;
+    AttributeDef ad;
+    int name_tok, mem_tok;
+
+    if (!cpp_tok_is_cast_type_name(tok))
+        return 0;
+    name_tok = tok;
+    next();
+    if (tok != '(') {
+        // "Class::type(expr)" is a functional cast too, but "Class::fn()"
+        // is a static member CALL - the type lookup in the class scope is
+        // what tells them apart, so a non-type after '::' restores every
+        // token and leaves the existing static-member path alone.
+        if (tok == ':' && name_tok >= TOK_UIDENT) {
+            Sym *qcls = cpp_class_sym_of_type_name(name_tok);
+            next();
+            if (tok == ':') {
+                next();
+                if (tok >= TOK_UIDENT && qcls
+                    && cpp_lookup_class_type(qcls, tok)) {
+                    mem_tok = tok;
+                    next();
+                    if (tok == '(') {
+                        unget_tok(mem_tok);
+                        unget_tok(':');
+                        unget_tok(':');
+                        unget_tok(name_tok);
+                        goto parse_type;
+                    }
+                    unget_tok(mem_tok);
+                }
+                unget_tok(':');
+            }
+            unget_tok(':');
+        }
+        unget_tok(name_tok);
+        return 0;
+    }
+    unget_tok(name_tok);        /* stream is back to: T ( ... */
+parse_type:
+    if (!parse_btype(&type, &ad, 0))
+        return 0;
+    // A class-type temporary `T(expr)` constructs a ctor-initialized
+    // temporary (TestCase.cpp:159 `return cu_String(buf);`) - reuse the
+    // G-CONV stack-temporary machinery for it.  Classes WITHOUT a ctor
+    // keep the loud refusal (nothing could initialize the temporary),
+    // and the zero-/multi-argument forms stay rejected as before.
+    if ((type.t & VT_BTYPE) == VT_STRUCT) {
+        if (!type.ref || type.ref->c < 0 || !cpp_find_ctor_field(type.ref))
+            tcc_error("functional cast to a class type is not supported");
+        skip('(');
+        if (tok == ')')
+            tcc_error("'T()' value-initialization is not supported");
+        expr_eq();
+        if (tok == ',') {
+            // G-FCAST-N: multi-argument ctor temporary
+            // (`SimpleString(*this, pos, n)`, SimpleString.h:118)
+            if (nocode_wanted) {
+                // dead code: only the resulting TYPE matters downstream
+                while (tok == ',') {
+                    next();
+                    expr_eq();
+                    vpop();
+                }
+                skip(')');
+                vtop->type = type;
+                return 1;
+            }
+            cpp_functional_ctor_temp(&type);
+            return 1;
+        }
+        skip(')');
+        // Already a T: the expression itself is the value (T(t) copy
+        // form) - the conversion helper deliberately refuses same-class
+        // operands because the plain copy paths handle them.
+        if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+            && vtop->type.ref == type.ref)
+            return 1;
+        // Dead code (e.g. inside `if (false)`): the ctor call is never
+        // executed, only the TYPE matters downstream - and the G-CONV
+        // helper bails out under nocode_wanted.
+        if (nocode_wanted) {
+            vtop->type = type;
+            return 1;
+        }
+        if (!cpp_try_class_conversion(&type))
+            tcc_error("no viable constructor for functional cast");
+        return 1;
+    }
+    skip('(');
+    if (tok == ')')
+        tcc_error("'T()' value-initialization is not supported");
+    expr_eq();
+    if (tok == ',')
+        tcc_error("functional cast takes exactly one argument");
+    skip(')');
+    gen_cast(&type);
+    return 1;
+}
+
+// ---------------------------------------------------------------------
+// G4: new / delete
+//
+// Scope comes from what sample/cppunit actually writes (grep, 2026-08-22):
+// 13 x `new Class(args)` / `new Class()`, 4 x `new POD[n]` (all char), and
+// ZERO scalar POD `new`.  So the scalar path is class-only: `new int` is
+// rejected rather than half-implemented, because default-initialization
+// and value-initialization differ and guessing would silently hand back
+// uninitialized memory.  Element construction for `new Class[n]` needs a
+// stored element count, so it is rejected too.
+// Destructor dispatch here is the non-virtual direct call; the virtual /
+// complete-object form is G6.
+// ---------------------------------------------------------------------
+
+static Sym *cpp_heap_sym(const char *name, CType *ftype)
+{
+    return external_global_sym(tok_alloc(name, strlen(name))->tok, ftype);
+}
+
+// The function and its nb_args arguments are already on the vstack; emit
+// the call and leave the return value there.
+static void cpp_finish_heap_call(CType *ret_type, int nb_args)
+{
+    SValue ret;
+
+    ret.type = *ret_type;
+    ret.c.i = 0;
+    PUT_R_RET(&ret, ret.type.t);
+    gfunc_call(nb_args);
+    vsetc(&ret.type, ret.r, &ret.c);
+}
+
+// Store vtop (a pointer value) into a freshly reserved stack slot and
+// return its offset.  Every later use reads the slot instead of keeping a
+// register live across the ctor/dtor call - the BUG-23 lesson - and it is
+// what makes nested `new` safe.
+static int cpp_spill_ptr_to_temp(CType *ptype)
+{
+    int slot;
+
+    loc = (loc - PTR_SIZE) & -PTR_SIZE;
+    slot = loc;
+    vset(ptype, VT_LOCAL | VT_LVAL, slot);
+    vswap();
+    vstore();
+    vpop();
+    return slot;
+}
+
+// *(void**)((char*)p + ofs) = &vtable   (heap twin of cpp_write_local_vptr_slot)
+static void cpp_write_heap_vptr_slot(CType *ptype, int ptr_slot, int ofs,
+                                     int vtable_tok)
+{
+    Sym *vtable_sym;
+    CType voidp, voidpp;
+
+    vtable_sym = sym_find(vtable_tok);
+    if (!vtable_sym)
+        return;
+    voidp.t = VT_VOID;
+    voidp.ref = NULL;
+    mk_pointer(&voidp);
+    voidpp = voidp;
+    mk_pointer(&voidpp);
+    vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    vtop->type = char_pointer_type;
+    vpushi(ofs);
+    gen_op('+');
+    vtop->type = voidpp;
+    indir();
+    vpushsym(&voidp, vtable_sym);
+    vstore();
+    vpop();
+}
+
+static void cpp_init_heap_vptr_rec(CType *ptype, int ptr_slot, Sym *class_sym,
+                                   int base_ofs)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (!cpp_is_base_field(f))
+            continue;
+        if (!cpp_type_has_virtual(f->parent_class))
+            continue;
+        if (f->c > 0 && f->cpp_vtable_tok)
+            cpp_write_heap_vptr_slot(ptype, ptr_slot, base_ofs + f->c,
+                                     f->cpp_vtable_tok);
+        cpp_init_heap_vptr_rec(ptype, ptr_slot, f->parent_class,
+                               base_ofs + f->c);
+    }
+}
+
+// A heap object gets no declaration site, so the vptrs a local or global
+// would receive at its declaration have to be written here - otherwise a
+// virtual call through the returned pointer reads garbage.
+static void cpp_init_heap_vptr(CType *ptype, int ptr_slot, Sym *class_sym)
+{
+    if (!class_sym || nocode_wanted)
+        return;
+    if (class_sym->cpp_vtable_tok)
+        cpp_write_heap_vptr_slot(ptype, ptr_slot, 0, class_sym->cpp_vtable_tok);
+    cpp_init_heap_vptr_rec(ptype, ptr_slot, class_sym, 0);
+}
+
+// BUG-46: after a flat vstore() struct copy (the C++98 implicit
+// memberwise-copy fallback a few lines down, used when no user ctor is
+// viable for `new T(obj)`), any class-typed member that OWNS a heap
+// resource is left ALIASED between the two objects - vstore() copies
+// raw bytes, so a member like SimpleString's `m_data` pointer is
+// duplicated verbatim rather than re-allocated.  Confirmed root cause
+// of a hang deep in TestResult.cpp:64 `new TestFailure(*failure)`:
+// TestFailure.m_message (a SimpleString) ended up pointing at the SAME
+// heap buffer as the stack `failure` object in TestCase::addFailure;
+// both later ran ~SimpleString() on it, and the second delete[]
+// corrupted the CRT heap - the NEXT allocation deadlocked walking its
+// corrupted free-list, which is why the hang surfaced one call site
+// later (in TestResult::~TestResult()) with no crash in between.
+//
+// Fix: after the flat copy, re-run each such member's OWN copy
+// constructor on top of the aliased bytes.  The copy ctor's own
+// mem-initializer list unconditionally sets m_data (etc.) to 0 before
+// its body runs, so the aliased pointer from the memcpy is simply
+// discarded here (never freed - the SOURCE object still owns and
+// frees it exactly once) and the member's body allocates dst's own,
+// independent buffer.  A member with a viable user-declared copy
+// constructor is rebuilt directly; otherwise the class is walked
+// recursively, because one of its nested members may have non-trivial copy
+// semantics even when the class has unrelated user constructors.
+static int cpp_emit_copied_class_subobject(Sym *class_sym,
+                                           CType *dst_ptype,
+                                           int dst_ptr_slot,
+                                           int src_ptr_slot,
+                                           int dst_base_ofs,
+                                           int src_base_ofs)
+{
+    Sym *best;
+    Sym *g;
+    Sym *sa2;
+    int best_score;
+    int nb_args2;
+    CType fct;
+    SValue this_sv;
+
+    if (!class_sym || !cpp_find_ctor_field(class_sym))
+        return 0;
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_copied_class_subobject");
+    best = NULL;
+    best_score = -1;
+    fct.t = VT_STRUCT;
+    fct.ref = class_sym;
+
+    // arg1 = the source subobject as an lvalue of its own class
+    vset(dst_ptype, VT_LOCAL | VT_LVAL, src_ptr_slot);
+    indir();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(src_base_ofs);
+    gen_op('+');
+    vtop->type = fct;
+    vtop->r |= VT_LVAL;
+
+    cpp_score_member_overloads(class_sym,
+        (class_sym->v & ~SYM_STRUCT) | SYM_FIELD, 1, 0,
+        &best, &best_score);
+    if (!best) {
+        vpop();
+        return 0;
+    }
+    g = cpp_member_func_global_exact(best, class_sym);
+    if (!g || (g->type.t & VT_BTYPE) != VT_FUNC) {
+        vpop();
+        tcc_error("internal error: implicit copy constructor lookup failed");
+    }
+
+    // Put the callee below the already-pushed source argument.
+    vset(&g->type, g->r | VT_SYM, 0);
+    vtop->sym = g;
+    vtop->r &= ~VT_LVAL;
+    vswap();
+    gfunc_param_typed(g->type.ref, g->type.ref->next);
+
+    // A copy constructor may have trailing defaulted parameters.
+    nb_args2 = 1;
+    sa2 = g->type.ref->next->next;
+    if (sa2)
+        cpp_apply_default_args(g->type.ref, &nb_args2, &sa2);
+
+    // this = the destination subobject
+    vset(dst_ptype, VT_LOCAL | VT_LVAL, dst_ptr_slot);
+    indir();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(dst_base_ofs);
+    gen_op('+');
+    this_sv = *vtop;
+    vpop();
+
+    // Insert `this` below all converted arguments.
+    vtop++;
+    memmove(vtop - nb_args2 + 1, vtop - nb_args2,
+        nb_args2 * sizeof(SValue));
+    vtop[-nb_args2] = this_sv;
+    gfunc_call(nb_args2 + 1);
+    return 1;
+}
+
+static void cpp_reconstruct_copied_class_members(Sym *class_sym,
+                                                 CType *dst_ptype,
+                                                 int dst_ptr_slot,
+                                                 int src_ptr_slot,
+                                                 int dst_base_ofs,
+                                                 int src_base_ofs)
+{
+    Sym *f;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_reconstruct_copied_class_members");
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT || !f->type.ref)
+            continue;
+        if (f->type.t & VT_STATIC)
+            continue;
+        if (cpp_is_base_field(f)) {
+            /* A secondary base is not safe to treat as offset zero.  The
+               implicit-copy fallback must fail closed until the complete
+               most-derived adjustment is available. */
+            if (f->c != 0)
+                tcc_error("implicit copy of a non-primary base is unsupported");
+            if (cpp_emit_copied_class_subobject(f->parent_class, dst_ptype,
+                    dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                    src_base_ofs + f->c))
+                continue;
+            cpp_reconstruct_copied_class_members(f->parent_class, dst_ptype,
+                                                 dst_ptr_slot, src_ptr_slot,
+                                                 dst_base_ofs + f->c,
+                                                 src_base_ofs + f->c);
+            continue;
+        }
+        if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+            continue;               // vptr etc., not user data
+        if (!cpp_find_ctor_field(f->type.ref)) {
+            /* A class without a directly declared constructor may still
+               contain a class member with non-trivial copy semantics. */
+            cpp_reconstruct_copied_class_members(f->type.ref, dst_ptype,
+                dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                src_base_ofs + f->c);
+            continue;
+        }
+        if (!cpp_emit_copied_class_subobject(f->type.ref, dst_ptype,
+                dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                src_base_ofs + f->c))
+            /* A user constructor unrelated to the source type does not
+               suppress the implicitly declared copy constructor.  The raw
+               copy therefore still needs recursive memberwise repair. */
+            cpp_reconstruct_copied_class_members(f->type.ref, dst_ptype,
+                dst_ptr_slot, src_ptr_slot, dst_base_ofs + f->c,
+                src_base_ofs + f->c);
+    }
+}
+
+// Emit __cpp_ctor_C(p, args) for the object whose address sits in
+// ptr_slot.  Argument handling mirrors cpp_emit_base_ctor_call: parse
+// first, resolve the overload from the raw types, then convert.
+static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
+                                    int parse_args)
+{
+    Sym *ctor_field, *ctor_global, *resolved, *sa;
+    CType ct;
+    SValue this_sv;
+    int nb_args, na, i;
+
+    ctor_field = cpp_find_ctor_field(class_sym);
+    if (!ctor_field) {
+        // No user constructor.  `new T(obj)` with obj a T is still valid
+        // C++98 - the IMPLICIT copy ctor - and memberwise copy of a
+        // ctor-less class is a plain struct copy.  Any other argument
+        // has nowhere to go, so keep erroring for those.
+        if (parse_args && tok != ')') {
+            expr_eq();
+            if (tok == ')' && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+                && vtop->type.ref == class_sym) {
+                // BUG-46: spill the source's ADDRESS (not just copy it
+                // by value) so cpp_reconstruct_copied_class_members can
+                // re-derive it below, after the flat copy has run.
+                int src_slot;
+
+                gaddrof();
+                mk_pointer(&vtop->type);
+                src_slot = cpp_spill_ptr_to_temp(&vtop->type);
+                // dest を先に積むと [dest, src] の順で既に vstore が
+                // 求める並びになる。旧コードの末尾 vswap() を残すと
+                // [src, dest] へ反転し、逆アドレスへ書き込んで即クラッシュ
+                // する不具合を実測したため、ここでは vswap() を入れない。
+                vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+                indir();                // dest object lvalue
+                vset(ptype, VT_LOCAL | VT_LVAL, src_slot);
+                indir();                // [dest, src] for vstore
+                vstore();
+                vpop();
+                cpp_reconstruct_copied_class_members(class_sym, ptype,
+                                                     ptr_slot, src_slot, 0, 0);
+                return;
+            }
+            tcc_error("class has no constructor taking arguments");
+        }
+        return;
+    }
+    ct.t = VT_STRUCT;
+    ct.ref = class_sym;
+    ctor_global = cpp_lookup_member_func(ctor_field, &ct);
+    vset(&ctor_global->type, ctor_global->r | VT_SYM, 0);
+    vtop->sym = ctor_global;
+    vtop->r &= ~VT_LVAL;
+    nb_args = 0;
+    if (parse_args) {
+        while (tok != ')' && tok != TOK_EOF) {
+            expr_eq();
+            nb_args++;
+            if (tok == ',')
+                next();
+        }
+    }
+    na = nb_args;
+    // G7: declaration-side overload resolution first (see forward decl)
+    resolved = cpp_resolve_member_func_call(ctor_global, na);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, na, ctor_global);
+    // C++98 implicit copy ctor: `new T(obj)` where obj is a T and no USER
+    // ctor is viable (TestResult.cpp:64 `new TestFailure(*failure)` - the
+    // only ctor takes Test*).  Memberwise copy is a raw struct copy here:
+    // the source has the same dynamic type, so the copied vptr is already
+    // the right one.  A user-declared copy ctor resolves above and never
+    // reaches this fallback.
+    // cpp_resolve_func_call never returns NULL (it falls back to
+    // sym_find), so "no viable user ctor" must be detected on the
+    // RESOLVED candidate: its first parameter accepting the same-class
+    // argument is what a real (user) copy ctor looks like.
+    if (na == 1 && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+        && vtop->type.ref == class_sym) {
+        Sym *p1 = resolved && resolved->type.ref
+            ? resolved->type.ref->next : NULL;
+        int cscore;
+        int viable = p1 && p1->type.t != VT_VOID
+            && cpp_arg_matches_param(&p1->type, &vtop->type, &cscore);
+        if (!viable) {
+            // BUG-46: spill the source's ADDRESS so
+            // cpp_reconstruct_copied_class_members can re-derive it
+            // after the flat copy below (see its comment for why).
+            int src_slot;
+
+            vswap();                // [ctor, src] -> [src, ctor]
+            vpop();                 // drop the unused ctor value
+            gaddrof();
+            mk_pointer(&vtop->type);
+            src_slot = cpp_spill_ptr_to_temp(&vtop->type);
+            // dest を先に積むと [dest, src] の順で既に vstore が求める
+            // 並びになる。末尾に vswap() を残すと [src, dest] へ反転し、
+            // 逆アドレスへ書き込んで即クラッシュする不具合を実測したため
+            // ここでは入れない（上のヒープ ctor-less 分岐と同じ理由）。
+            vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            indir();                // dest object lvalue
+            vset(ptype, VT_LOCAL | VT_LVAL, src_slot);
+            indir();                // [dest, src] for vstore
+            vstore();
+            vpop();
+            cpp_reconstruct_copied_class_members(class_sym, ptype,
+                                                 ptr_slot, src_slot, 0, 0);
+            return;
+        }
+    }
+    if (resolved) {
+        vtop[-na].sym = resolved;
+        vtop[-na].type.ref = resolved->type.ref;
+        ctor_global = resolved;
+    }
+    sa = ctor_global->type.ref->next;
+    for (i = 0; i < na; i++) {
+        vrotb(na);
+        gfunc_param_typed(ctor_global->type.ref, sa);
+        if (sa)
+            sa = sa->next;
+    }
+    if (sa) {
+        cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
+        na = nb_args;
+    }
+    // `this` is read back out of the stack slot, so no register has to stay
+    // live while the arguments above were evaluated.
+    vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    this_sv = *vtop;
+    vpop();
+    if (na == 0) {
+        vpushv(&this_sv);
+        nb_args = 1;
+    } else {
+        vtop++;
+        nb_args = na + 1;
+        memmove(vtop - nb_args + 2, vtop - nb_args + 1, na * sizeof(SValue));
+        vtop[-nb_args + 1] = this_sv;
+    }
+    // gfunc_call consumes the callee and its arguments and pushes nothing
+    // (the caller is what materializes a return value), so there is
+    // deliberately no vpop here - a ctor's void result is simply absent.
+    gfunc_call(nb_args);
+}
+
+static void cpp_parse_new(void)
+{
+    CType type, ptype;
+    AttributeDef ad;
+    Sym *class_sym;
+    int size, align, ptr_slot, parse_args;
+
+    next();                             /* consume 'new' */
+    if (!local_scope)
+        tcc_error("'new' is only supported inside a function");
+    if (!parse_btype(&type, &ad, 0))
+        expect("type name after 'new'");
+    while (tok == '*') {
+        next();
+        mk_pointer(&type);
+    }
+    ptype = type;
+    mk_pointer(&ptype);
+
+    if (tok == '[') {
+        /* new T[n] - POD elements only (see the scope note above) */
+        next();
+        if ((type.t & VT_BTYPE) == VT_STRUCT && type.ref
+            && (cpp_find_ctor_field(type.ref) || cpp_find_dtor_field(type.ref)))
+            tcc_error("new[] of a class with a constructor or destructor is not supported");
+        size = type_size(&type, &align);
+        if (size <= 0)
+            tcc_error("cannot allocate an incomplete type");
+        gexpr();
+        skip(']');
+        vpushi(size);
+        gen_op('*');
+        vpushsym(&cpp_malloc_type, cpp_heap_sym("malloc", &cpp_malloc_type));
+        vswap();                        /* [count*size, malloc] -> [malloc, n] */
+        cpp_finish_heap_call(&cpp_voidp_type, 1);
+        vtop->type = ptype;
+        return;
+    }
+
+    if ((type.t & VT_BTYPE) != VT_STRUCT || !type.ref)
+        tcc_error("'new' of a non-class type is not supported");
+    class_sym = type.ref;
+    if (class_sym->c < 0)
+        tcc_error("cannot allocate an incomplete type");
+    cpp_check_not_abstract(&type, "allocate");   /* G5 */
+    size = type_size(&type, &align);
+    if (size <= 0)
+        size = 1;
+    vpushsym(&cpp_malloc_type, cpp_heap_sym("malloc", &cpp_malloc_type));
+    vpushi(size);
+    cpp_finish_heap_call(&cpp_voidp_type, 1);
+    vtop->type = ptype;
+    ptr_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    // vptrs first: a constructor body may already call a virtual member.
+    cpp_init_heap_vptr(&ptype, ptr_slot, class_sym);
+
+    parse_args = 0;
+    if (tok == '(') {
+        next();
+        parse_args = 1;
+    }
+    if (cpp_find_ctor_field(class_sym))
+        cpp_validate_explicit_ctor_members(class_sym);
+    if (cpp_find_dtor_field(class_sym))
+        cpp_validate_explicit_dtor_members(class_sym);
+    if (!cpp_find_dtor_field(class_sym))
+        cpp_validate_implicit_dtor(class_sym, 0);
+    if ((!parse_args || tok == ')') && !cpp_find_ctor_field(class_sym))
+        cpp_validate_implicit_default_ctor(class_sym, 0);
+    cpp_emit_heap_ctor_call(class_sym, &ptype, ptr_slot, parse_args);
+    if (parse_args)
+        skip(')');
+    vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+}
+
+static void cpp_parse_delete(void)
+{
+    CType ptype, elem, ct;
+    Sym *dtor_field, *dtor_global;
+    int is_array, ptr_slot, skip_jmp;
+
+    next();                             /* consume 'delete' */
+    is_array = 0;
+    if (tok == '[') {
+        next();
+        skip(']');
+        is_array = 1;
+    }
+    if (!local_scope)
+        tcc_error("'delete' is only supported inside a function");
+    unary();                            /* the pointer expression */
+    if ((vtop->type.t & VT_BTYPE) != VT_PTR) {
+        // C++ lets the null pointer constant stand in for a pointer, and
+        // `delete 0;` must compile as a no-op (CPPUnit writes the pattern
+        // via NULL-valued members).  Anything else is a real type error.
+        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST
+            && vtop->c.i == 0) {
+            CType vp;
+            vp.t = VT_VOID;
+            vp.ref = NULL;
+            mk_pointer(&vp);
+            vtop->type = vp;
+        } else {
+            expect("pointer");
+        }
+    }
+    ptype = vtop->type;
+    elem = *pointed_type(&ptype);
+    ptr_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    // `delete 0;` and a NULL pointer must be no-ops, and the test has to
+    // come before the vptr is touched (a virtual dtor in G6 will read it).
+    vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    skip_jmp = gvtst(1, 0);
+
+    if ((elem.t & VT_BTYPE) == VT_STRUCT && elem.ref) {
+        dtor_field = cpp_find_dtor_field(elem.ref);
+        if (dtor_field)
+            cpp_validate_explicit_dtor_members(elem.ref);
+        else
+            cpp_validate_implicit_dtor(elem.ref, 0);
+        if (dtor_field && dtor_field->type.ref
+            && dtor_field->type.ref->f.func_virtual) {
+            // G6: virtual destructor - dynamic dispatch + complete-object
+            // free.  Through a non-primary base pointer (D : A, B with
+            // B* b = d) `b != d`, so free(b) would hand malloc an address
+            // it never returned: heap corruption that only shows up under
+            // multiple inheritance.  The vtable's offset-to-top (vptr[-1],
+            // emitted by cpp_emit_vtable / cpp_emit_secondary_vtables)
+            // recovers the complete object.  Selected by the STATIC type's
+            // dtor only - non-virtual dtors and PODs must keep the direct
+            // G4 path below, which never touches a vptr.
+            CType charpp, ip, ipp, cptr;
+            int complete_slot;
+            int it = PTR_SIZE == 8 ? VT_LLONG : VT_INT;
+
+            if (is_array)
+                tcc_error("delete[] of a class with a destructor is not supported");
+
+            // complete = p + vptr[-1], computed BEFORE the dtor runs and
+            // stashed in its own slot (the plan's ordering requirement).
+            charpp = char_pointer_type;
+            mk_pointer(&charpp);
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            vtop->type = charpp;
+            indir();                        /* char* rvalue-ish: the vptr */
+            vtop->type = char_pointer_type;
+            vpushi(-PTR_SIZE);
+            gen_op('+');                    /* char* = &offset-to-top     */
+            ip.t = it;
+            ip.ref = NULL;
+            ipp = ip;
+            mk_pointer(&ipp);
+            vtop->type = ipp;
+            indir();                        /* intptr = offset-to-top     */
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            vtop->type = char_pointer_type;
+            vswap();
+            gen_op('+');                    /* char* complete             */
+            cptr = char_pointer_type;
+            loc = (loc - PTR_SIZE) & -PTR_SIZE;
+            complete_slot = loc;
+            vset(&cptr, VT_LOCAL | VT_LVAL, complete_slot);
+            vswap();
+            vstore();
+            vpop();
+
+            // virtual dtor call: *p as the object, dispatched through its
+            // vptr exactly like p->method() (thunks in the secondary
+            // vtable adjust `this` for non-primary bases).
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            indir();
+            cpp_prepare_virtual_member_call(dtor_field, &elem);
+            indir();                        /* fn-ptr lvalue -> VT_FUNC   */
+            cpp_member_this_pending = 0;
+            vpushv(&cpp_member_this);
+            gfunc_call(1);
+
+            vpushsym(&cpp_free_type, cpp_heap_sym("free", &cpp_free_type));
+            vset(&cptr, VT_LOCAL | VT_LVAL, complete_slot);
+            cpp_finish_heap_call(&cpp_void_type, 1);
+            vpop();
+            gsym(skip_jmp);
+            vpushi(0);
+            vtop->type.t = VT_VOID;
+            return;
+        }
+        if (dtor_field) {
+            if (is_array)
+                tcc_error("delete[] of a class with a destructor is not supported");
+            ct.t = VT_STRUCT;
+            ct.ref = elem.ref;
+            dtor_global = cpp_lookup_member_func(dtor_field, &ct);
+            vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
+            vtop->sym = dtor_global;
+            vtop->r &= ~VT_LVAL;
+            vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+            gfunc_call(1);
+        }
+    }
+    vpushsym(&cpp_free_type, cpp_heap_sym("free", &cpp_free_type));
+    vset(&ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    cpp_finish_heap_call(&cpp_void_type, 1);
+    vpop();
+    gsym(skip_jmp);
+    /* a delete-expression has type void */
+    vpushi(0);
+    vtop->type.t = VT_VOID;
+}
+
 ST_FUNC void unary(void)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int n, t, align, size, r;
     CType type;
     Sym* s;
@@ -9573,6 +12088,10 @@ ST_FUNC void unary(void)
     /* XXX: GCC 2.95.3 does not generate a table although it should be
        better here */
 tok_next:
+    // G-CAST: "T(expr)" is a cast, not a call - check before the switch
+    // so the type name never reaches the identifier path.
+    if (tcc_state->cpp && cpp_try_functional_cast())
+        goto post_ops;
     switch (tok) {
     case TOK_EXTENSION:
         next();
@@ -9719,7 +12238,12 @@ tok_next:
     case '*':
         next();
         unary();
-        indir();
+        // G-OP: a class-typed operand dispatches to operator* (member 0-arg
+        // first, then the free 1-arg form, like every ext3 unary op).  Both
+        // hooks are VT_STRUCT-guarded, so pointer operands and C TUs keep
+        // the plain indir() path byte-for-byte.
+        if (!cpp_try_member_unop('*') && !cpp_try_free_unop('*'))
+            indir();
         break;
     case '&':
         next();
@@ -10138,6 +12662,14 @@ tok_next:
         n = 0x7f800000;
         goto special_math_val;
 
+    case TOK_NEW:
+        // G4.  In C these tokens are demoted to identifiers
+        // (is_cpp_only_keyword), so this case is C++-only by construction.
+        cpp_parse_new();
+        break;
+    case TOK_DELETE:
+        cpp_parse_delete();
+        break;
     case TOK_THIS:
         if (!tcc_state->cpp || !cpp_this_sym)
             tcc_error("invalid use of 'this'");
@@ -10145,6 +12677,14 @@ tok_next:
         vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
         vtop->sym = cpp_this_sym;
         break;
+    case ':':
+        // G1 (leading ::): an expression head "::name".  After consuming
+        // the qualifier, fall into the identifier path with the global-
+        // binding-only flag set.  A lone ':' falls through unchanged and
+        // hits the regular "identifier expected" diagnostic below.
+        if (tcc_state->cpp && cpp_parse_global_scope_qualifier())
+            cpp_global_scope_expr = 1;
+        goto tok_identifier;
     default:
     tok_identifier:
         if (tok < TOK_UIDENT)
@@ -10152,6 +12692,24 @@ tok_next:
         t = tok;
         next();
         s = sym_find(t);
+        if (tcc_state->cpp && cpp_global_scope_expr) {
+            // G1: "::name" must skip shadowing locals; the implicit member
+            // lookups below (BUG-21/BUG-22) are also bypassed because a
+            // qualified global must never rebind to a class member.
+            s = cpp_global_scope_find(t);
+        }
+        else if (tcc_state->cpp && cpp_default_arg_replay) {
+            // G3 P5: default-arg replay resolves in the defining scope -
+            // a call-site local must not capture the name, and the owning
+            // class (in cpp_cur_func_class) supplies its statics.
+            if (s && sym_scope(s))
+                s = cpp_global_scope_find(t);
+            if (!s && cpp_cur_func_class) {
+                Sym *st = cpp_lookup_static_member(cpp_cur_func_class, t);
+                if (st)
+                    s = st;
+            }
+        }
         /* BUG-22: an unqualified call to another member of the same class
            (`return helper(42);` inside a method) must pass `this`.  The name
            otherwise binds to the hoisted global that carries the method body,
@@ -10160,7 +12718,8 @@ tok_next:
            regular member-call path emit it, which also keeps virtual dispatch
            and MI base offsets working.  cross.h's C++ window_t relies on this
            throughout - init() calls init_common(). */
-        if (tcc_state->cpp && cpp_cur_func_class && cpp_this_sym
+        if (tcc_state->cpp && !cpp_global_scope_expr && !cpp_default_arg_replay
+            && cpp_cur_func_class && cpp_this_sym
             && tok == '('
             && (!s || sym_scope(s) == 0)) {
             Sym *mfn = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
@@ -10184,6 +12743,32 @@ tok_next:
                 }
                 break;
             }
+            // BUG-45: an unqualified call to a STATIC member of the same
+            // class (`frobSize(n+1)` inside `assign()`, SimpleString's own
+            // shape) is exactly the case BUG-22 excludes above (no `this`
+            // to pass) - but nothing else in this identifier-lookup chain
+            // is class-aware for a FUNCTION either (BUG-21's data-member
+            // fallback explicitly leaves functions alone).  Before this
+            // fix a static member called before its own out-of-class
+            // definition fell all the way through to the plain C
+            // "implicit declaration of function" path (`int foo()`,
+            // K&R/unknown-args), a total type mismatch with the real
+            // `size_type frobSize(size_type)` - the miscompiled call
+            // jumped to a raw stack value (RIP==RSP, confirmed with a
+            // VEH+CONTEXT diagnostic harness: the crash lands exactly
+            // between `frobSize` being entered and returning, never
+            // reaching its body).  Route it through the same
+            // BUG-33 static-member lookup (declaration-side, extern
+            // creation for a not-yet-defined member) that the QUALIFIED
+            // `Class::staticmember` path already uses, then let it fall
+            // through to the ordinary "found symbol" tail below exactly
+            // like any other resolved global function.
+            if (mfn && (mfn->type.t & VT_BTYPE) == VT_FUNC
+                && (mfn->type.t & VT_STATIC)) {
+                Sym *ss = cpp_lookup_static_member(cpp_cur_func_class, t);
+                if (ss)
+                    s = ss;
+            }
         }
         /* BUG-21: C++ unqualified lookup inside a member function searches
            class scope BEFORE namespace scope, so only a block-scope binding
@@ -10196,7 +12781,8 @@ tok_next:
            Member FUNCTIONS are deliberately left to the existing global
            binding - calls resolve through cpp_find_field_for_call - so only
            data members are considered here. */
-        if (tcc_state->cpp && cpp_cur_func_class) {
+        if (tcc_state->cpp && !cpp_global_scope_expr && !cpp_default_arg_replay
+            && cpp_cur_func_class) {
             Sym *mf = NULL;
             if (!s) {
                 mf = cpp_lookup_member_field(t, cpp_cur_func_class);
@@ -10217,6 +12803,16 @@ tok_next:
                 cpp_push_member_var(mf);
                 break;
             }
+        }
+        if (tcc_state->cpp && cpp_global_scope_expr) {
+            cpp_global_scope_expr = 0;
+            // C++ has no implicit function declaration, and letting an
+            // unresolved "::name" fall through to the implicit-decl path
+            // would defeat the whole point of the qualified lookup, so
+            // fail loudly here instead.
+            if (!s)
+                tcc_error("'%s' is not declared in global scope",
+                          get_tok_str(t, NULL));
         }
         if (!s || IS_ASM_SYM(s)) {
             const char* name = get_tok_str(t, NULL);
@@ -10264,6 +12860,7 @@ tok_next:
         break;
     }
 
+post_ops:
     /* post operations */
     while (1) {
         if (tok == TOK_INC || tok == TOK_DEC) {
@@ -10282,8 +12879,17 @@ tok_next:
             CType obj_type;
             Sym *field;
 
-            if (tok == TOK_ARROW)
+            if (tok == TOK_ARROW) {
+                // G-OP: class-typed lhs: x->m becomes (x.operator->())->m,
+                // applied ONCE (C++ recursion is out of scope).  operator->
+                // is member-only per ISO C++, so there is no free fallback.
+                // A non-pointer return then fails in indir() ("pointer
+                // expected") instead of silently recursing.
+                if (tcc_state->cpp && (vtop->type.t & VT_BTYPE) == VT_STRUCT
+                    && vtop->type.ref)
+                    cpp_try_member_unop(TOK_ARROW);
                 indir();
+            }
             /* C++: '.' on a reference is like '->' (deref then member) */
             else if (tcc_state->cpp && (vtop->type.t & VT_REFERENCE))
                 indir();
@@ -10321,6 +12927,13 @@ tok_next:
                 if (!field)
                     tcc_error("no destructor for class");
                 obj_type = vtop->type;
+                // G6: an explicit p->~B() on a virtual dtor dispatches on
+                // the object's dynamic type, like any other virtual call.
+                // The '(' handler that follows completes the call.
+                if (field->type.ref && field->type.ref->f.func_virtual) {
+                    cpp_prepare_virtual_member_call(field, &obj_type);
+                    next();
+                } else {
                 gaddrof();
                 mk_pointer(&vtop->type);   /* BUG-15: `this` as pointer, not
                                               a by-value struct copy */
@@ -10332,6 +12945,7 @@ tok_next:
                 vtop->r &= ~VT_LVAL;
                 cpp_member_this_pending = 1;
                 next();
+                }
             } else {
             int mem_tok, operator_name;
 
@@ -10381,6 +12995,19 @@ tok_next:
                 unget_tok(':');
                 break;
             }
+            // G1: "x ? v : ::b" arrives here as THREE ':' tokens, and the
+            // pair check above alone mistook the ternary ':' plus the start
+            // of "::" for a scope operator.  ':::' can only split as
+            // ':' + '::' (a '::' directly followed by ':' could never form
+            // Class::member), so give both tokens back and let the ternary
+            // parser consume its ':'.
+            next();
+            if (tok == ':') {
+                unget_tok(':');
+                unget_tok(':');
+                break;
+            }
+            unget_tok(':');
             if (!vtop->sym || (vtop->type.t & VT_BTYPE) != VT_STRUCT || !vtop->type.ref)
                 expect("identifier");
             class_sym = vtop->type.ref;
@@ -10390,6 +13017,78 @@ tok_next:
                 tcc_error("expected member name after ::");
             mem_tok = tok;
             next();
+            // Nested-class hop: in `Runner::Utility::add(...)` the middle
+            // name is a TYPE in the enclosing class, not a static member -
+            // descend to the nested class and read the next `:: member`,
+            // as many levels as the source nests.
+            while (tok == ':') {
+                Sym *ncls = cpp_lookup_class_type(class_sym, mem_tok);
+                if (!ncls || (ncls->type.t & VT_BTYPE) != VT_STRUCT
+                    || !ncls->type.ref)
+                    break;
+                next();
+                if (tok != ':') {
+                    unget_tok(':');
+                    break;
+                }
+                next();
+                if (tok < TOK_IDENT)
+                    tcc_error("expected member name after ::");
+                class_sym = ncls->type.ref;
+                cls_tok = mem_tok;
+                mem_tok = tok;
+                next();
+            }
+            // `Base::method(args)` inside a member body: an explicit,
+            // NON-virtual call to that class's implementation (the C++
+            // way to reach a base override from a derived one -
+            // TestSetup.cpp:51 `TestDecorator::run(m_result);`).  Only
+            // taken when the named class's member is reachable from
+            // *this, so unrelated classes still fall through to the
+            // static-member diagnostic below.
+            if (cpp_this_sym && cpp_cur_func_class
+                && cpp_lookup_member_field_opt(mem_tok, class_sym)
+                && cpp_lookup_member_field_opt(mem_tok, cpp_cur_func_class)) {
+                CType qct;
+                int qofs;
+                Sym *qf;
+
+                qct.t = VT_STRUCT;
+                qct.ref = class_sym;
+                // prefer the NAMED class's own declaration: base
+                // subobjects sit before own members in the field chain,
+                // so cpp_find_field_for_call would recurse into the base
+                // first and `Deco::run(x)` (Deco overrides run) would
+                // bind Base::run - measured as 16 instead of 31 in
+                // dev/test/a9/qual_base_call.cpp.
+                for (qf = class_sym->next; qf; qf = qf->next) {
+                    if (qf->v == (mem_tok | SYM_FIELD)
+                        && (qf->type.t & VT_BTYPE) == VT_FUNC)
+                        break;
+                }
+                if (!qf)
+                    qf = cpp_find_field_for_call(&qct, mem_tok, &qofs);
+                if (qf && (qf->type.t & VT_BTYPE) == VT_FUNC
+                    && !(qf->type.t & VT_STATIC)) {
+                    // drop the class-name placeholder the type path
+                    // pushed - the static path below does the same vpop
+                    vpop();
+                    vset(&cpp_this_sym->type, cpp_this_sym->r,
+                         cpp_this_sym->c);
+                    vtop->sym = cpp_this_sym;
+                    indir();            // *this as the object (lvalue)
+                    // cpp_prepare_member_func_call binds the DECLARING
+                    // class's implementation directly (no vtable) and
+                    // adjusts `this` to that base subobject - exactly the
+                    // qualified-call semantics.
+                    cpp_prepare_member_func_call(qf);
+                    // without the pending flag the '(' handler does not
+                    // inject the stashed `this` and the callee reads
+                    // garbage arguments (crashed at run time)
+                    cpp_member_this_pending = 1;
+                    continue;           // the '(' case completes the call
+                }
+            }
             ss = cpp_lookup_static_member(class_sym, mem_tok);
             if (!ss)
                 tcc_error("static member not found");
@@ -10416,6 +13115,8 @@ tok_next:
             Sym* sa;
             int nb_args, ret_nregs, ret_align, regsize, variadic;
             int cpp_defer, cpp_i;
+            int cpp_saved_this_pending;
+            SValue cpp_saved_member_this;
             TokenString* p, * p2;
 
             /* function call  */
@@ -10440,19 +13141,40 @@ tok_next:
                per-arg conversion so the overload can be resolved from the
                raw argument types (otherwise args get cast to the params
                of the initially bound overload before re-resolution).
-               Struct returns (sret slot) and reverse_funcargs keep the
-               eager behavior. */
+               reverse_funcargs keeps the eager behavior. */
             cpp_defer = tcc_state->cpp && !tcc_state->extern_c
                 && !tcc_state->reverse_funcargs
                 && (vtop->r & VT_SYM) && vtop->sym
-                && (s->type.t & VT_BTYPE) != VT_STRUCT
                 && cpp_call_has_overloads(vtop->sym);
+            // BUG-41: cpp_member_this / cpp_member_this_pending are single
+            // globals, so a NESTED member call inside the argument list -
+            // `insert(begin(), n, value)`, SimpleList.cpp:19 - consumed
+            // the OUTER call's pending flag: the outer call then ran
+            // WITHOUT `this` and every argument shifted one slot left
+            // (the callee read `this` == the first argument; AV at run
+            // time).  Stash this call's values across argument parsing
+            // (which includes default-arg replay) and restore before the
+            // this-injection below.
+            cpp_saved_this_pending = cpp_member_this_pending;
+            cpp_saved_member_this = cpp_member_this;
+            cpp_member_this_pending = 0;
             next();
             sa = s->next; /* first parameter */
             nb_args = regsize = 0;
             ret.r2 = VT_CONST;
+            // Overload sets may mix struct and non-struct returns
+            // (SimpleList: `iterator insert(it,v)` vs `void
+            // insert(it,n,v)` - the 3-arg call died with "too many
+            // arguments" because the struct return of the initial bind
+            // blocked the defer).  The sret slot depends on the RESOLVED
+            // overload, so under defer the whole return setup moves to
+            // after re-resolution (below); ret_nregs stays 0 here so the
+            // pre-call PUT_R_RET path is skipped.
+            ret_nregs = 0;
             /* compute first implicit argument if a structure is returned */
-            if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+            if (cpp_defer) {
+                ;
+            } else if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
                 variadic = (s->f.func_type == FUNC_ELLIPSIS);
                 ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
                     &ret_align, &regsize);
@@ -10545,8 +13267,16 @@ tok_next:
                 && (vtop[-nb_args].r & VT_SYM)
                 && vtop[-nb_args].sym
                 && (vtop[-nb_args].type.t & VT_BTYPE) == VT_FUNC) {
-                Sym *resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
-                                                      vtop[-nb_args].sym);
+                // BUG-30: for a member call, try the class's declarations
+                // first - cpp_resolve_func_call only sees overloads that
+                // already have a global, so a definition further down the
+                // TU (or in another one) would be invisible and the call
+                // would stick to the first declaration.
+                Sym *resolved = cpp_resolve_member_func_call(vtop[-nb_args].sym,
+                                                             nb_args);
+                if (!resolved)
+                    resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
+                                                     vtop[-nb_args].sym);
                 if (resolved) {
                     vtop[-nb_args].sym = resolved;
                     vtop[-nb_args].type.ref = resolved->type.ref;
@@ -10566,7 +13296,54 @@ tok_next:
                 }
                 if (sa)
                     cpp_apply_default_args(s, &nb_args, &sa);
+                // Deferred return setup: now that `s` is the RESOLVED
+                // overload, run the same struct-return handling the
+                // eager path did before the args - the sret slot value
+                // is pushed on top and rotated below the args so it is
+                // the first argument, exactly where the eager path put
+                // it (the this-insertion below then lands at position 1
+                // via its has_sret logic, unchanged).
+                if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+                    variadic = (s->f.func_type == FUNC_ELLIPSIS);
+                    ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
+                        &ret_align, &regsize);
+                    if (ret_nregs <= 0) {
+                        size = type_size(&s->type, &align);
+#ifdef TCC_TARGET_ARM64
+                        if (size < 16)
+                            while (size & (size - 1))
+                                size = (size | (size - 1)) + 1;
+#endif
+                        loc = (loc - size) & -align;
+                        ret.type = s->type;
+                        ret.r = VT_LOCAL | VT_LVAL;
+                        vseti(VT_LOCAL, loc);
+#ifdef CONFIG_TCC_BCHECK
+                        if (tcc_state->do_bounds_check)
+                            --loc;
+#endif
+                        ret.c = vtop->c;
+                        if (ret_nregs < 0) {
+                            vtop--;
+                        } else {
+                            vrott(nb_args + 1);
+                            nb_args++;
+                        }
+                    }
+                } else {
+                    ret_nregs = 1;
+                    ret.type = s->type;
+                }
+                if (ret_nregs > 0) {
+                    ret.c.i = 0;
+                    PUT_R_RET(&ret, ret.type.t);
+                }
             }
+            // BUG-41: restore this call's stashed `this` (see above) -
+            // nested calls in the argument list have consumed their own
+            // by now.
+            cpp_member_this_pending = cpp_saved_this_pending;
+            cpp_member_this = cpp_saved_member_this;
             if (cpp_member_this_pending) {
                 int na = nb_args;
 
@@ -10827,6 +13604,7 @@ static void expr_landor(int op);
 
 static void expr_infix(int p)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int t = tok, p2;
     while ((p2 = precedence(t)) >= p) {
         if (t == TOK_LOR || t == TOK_LAND) {
@@ -10903,6 +13681,7 @@ static int is_cond_bool(SValue* sv)
 
 static void expr_cond(void)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int tt, u, r1, r2, rc, t1, t2, islv, c, g;
     SValue sv;
     CType type;
@@ -10912,6 +13691,16 @@ static void expr_cond(void)
         next();
         c = condition_3way();
         g = (tok == ':' && gnu_ext);
+        if (g && tcc_state->cpp) {
+            // G1: "a ? ::b : c" begins its true branch with "::", which is
+            // ':' ':' at token level and looked like the GNU "a ?: b" form.
+            // Peek the second ':' to tell the two apart; C TUs never reach
+            // here with "::" so the GNU extension is untouched there.
+            next();
+            if (tok == ':')
+                g = 0;
+            unget_tok(':');
+        }
         tt = 0;
         if (!g) {
             if (c < 0) {
@@ -11471,6 +14260,7 @@ static void lblock(int* bsym, int* csym)
 
 static void block(int flags)
 {
+    CPP_SYNTAX_DEPTH_GUARD();
     int a, b, c, d, e, t;
     struct scope o;
     Sym* s;
@@ -12610,6 +15400,12 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
     init_params p = { 0 };
     int cpp_needs_vptr = 0;
 
+    // G5: every object definition funnels through here (locals, globals and
+    // statics alike), which makes it the one place that has to refuse an
+    // abstract class.  Pointers and references never reach it with the
+    // class type itself.
+    cpp_check_not_abstract(type, "declare");
+
     /* Always allocate static or global variables */
     if (v && (r & VT_VALMASK) == VT_CONST)
         nocode_wanted |= DATA_ONLY_WANTED;
@@ -12956,7 +15752,8 @@ static void gen_function(Sym* sym)
     saved_param_next = NULL;
     cpp_this_sym = NULL;
     cpp_cur_func_class = sym->parent_class;
-    if (sym->parent_class && tcc_state->cpp && !(sym->type.t & VT_STATIC)) {
+    if (sym->parent_class && tcc_state->cpp && !(sym->type.t & VT_STATIC)
+        && !(sym->type.ref && sym->type.ref->f.func_static_member)) {
         CType pt;
 
         /* Build `this` as a real pointer type via mk_pointer so that
@@ -13031,8 +15828,14 @@ static void gen_function(Sym* sym)
      * constructed first, so a member initializer may legally read a base
      * member.  MI Phase 1 only handled explicitly listed bases. */
     if (tcc_state->cpp && cpp_this_sym && sym->parent_class
-        && cpp_is_ctor_global(sym))
+        && cpp_is_ctor_global(sym)) {
         cpp_emit_implicit_base_ctors(sym->parent_class, sym->cpp_mem_init_list);
+        // G7: class-type data members the list does not name are
+        // default-constructed too (C++ semantics; TestResult's
+        // SimpleList members crashed the first driver run otherwise).
+        cpp_emit_implicit_member_ctors(sym->parent_class,
+                                       sym->cpp_mem_init_list);
+    }
 
     /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
      * the ctor sym into `this->a = x; this->b = y;` instructions before the
@@ -13060,8 +15863,29 @@ static void gen_function(Sym* sym)
 
                 member_field = cpp_lookup_member_field(member_tok, class_sym);
                 if (member_field
+                    && (member_field->type.t & VT_BTYPE) != VT_FUNC
+                    && cpp_is_class_data_member(member_field)
+                    && member_field->type.ref
+                    && cpp_find_ctor_field(member_field->type.ref)) {
+                    // G7: a CLASS member with a user ctor is initialized
+                    // by RUNNING that ctor on it (`m_message(msg)` -
+                    // TestFailure).  The old vstore path SHALLOW-copied
+                    // the source (shared heap buffer -> double free) and
+                    // could not take multi-argument forms at all.  The
+                    // base-ctor emitter works for any field: it parses
+                    // the args and calls the resolved ctor on
+                    // this->field.
+                    cpp_emit_base_ctor_call(member_field,
+                                            member_field->type.ref);
+                } else if (member_field
                     && (member_field->type.t & VT_BTYPE) != VT_FUNC) {
                     cpp_push_member_var(member_field);
+                    // A mem-initializer INITIALIZES the member, it does
+                    // not assign to it, so a const member is legal here
+                    // (RepeatedTest.h `const int m_timesRepeat` died in
+                    // vstore's read-only check otherwise).  Strip the
+                    // qualifier from this store only.
+                    vtop->type.t &= ~VT_CONSTANT;
                     if (tok != ')') {
                         expr_eq();
                         vstore();
@@ -13114,8 +15938,13 @@ static void gen_function(Sym* sym)
      * pop_local_syms because cpp_this_sym and local_stack must still be
      * live to address the subobjects. */
     if (tcc_state->cpp && cpp_this_sym && sym->parent_class
-        && cpp_is_dtor_global(sym))
+        && cpp_is_dtor_global(sym)) {
+        // G7: members die first (reverse declaration order), then the
+        // bases - the C++ destruction sequence.
+        cpp_validate_explicit_dtor_members(sym->parent_class);
+        cpp_emit_member_dtor_calls(sym->parent_class->next);
         cpp_emit_base_dtor_calls(sym->parent_class->next);
+    }
 
     /* reset local stack */
     pop_local_syms(NULL, 0);
@@ -13260,12 +16089,20 @@ static int decl(int l)
                             tcc_error("unclosed extern C block");
                         decl(l);
                     }
-                    next();
+                    // BUG-40: lower lex_c BEFORE the next() that consumes
+                    // the token after '}'.  That next() can cross pp
+                    // directives, and a `#define` body lexed there was
+                    // stored with DEMOTED C++ keywords (cuconfig.h's
+                    // `cu_CATCH_ALL if (false)` right after <stddef.h>'s
+                    // extern "C" block - TestCase.cpp:88).  BUG-11's
+                    // repromote only fixes the single lookahead token,
+                    // not tokens saved inside a macro body; lexing the
+                    // lookahead in C++ mode fixes both and makes the
+                    // repromote unnecessary here (the '{'-side symmetry
+                    // above is unchanged: '}' itself is still C-lexed).
                     tcc_state->lex_c--;
                     tcc_state->extern_c--;
-                    /* BUG-11: the next() above fetched the token after
-                       '}' in C mode - re-promote it. */
-                    cpp_repromote_stale_lookahead();
+                    next();
                     continue;
                 }
                 if (len == 3 && !memcmp(s, "C++", 3)) {
@@ -13714,6 +16551,33 @@ static int decl(int l)
                     has_init = (tok == '=');
                     if (has_init && (type.t & VT_VLA))
                         tcc_error("�ϒ��z��͏������ł��܂���");
+                    if (tcc_state->cpp
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_explicit_ctor_members(type.ref);
+                    if (tcc_state->cpp
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && cpp_find_dtor_field(type.ref)
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_explicit_dtor_members(type.ref);
+                    if (tcc_state->cpp && !has_init
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && !cpp_find_ctor_field(type.ref)
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_implicit_default_ctor(type.ref, 0);
+                    if (tcc_state->cpp
+                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (type.t & VT_BTYPE) == VT_STRUCT
+                        && type.ref
+                        && !cpp_find_dtor_field(type.ref)
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
+                        cpp_validate_implicit_dtor(type.ref, 0);
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
@@ -13758,6 +16622,17 @@ static int decl(int l)
                             esym->st_value, esym->st_size, 1);
                     }
                 }
+                // BUG-31: a `Class::member` declarator leaves the class in
+                // cpp_qualified_class.  The function-definition and
+                // function-declaration paths above consume and clear it, but
+                // an out-of-class STATIC DATA member definition
+                // (`const S::size_type S::npos = ...;`) falls through to
+                // decl_initializer_alloc and used to leave it set, so the
+                // NEXT function definition in the TU was registered as a
+                // member of that class: gen_function then gave it an implicit
+                // `this` parameter while callers kept passing only the
+                // declared arguments, silently shifting every one of them.
+                cpp_qualified_class = NULL;
                 if (tok != ',') {
                     if (l == VT_JMP)
                         return 1;
