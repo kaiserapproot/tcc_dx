@@ -3077,7 +3077,11 @@ static void cpp_emit_base_default_ctor_call(Sym *base_field)
     if (!base_class)
         return;
     ctor_field = cpp_find_ctor_field(base_class);
-    if (!ctor_field || !cpp_class_has_default_ctor(base_class))
+    if (!ctor_field) {
+        cpp_validate_implicit_default_ctor(base_class, 2);
+        return;
+    }
+    if (!cpp_class_has_default_ctor(base_class))
         return;
     base_type.t = VT_STRUCT;
     base_type.ref = base_class;
@@ -3093,9 +3097,10 @@ static void cpp_emit_base_default_ctor_call(Sym *base_field)
     resolved = cpp_resolve_member_func_call(ctor_global, 0);
     if (!resolved)
         resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
-    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC
-        || cpp_func_param_count(resolved) != 0)
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC)
         return;
+    if (cpp_func_param_count(resolved) != 0)
+        tcc_error("implicit default construction via default arguments is unsupported");
     vset(&resolved->type, resolved->r | VT_SYM, 0);
     vtop->sym = resolved;
     vtop->r &= ~VT_LVAL;
@@ -3314,9 +3319,10 @@ static void cpp_emit_member_default_ctor_call(Sym *field)
     resolved = cpp_resolve_member_func_call(ctor_global, 0);
     if (!resolved)
         resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
-    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC
-        || cpp_func_param_count(resolved) != 0)
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC)
         return;
+    if (cpp_func_param_count(resolved) != 0)
+        tcc_error("implicit default construction via default arguments is unsupported");
     vset(&resolved->type, resolved->r | VT_SYM, 0);
     vtop->sym = resolved;
     vtop->r &= ~VT_LVAL;
