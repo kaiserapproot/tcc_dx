@@ -3060,9 +3060,8 @@ static int cpp_is_dtor_global(Sym *fsym)
    arguments.  C++ requires every base to be constructed before the derived
    ctor body runs, but MI Phase 1 only constructed bases named in the
    mem-initializer list, so `D(int x) { ... }` left its bases raw.
-   Does nothing when the base has no 0-arg ctor: C++ would diagnose that, but
-   erroring here would reject existing sources whose bases only declare
-   argument-taking ctors and never relied on implicit construction. */
+   A base without a viable zero-argument ctor is rejected instead of leaving
+   its subobject unconstructed. */
 static void cpp_emit_base_default_ctor_call(Sym *base_field)
 {
     Sym *base_class;
@@ -3082,7 +3081,7 @@ static void cpp_emit_base_default_ctor_call(Sym *base_field)
         return;
     }
     if (!cpp_class_has_default_ctor(base_class))
-        return;
+        tcc_error("base class has no default constructor");
     base_type.t = VT_STRUCT;
     base_type.ref = base_class;
     ctor_global = cpp_lookup_member_func(ctor_field, &base_type);
