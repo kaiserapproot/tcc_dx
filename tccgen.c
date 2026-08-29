@@ -8577,12 +8577,23 @@ static int cpp_try_class_conversion(CType *dt)
     }
     if (class_sym->c < 0)
         return 0;
-    // Already the destination class: the plain copy / bind paths handle it
-    // (this also keeps derived-to-base and same-class copies off this path
-    // unless the direct paths cannot - they run first and never get here
-    // for compatible types).
+    // Already the destination class, or a class DERIVED from it: the plain
+    // copy and reference-bind paths own both cases.
+    // BUG-49: this test used to compare `ref == class_sym` only, so a
+    // derived operand fell through into the converting-ctor search.  The
+    // chosen `B(const B&)` then converted its OWN `const B&` parameter
+    // through gfunc_param_typed -> gen_assign_cast -> here, matching the
+    // same way and recursing until cpp_conv_depth cut it off: a
+    // `take(derived)` by value yielded 401 instead of 101, binding to
+    // `const B&` built a temporary where C++98 requires none (401 instead
+    // of no copy at all), and `B x(derived);` yielded 501.
+    // cpp_can_bind_lvalue_to_reference() and gen_cast() already implement
+    // the derived-to-base adjustment, so this path must not compete with
+    // them.  cpp_base_subobject_offset() returns 0 for the same class, so
+    // the original same-class case stays covered.
     if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
-        && vtop->type.ref == class_sym)
+        && vtop->type.ref
+        && cpp_base_subobject_offset(vtop->type.ref, class_sym) >= 0)
         return 0;
     if (cpp_conv_depth >= 4)
         return 0;
