@@ -106,6 +106,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **クラス内 `enum`** | `struct C{ enum E{A,B}; };` | `identifier が必要です` |
 | **デフォルトメンバ初期化子**（C++11） | `struct P{ int v = 5; };` | `',' が必要です（"=" が見つかりました）` |
 | **`operator new` のオーバーロード** | `static void* operator new(...)` | `unsupported operator` |
+| **暗黙のコピー代入**（メンバ／基底のメンバが `operator=` を持つ場合） | `struct M{ M& operator=(const M&); }; struct H{ M m; H(); }; H x,y; y = x;` | `implicit copy assignment is unsupported for a class whose member declares operator=; declare operator= for this class`。C++98 の暗黙コピー代入はメンバワイズだが tpp の struct 代入は memcpy なので、メンバの `operator=` が静かに飛ばされる（ヒープを持つメンバでは代入先バッファが漏れてコピー元と共有される）。**回避**: そのクラスに `operator=` を書く。POD 代入・`operator=` を書いたクラス自身の代入は不変 |
 | **派生 → 基底のスライシング（値）** | `struct D : B {}; D d; B b = d;` / `void take(B); take(d);` / `B f(const D& s){ return s; }` | コピー初期化は `slicing copy-initialization is unsupported; use direct-initialization`、値渡し・`return` は `'const struct D' から 'struct B' に変換できません`。**いずれも fail-closed**（BUG-49）。tpp は struct の引数・戻り値を copy ctor でなく memcpy で運ぶため、値スライスは派生側の vptr を基底オブジェクトへ運び込んでしまう。**回避**: 参照 `const B&` で渡すか、直接初期化 `B b(d);` を使う（どちらも正しく動く） |
 | `extern "C++" { ... }` | | 明示エラー |
 | `extern "C" { #include ... }` | | 未対応 |
@@ -121,7 +122,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | C | **`return` 経路の自動デストラクタが呼ばれない** | `int f(){ P p; return p.v; }` | dtor 実行 | **未実行**（ブロック `}` 終了時のみ） |
 | D | **ローカル `static` オブジェクトの ctor が走らない** | `static P s;`（関数内） | `s.v == 7` | **`s.v == 0`** |
 | ~~A3~~ | ~~**派生 → 基底の変換でコピー ctor が多重適用される**~~（BUG-49） | `void f(const B&); f(d);` / `B x(d);` | コピーなし / 101 | **修正済み**（2026-08-29）。参照束縛は 401 → コピーなし、直接初期化は 501 → 101。**値変換**（値渡し・`return`）は誤コードを避けて明示エラー化（§3.1） |
-| A2 | **暗黙のコピー代入演算子がメンバワイズにならない** | `operator=` を持つ `M` をメンバに持ち、自身は `operator=` を書いていない `H` で `y = x;` | メンバの `M::operator=` が走る | **memcpy のまま**（2026-08-29 実測。**`operator=` を書いたクラス自身**の代入は正しく動く。**構築側**はコピー初期化・直接初期化・`new T(obj)` とも A のとおり対応済み） |
+| ~~A2~~ | ~~**暗黙のコピー代入演算子がメンバワイズにならない**~~ | `operator=` を持つ `M` をメンバに持ち、自身は `operator=` を書いていない `H` で `y = x;` | メンバの `M::operator=` が走る | **明示エラーに変更**（2026-08-29）。memcpy で静かに `M::operator=` を飛ばしていたのを fail-closed 化（§3.1）。`operator=` を書いたクラス自身の代入・POD 代入は従来どおり |
 > **A は FEAT-COPY-INIT で解消**（2026-08-29）。残っていた 1 経路が
 > コピー初期化 `T b = a;` で、これを直接初期化 `T b(a);` と同じ構築へ接続した。
 > ユーザー定義コピー ctor があればオーバーロード解決して呼び、無い場合も
@@ -222,10 +223,10 @@ D3D の C++ ヘルパークラス・演算子も消える。`TCC_NO_FORCE_CINTER
    非 primary 基底のオーバーロード仮想は明示エラー（§4）になる。
 5. **クラスの「構築時の」コピーは通常どおり書ける**（FEAT-COPY-INIT、2026-08-29）。
    `P b = a;` / `P b(a);` / `new P(a)` のいずれもコピー ctor（無ければ暗黙の
-   メンバワイズコピー）が走る。**ただし代入 `b = a;` は別**で、`operator=` を
-   書いたクラス自身なら正しく呼ばれるが、**暗黙のコピー代入はメンバワイズに
-   ならず memcpy になる**（§3.2 A2）。ディープコピーを持つメンバを含む
-   クラスには `operator=` を明示的に書くこと。
+   メンバワイズコピー）が走る。**代入 `b = a;` は `operator=` を自分で書く**こと。
+   `operator=` を持つメンバを含むクラスで暗黙のコピー代入に頼ると、
+   メンバワイズにならないため**コンパイルエラー**になる（§3.1。誤コードを
+   出さないための措置）。POD の代入は従来どおり動く。
 6. **メンバ呼び出しの引数に `this` 由来の式を直接書かない**（§3.2 E）。
    一度ローカル変数に受けてから渡す。
 7. **日本語コメントを含む `.cpp` は CP932 で保存するか、各行を ASCII 文字で終える**。
