@@ -11715,6 +11715,48 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
     }
 }
 
+// FEAT-COPY-INIT: run the copy construction for a local `T b = a;`.
+// vtop holds the already-evaluated initializer, an lvalue of the SAME
+// class as the object.  Both addresses are spilled to stack slots first
+// (the BUG-23 lesson: no register may stay live across the ctor call),
+// then the same two steps used for `new T(obj)` are applied - a
+// user-declared copy ctor when one is viable, otherwise the flat copy
+// plus the memberwise repair BUG-46 introduced, so a member owning a
+// heap buffer is not aliased into a double free.
+static void cpp_emit_local_copy_init(Sym *obj_sym, Sym *class_sym)
+{
+    CType ptype;
+    int src_slot;
+    int dst_slot;
+
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    src_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    vset(&obj_sym->type, obj_sym->r, obj_sym->c);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    dst_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    if (cpp_emit_copied_class_subobject(class_sym, &ptype, dst_slot,
+                                        src_slot, 0, 0))
+        return;
+
+    // No viable user copy ctor: C++98 still declares an implicit one, and
+    // it is memberwise.  Push dest first and source second - that is
+    // already the order vstore() wants (a trailing vswap() in the heap
+    // twin wrote to the reversed address and crashed at once).
+    vset(&ptype, VT_LOCAL | VT_LVAL, dst_slot);
+    indir();
+    vset(&ptype, VT_LOCAL | VT_LVAL, src_slot);
+    indir();
+    vstore();
+    vpop();
+    cpp_reconstruct_copied_class_members(class_sym, &ptype, dst_slot,
+                                         src_slot, 0, 0);
+}
 // Emit __cpp_ctor_C(p, args) for the object whose address sits in
 // ptr_slot.  Argument handling mirrors cpp_emit_base_ctor_call: parse
 // first, resolve the overload from the raw types, then convert.
@@ -16335,6 +16377,54 @@ static int decl(int l)
                     }
                     skip(';');
                     break;
+                } else if (tok == '='
+                           && !(btype.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))) {
+                    /* FEAT-COPY-INIT: copy-initialization `Foo b = a;`.
+                       This was the last declaration form still falling
+                       through to the plain struct assignment in
+                       decl_initializer, so a user-declared copy ctor was
+                       never called.  Measured with a `P(const P&)` that adds
+                       100: `P b = a;` gave b.v == 1 while the direct-init
+                       `P c(a);` gave 101.  The heap twin `new T(obj)` was
+                       already made memberwise by BUG-46/47, so the stack
+                       case is brought to the same semantics here. */
+                    Sym *obj_sym;
+
+                    next();
+                    if (tok == '{') {
+                        /* A brace initializer is not a copy-init: restore the
+                           stream for decl_initializer.  unget is LIFO, so the
+                           variable token is pushed last to come out first. */
+                        unget_tok('=');
+                        unget_tok(saved_var_tok);
+                    } else {
+                        decl_initializer_alloc(&type, &ad, obj_r,
+                                               0, saved_var_tok, 0);
+                        obj_sym = sym_find(saved_var_tok);
+                        if (!obj_sym)
+                            tcc_error("internal error: copy-init object lost");
+                        expr_eq();
+                        if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+                            && vtop->type.ref == btype.ref) {
+                            cpp_emit_local_copy_init(obj_sym, btype.ref);
+                        } else {
+                            /* Not a same-class initializer (base slicing, a
+                               conversion, or a plain type error): keep both
+                               the old meaning and the old diagnostics by
+                               doing the ordinary checked assignment. */
+                            vset(&obj_sym->type, obj_sym->r, obj_sym->c);
+                            vswap();
+                            gen_assign_cast(&obj_sym->type);
+                            vstore();
+                            vpop();
+                        }
+                        if (tok == ',') {
+                            next();
+                            continue;
+                        }
+                        skip(';');
+                        break;
+                    }
                 } else {
                     unget_tok(saved_var_tok);
                 }
