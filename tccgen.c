@@ -16420,17 +16420,18 @@ static int decl(int l)
                             cpp_emit_local_copy_init(obj_sym, btype.ref);
                         } else {
                             /* Not a same-class initializer.  Derived-to-base
-                               slicing must NOT reach gen_assign_cast: the
-                               G-CONV converting ctor is applied recursively
-                               there, because the copy ctor's own `const B&`
-                               parameter is itself taken for a conversion
-                               target, so the ctor runs cpp_conv_depth times
-                               (measured: 401 instead of 101).  That defect
-                               is pre-existing and independent of copy-init -
-                               `take(derived)` by value yields 401 on master
-                               too - and master rejected this declaration
-                               form outright, so failing closed here keeps a
-                               wrong value from being emitted.  Every other
+                               slicing is rejected outright: tpp moves struct
+                               arguments and return values with a memcpy
+                               rather than a copy ctor (measured: even the
+                               same-class `take(a)` does not run one), so a
+                               VALUE slice would carry the derived object's
+                               vtable pointer into the base object.  BUG-49
+                               (fixed separately) additionally made the
+                               converting ctor recurse on this operand; with
+                               that fixed the operand would be refused by
+                               verify_assign_cast anyway, but a dedicated
+                               diagnostic naming the workaround beats the
+                               generic "cannot convert" message.  Every other
                                initializer (a converting ctor from an
                                unrelated class, or a plain type error) keeps
                                both the old meaning and the old diagnostics
