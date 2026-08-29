@@ -106,7 +106,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **クラス内 `enum`** | `struct C{ enum E{A,B}; };` | `identifier が必要です` |
 | **デフォルトメンバ初期化子**（C++11） | `struct P{ int v = 5; };` | `',' が必要です（"=" が見つかりました）` |
 | **`operator new` のオーバーロード** | `static void* operator new(...)` | `unsupported operator` |
-| **派生 → 基底のスライシングをコピー初期化で書く** | `struct D : B {}; D d; B b = d;` | `slicing copy-initialization is unsupported; use direct-initialization`（FEAT-COPY-INIT で fail-closed。誤値を出さないための措置で、理由は BUG-49） |
+| **派生 → 基底のスライシング（値）** | `struct D : B {}; D d; B b = d;` / `void take(B); take(d);` / `B f(const D& s){ return s; }` | コピー初期化は `slicing copy-initialization is unsupported; use direct-initialization`、値渡し・`return` は `'const struct D' から 'struct B' に変換できません`。**いずれも fail-closed**（BUG-49）。tpp は struct の引数・戻り値を copy ctor でなく memcpy で運ぶため、値スライスは派生側の vptr を基底オブジェクトへ運び込んでしまう。**回避**: 参照 `const B&` で渡すか、直接初期化 `B b(d);` を使う（どちらも正しく動く） |
 | `extern "C++" { ... }` | | 明示エラー |
 | `extern "C" { #include ... }` | | 未対応 |
 
@@ -120,7 +120,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | B | **委譲コンストラクタの本体が走らない**（C++11） | `P() : P(3) {}` | `p.v == 3` | **`p.v == 0`** |
 | C | **`return` 経路の自動デストラクタが呼ばれない** | `int f(){ P p; return p.v; }` | dtor 実行 | **未実行**（ブロック `}` 終了時のみ） |
 | D | **ローカル `static` オブジェクトの ctor が走らない** | `static P s;`（関数内） | `s.v == 7` | **`s.v == 0`** |
-| A3 | **派生 → 基底の値・参照変換でコピー ctor が多重適用される**（BUG-49） | `void take(B); D d; take(d);` / `void f(const B&); f(d);` / `B x(d);` | 101 / コピーなし / 101 | **401 / 401 / 501**（`cpp_conv_depth` の上限まで変換 ctor が再帰適用。2026-08-29 実測、**master でも同じ**。コピー初期化 `B b = d;` だけは明示エラーで塞いである） |
+| ~~A3~~ | ~~**派生 → 基底の変換でコピー ctor が多重適用される**~~（BUG-49） | `void f(const B&); f(d);` / `B x(d);` | コピーなし / 101 | **修正済み**（2026-08-29）。参照束縛は 401 → コピーなし、直接初期化は 501 → 101。**値変換**（値渡し・`return`）は誤コードを避けて明示エラー化（§3.1） |
 | A2 | **暗黙のコピー代入演算子がメンバワイズにならない** | `operator=` を持つ `M` をメンバに持ち、自身は `operator=` を書いていない `H` で `y = x;` | メンバの `M::operator=` が走る | **memcpy のまま**（2026-08-29 実測。**`operator=` を書いたクラス自身**の代入は正しく動く。**構築側**はコピー初期化・直接初期化・`new T(obj)` とも A のとおり対応済み） |
 > **A は FEAT-COPY-INIT で解消**（2026-08-29）。残っていた 1 経路が
 > コピー初期化 `T b = a;` で、これを直接初期化 `T b(a);` と同じ構築へ接続した。
@@ -281,7 +281,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-46 | `new T(obj)` の暗黙コピー構築がメンバワイズでなくフラットなバイトコピーで、ヒープバッファを持つメンバが共有され二重解放（→ CRT ヒープ破壊 → 無関係な alloc/free でハング） | **修正済み**（`cpp_reconstruct_copied_class_members` を新設し、ctor を持つクラス型メンバをコピー用 ctor で再構築。2026-08-24） |
 | BUG-47 | BUG-46 の再構築呼び出しが引数 1 個固定で、既定引数付きパラメータを持つコピー用 ctor（`SimpleString(const SimpleString&, pos=0, n=npos)`）にゴミ値が渡る | **修正済み**（`cpp_apply_default_args` を同経路にも適用。2026-08-24） |
 | BUG-48 | 局所クラスを同一関数内で複数定義すると、最初の 1 つのスコープ終端デストラクタ呼び出しが静かに欠落 | **修正済み**（`cpp_class_sym_push` の global_stack 昇格でメンバ型の `ref` チェーンも `sym_copy_ref` で同じ寿命へコピー。2026-08-25） |
-| BUG-49 | 派生 → 基底の値・参照変換で、基底のコピー ctor が `cpp_conv_depth` の上限まで再帰適用される（値渡し 401 / `const B&` 束縛 401 / 直接初期化 501。**master でも再現する既存欠陥**） | **未修正**（2026-08-29 起票。コピー初期化の宣言経路のみ FEAT-COPY-INIT で明示エラー化。原因調査メモと対応案は [問題と原因.md](問題と原因.md) BUG-49） |
+| BUG-49 | 派生 → 基底の変換で、基底のコピー ctor が `cpp_conv_depth` の上限まで再帰適用される。**`const B&` への束縛でも一時が作られ（copy ctor 4 回）、`B&` 経由の書き込みが元オブジェクトへ届かず失われていた** | **修正済み**（2026-08-29）。`cpp_try_class_conversion()` の早期 return を `ref == class_sym` から `cpp_base_subobject_offset() >= 0` へ変更し、派生→基底を参照バインド／通常のコピー経路へ譲る。参照束縛は copy ctor 0 回・書き込みが正しく反映、直接初期化 `B x(d);` は 501 → 101。**値スライスのみ fail-closed**（§3.1） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。
