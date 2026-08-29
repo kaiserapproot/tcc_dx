@@ -71,7 +71,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | クラス | `class` / `struct`、アクセス指定子（パース）、メンバ変数・メンバ関数、クラス内インライン定義、クラス外定義（`int Foo::bar()`）、**クラス内 typedef**（unqualified / `Class::type` 修飾 / 基底・外側クラスからの継承解決、G3）、二重修飾クラス外定義 `Outer::Inner::member`、デフォルト引数の定義スコープ解決（`= npos`）（いずれも 2026-08-22）、ネストクラスのクラス外定義 `class Outer::Inner { ... };`、**局所クラス**（関数内のクラス定義。BUG-42。制限: タグ名が関数終了後もファイルスコープに残るため同名局所クラスの複数定義は不可）（2026-08-23） |
 | 型 | `bool` / `true` / `false`、参照 `&`（引数・戻り値・ローカル・**メンバ**）、クラス名 typedef |
 | 関数 | オーバーロード、デフォルト引数、無名引数、`const` メンバ関数、`const` によるオーバーロード |
-| 構築・破棄 | コンストラクタ（初期化子リスト含む）、デストラクタ、ローカルのブロック終了時 dtor、グローバルの自動 ctor/dtor（`.init_array` / `.fini_array`）、暗黙の基底 ctor / 自動基底 dtor、**`const` メンバの mem-initializer 初期化**、**暗黙メンバ ctor/dtor**（mem-init が挙げないクラス型データメンバの黙示構築・逆順破棄）、**変換 ctor の暗黙適用**（G-CONV。`return` / mem-init / 代入 / 引数で 1 段のみ）（いずれも 2026-08-23）、**コピー初期化 `T b = a;`**（FEAT-COPY-INIT、2026-08-29。ユーザー定義コピー ctor を解決、無ければメンバワイズ再構築。直接初期化 `T b(a);` と同じ意味論） |
+| 構築・破棄 | コンストラクタ（初期化子リスト含む）、デストラクタ、ローカルのブロック終了時 dtor、グローバルの自動 ctor/dtor（`.init_array` / `.fini_array`）、暗黙の基底 ctor / 自動基底 dtor、**`const` メンバの mem-initializer 初期化**、**暗黙メンバ ctor/dtor**（mem-init が挙げないクラス型データメンバの黙示構築・逆順破棄）、**変換 ctor の暗黙適用**（G-CONV。`return` / mem-init / 代入 / 引数で 1 段のみ）（いずれも 2026-08-23）、**コピー初期化 `T b = a;`**（FEAT-COPY-INIT、2026-08-29。ユーザー定義コピー ctor を解決、無ければメンバワイズ再構築。直接初期化 `T b(a);` と同じ意味論。参照・deref・関数戻り値からの初期化も可。**派生 → 基底のスライシングだけは明示エラー** — BUG-49 の多重適用を避けるため） |
 | 動的確保 | `new Class(args)` / `new Class()` / `new Class` / `delete p`（G4、2026-08-22。vptr 初期化 → ctor のオーバーロード解決・デフォルト引数込み）、`new POD[n]` / `delete[]`（POD のみ）、**`new T(obj)` の暗黙メンバワイズコピー**（BUG-46/47、2026-08-24。ヒープバッファを持つメンバはコピー用 ctor で再構築）。**明示エラー**: scalar POD の `new int`、ctor/dtor を持つクラスの `new C[n]` / `delete[]`、`operator new` の置き換え |
 | 継承 | 単一継承、多重継承（非仮想）、`D*`→`B*` / `D&`→`B&` アップキャスト |
 | 仮想関数 | `virtual` 宣言、vtable / vptr、動的ディスパッチ（値・ポインタ経由）、派生 override、多重継承下の仮想（primary vptr 共有 + セカンダリ vtable + this 調整 thunk）、**純粋仮想 `= 0` / 抽象クラス**（G5、2026-08-22。抽象クラスのオブジェクト宣言・`new` は明示エラー）、**仮想デストラクタ + complete-object delete**（G6、2026-08-22。`delete base_ptr` の動的ディスパッチ、MI は offset-to-top で complete object を free） |
@@ -106,6 +106,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **クラス内 `enum`** | `struct C{ enum E{A,B}; };` | `identifier が必要です` |
 | **デフォルトメンバ初期化子**（C++11） | `struct P{ int v = 5; };` | `',' が必要です（"=" が見つかりました）` |
 | **`operator new` のオーバーロード** | `static void* operator new(...)` | `unsupported operator` |
+| **派生 → 基底のスライシングをコピー初期化で書く** | `struct D : B {}; D d; B b = d;` | `slicing copy-initialization is unsupported; use direct-initialization`（FEAT-COPY-INIT で fail-closed。誤値を出さないための措置で、理由は BUG-49） |
 | `extern "C++" { ... }` | | 明示エラー |
 | `extern "C" { #include ... }` | | 未対応 |
 
@@ -119,6 +120,7 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | B | **委譲コンストラクタの本体が走らない**（C++11） | `P() : P(3) {}` | `p.v == 3` | **`p.v == 0`** |
 | C | **`return` 経路の自動デストラクタが呼ばれない** | `int f(){ P p; return p.v; }` | dtor 実行 | **未実行**（ブロック `}` 終了時のみ） |
 | D | **ローカル `static` オブジェクトの ctor が走らない** | `static P s;`（関数内） | `s.v == 7` | **`s.v == 0`** |
+| A3 | **派生 → 基底の値・参照変換でコピー ctor が多重適用される**（BUG-49） | `void take(B); D d; take(d);` / `void f(const B&); f(d);` / `B x(d);` | 101 / コピーなし / 101 | **401 / 401 / 501**（`cpp_conv_depth` の上限まで変換 ctor が再帰適用。2026-08-29 実測、**master でも同じ**。コピー初期化 `B b = d;` だけは明示エラーで塞いである） |
 | A2 | **暗黙のコピー代入演算子がメンバワイズにならない** | `operator=` を持つ `M` をメンバに持ち、自身は `operator=` を書いていない `H` で `y = x;` | メンバの `M::operator=` が走る | **memcpy のまま**（2026-08-29 実測。**`operator=` を書いたクラス自身**の代入は正しく動く。**構築側**はコピー初期化・直接初期化・`new T(obj)` とも A のとおり対応済み） |
 > **A は FEAT-COPY-INIT で解消**（2026-08-29）。残っていた 1 経路が
 > コピー初期化 `T b = a;` で、これを直接初期化 `T b(a);` と同じ構築へ接続した。
@@ -279,6 +281,7 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-46 | `new T(obj)` の暗黙コピー構築がメンバワイズでなくフラットなバイトコピーで、ヒープバッファを持つメンバが共有され二重解放（→ CRT ヒープ破壊 → 無関係な alloc/free でハング） | **修正済み**（`cpp_reconstruct_copied_class_members` を新設し、ctor を持つクラス型メンバをコピー用 ctor で再構築。2026-08-24） |
 | BUG-47 | BUG-46 の再構築呼び出しが引数 1 個固定で、既定引数付きパラメータを持つコピー用 ctor（`SimpleString(const SimpleString&, pos=0, n=npos)`）にゴミ値が渡る | **修正済み**（`cpp_apply_default_args` を同経路にも適用。2026-08-24） |
 | BUG-48 | 局所クラスを同一関数内で複数定義すると、最初の 1 つのスコープ終端デストラクタ呼び出しが静かに欠落 | **修正済み**（`cpp_class_sym_push` の global_stack 昇格でメンバ型の `ref` チェーンも `sym_copy_ref` で同じ寿命へコピー。2026-08-25） |
+| BUG-49 | 派生 → 基底の値・参照変換で、基底のコピー ctor が `cpp_conv_depth` の上限まで再帰適用される（値渡し 401 / `const B&` 束縛 401 / 直接初期化 501。**master でも再現する既存欠陥**） | **未修正**（2026-08-29 起票。コピー初期化の宣言経路のみ FEAT-COPY-INIT で明示エラー化。原因調査メモと対応案は [問題と原因.md](問題と原因.md) BUG-49） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。

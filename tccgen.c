@@ -16408,10 +16408,27 @@ static int decl(int l)
                             && vtop->type.ref == btype.ref) {
                             cpp_emit_local_copy_init(obj_sym, btype.ref);
                         } else {
-                            /* Not a same-class initializer (base slicing, a
-                               conversion, or a plain type error): keep both
-                               the old meaning and the old diagnostics by
-                               doing the ordinary checked assignment. */
+                            /* Not a same-class initializer.  Derived-to-base
+                               slicing must NOT reach gen_assign_cast: the
+                               G-CONV converting ctor is applied recursively
+                               there, because the copy ctor's own `const B&`
+                               parameter is itself taken for a conversion
+                               target, so the ctor runs cpp_conv_depth times
+                               (measured: 401 instead of 101).  That defect
+                               is pre-existing and independent of copy-init -
+                               `take(derived)` by value yields 401 on master
+                               too - and master rejected this declaration
+                               form outright, so failing closed here keeps a
+                               wrong value from being emitted.  Every other
+                               initializer (a converting ctor from an
+                               unrelated class, or a plain type error) keeps
+                               both the old meaning and the old diagnostics
+                               through the ordinary checked assignment. */
+                            if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+                                && vtop->type.ref
+                                && cpp_base_subobject_offset(vtop->type.ref,
+                                                             btype.ref) >= 0)
+                                tcc_error("slicing copy-initialization is unsupported; use direct-initialization");
                             vset(&obj_sym->type, obj_sym->r, obj_sym->c);
                             vswap();
                             gen_assign_cast(&obj_sym->type);
