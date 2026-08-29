@@ -9342,6 +9342,45 @@ static int cpp_try_free_postop(int op_tok)
     return 1;
 }
 
+// C++98 declares an implicit copy-assignment operator for a class that does
+// not write one, and that implicit operator assigns base subobjects and data
+// members MEMBERWISE.  tpp instead copies a struct assignment with a flat
+// memcpy, so a member that declares its own operator= never runs it: a member
+// owning a heap buffer leaks the destination's buffer and starts sharing the
+// source's - the BUG-46 failure shape, still open on the assignment side.
+// Implementing memberwise assignment means touching vstore(), which every
+// struct copy goes through (initializers, arguments, returns, mem-inits), so
+// the silent miscompile is closed off with an explicit error first.
+// The caller has already run cpp_try_member_binop(), which searches the class
+// AND its bases, so reaching this walker means neither declares operator=;
+// only the data-member side can still make the implicit copy non-trivial.
+static int cpp_member_has_assign_op(Sym *class_sym)
+{
+    Sym *f;
+    CType ct;
+    int cumofs;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_member_has_assign_op");
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT || !f->type.ref)
+            continue;
+        if (f->type.t & VT_STATIC)
+            continue;
+        ct.t = VT_STRUCT;
+        ct.ref = f->type.ref;
+        // Base subobject fields are anonymous but carry VT_STRUCT too, so
+        // this walk covers "a base's member declares operator=" as well.
+        if (cpp_find_operator_member(&ct, cpp_operator_field_tok('='),
+                                     &cumofs, 1))
+            return 1;
+        if (cpp_member_has_assign_op(f->type.ref))
+            return 1;
+    }
+    return 0;
+}
+
 static int cpp_try_member_binop(int op_tok)
 {
     Sym *field, *s;
@@ -13891,6 +13930,21 @@ static void expr_eq(void)
             /* C++: member operator= (falls back to plain store) */
             if (cpp_try_member_binop(t))
                 return;
+            /* C++98 gives a class without operator= an IMPLICIT copy
+               assignment that is memberwise, but the plain store below is a
+               flat memcpy: a member declaring its own operator= would never
+               run it, so a member owning a heap buffer leaks the
+               destination's buffer and starts sharing the source's.  Fail
+               closed rather than emit that silently - the workaround is to
+               declare operator= for the class.  POD structs and C mode are
+               unaffected (no member declares operator= there). */
+            if (tcc_state->cpp
+                && (vtop[-1].type.t & VT_BTYPE) == VT_STRUCT
+                && vtop[-1].type.ref
+                && cpp_member_has_assign_op(vtop[-1].type.ref))
+                tcc_error("implicit copy assignment is unsupported for a class"
+                          " whose member declares operator=; declare"
+                          " operator= for this class");
         }
         else {
             /* C++: struct compound assignment via operator+= etc.
