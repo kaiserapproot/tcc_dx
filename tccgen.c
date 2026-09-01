@@ -1521,6 +1521,94 @@ static void cpp_call_scope_dtors(Sym *bottom)
         cpp_emit_local_dtor(s);
 }
 
+/* FEAT-4E-P3: return leaves every active block in the function, not only
+   cur_scope.  Find the local-stack boundary captured by the outermost body
+   block (the first real scope below root_scope). */
+static Sym *cpp_return_dtor_bottom(void)
+{
+    struct scope *s;
+
+    if (!tcc_state->cpp || !cur_scope || !root_scope)
+        return NULL;
+    s = cur_scope;
+    while (s && s->prev && s->prev != root_scope)
+        s = s->prev;
+    if (!s || s->prev != root_scope)
+        return NULL;
+    return s->lstk;
+}
+
+/* Only returns which actually destroy an object need a spill slot.  Keeping
+   the common dtor-free C++ path unchanged avoids an extra stack store/load in
+   every generated function. */
+static int cpp_scope_has_local_dtor(Sym *bottom)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp || !bottom)
+        return 0;
+    for (s = local_stack; s && s != bottom; s = s->prev) {
+        if ((s->r & VT_VALMASK) != VT_LOCAL)
+            continue;
+        if ((s->type.t & VT_BTYPE) != VT_STRUCT || !s->type.ref)
+            continue;
+        if (cpp_find_dtor_field(s->type.ref))
+            return 1;
+    }
+    return 0;
+}
+
+/* A return expression is evaluated before automatic objects are destroyed,
+   but every dtor call may clobber integer, floating-point, and struct-return
+   registers.  Store the converted value in a dedicated stack slot and reload
+   it after the dtor sequence.  The slot is not a Sym, so it is not itself
+   visited by cpp_call_scope_dtors(). */
+static int cpp_spill_return_value(CType *func_type, CType *spill_type,
+                                  int *is_reference)
+{
+    int size;
+    int align;
+    int slot;
+
+    *is_reference = (func_type->t & VT_REFERENCE) != 0;
+    if (*is_reference) {
+        /* Match gfunc_return(): a reference result is represented by the
+           bound object's address, not by a copied object. */
+        if (vtop->r & VT_LVAL) {
+            gaddrof();
+            if (!(vtop->type.t & VT_REFERENCE))
+                mk_pointer(&vtop->type);
+        }
+        *spill_type = vtop->type;
+        spill_type->t &= ~VT_REFERENCE;
+        vtop->type = *spill_type;
+    } else {
+        *spill_type = *func_type;
+        /* The hidden slot is writable even for a top-level const return. */
+        spill_type->t &= ~(VT_CONSTANT | VT_VOLATILE);
+    }
+
+    size = type_size(spill_type, &align);
+    if (size <= 0 || align <= 0)
+        tcc_error("internal error: invalid return spill type");
+    loc = (loc - size) & -align;
+    slot = loc;
+
+    vset(spill_type, VT_LOCAL | VT_LVAL, slot);
+    vswap();
+    vstore();
+    vpop();
+    return slot;
+}
+
+static void cpp_restore_return_value(CType *spill_type, int slot,
+                                     int is_reference)
+{
+    vset(spill_type, VT_LOCAL | VT_LVAL, slot);
+    if (is_reference)
+        gv(RC_INT);
+}
+
 /* FEAT-4G: deferred global ctor/dtor thunks for .init_array / .fini_array. */
 typedef struct CppGlobalDynEntry {
     Sym *obj_sym;
@@ -14466,6 +14554,16 @@ again:
 
     }
     else if (t == TOK_RETURN) {
+        CType return_spill_type;
+        Sym *return_bottom;
+        int return_has_dtors;
+        int return_is_reference;
+        int return_slot;
+
+        return_bottom = NULL;
+        return_has_dtors = 0;
+        return_is_reference = 0;
+        return_slot = 0;
         b = (func_vt.t & VT_BTYPE) != VT_VOID;
         if (tok != ';') {
             gexpr();
@@ -14481,6 +14579,19 @@ again:
         else if (b) {
             tcc_warning("�l�̂Ȃ� 'return' �ł�");
             b = 0;
+        }
+        if (tcc_state->cpp) {
+            return_bottom = cpp_return_dtor_bottom();
+            return_has_dtors = cpp_scope_has_local_dtor(return_bottom);
+            if (return_has_dtors && b)
+                return_slot = cpp_spill_return_value(&func_vt,
+                                                     &return_spill_type,
+                                                     &return_is_reference);
+            if (return_has_dtors)
+                cpp_call_scope_dtors(return_bottom);
+            if (return_slot)
+                cpp_restore_return_value(&return_spill_type, return_slot,
+                                         return_is_reference);
         }
         leave_scope(root_scope);
         if (b)
