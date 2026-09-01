@@ -9530,13 +9530,6 @@ static int cpp_try_free_postop(int op_tok)
     return 1;
 }
 
-// A flat struct store is a correct implementation of an implicit C++98 copy
-// assignment only when every base and data member is itself byte-copy safe.
-// References and const/volatile members are not assignable that way, a
-// polymorphic object must not have its vptr copied, and a class subobject with
-// a real copy-assignment operator must run it memberwise.  Reject those shapes
-// until memberwise assignment codegen exists, while ignoring unrelated
-// overloads such as M::operator=(int).
 static int cpp_implicit_copy_assign_is_safe(Sym *class_sym);
 
 static int cpp_is_copy_assign_field(Sym *field, Sym *class_sym)
@@ -9592,6 +9585,25 @@ static int cpp_implicit_copy_assign_type_is_safe(CType *type)
     }
     return 1;
 }
+static int cpp_implicit_copy_assign_base_is_safe(CType *type)
+{
+    CType *elem_type;
+
+    if (!type)
+        return 1;
+    if (type->t & (VT_REFERENCE | VT_CONSTANT | VT_VOLATILE))
+        return 0;
+    if (type->t & VT_ARRAY) {
+        elem_type = pointed_type(type);
+        return cpp_implicit_copy_assign_base_is_safe(elem_type);
+    }
+    if ((type->t & VT_BTYPE) == VT_STRUCT && type->ref) {
+        if (0)
+            return 0;
+        return cpp_implicit_copy_assign_is_safe(type->ref);
+    }
+    return 1;
+}
 
 static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
 {
@@ -9611,7 +9623,7 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
         if (cpp_is_base_field(f)) {
             base_type.t = VT_STRUCT;
             base_type.ref = f->parent_class;
-            if (!cpp_implicit_copy_assign_type_is_safe(&base_type))
+            if (!cpp_implicit_copy_assign_base_is_safe(&base_type))
                 return 0;
             continue;
         }
@@ -9629,6 +9641,8 @@ static int cpp_try_member_binop(int op_tok)
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
     field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs, 1);
+    if (op_tok == '=' && field && field->parent_class != vtop[-1].type.ref)
+        return 0;
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         return 0;
     if (field->type.ref && field->type.ref->f.func_virtual)
@@ -16662,6 +16676,8 @@ static int decl(int l)
                 int saved_var_tok = tok;
                 int is_static = (btype.t & VT_STATIC) != 0;
                 int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
+                if (is_static && cpp_find_dtor_field(btype.ref))
+                    tcc_error("function-local static destructor is unsupported");
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
