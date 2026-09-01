@@ -1609,6 +1609,48 @@ static void cpp_restore_return_value(CType *spill_type, int slot,
         gv(RC_INT);
 }
 
+/* FEAT-4F-P2: a function-local static object already uses static storage,
+   but its constructor must run at the declaration point exactly once.  The
+   anonymous static guard is zero-initialized with the object and cannot be
+   named by the source program.  C++98 does not require thread-safe guards. */
+static Sym *cpp_alloc_local_static_guard(void)
+{
+    CType guard_type;
+    AttributeDef guard_ad;
+    Sym *guard_sym;
+    int guard_tok;
+
+    guard_type = int_type;
+    guard_type.t |= VT_STATIC;
+    memset(&guard_ad, 0, sizeof guard_ad);
+    guard_tok = anon_sym++;
+    decl_initializer_alloc(&guard_type, &guard_ad, VT_LVAL | VT_CONST,
+                           0, guard_tok, 0);
+    guard_sym = local_stack;
+    if (!guard_sym || guard_sym->v != guard_tok)
+        tcc_error("internal error: local static guard lost");
+    return guard_sym;
+}
+
+/* Jump over the constructor when the guard is already nonzero. */
+static int cpp_begin_local_static_init(Sym *guard_sym)
+{
+    vset(&guard_sym->type, guard_sym->r | VT_SYM, 0);
+    vtop->sym = guard_sym;
+    return gvtst(0, 0);
+}
+
+/* Exceptions are unsupported, so reaching here means construction finished. */
+static void cpp_finish_local_static_init(Sym *guard_sym, int skip_jmp)
+{
+    vset(&guard_sym->type, guard_sym->r | VT_SYM, 0);
+    vtop->sym = guard_sym;
+    vpushi(1);
+    vstore();
+    vpop();
+    gsym(skip_jmp);
+}
+
 /* FEAT-4G: deferred global ctor/dtor thunks for .init_array / .fini_array. */
 typedef struct CppGlobalDynEntry {
     Sym *obj_sym;
@@ -16486,12 +16528,13 @@ static int decl(int l)
                     unget_tok(saved_var_tok);
                 }
             }
-            /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
+            /* C++ FEAT-4B/4F-P2: detect `ClassType ident(args);` ctor-call form.
                Only in C++ mode, when the base type is a class with a
                constructor, we are in a local scope, and an identifier is
                directly followed by '('. The variable is allocated like a
                plain `Foo f;` and `Foo f(args)` is rewritten into the
-               existing member-call path `f.Foo(args)` via token unget. */
+               existing member-call path `f.Foo(args)` via token unget.
+               A function-local static uses static storage plus a once guard. */
             if (tcc_state->cpp
                 && l == VT_LOCAL
                 && (btype.t & VT_BTYPE) == VT_STRUCT
@@ -16499,16 +16542,26 @@ static int decl(int l)
                 && tok >= TOK_UIDENT
                 && cpp_find_ctor_field(btype.ref)) {
                 int saved_var_tok = tok;
-                int obj_r = VT_LVAL | VT_LOCAL;
+                int is_static = (btype.t & VT_STATIC) != 0;
+                int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
                     if (tok != ')') {
                         /* `Foo f(args);` -> `f.Foo(args);` (local) */
                         Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                        Sym *guard_sym;
                         int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                        int guard_skip;
+
+                        guard_sym = NULL;
+                        guard_skip = 0;
                         decl_initializer_alloc(&type, &ad, obj_r,
                                                0, saved_var_tok, 0);
+                        if (is_static) {
+                            guard_sym = cpp_alloc_local_static_guard();
+                            guard_skip = cpp_begin_local_static_init(guard_sym);
+                        }
                         /* Rebuild the stream `var . Ctor ( <args...> )`.
                            unget is LIFO and saves the current tok (the first
                            argument), so push in reverse so next() yields
@@ -16519,6 +16572,8 @@ static int decl(int l)
                         unget_tok(saved_var_tok);
                         expr_eq();
                         vpop();
+                        if (is_static)
+                            cpp_finish_local_static_init(guard_sym, guard_skip);
                         if (tok == ',') {
                             next();
                             continue;
@@ -16531,15 +16586,25 @@ static int decl(int l)
                     unget_tok('(');
                     unget_tok(saved_var_tok);
                 } else if ((tok == ';' || tok == ',')
-                           && !(btype.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+                           && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
                            && cpp_class_has_default_ctor(btype.ref)) {
                     /* FEAT-4F: `Foo f;` with a user default ctor is
                        rewritten into `f.Foo()` (same unget trick as 4B;
-                       the current ';' or ',' stays after the ')'). */
+                       the current ';' or ',' stays after the ')').  P2 wraps
+                       a function-local static in its once-only guard. */
                     Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                    Sym *guard_sym;
                     int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                    int guard_skip;
+
+                    guard_sym = NULL;
+                    guard_skip = 0;
                     decl_initializer_alloc(&type, &ad, obj_r,
                                            0, saved_var_tok, 0);
+                    if (is_static) {
+                        guard_sym = cpp_alloc_local_static_guard();
+                        guard_skip = cpp_begin_local_static_init(guard_sym);
+                    }
                     unget_tok(')');
                     unget_tok('(');
                     unget_tok(ctor_tok_v);
@@ -16547,6 +16612,8 @@ static int decl(int l)
                     unget_tok(saved_var_tok);
                     expr_eq();
                     vpop();
+                    if (is_static)
+                        cpp_finish_local_static_init(guard_sym, guard_skip);
                     if (tok == ',') {
                         next();
                         continue;
