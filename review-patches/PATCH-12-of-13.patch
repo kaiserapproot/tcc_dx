@@ -1,0 +1,107 @@
+From 6f8f3cc41523d6e3a8d0cface327c9342703ad31 Mon Sep 17 00:00:00 2001
+From: kaiser <kaiser@kaiser.app>
+Date: Wed, 2 Sep 2026 10:41:58 +0900
+Subject: [PATCH 12/13] =?utf-8?q?=E6=8E=A8=E5=A5=A8=E3=82=B3=E3=83=9F?=
+ =?utf-8?q?=E3=83=83=E3=83=88=E3=83=A1=E3=83=83=E3=82=BB=E3=83=BC=E3=82=B8?=
+ =?utf-8?q?:?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+  fix(cpp): 基底を含む暗黙コピー代入を fail-closed 化
+
+  基底クラス専用の安全判定を廃止し、基底の copy operator= も通常の
+  安全性検査対象にする。副作用付きの派生クラス回帰テストを negative
+  suite へ追加し、未実装の memberwise assignment を誤生成しないようにする。
+---
+ .../a9/{ => negative}/derived_copy_assign.cpp | 12 +++++++---
+ .../a9/negative/derived_copy_assign.expected  |  1 +
+ tccgen.c                                      | 22 +------------------
+ 3 files changed, 11 insertions(+), 24 deletions(-)
+ rename dev/test/a9/{ => negative}/derived_copy_assign.cpp (67%)
+ create mode 100644 dev/test/a9/negative/derived_copy_assign.expected
+
+diff --git a/dev/test/a9/derived_copy_assign.cpp b/dev/test/a9/negative/derived_copy_assign.cpp
+similarity index 67%
+rename from dev/test/a9/derived_copy_assign.cpp
+rename to dev/test/a9/negative/derived_copy_assign.cpp
+index 47432a9..7adf956 100644
+--- a/dev/test/a9/derived_copy_assign.cpp
++++ b/dev/test/a9/negative/derived_copy_assign.cpp
+@@ -1,9 +1,12 @@
++static int base_assigns;
++
+ struct B {
+     int b;
+     B() { b = 0; }
+     B& operator=(const B& rhs)
+     {
+-        b = rhs.b;
++        ++base_assigns;
++        b = rhs.b + 100;
+         return *this;
+     }
+ };
+@@ -22,10 +25,13 @@ int main()
+     src.d = 22;
+     dst.b = 1;
+     dst.d = 2;
++    base_assigns = 0;
+     dst = src;
+-    if (dst.b != 11)
++    if (base_assigns != 1)
+         return 1;
+-    if (dst.d != 22)
++    if (dst.b != 111)
+         return 2;
++    if (dst.d != 22)
++        return 3;
+     return 0;
+ }
+diff --git a/dev/test/a9/negative/derived_copy_assign.expected b/dev/test/a9/negative/derived_copy_assign.expected
+new file mode 100644
+index 0000000..0d821f4
+--- /dev/null
++++ b/dev/test/a9/negative/derived_copy_assign.expected
+@@ -0,0 +1 @@
++implicit copy assignment is unsupported
+diff --git a/tccgen.c b/tccgen.c
+index a3eb86b..b84ea8a 100644
+--- a/tccgen.c
++++ b/tccgen.c
+@@ -9585,26 +9585,6 @@ static int cpp_implicit_copy_assign_type_is_safe(CType *type)
+     }
+     return 1;
+ }
+-static int cpp_implicit_copy_assign_base_is_safe(CType *type)
+-{
+-    CType *elem_type;
+-
+-    if (!type)
+-        return 1;
+-    if (type->t & (VT_REFERENCE | VT_CONSTANT | VT_VOLATILE))
+-        return 0;
+-    if (type->t & VT_ARRAY) {
+-        elem_type = pointed_type(type);
+-        return cpp_implicit_copy_assign_base_is_safe(elem_type);
+-    }
+-    if ((type->t & VT_BTYPE) == VT_STRUCT && type->ref) {
+-        if (0)
+-            return 0;
+-        return cpp_implicit_copy_assign_is_safe(type->ref);
+-    }
+-    return 1;
+-}
+-
+ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
+ {
+     Sym *f;
+@@ -9623,7 +9603,7 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
+         if (cpp_is_base_field(f)) {
+             base_type.t = VT_STRUCT;
+             base_type.ref = f->parent_class;
+-            if (!cpp_implicit_copy_assign_base_is_safe(&base_type))
++            if (!cpp_implicit_copy_assign_type_is_safe(&base_type))
+                 return 0;
+             continue;
+         }

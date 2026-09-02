@@ -1,0 +1,490 @@
+From 1e0520aeedc1fac7996979ef91068852693d8302 Mon Sep 17 00:00:00 2001
+From: kaiser <kaiser@kaiser.app>
+Date: Wed, 2 Sep 2026 13:02:49 +0900
+Subject: [PATCH 13/13] =?utf-8?q?fix(cpp):=20destructor-bearing=20class=20?=
+ =?utf-8?q?value=20return=20=E3=82=92=20fail-closed=20=E5=8C=96?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+  - クラス自身・基底・メンバ・配列を再帰判定
+  - destructor が必要な値 return を共通経路で拒否
+  - function-local static の各初期化形式も拒否
+  - hidden return slot の危険なクラス raw copy 経路を削除
+  - 直接・メンバ・基底・配列の回帰テストを追加
+
+  Release|x64、Debug|Win32、CUnit 14/14、smoke、double6 ABI を確認。
+  CPPUnit G7 は未対応の SimpleString 値 return により失敗する。
+---
+ dev/test/a9/local_static_pointer.cpp          |  16 +++
+ .../a9/negative/local_static_array_dtor.cpp   |  13 ++
+ .../negative/local_static_array_dtor.expected |   1 +
+ .../a9/negative/local_static_copy_dtor.cpp    |  17 +++
+ .../negative/local_static_copy_dtor.expected  |   1 +
+ .../a9/negative/local_static_nested_dtor.cpp  |  18 +++
+ .../local_static_nested_dtor.expected         |   1 +
+ dev/test/a9/negative/return_array_dtor.cpp    |  17 +++
+ .../a9/negative/return_array_dtor.expected    |   1 +
+ dev/test/a9/negative/return_base_dtor.cpp     |  16 +++
+ .../a9/negative/return_base_dtor.expected     |   1 +
+ dev/test/a9/negative/return_member_dtor.cpp   |  17 +++
+ .../a9/negative/return_member_dtor.expected   |   1 +
+ .../a9/{ => negative}/return_value_dtor.cpp   |   0
+ .../a9/negative/return_value_dtor.expected    |   1 +
+ .../{ => negative}/struct_member_compat.cpp   |   0
+ .../a9/negative/struct_member_compat.expected |   1 +
+ dev/test/a9/return_reference_member.cpp       |  18 +++
+ tccgen.c                                      | 111 ++++++++++++------
+ 19 files changed, 212 insertions(+), 39 deletions(-)
+ create mode 100644 dev/test/a9/local_static_pointer.cpp
+ create mode 100644 dev/test/a9/negative/local_static_array_dtor.cpp
+ create mode 100644 dev/test/a9/negative/local_static_array_dtor.expected
+ create mode 100644 dev/test/a9/negative/local_static_copy_dtor.cpp
+ create mode 100644 dev/test/a9/negative/local_static_copy_dtor.expected
+ create mode 100644 dev/test/a9/negative/local_static_nested_dtor.cpp
+ create mode 100644 dev/test/a9/negative/local_static_nested_dtor.expected
+ create mode 100644 dev/test/a9/negative/return_array_dtor.cpp
+ create mode 100644 dev/test/a9/negative/return_array_dtor.expected
+ create mode 100644 dev/test/a9/negative/return_base_dtor.cpp
+ create mode 100644 dev/test/a9/negative/return_base_dtor.expected
+ create mode 100644 dev/test/a9/negative/return_member_dtor.cpp
+ create mode 100644 dev/test/a9/negative/return_member_dtor.expected
+ rename dev/test/a9/{ => negative}/return_value_dtor.cpp (100%)
+ create mode 100644 dev/test/a9/negative/return_value_dtor.expected
+ rename dev/test/a9/{ => negative}/struct_member_compat.cpp (100%)
+ create mode 100644 dev/test/a9/negative/struct_member_compat.expected
+ create mode 100644 dev/test/a9/return_reference_member.cpp
+
+diff --git a/dev/test/a9/local_static_pointer.cpp b/dev/test/a9/local_static_pointer.cpp
+new file mode 100644
+index 0000000..c0497de
+--- /dev/null
++++ b/dev/test/a9/local_static_pointer.cpp
+@@ -0,0 +1,16 @@
++struct S {
++    ~S() {}
++};
++
++S *get_saved(S *source)
++{
++    static S *saved;
++    saved = source;
++    return saved;
++}
++
++int main()
++{
++    S value;
++    return get_saved(&value) == &value ? 0 : 1;
++}
+\ No newline at end of file
+diff --git a/dev/test/a9/negative/local_static_array_dtor.cpp b/dev/test/a9/negative/local_static_array_dtor.cpp
+new file mode 100644
+index 0000000..dbfb00d
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_array_dtor.cpp
+@@ -0,0 +1,13 @@
++struct M {
++    ~M() {}
++};
++
++void make_array()
++{
++    static M values[2];
++}
++
++int main()
++{
++    return 0;
++}
+\ No newline at end of file
+diff --git a/dev/test/a9/negative/local_static_array_dtor.expected b/dev/test/a9/negative/local_static_array_dtor.expected
+new file mode 100644
+index 0000000..8e58662
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_array_dtor.expected
+@@ -0,0 +1 @@
++function-local static destructor is unsupported
+diff --git a/dev/test/a9/negative/local_static_copy_dtor.cpp b/dev/test/a9/negative/local_static_copy_dtor.cpp
+new file mode 100644
+index 0000000..5aaf9fb
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_copy_dtor.cpp
+@@ -0,0 +1,17 @@
++struct S {
++    int value;
++
++    S(int n) { value = n; }
++    S(const S& other) { value = other.value; }
++    ~S() {}
++};
++
++void save(S& source)
++{
++    static S saved = source;
++}
++
++int main()
++{
++    return 0;
++}
+\ No newline at end of file
+diff --git a/dev/test/a9/negative/local_static_copy_dtor.expected b/dev/test/a9/negative/local_static_copy_dtor.expected
+new file mode 100644
+index 0000000..8e58662
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_copy_dtor.expected
+@@ -0,0 +1 @@
++function-local static destructor is unsupported
+diff --git a/dev/test/a9/negative/local_static_nested_dtor.cpp b/dev/test/a9/negative/local_static_nested_dtor.cpp
+new file mode 100644
+index 0000000..5d83fca
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_nested_dtor.cpp
+@@ -0,0 +1,18 @@
++struct M {
++    ~M() {}
++};
++
++struct H {
++    M member;
++};
++
++void use_static()
++{
++    static H value;
++}
++
++int main()
++{
++    use_static();
++    return 0;
++}
+diff --git a/dev/test/a9/negative/local_static_nested_dtor.expected b/dev/test/a9/negative/local_static_nested_dtor.expected
+new file mode 100644
+index 0000000..8e58662
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_nested_dtor.expected
+@@ -0,0 +1 @@
++function-local static destructor is unsupported
+diff --git a/dev/test/a9/negative/return_array_dtor.cpp b/dev/test/a9/negative/return_array_dtor.cpp
+new file mode 100644
+index 0000000..51e0082
+--- /dev/null
++++ b/dev/test/a9/negative/return_array_dtor.cpp
+@@ -0,0 +1,17 @@
++struct M {
++    ~M() {}
++};
++
++struct H {
++    M items[2];
++};
++
++H make_array(H& source)
++{
++    return source;
++}
++
++int main()
++{
++    return 0;
++}
+diff --git a/dev/test/a9/negative/return_array_dtor.expected b/dev/test/a9/negative/return_array_dtor.expected
+new file mode 100644
+index 0000000..4420f49
+--- /dev/null
++++ b/dev/test/a9/negative/return_array_dtor.expected
+@@ -0,0 +1 @@
++return by value of a class requiring destruction is unsupported
+diff --git a/dev/test/a9/negative/return_base_dtor.cpp b/dev/test/a9/negative/return_base_dtor.cpp
+new file mode 100644
+index 0000000..a8b0fe0
+--- /dev/null
++++ b/dev/test/a9/negative/return_base_dtor.cpp
+@@ -0,0 +1,16 @@
++struct B {
++    ~B() {}
++};
++
++struct D : B {
++};
++
++D make_base(D& source)
++{
++    return source;
++}
++
++int main()
++{
++    return 0;
++}
+diff --git a/dev/test/a9/negative/return_base_dtor.expected b/dev/test/a9/negative/return_base_dtor.expected
+new file mode 100644
+index 0000000..4420f49
+--- /dev/null
++++ b/dev/test/a9/negative/return_base_dtor.expected
+@@ -0,0 +1 @@
++return by value of a class requiring destruction is unsupported
+diff --git a/dev/test/a9/negative/return_member_dtor.cpp b/dev/test/a9/negative/return_member_dtor.cpp
+new file mode 100644
+index 0000000..29650e1
+--- /dev/null
++++ b/dev/test/a9/negative/return_member_dtor.cpp
+@@ -0,0 +1,17 @@
++struct M {
++    ~M() {}
++};
++
++struct H {
++    M m;
++};
++
++H make_member(H& source)
++{
++    return source;
++}
++
++int main()
++{
++    return 0;
++}
+diff --git a/dev/test/a9/negative/return_member_dtor.expected b/dev/test/a9/negative/return_member_dtor.expected
+new file mode 100644
+index 0000000..4420f49
+--- /dev/null
++++ b/dev/test/a9/negative/return_member_dtor.expected
+@@ -0,0 +1 @@
++return by value of a class requiring destruction is unsupported
+diff --git a/dev/test/a9/return_value_dtor.cpp b/dev/test/a9/negative/return_value_dtor.cpp
+similarity index 100%
+rename from dev/test/a9/return_value_dtor.cpp
+rename to dev/test/a9/negative/return_value_dtor.cpp
+diff --git a/dev/test/a9/negative/return_value_dtor.expected b/dev/test/a9/negative/return_value_dtor.expected
+new file mode 100644
+index 0000000..4420f49
+--- /dev/null
++++ b/dev/test/a9/negative/return_value_dtor.expected
+@@ -0,0 +1 @@
++return by value of a class requiring destruction is unsupported
+diff --git a/dev/test/a9/struct_member_compat.cpp b/dev/test/a9/negative/struct_member_compat.cpp
+similarity index 100%
+rename from dev/test/a9/struct_member_compat.cpp
+rename to dev/test/a9/negative/struct_member_compat.cpp
+diff --git a/dev/test/a9/negative/struct_member_compat.expected b/dev/test/a9/negative/struct_member_compat.expected
+new file mode 100644
+index 0000000..4420f49
+--- /dev/null
++++ b/dev/test/a9/negative/struct_member_compat.expected
+@@ -0,0 +1 @@
++return by value of a class requiring destruction is unsupported
+diff --git a/dev/test/a9/return_reference_member.cpp b/dev/test/a9/return_reference_member.cpp
+new file mode 100644
+index 0000000..82305ec
+--- /dev/null
++++ b/dev/test/a9/return_reference_member.cpp
+@@ -0,0 +1,18 @@
++struct M {
++    int value;
++    ~M() {}
++};
++
++struct R {
++    M& ref;
++};
++
++R make(R& source)
++{
++    return source;
++}
++
++int main()
++{
++    return 0;
++}
+\ No newline at end of file
+diff --git a/tccgen.c b/tccgen.c
+index b84ea8a..47aebb6 100644
+--- a/tccgen.c
++++ b/tccgen.c
+@@ -176,6 +176,7 @@ static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
+ /* Virtual MI (Phase 2): forward decl - the multi-vptr init walkers run before
+    the definition point of this base-subobject predicate. */
+ static int cpp_is_base_field(Sym *f);
++static int cpp_class_requires_destruction(Sym *class_sym);
+ /* --- C++ Stage 2: mangling, references, qualified names --- */
+ static Sym *cpp_qualified_class;
+ static Sym *cpp_cur_class;
+@@ -1603,43 +1604,6 @@ static int cpp_spill_return_value(CType *func_type, CType *spill_type,
+     loc = (loc - size) & -align;
+     slot = loc;
+ 
+-    if (!*is_reference && (func_type->t & VT_BTYPE) == VT_STRUCT
+-        && func_type->ref && cpp_find_dtor_field(func_type->ref)) {
+-                CType src_ptype;
+-        CType dst_ptype;
+-        int src_slot;
+-        int dst_slot;
+-
+-        if (!(vtop->r & VT_LVAL) && (vtop->r & VT_VALMASK) == VT_LOCAL)
+-            vtop->r |= VT_LVAL;
+-        if (!(vtop->r & VT_LVAL))
+-            tcc_error("internal error: class return value is not addressable");
+-        gaddrof();
+-        mk_pointer(&vtop->type);
+-        src_ptype = vtop->type;
+-        src_slot = cpp_spill_ptr_to_temp(&src_ptype);
+-
+-        vset(spill_type, VT_LOCAL | VT_LVAL, slot);
+-        gaddrof();
+-        mk_pointer(&vtop->type);
+-        dst_ptype = vtop->type;
+-        dst_slot = cpp_spill_ptr_to_temp(&dst_ptype);
+-
+-        if (cpp_emit_copied_class_subobject(func_type->ref, &dst_ptype,
+-                                            dst_slot, src_slot, 0, 0))
+-            return slot;
+-        tcc_error("return by value of a class with a destructor is unsupported");
+-        vset(&dst_ptype, VT_LOCAL | VT_LVAL, dst_slot);
+-        indir();
+-        vset(&src_ptype, VT_LOCAL | VT_LVAL, src_slot);
+-        indir();
+-        vstore();
+-        vpop();
+-        cpp_reconstruct_copied_class_members(func_type->ref, &dst_ptype,
+-                                             dst_slot, src_slot, 0, 0);
+-        return slot;
+-    }
+-
+     vset(spill_type, VT_LOCAL | VT_LVAL, slot);
+     vswap();
+     vstore();
+@@ -3456,6 +3420,48 @@ static int cpp_is_class_data_member_array(Sym *f)
+     return 1;
+ }
+ 
++/* C++: report whether destroying a class needs a destructor call,
++   including implicitly destroyed bases and class-type members. */
++static int cpp_class_requires_destruction(Sym *class_sym)
++{
++    Sym *f;
++    CType *elem_type;
++
++    if (!class_sym)
++        return 0;
++    CPP_WALKER_DEPTH_GUARD("cpp_class_requires_destruction");
++    if (cpp_find_dtor_field(class_sym))
++        return 1;
++    for (f = class_sym->next; f; f = f->next) {
++        if (f->type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
++            continue;
++        if ((f->type.t & VT_BTYPE) == VT_FUNC)
++            continue;
++        if (f->type.t & VT_REFERENCE)
++            continue;
++        if (cpp_is_base_field(f)) {
++            if (f->parent_class
++                && cpp_class_requires_destruction(f->parent_class))
++                return 1;
++            continue;
++        }
++        if (cpp_is_class_data_member_array(f)) {
++            elem_type = &f->type;
++            while ((elem_type->t & VT_ARRAY) && elem_type->ref)
++                elem_type = pointed_type(elem_type);
++            if ((elem_type->t & VT_BTYPE) == VT_STRUCT
++                && elem_type->ref
++                && cpp_class_requires_destruction(elem_type->ref))
++                return 1;
++            continue;
++        }
++        if (cpp_is_class_data_member(f)
++            && f->type.ref
++            && cpp_class_requires_destruction(f->type.ref))
++            return 1;
++    }
++    return 0;
++}
+ // G7: default-construct a class-type data member (0-arg ctor on
+ // this->member).  A class with no user-declared constructor has no
+ // constructor call to emit.  A class with user-declared constructors must,
+@@ -14717,6 +14723,13 @@ again:
+         return_is_reference = 0;
+         return_slot = 0;
+         b = (func_vt.t & VT_BTYPE) != VT_VOID;
++        if (tcc_state->cpp
++            && b && tok != ';'
++            && !(func_vt.t & VT_REFERENCE)
++            && (func_vt.t & VT_BTYPE) == VT_STRUCT
++            && func_vt.ref
++            && cpp_class_requires_destruction(func_vt.ref))
++            tcc_error("return by value of a class requiring destruction is unsupported");
+         if (tok != ';') {
+             gexpr();
+             if (b) {
+@@ -16423,6 +16436,7 @@ static int decl(int l)
+ {
+     int v, has_init, r, oldint, ooc_cls;
+     CType type, btype;
++    CType static_elem_type;
+     Sym* sym;
+     AttributeDef ad, adbase;
+     ElfSym* esym;
+@@ -16656,8 +16670,6 @@ static int decl(int l)
+                 int saved_var_tok = tok;
+                 int is_static = (btype.t & VT_STATIC) != 0;
+                 int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
+-                if (is_static && cpp_find_dtor_field(btype.ref))
+-                    tcc_error("function-local static destructor is unsupported");
+                 next();
+                 if (tok == '(') {
+                     next(); /* peek first token inside the parens */
+@@ -16668,6 +16680,9 @@ static int decl(int l)
+                         int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                         int guard_skip;
+ 
++                        if (is_static && cpp_class_requires_destruction(btype.ref))
++                            tcc_error("function-local static destructor is unsupported");
++
+                         guard_sym = NULL;
+                         guard_skip = 0;
+                         decl_initializer_alloc(&type, &ad, obj_r,
+@@ -16711,6 +16726,9 @@ static int decl(int l)
+                     int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                     int guard_skip;
+ 
++                    if (is_static && cpp_class_requires_destruction(btype.ref))
++                        tcc_error("function-local static destructor is unsupported");
++
+                     guard_sym = NULL;
+                     guard_skip = 0;
+                     decl_initializer_alloc(&type, &ad, obj_r,
+@@ -16748,6 +16766,8 @@ static int decl(int l)
+                     Sym *obj_sym;
+                     Sym *guard_sym;
+                     int guard_skip;
++                    if (is_static && cpp_class_requires_destruction(btype.ref))
++                        tcc_error("function-local static destructor is unsupported");
+ 
+                     guard_sym = NULL;
+                     guard_skip = 0;
+@@ -17029,6 +17049,19 @@ static int decl(int l)
+                         r |= VT_LVAL;
+                     }
+                     has_init = (tok == '=');
++                    if (tcc_state->cpp
++                        && l == VT_LOCAL
++                        && (type.t & VT_STATIC)
++                        && !(type.t & VT_REFERENCE)) {
++                        static_elem_type = type;
++                        while ((static_elem_type.t & VT_ARRAY)
++                               && static_elem_type.ref)
++                            static_elem_type = *pointed_type(&static_elem_type);
++                        if ((static_elem_type.t & VT_BTYPE) == VT_STRUCT
++                            && static_elem_type.ref
++                            && cpp_class_requires_destruction(static_elem_type.ref))
++                            tcc_error("function-local static destructor is unsupported");
++                    }
+                     if (has_init && (type.t & VT_VLA))
+                         tcc_error("�ϒ��z��͏������ł��܂���");
+                     if (tcc_state->cpp

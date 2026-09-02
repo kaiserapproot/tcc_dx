@@ -170,10 +170,13 @@ static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg);
 static int is_integer_btype(int bt);
 /* MI: byte offset of a base subobject within a class (forward decl - defined
    with the member-call helpers).  Used by the derived->base upcast paths. */
+#define CPP_BASE_NOT_FOUND (-1)
+#define CPP_BASE_AMBIGUOUS (-2)
 static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
 /* Virtual MI (Phase 2): forward decl - the multi-vptr init walkers run before
    the definition point of this base-subobject predicate. */
 static int cpp_is_base_field(Sym *f);
+static int cpp_class_requires_destruction(Sym *class_sym);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -214,6 +217,13 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type);
 /* BUG-23: forward decl - the `this` capture sites come before the definition,
    which lives with the other member-call helpers. */
 static void cpp_spill_member_this(void);
+static int cpp_spill_ptr_to_temp(CType *ptype);
+static int cpp_emit_copied_class_subobject(Sym *class_sym, CType *dst_ptype,
+                                           int dst_ptr_slot, int src_ptr_slot,
+                                           int dst_base_ofs, int src_base_ofs);
+static void cpp_reconstruct_copied_class_members(Sym *class_sym, CType *dst_ptype,
+                                                  int dst_ptr_slot, int src_ptr_slot,
+                                                  int dst_base_ofs, int src_base_ofs);
 ST_FUNC void greloca(Section *s, Sym *sym, unsigned long offset, int type, addr_t addend);
 
 static void mangle_clamp_pos(int buf_size, int *pos)
@@ -1521,6 +1531,130 @@ static void cpp_call_scope_dtors(Sym *bottom)
         cpp_emit_local_dtor(s);
 }
 
+/* FEAT-4E-P3: return leaves every active block in the function, not only
+   cur_scope.  Find the local-stack boundary captured by the outermost body
+   block (the first real scope below root_scope). */
+static Sym *cpp_return_dtor_bottom(void)
+{
+    struct scope *s;
+
+    if (!tcc_state->cpp || !cur_scope || !root_scope)
+        return NULL;
+    s = cur_scope;
+    while (s && s->prev && s->prev != root_scope)
+        s = s->prev;
+    if (!s || s->prev != root_scope)
+        return NULL;
+    return s->lstk;
+}
+
+/* Only returns which actually destroy an object need a spill slot.  Keeping
+   the common dtor-free C++ path unchanged avoids an extra stack store/load in
+   every generated function. */
+static int cpp_scope_has_local_dtor(Sym *bottom)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp || !bottom)
+        return 0;
+    for (s = local_stack; s && s != bottom; s = s->prev) {
+        if ((s->r & VT_VALMASK) != VT_LOCAL)
+            continue;
+        if ((s->type.t & VT_BTYPE) != VT_STRUCT || !s->type.ref)
+            continue;
+        if (cpp_find_dtor_field(s->type.ref))
+            return 1;
+    }
+    return 0;
+}
+
+/* A return expression is evaluated before automatic objects are destroyed,
+   but every dtor call may clobber integer, floating-point, and struct-return
+   registers.  Store the converted value in a dedicated stack slot and reload
+   it after the dtor sequence.  The slot is not a Sym, so it is not itself
+   visited by cpp_call_scope_dtors(). */
+static int cpp_spill_return_value(CType *func_type, CType *spill_type,
+                                  int *is_reference)
+{
+    int size;
+    int align;
+    int slot;
+
+    *is_reference = (func_type->t & VT_REFERENCE) != 0;
+    if (*is_reference) {
+        /* Match gfunc_return(): a reference result is represented by the
+           bound object's address, not by a copied object. */
+        if (vtop->r & VT_LVAL) {
+            gaddrof();
+            if (!(vtop->type.t & VT_REFERENCE))
+                mk_pointer(&vtop->type);
+        }
+        *spill_type = vtop->type;
+        spill_type->t &= ~VT_REFERENCE;
+        vtop->type = *spill_type;
+    } else {
+        *spill_type = *func_type;
+        /* The hidden slot is writable even for a top-level const return. */
+        spill_type->t &= ~(VT_CONSTANT | VT_VOLATILE);
+    }
+
+    size = type_size(spill_type, &align);
+    if (size <= 0 || align <= 0)
+        tcc_error("internal error: invalid return spill type");
+    loc = (loc - size) & -align;
+    slot = loc;
+
+    vset(spill_type, VT_LOCAL | VT_LVAL, slot);
+    vswap();
+    vstore();
+    vpop();
+    return slot;
+}
+static void cpp_restore_return_value(CType *spill_type, int slot,
+                                     int is_reference)
+{
+    vset(spill_type, VT_LOCAL | VT_LVAL, slot);
+    if (is_reference)
+        gv(RC_INT);
+}
+static Sym *cpp_alloc_local_static_guard(void)
+{
+    CType guard_type;
+    AttributeDef guard_ad;
+    Sym *guard_sym;
+    int guard_tok;
+
+    guard_type = int_type;
+    guard_type.t |= VT_STATIC;
+    memset(&guard_ad, 0, sizeof guard_ad);
+    guard_tok = anon_sym++;
+    decl_initializer_alloc(&guard_type, &guard_ad, VT_LVAL | VT_CONST,
+                           0, guard_tok, 0);
+    guard_sym = local_stack;
+    if (!guard_sym || guard_sym->v != guard_tok)
+        tcc_error("internal error: local static guard lost");
+    return guard_sym;
+}
+
+/* Jump over the constructor when the guard is already nonzero. */
+static int cpp_begin_local_static_init(Sym *guard_sym)
+{
+    vset(&guard_sym->type, guard_sym->r | VT_SYM, 0);
+    vtop->sym = guard_sym;
+    return gvtst(0, 0);
+}
+
+/* Exceptions are unsupported, so reaching here means construction finished. */
+static void cpp_finish_local_static_init(Sym *guard_sym, int skip_jmp)
+{
+    vset(&guard_sym->type, guard_sym->r | VT_SYM, 0);
+    vtop->sym = guard_sym;
+    vpushi(1);
+    vstore();
+    vpop();
+    gsym(skip_jmp);
+}
+
 /* FEAT-4G: deferred global ctor/dtor thunks for .init_array / .fini_array. */
 typedef struct CppGlobalDynEntry {
     Sym *obj_sym;
@@ -2757,6 +2891,8 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
         && field->parent_class != obj_type->ref) {
         int base_ofs = cpp_base_subobject_offset(obj_type->ref,
                                                  field->parent_class);
+        if (base_ofs == CPP_BASE_AMBIGUOUS)
+            tcc_error("ambiguous base class conversion");
         if (base_ofs > 0) {
             vtop->type = char_pointer_type;
             vpushi(base_ofs);
@@ -3284,6 +3420,48 @@ static int cpp_is_class_data_member_array(Sym *f)
     return 1;
 }
 
+/* C++: report whether destroying a class needs a destructor call,
+   including implicitly destroyed bases and class-type members. */
+static int cpp_class_requires_destruction(Sym *class_sym)
+{
+    Sym *f;
+    CType *elem_type;
+
+    if (!class_sym)
+        return 0;
+    CPP_WALKER_DEPTH_GUARD("cpp_class_requires_destruction");
+    if (cpp_find_dtor_field(class_sym))
+        return 1;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (f->type.t & VT_REFERENCE)
+            continue;
+        if (cpp_is_base_field(f)) {
+            if (f->parent_class
+                && cpp_class_requires_destruction(f->parent_class))
+                return 1;
+            continue;
+        }
+        if (f->type.t & VT_ARRAY) {
+            elem_type = &f->type;
+            while ((elem_type->t & VT_ARRAY) && elem_type->ref)
+                elem_type = pointed_type(elem_type);
+            if ((elem_type->t & VT_BTYPE) == VT_STRUCT
+                && elem_type->ref
+                && cpp_class_requires_destruction(elem_type->ref))
+                return 1;
+            continue;
+        }
+        if (cpp_is_class_data_member(f)
+            && f->type.ref
+            && cpp_class_requires_destruction(f->type.ref))
+            return 1;
+    }
+    return 0;
+}
 // G7: default-construct a class-type data member (0-arg ctor on
 // this->member).  A class with no user-declared constructor has no
 // constructor call to emit.  A class with user-declared constructors must,
@@ -3461,6 +3639,10 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
         if (cpp_is_base_field(f)) {
             cpp_validate_implicit_default_ctor(f->parent_class, 2);
             continue;
+        }
+        if ((f->type.t & VT_REFERENCE)
+            && !(f->type.t & (VT_STATIC | VT_EXTERN))) {
+            tcc_error("implicit default construction of class with reference member is unsupported");
         }
         if (cpp_is_class_data_member_array(f))
             tcc_error("implicit default construction of class member array is unsupported");
@@ -7231,6 +7413,8 @@ static void gen_cast(CType* type)
                 tcc_error("rvalue cannot bind to reference");
             if (src_class && base_class && src_class != base_class) {
                 int ofs = cpp_base_subobject_offset(src_class, base_class);
+                if (ofs == CPP_BASE_AMBIGUOUS)
+                    tcc_error("ambiguous base class conversion");
                 if (ofs > 0) {
                     vtop->type = char_pointer_type;
                     vpushi(ofs);
@@ -7262,6 +7446,8 @@ static void gen_cast(CType* type)
         if ((dpt->t & VT_BTYPE) == VT_STRUCT && (spt->t & VT_BTYPE) == VT_STRUCT
             && dpt->ref && spt->ref && dpt->ref != spt->ref) {
             int ofs = cpp_base_subobject_offset(spt->ref, dpt->ref);
+            if (ofs == CPP_BASE_AMBIGUOUS)
+                tcc_error("ambiguous base class conversion");
             if (ofs > 0) {
                 /* A null D* must stay null as a B*: C++ requires the upcast to
                    preserve the null value, so the offset may only be applied
@@ -8557,6 +8743,7 @@ static int cpp_try_class_conversion(CType *dt)
     CType tt;
     SValue this_sv;
     int best_score, tslot, size, align, nb_args, na;
+    int base_ofs;
 
     if (!tcc_state->cpp || tcc_state->extern_c || nocode_wanted)
         return 0;
@@ -8577,13 +8764,25 @@ static int cpp_try_class_conversion(CType *dt)
     }
     if (class_sym->c < 0)
         return 0;
-    // Already the destination class: the plain copy / bind paths handle it
-    // (this also keeps derived-to-base and same-class copies off this path
-    // unless the direct paths cannot - they run first and never get here
-    // for compatible types).
-    if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
-        && vtop->type.ref == class_sym)
-        return 0;
+    // Already the destination class, or a class DERIVED from it: the plain
+    // copy and reference-bind paths own both cases.
+    // BUG-49: this test used to compare `ref == class_sym` only, so a
+    // derived operand fell through into the converting-ctor search.  The
+    // chosen `B(const B&)` then converted its OWN `const B&` parameter
+    // through gfunc_param_typed -> gen_assign_cast -> here, matching the
+    // same way and recursing until cpp_conv_depth cut it off: a
+    // `take(derived)` by value yielded 401 instead of 101, binding to
+    // `const B&` built a temporary where C++98 requires none (401 instead
+    // of no copy at all), and `B x(derived);` yielded 501.
+    // cpp_can_bind_lvalue_to_reference() and gen_cast() already implement
+    // the derived-to-base adjustment, so this path must not compete with
+    // them.  cpp_base_subobject_offset() returns 0 for the same class, so
+    // the original same-class case stays covered.
+    if ((vtop->type.t & VT_BTYPE) == VT_STRUCT && vtop->type.ref) {
+        base_ofs = cpp_base_subobject_offset(vtop->type.ref, class_sym);
+        if (base_ofs >= 0 || base_ofs == CPP_BASE_AMBIGUOUS)
+            return 0;
+    }
     if (cpp_conv_depth >= 4)
         return 0;
     if (!cpp_find_ctor_field(class_sym))
@@ -8758,33 +8957,41 @@ static Sym* find_field(CType* type, int v, int* cumofs)
     return s;
 }
 
-/* Prepare non-virtual member call: obj lvalue on vtop -> func on vtop. */
-/* MI: byte offset of target_class's subobject within obj_class, walking base
-   subobject fields recursively.  0 when target_class == obj_class or lies on
-   the primary (offset-0) base path; -1 when not reachable.  Non-virtual,
-   single-path inheritance only - a diamond returns the first path found. */
+/* MI: find one unique non-virtual base subobject.  Returning the first path is
+   unsafe for a diamond: D -> L -> A and D -> R -> A are distinct A objects,
+   so a D-to-A pointer/reference conversion is ambiguous even when one path is
+   at offset zero. */
 static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class)
 {
     CPP_WALKER_DEPTH_GUARD("cpp_base_subobject_offset");
     Sym *f;
+    int found;
 
     if (!obj_class || !target_class)
-        return -1;
+        return CPP_BASE_NOT_FOUND;
     if (obj_class == target_class)
         return 0;
+    found = CPP_BASE_NOT_FOUND;
     for (f = obj_class->next; f; f = f->next) {
-        if ((f->type.t & VT_BTYPE) == VT_STRUCT
-            && f->v >= (SYM_FIRST_ANOM | SYM_FIELD)
-            && f->parent_class) {
-            int inner;
-            if (f->parent_class == target_class)
-                return f->c;
+        int inner;
+        int candidate;
+
+        if (!cpp_is_base_field(f))
+            continue;
+        if (f->parent_class == target_class)
+            inner = 0;
+        else
             inner = cpp_base_subobject_offset(f->parent_class, target_class);
-            if (inner >= 0)
-                return f->c + inner;
-        }
+        if (inner == CPP_BASE_AMBIGUOUS)
+            return CPP_BASE_AMBIGUOUS;
+        if (inner < 0)
+            continue;
+        candidate = f->c + inner;
+        if (found != CPP_BASE_NOT_FOUND)
+            return CPP_BASE_AMBIGUOUS;
+        found = candidate;
     }
-    return -1;
+    return found;
 }
 
 static Sym *cpp_prepare_member_func_call(Sym *field)
@@ -8804,6 +9011,8 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
     if (field && field->parent_class && obj_type.ref
         && field->parent_class != obj_type.ref) {
         int base_ofs = cpp_base_subobject_offset(obj_type.ref, field->parent_class);
+        if (base_ofs == CPP_BASE_AMBIGUOUS)
+            tcc_error("ambiguous base class conversion");
         if (base_ofs > 0) {
             vtop->type = char_pointer_type;
             vpushi(base_ofs);
@@ -9331,6 +9540,88 @@ static int cpp_try_free_postop(int op_tok)
     return 1;
 }
 
+static int cpp_implicit_copy_assign_is_safe(Sym *class_sym);
+
+static int cpp_is_copy_assign_field(Sym *field, Sym *class_sym)
+{
+    Sym *param;
+    CType *param_type;
+    int assign_tok;
+
+    if (!field || !class_sym || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    assign_tok = cpp_operator_field_tok('=');
+    if (!assign_tok || field->v != (assign_tok | SYM_FIELD))
+        return 0;
+    param = field->type.ref ? field->type.ref->next : NULL;
+    if (!param || param->next)
+        return 0;
+    param_type = &param->type;
+    if (param_type->t & VT_REFERENCE)
+        param_type = pointed_type(param_type);
+    return (param_type->t & VT_BTYPE) == VT_STRUCT
+        && param_type->ref == class_sym;
+}
+
+static int cpp_class_declares_copy_assign(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_copy_assign_field(f, class_sym))
+            return 1;
+    }
+    return 0;
+}
+
+static int cpp_implicit_copy_assign_type_is_safe(CType *type)
+{
+    CType *elem_type;
+
+    if (!type)
+        return 1;
+    if (type->t & (VT_REFERENCE | VT_CONSTANT | VT_VOLATILE))
+        return 0;
+    if (type->t & VT_ARRAY) {
+        elem_type = pointed_type(type);
+        return cpp_implicit_copy_assign_type_is_safe(elem_type);
+    }
+    if ((type->t & VT_BTYPE) == VT_STRUCT && type->ref) {
+        if (cpp_class_declares_copy_assign(type->ref))
+            return 0;
+        return cpp_implicit_copy_assign_is_safe(type->ref);
+    }
+    return 1;
+}
+static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
+{
+    Sym *f;
+    CType base_type;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_implicit_copy_assign_is_safe");
+    if (!class_sym)
+        return 1;
+    if (cpp_class_needs_vptr_init(class_sym))
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (cpp_is_base_field(f)) {
+            base_type.t = VT_STRUCT;
+            base_type.ref = f->parent_class;
+            if (!cpp_implicit_copy_assign_type_is_safe(&base_type))
+                return 0;
+            continue;
+        }
+        if (!cpp_implicit_copy_assign_type_is_safe(&f->type))
+            return 0;
+    }
+    return 1;
+}
 static int cpp_try_member_binop(int op_tok)
 {
     Sym *field, *s;
@@ -9340,6 +9631,8 @@ static int cpp_try_member_binop(int op_tok)
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
     field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs, 1);
+    if (op_tok == '=' && field && field->parent_class != vtop[-1].type.ref)
+        return 0;
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
         return 0;
     if (field->type.ref && field->type.ref->f.func_virtual)
@@ -11715,6 +12008,60 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
     }
 }
 
+/* Push a declared object as an lvalue.  Automatic locals use a frame offset;
+   function-local statics use a symbol relocation just like globals. */
+static void cpp_push_declared_object(Sym *obj_sym)
+{
+    if (obj_sym->r & VT_SYM) {
+        vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+        vtop->sym = obj_sym;
+    } else {
+        vset(&obj_sym->type, obj_sym->r, obj_sym->c);
+    }
+}
+
+// FEAT-COPY-INIT: run the copy construction for a local `T b = a;`.
+// vtop holds the already-evaluated initializer, an lvalue of the SAME
+// class as the object.  Both addresses are spilled to stack slots first
+// (the BUG-23 lesson: no register may stay live across the ctor call),
+// then the same two steps used for `new T(obj)` are applied - a
+// user-declared copy ctor when one is viable, otherwise the flat copy
+// plus the memberwise repair BUG-46 introduced, so a member owning a
+// heap buffer is not aliased into a double free.
+static void cpp_emit_local_copy_init(Sym *obj_sym, Sym *class_sym)
+{
+    CType ptype;
+    int src_slot;
+    int dst_slot;
+
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    src_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    cpp_push_declared_object(obj_sym);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    dst_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    if (cpp_emit_copied_class_subobject(class_sym, &ptype, dst_slot,
+                                        src_slot, 0, 0))
+        return;
+
+    // No viable user copy ctor: C++98 still declares an implicit one, and
+    // it is memberwise.  Push dest first and source second - that is
+    // already the order vstore() wants (a trailing vswap() in the heap
+    // twin wrote to the reversed address and crashed at once).
+    vset(&ptype, VT_LOCAL | VT_LVAL, dst_slot);
+    indir();
+    vset(&ptype, VT_LOCAL | VT_LVAL, src_slot);
+    indir();
+    vstore();
+    vpop();
+    cpp_reconstruct_copied_class_members(class_sym, &ptype, dst_slot,
+                                         src_slot, 0, 0);
+}
 // Emit __cpp_ctor_C(p, args) for the object whose address sits in
 // ptr_slot.  Argument handling mirrors cpp_emit_base_ctor_call: parse
 // first, resolve the overload from the raw types, then convert.
@@ -13838,6 +14185,16 @@ static void expr_eq(void)
             /* C++: member operator= (falls back to plain store) */
             if (cpp_try_member_binop(t))
                 return;
+            /* The fallback below is a flat struct copy.  Use it only for a
+               class whose complete base/member graph is byte-copy safe;
+               otherwise require an explicit operator= implementation. */
+            if (tcc_state->cpp
+                && (vtop[-1].type.t & VT_BTYPE) == VT_STRUCT
+                && vtop[-1].type.ref
+                && !cpp_implicit_copy_assign_is_safe(vtop[-1].type.ref))
+                tcc_error("implicit copy assignment is unsupported for a class"
+                          " with non-trivial or non-assignable subobjects;"
+                          " declare operator= for this class");
         }
         else {
             /* C++: struct compound assignment via operator+= etc.
@@ -14359,7 +14716,24 @@ again:
 
     }
     else if (t == TOK_RETURN) {
+        CType return_spill_type;
+        Sym *return_bottom;
+        int return_has_dtors;
+        int return_is_reference;
+        int return_slot;
+
+        return_bottom = NULL;
+        return_has_dtors = 0;
+        return_is_reference = 0;
+        return_slot = 0;
         b = (func_vt.t & VT_BTYPE) != VT_VOID;
+        if (tcc_state->cpp
+            && b && tok != ';'
+            && !(func_vt.t & VT_REFERENCE)
+            && (func_vt.t & VT_BTYPE) == VT_STRUCT
+            && func_vt.ref
+            && cpp_class_requires_destruction(func_vt.ref))
+            tcc_error("return by value of a class requiring destruction is unsupported");
         if (tok != ';') {
             gexpr();
             if (b) {
@@ -14374,6 +14748,19 @@ again:
         else if (b) {
             tcc_warning("�l�̂Ȃ� 'return' �ł�");
             b = 0;
+        }
+        if (tcc_state->cpp) {
+            return_bottom = cpp_return_dtor_bottom();
+            return_has_dtors = cpp_scope_has_local_dtor(return_bottom);
+            if (return_has_dtors && b)
+                return_slot = cpp_spill_return_value(&func_vt,
+                                                     &return_spill_type,
+                                                     &return_is_reference);
+            if (return_has_dtors)
+                cpp_call_scope_dtors(return_bottom);
+            if (return_slot)
+                cpp_restore_return_value(&return_spill_type, return_slot,
+                                         return_is_reference);
         }
         leave_scope(root_scope);
         if (b)
@@ -15124,6 +15511,8 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
                 gaddrof();
                 if (src_class && base_class && src_class != base_class) {
                     int ofs = cpp_base_subobject_offset(src_class, base_class);
+                    if (ofs == CPP_BASE_AMBIGUOUS)
+                        tcc_error("ambiguous base class conversion");
                     if (ofs > 0) {
                         vtop->type = char_pointer_type;
                         vpushi(ofs);
@@ -15888,6 +16277,15 @@ static void gen_function(Sym* sym)
                     vtop->type.t &= ~VT_CONSTANT;
                     if (tok != ')') {
                         expr_eq();
+                        if (member_field->type.t & VT_REFERENCE) {
+                            if (!(vtop->r & VT_LVAL)
+                                || !cpp_can_bind_lvalue_to_reference(
+                                    &member_field->type, &vtop->type))
+                                tcc_error("cannot bind reference to this initializer");
+                            gen_cast(&member_field->type);
+                            vtop->type.t &= ~VT_REFERENCE;
+                            vtop[-1].type.t &= ~VT_REFERENCE;
+                        }
                         vstore();
                         vpop();
                     } else {
@@ -16051,6 +16449,7 @@ static int decl(int l)
 {
     int v, has_init, r, oldint, ooc_cls;
     CType type, btype;
+    CType static_elem_type;
     Sym* sym;
     AttributeDef ad, adbase;
     ElfSym* esym;
@@ -16268,12 +16667,13 @@ static int decl(int l)
                     unget_tok(saved_var_tok);
                 }
             }
-            /* C++ FEAT-4B: detect `ClassType ident(args);` ctor-call form.
+            /* C++ FEAT-4B/4F-P2: detect `ClassType ident(args);` ctor-call form.
                Only in C++ mode, when the base type is a class with a
                constructor, we are in a local scope, and an identifier is
                directly followed by '('. The variable is allocated like a
                plain `Foo f;` and `Foo f(args)` is rewritten into the
-               existing member-call path `f.Foo(args)` via token unget. */
+               existing member-call path `f.Foo(args)` via token unget.
+               A function-local static uses static storage plus a once guard. */
             if (tcc_state->cpp
                 && l == VT_LOCAL
                 && (btype.t & VT_BTYPE) == VT_STRUCT
@@ -16281,16 +16681,29 @@ static int decl(int l)
                 && tok >= TOK_UIDENT
                 && cpp_find_ctor_field(btype.ref)) {
                 int saved_var_tok = tok;
-                int obj_r = VT_LVAL | VT_LOCAL;
+                int is_static = (btype.t & VT_STATIC) != 0;
+                int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
                     if (tok != ')') {
                         /* `Foo f(args);` -> `f.Foo(args);` (local) */
                         Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                        Sym *guard_sym;
                         int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                        int guard_skip;
+
+                        if (is_static && cpp_class_requires_destruction(btype.ref))
+                            tcc_error("function-local static destructor is unsupported");
+
+                        guard_sym = NULL;
+                        guard_skip = 0;
                         decl_initializer_alloc(&type, &ad, obj_r,
                                                0, saved_var_tok, 0);
+                        if (is_static) {
+                            guard_sym = cpp_alloc_local_static_guard();
+                            guard_skip = cpp_begin_local_static_init(guard_sym);
+                        }
                         /* Rebuild the stream `var . Ctor ( <args...> )`.
                            unget is LIFO and saves the current tok (the first
                            argument), so push in reverse so next() yields
@@ -16301,6 +16714,8 @@ static int decl(int l)
                         unget_tok(saved_var_tok);
                         expr_eq();
                         vpop();
+                        if (is_static)
+                            cpp_finish_local_static_init(guard_sym, guard_skip);
                         if (tok == ',') {
                             next();
                             continue;
@@ -16313,15 +16728,28 @@ static int decl(int l)
                     unget_tok('(');
                     unget_tok(saved_var_tok);
                 } else if ((tok == ';' || tok == ',')
-                           && !(btype.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+                           && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
                            && cpp_class_has_default_ctor(btype.ref)) {
                     /* FEAT-4F: `Foo f;` with a user default ctor is
                        rewritten into `f.Foo()` (same unget trick as 4B;
-                       the current ';' or ',' stays after the ')'). */
+                       the current ';' or ',' stays after the ')').  P2 wraps
+                       a function-local static in its once-only guard. */
                     Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                    Sym *guard_sym;
                     int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                    int guard_skip;
+
+                    if (is_static && cpp_class_requires_destruction(btype.ref))
+                        tcc_error("function-local static destructor is unsupported");
+
+                    guard_sym = NULL;
+                    guard_skip = 0;
                     decl_initializer_alloc(&type, &ad, obj_r,
                                            0, saved_var_tok, 0);
+                    if (is_static) {
+                        guard_sym = cpp_alloc_local_static_guard();
+                        guard_skip = cpp_begin_local_static_init(guard_sym);
+                    }
                     unget_tok(')');
                     unget_tok('(');
                     unget_tok(ctor_tok_v);
@@ -16329,12 +16757,97 @@ static int decl(int l)
                     unget_tok(saved_var_tok);
                     expr_eq();
                     vpop();
+                    if (is_static)
+                        cpp_finish_local_static_init(guard_sym, guard_skip);
                     if (tok == ',') {
                         next();
                         continue;
                     }
                     skip(';');
                     break;
+                } else if (tok == '='
+                           && !(btype.t & (VT_EXTERN | VT_TYPEDEF))) {
+                    /* FEAT-COPY-INIT: copy-initialization `Foo b = a;`.
+                       This was the last declaration form still falling
+                       through to the plain struct assignment in
+                       decl_initializer, so a user-declared copy ctor was
+                       never called.  Measured with a `P(const P&)` that adds
+                       100: `P b = a;` gave b.v == 1 while the direct-init
+                       `P c(a);` gave 101.  The heap twin `new T(obj)` was
+                       already made memberwise by BUG-46/47, so the stack
+                       case is brought to the same semantics here. */
+                    Sym *obj_sym;
+                    Sym *guard_sym;
+                    int guard_skip;
+                    if (is_static && cpp_class_requires_destruction(btype.ref))
+                        tcc_error("function-local static destructor is unsupported");
+
+                    guard_sym = NULL;
+                    guard_skip = 0;
+                    next();
+                    if (tok == '{') {
+                        /* A brace initializer is not a copy-init: restore the
+                           stream for decl_initializer.  unget is LIFO, so the
+                           variable token is pushed last to come out first. */
+                        unget_tok('=');
+                        unget_tok(saved_var_tok);
+                    } else {
+                        decl_initializer_alloc(&type, &ad, obj_r,
+                                               0, saved_var_tok, 0);
+                        obj_sym = sym_find(saved_var_tok);
+                        if (!obj_sym)
+                            tcc_error("internal error: copy-init object lost");
+                        if (is_static) {
+                            guard_sym = cpp_alloc_local_static_guard();
+                            guard_skip = cpp_begin_local_static_init(guard_sym);
+                        }
+                        expr_eq();
+                        if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+                            && vtop->type.ref == btype.ref) {
+                            cpp_emit_local_copy_init(obj_sym, btype.ref);
+                        } else {
+                            /* Not a same-class initializer.  Derived-to-base
+                               slicing is rejected outright: tpp moves struct
+                               arguments and return values with a memcpy
+                               rather than a copy ctor (measured: even the
+                               same-class `take(a)` does not run one), so a
+                               VALUE slice would carry the derived object's
+                               vtable pointer into the base object.  BUG-49
+                               (fixed separately) additionally made the
+                               converting ctor recurse on this operand; with
+                               that fixed the operand would be refused by
+                               verify_assign_cast anyway, but a dedicated
+                               diagnostic naming the workaround beats the
+                               generic "cannot convert" message.  Every other
+                               initializer (a converting ctor from an
+                               unrelated class, or a plain type error) keeps
+                               both the old meaning and the old diagnostics
+                               through the ordinary checked assignment. */
+                            if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+                                && vtop->type.ref
+                                && cpp_base_subobject_offset(vtop->type.ref,
+                                                             btype.ref) == CPP_BASE_AMBIGUOUS)
+                                tcc_error("ambiguous base class conversion");
+                            if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+                                && vtop->type.ref
+                                && cpp_base_subobject_offset(vtop->type.ref,
+                                                             btype.ref) >= 0)
+                                tcc_error("slicing copy-initialization is unsupported; use direct-initialization");
+                            cpp_push_declared_object(obj_sym);
+                            vswap();
+                            gen_assign_cast(&obj_sym->type);
+                            vstore();
+                            vpop();
+                        }
+                        if (is_static)
+                            cpp_finish_local_static_init(guard_sym, guard_skip);
+                        if (tok == ',') {
+                            next();
+                            continue;
+                        }
+                        skip(';');
+                        break;
+                    }
                 } else {
                     unget_tok(saved_var_tok);
                 }
@@ -16549,6 +17062,19 @@ static int decl(int l)
                         r |= VT_LVAL;
                     }
                     has_init = (tok == '=');
+                    if (tcc_state->cpp
+                        && l == VT_LOCAL
+                        && (type.t & VT_STATIC)
+                        && !(type.t & VT_REFERENCE)) {
+                        static_elem_type = type;
+                        while ((static_elem_type.t & VT_ARRAY)
+                               && static_elem_type.ref)
+                            static_elem_type = *pointed_type(&static_elem_type);
+                        if ((static_elem_type.t & VT_BTYPE) == VT_STRUCT
+                            && static_elem_type.ref
+                            && cpp_class_requires_destruction(static_elem_type.ref))
+                            tcc_error("function-local static destructor is unsupported");
+                    }
                     if (has_init && (type.t & VT_VLA))
                         tcc_error("�ϒ��z��͏������ł��܂���");
                     if (tcc_state->cpp
