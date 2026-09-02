@@ -139,6 +139,11 @@ echo === a9\bug33_link.bat ===
 call a9\bug33_link.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem === PR-N3A: path-sensitive temporary and reference lifetime gate ===
+echo === a9\manual\pr_n3a_temp_path.bat ===
+call a9\manual\pr_n3a_temp_path.bat
+if errorlevel 1 set /a FAILED+=1
+
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
 rem Real-world sources that are NOT expected to compile yet - only the
 rem compiler surviving them is gated.  Diagnostics are fine; a crash
