@@ -3445,7 +3445,7 @@ static int cpp_class_requires_destruction(Sym *class_sym)
                 return 1;
             continue;
         }
-        if (cpp_is_class_data_member_array(f)) {
+        if (f->type.t & VT_ARRAY) {
             elem_type = &f->type;
             while ((elem_type->t & VT_ARRAY) && elem_type->ref)
                 elem_type = pointed_type(elem_type);
@@ -3639,6 +3639,10 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
         if (cpp_is_base_field(f)) {
             cpp_validate_implicit_default_ctor(f->parent_class, 2);
             continue;
+        }
+        if ((f->type.t & VT_REFERENCE)
+            && !(f->type.t & (VT_STATIC | VT_EXTERN))) {
+            tcc_error("implicit default construction of class with reference member is unsupported");
         }
         if (cpp_is_class_data_member_array(f))
             tcc_error("implicit default construction of class member array is unsupported");
@@ -16273,6 +16277,15 @@ static void gen_function(Sym* sym)
                     vtop->type.t &= ~VT_CONSTANT;
                     if (tok != ')') {
                         expr_eq();
+                        if (member_field->type.t & VT_REFERENCE) {
+                            if (!(vtop->r & VT_LVAL)
+                                || !cpp_can_bind_lvalue_to_reference(
+                                    &member_field->type, &vtop->type))
+                                tcc_error("cannot bind reference to this initializer");
+                            gen_cast(&member_field->type);
+                            vtop->type.t &= ~VT_REFERENCE;
+                            vtop[-1].type.t &= ~VT_REFERENCE;
+                        }
                         vstore();
                         vpop();
                     } else {
