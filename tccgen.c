@@ -176,6 +176,7 @@ static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
 /* Virtual MI (Phase 2): forward decl - the multi-vptr init walkers run before
    the definition point of this base-subobject predicate. */
 static int cpp_is_base_field(Sym *f);
+static int cpp_class_requires_destruction(Sym *class_sym);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -1602,43 +1603,6 @@ static int cpp_spill_return_value(CType *func_type, CType *spill_type,
         tcc_error("internal error: invalid return spill type");
     loc = (loc - size) & -align;
     slot = loc;
-
-    if (!*is_reference && (func_type->t & VT_BTYPE) == VT_STRUCT
-        && func_type->ref && cpp_find_dtor_field(func_type->ref)) {
-                CType src_ptype;
-        CType dst_ptype;
-        int src_slot;
-        int dst_slot;
-
-        if (!(vtop->r & VT_LVAL) && (vtop->r & VT_VALMASK) == VT_LOCAL)
-            vtop->r |= VT_LVAL;
-        if (!(vtop->r & VT_LVAL))
-            tcc_error("internal error: class return value is not addressable");
-        gaddrof();
-        mk_pointer(&vtop->type);
-        src_ptype = vtop->type;
-        src_slot = cpp_spill_ptr_to_temp(&src_ptype);
-
-        vset(spill_type, VT_LOCAL | VT_LVAL, slot);
-        gaddrof();
-        mk_pointer(&vtop->type);
-        dst_ptype = vtop->type;
-        dst_slot = cpp_spill_ptr_to_temp(&dst_ptype);
-
-        if (cpp_emit_copied_class_subobject(func_type->ref, &dst_ptype,
-                                            dst_slot, src_slot, 0, 0))
-            return slot;
-        tcc_error("return by value of a class with a destructor is unsupported");
-        vset(&dst_ptype, VT_LOCAL | VT_LVAL, dst_slot);
-        indir();
-        vset(&src_ptype, VT_LOCAL | VT_LVAL, src_slot);
-        indir();
-        vstore();
-        vpop();
-        cpp_reconstruct_copied_class_members(func_type->ref, &dst_ptype,
-                                             dst_slot, src_slot, 0, 0);
-        return slot;
-    }
 
     vset(spill_type, VT_LOCAL | VT_LVAL, slot);
     vswap();
@@ -3456,6 +3420,48 @@ static int cpp_is_class_data_member_array(Sym *f)
     return 1;
 }
 
+/* C++: report whether destroying a class needs a destructor call,
+   including implicitly destroyed bases and class-type members. */
+static int cpp_class_requires_destruction(Sym *class_sym)
+{
+    Sym *f;
+    CType *elem_type;
+
+    if (!class_sym)
+        return 0;
+    CPP_WALKER_DEPTH_GUARD("cpp_class_requires_destruction");
+    if (cpp_find_dtor_field(class_sym))
+        return 1;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (f->type.t & VT_REFERENCE)
+            continue;
+        if (cpp_is_base_field(f)) {
+            if (f->parent_class
+                && cpp_class_requires_destruction(f->parent_class))
+                return 1;
+            continue;
+        }
+        if (cpp_is_class_data_member_array(f)) {
+            elem_type = &f->type;
+            while ((elem_type->t & VT_ARRAY) && elem_type->ref)
+                elem_type = pointed_type(elem_type);
+            if ((elem_type->t & VT_BTYPE) == VT_STRUCT
+                && elem_type->ref
+                && cpp_class_requires_destruction(elem_type->ref))
+                return 1;
+            continue;
+        }
+        if (cpp_is_class_data_member(f)
+            && f->type.ref
+            && cpp_class_requires_destruction(f->type.ref))
+            return 1;
+    }
+    return 0;
+}
 // G7: default-construct a class-type data member (0-arg ctor on
 // this->member).  A class with no user-declared constructor has no
 // constructor call to emit.  A class with user-declared constructors must,
@@ -14717,6 +14723,13 @@ again:
         return_is_reference = 0;
         return_slot = 0;
         b = (func_vt.t & VT_BTYPE) != VT_VOID;
+        if (tcc_state->cpp
+            && b && tok != ';'
+            && !(func_vt.t & VT_REFERENCE)
+            && (func_vt.t & VT_BTYPE) == VT_STRUCT
+            && func_vt.ref
+            && cpp_class_requires_destruction(func_vt.ref))
+            tcc_error("return by value of a class requiring destruction is unsupported");
         if (tok != ';') {
             gexpr();
             if (b) {
@@ -16423,6 +16436,7 @@ static int decl(int l)
 {
     int v, has_init, r, oldint, ooc_cls;
     CType type, btype;
+    CType static_elem_type;
     Sym* sym;
     AttributeDef ad, adbase;
     ElfSym* esym;
@@ -16656,8 +16670,6 @@ static int decl(int l)
                 int saved_var_tok = tok;
                 int is_static = (btype.t & VT_STATIC) != 0;
                 int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
-                if (is_static && cpp_find_dtor_field(btype.ref))
-                    tcc_error("function-local static destructor is unsupported");
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
@@ -16667,6 +16679,9 @@ static int decl(int l)
                         Sym *guard_sym;
                         int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
                         int guard_skip;
+
+                        if (is_static && cpp_class_requires_destruction(btype.ref))
+                            tcc_error("function-local static destructor is unsupported");
 
                         guard_sym = NULL;
                         guard_skip = 0;
@@ -16711,6 +16726,9 @@ static int decl(int l)
                     int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
                     int guard_skip;
 
+                    if (is_static && cpp_class_requires_destruction(btype.ref))
+                        tcc_error("function-local static destructor is unsupported");
+
                     guard_sym = NULL;
                     guard_skip = 0;
                     decl_initializer_alloc(&type, &ad, obj_r,
@@ -16748,6 +16766,8 @@ static int decl(int l)
                     Sym *obj_sym;
                     Sym *guard_sym;
                     int guard_skip;
+                    if (is_static && cpp_class_requires_destruction(btype.ref))
+                        tcc_error("function-local static destructor is unsupported");
 
                     guard_sym = NULL;
                     guard_skip = 0;
@@ -17029,6 +17049,19 @@ static int decl(int l)
                         r |= VT_LVAL;
                     }
                     has_init = (tok == '=');
+                    if (tcc_state->cpp
+                        && l == VT_LOCAL
+                        && (type.t & VT_STATIC)
+                        && !(type.t & VT_REFERENCE)) {
+                        static_elem_type = type;
+                        while ((static_elem_type.t & VT_ARRAY)
+                               && static_elem_type.ref)
+                            static_elem_type = *pointed_type(&static_elem_type);
+                        if ((static_elem_type.t & VT_BTYPE) == VT_STRUCT
+                            && static_elem_type.ref
+                            && cpp_class_requires_destruction(static_elem_type.ref))
+                            tcc_error("function-local static destructor is unsupported");
+                    }
                     if (has_init && (type.t & VT_VLA))
                         tcc_error("�ϒ��z��͏������ł��܂���");
                     if (tcc_state->cpp
