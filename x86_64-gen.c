@@ -772,6 +772,8 @@ ST_FUNC int gfunc_sret(CType *vt, int variadic, CType *ret, int *ret_align, int 
     *ret_align = 1; // Never have to re-align return values for x86-64
     *regsize = 8;
     size = type_size(vt, &align);
+    if (vt->t & VT_CPP_SRET)
+        return 0;
     if (!using_regs(size))
         return 0;
     if (size == 8)
@@ -794,6 +796,8 @@ static int is_sse_float(int t) {
 
 static int gfunc_arg_size(CType *type) {
     int align;
+    if (type->t & VT_CPP_SRET)
+        return 16;
     if (type->t & (VT_ARRAY|VT_BITFIELD))
         return 8;
     return type_size(type, &align);
