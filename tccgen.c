@@ -1638,14 +1638,22 @@ static void cpp_note_class_temp(CType *type, int slot)
     cpp_mark_temp_live(guard_index);
 }
 
-static void cpp_extend_class_temp(int slot)
+static void cpp_extend_class_temp_for_lvalue(SValue *sv)
 {
     int i;
+    int addr;
+    int size;
+    int align;
 
-    if (!tcc_state->cpp)
+    if (!tcc_state->cpp || !sv || !(sv->r & VT_LVAL)
+        || ((sv->r & VT_VALMASK) != VT_LOCAL
+            && (sv->r & VT_VALMASK) != VT_LLOCAL))
         return;
+    addr = (int)sv->c.i;
     for (i = nb_cpp_temp_objects - 1; i >= 0; i--) {
-        if (cpp_temp_objects[i].slot != slot)
+        size = type_size(&cpp_temp_objects[i].type, &align);
+        if (size <= 0 || addr - cpp_temp_objects[i].slot < 0
+            || addr - cpp_temp_objects[i].slot >= size)
             continue;
         cpp_temp_objects[i].extended = 1;
         cpp_temp_objects[i].scope_level = local_scope;
@@ -15821,8 +15829,7 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
                 CType *base_pt = pointed_type(&dtype);
                 Sym *base_class = ((base_pt->t & VT_BTYPE) == VT_STRUCT)
                                   ? base_pt->ref : NULL;
-                if ((vtop->type.t & VT_BTYPE) == VT_STRUCT)
-                    cpp_extend_class_temp(vtop->c.i);
+                cpp_extend_class_temp_for_lvalue(vtop);
                 gaddrof();
                 if (src_class && base_class && src_class != base_class) {
                     int ofs = cpp_base_subobject_offset(src_class, base_class);
