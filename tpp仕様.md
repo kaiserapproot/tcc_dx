@@ -1,15 +1,22 @@
 # tpp C++ 仕様書
 
 **対象**: `dev\tcc.exe` — tcc version 0.9.28rc (x86_64 Windows)
-**最終確認**: 2026-08-09（ブランチ `fix/cpp-shadowed-type-name`）
+**最終確認**: 2026-08-29（`build.bat` フルゲート緑 — Release|x64 / Debug|Win32、CUnit 14/14、
+`run_all.bat` 0 gating failure / 0 crash、CPPUnit G7 機械ゲート `TESTS:17 FAILURES:0 ERRORS:0`）
 **位置づけ**: TCC に **C++98 のサブセット**を実装したもの。C++ コンパイラの代替ではない。
 
 関連文書: [実装済み.md](実装済み.md)（機能一覧の正本） / [問題と原因.md](問題と原因.md)（バグ事例） /
 [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)（実装プラン） / [amateras対応作業履歴.md](amateras対応作業履歴.md)
 
-> 本書の「動作しない」節は、すべて **2026-08-09 に `dev\tcc.exe` で実測**した結果である。
+> 本書の「動作しない」節は、すべて **`dev\tcc.exe` で実測**した結果である。
 > 推測は含まない。判定は「ビルド NG」（コンパイルエラー）と
 > 「**ビルド OK・動作誤り**」（黙って通るが結果が違う = 最も危険）を区別して記載する。
+>
+> 基準となる実測は 2026-08-09。以降、ガイド G1〜G7（2026-08-22〜08-25）で解消した
+> 項目は取り消し線と対応ガイド／BUG 番号を添えて更新している。2026-08-29 に
+> `build.bat` フルゲートを再実行し 0 failure / 0 crash・CPPUnit 17/17 を再確認した。
+> §3.2 A（コピーコンストラクタ）は 2026-08-29 に最小再現で再実測し、**未解消**である
+> ことを確認済み（`P a; P b = a;` で `b.v` がコピー ctor を通らない）。
 
 ---
 
@@ -61,16 +68,17 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 
 | 分類 | 動作するもの |
 |---|---|
-| クラス | `class` / `struct`、アクセス指定子（パース）、メンバ変数・メンバ関数、クラス内インライン定義、クラス外定義（`int Foo::bar()`）、**クラス内 typedef**（unqualified / `Class::type` 修飾 / 基底・外側クラスからの継承解決、G3）、二重修飾クラス外定義 `Outer::Inner::member`、デフォルト引数の定義スコープ解決（`= npos`）（いずれも 2026-08-22） |
+| クラス | `class` / `struct`、アクセス指定子（パース）、メンバ変数・メンバ関数、クラス内インライン定義、クラス外定義（`int Foo::bar()`）、**クラス内 typedef**（unqualified / `Class::type` 修飾 / 基底・外側クラスからの継承解決、G3）、二重修飾クラス外定義 `Outer::Inner::member`、デフォルト引数の定義スコープ解決（`= npos`）（いずれも 2026-08-22）、ネストクラスのクラス外定義 `class Outer::Inner { ... };`、**局所クラス**（関数内のクラス定義。BUG-42。制限: タグ名が関数終了後もファイルスコープに残るため同名局所クラスの複数定義は不可）（2026-08-23） |
 | 型 | `bool` / `true` / `false`、参照 `&`（引数・戻り値・ローカル・**メンバ**）、クラス名 typedef |
 | 関数 | オーバーロード、デフォルト引数、無名引数、`const` メンバ関数、`const` によるオーバーロード |
-| 構築・破棄 | コンストラクタ（初期化子リスト含む）、デストラクタ、ローカルのブロック終了時 dtor、グローバルの自動 ctor/dtor（`.init_array` / `.fini_array`）、暗黙の基底 ctor / 自動基底 dtor |
+| 構築・破棄 | コンストラクタ（初期化子リスト含む）、デストラクタ、ローカルのブロック終了時 dtor、グローバルの自動 ctor/dtor（`.init_array` / `.fini_array`）、**関数内 static の init-once ctor**（FEAT-4F-P2、2026-09-01。default/引数付き/全引数default ctor。終了時dtorは未対応）、暗黙の基底 ctor / 自動基底 dtor、**`const` メンバの mem-initializer 初期化**、**暗黙メンバ ctor/dtor**（mem-init が挙げないクラス型データメンバの黙示構築・逆順破棄）、**変換 ctor の暗黙適用**（G-CONV。`return` / mem-init / 代入 / 引数で 1 段のみ）（いずれも 2026-08-23）、**コピー初期化 `T b = a;`**（FEAT-COPY-INIT、2026-08-29。ユーザー定義コピー ctor を解決、無ければメンバワイズ再構築。直接初期化 `T b(a);` と同じ意味論。参照・deref・関数戻り値からの初期化も可。**派生 → 基底のスライシングだけは明示エラー** — BUG-49 の多重適用を避けるため） |
+| 動的確保 | `new Class(args)` / `new Class()` / `new Class` / `delete p`（G4、2026-08-22。vptr 初期化 → ctor のオーバーロード解決・デフォルト引数込み）、`new POD[n]` / `delete[]`（POD のみ）、**`new T(obj)` の暗黙メンバワイズコピー**（BUG-46/47、2026-08-24。ヒープバッファを持つメンバはコピー用 ctor で再構築）。**明示エラー**: scalar POD の `new int`、ctor/dtor を持つクラスの `new C[n]` / `delete[]`、`operator new` の置き換え |
 | 継承 | 単一継承、多重継承（非仮想）、`D*`→`B*` / `D&`→`B&` アップキャスト |
-| 仮想関数 | `virtual` 宣言、vtable / vptr、動的ディスパッチ（値・ポインタ経由）、派生 override、多重継承下の仮想（primary vptr 共有 + セカンダリ vtable + this 調整 thunk） |
+| 仮想関数 | `virtual` 宣言、vtable / vptr、動的ディスパッチ（値・ポインタ経由）、派生 override、多重継承下の仮想（primary vptr 共有 + セカンダリ vtable + this 調整 thunk）、**純粋仮想 `= 0` / 抽象クラス**（G5、2026-08-22。抽象クラスのオブジェクト宣言・`new` は明示エラー）、**仮想デストラクタ + complete-object delete**（G6、2026-08-22。`delete base_ptr` の動的ディスパッチ、MI は offset-to-top で complete object を free） |
 | メンバポインタ | データメンバポインタ `T C::*`、非仮想 / 仮想メンバ関数ポインタ |
 | 演算子 | `+ - * / % & \| ^ << >>`、比較 `== != < > <= >=`、代入 `= += -= *= /=` と各種複合代入、単項 `! - ~`、前置・後置 `++ --`、`[]`、**単項 `operator*`（deref）/ `operator->`**（G-OP、2026-08-22。`->` は 1 段適用・非ポインタ返却はエラー、メンバのみ）、メンバ / 非メンバの両方 |
 | リンケージ | `extern "C" { ... }` ブロック、`extern "C" void f();` 単一宣言 |
-| その他 | `this` / `*this` / `this->x`、`Class::member` / `Class::func()`、ネストしたクラス定義、関数形式キャスト `T(expr)`（typedef・基本型・`Class::type` のみ。クラス型の一時オブジェクト `Foo(1)` は明示エラー。G-CAST、2026-08-22）、`friend class X;`（受理して読み捨て。アクセス制御は元々未実装のため意味差なし。friend **関数**宣言は明示エラー。G2、2026-08-22）、先頭 `::`（グローバルスコープ修飾。型位置 `typedef ::C D;` / 式位置 `::gfn()`。**正式 lookup 実装** — ローカルや同名メンバが隠していてもグローバル束縛へ解決し、shadow テストは exit 0。G1、2026-08-22） |
+| その他 | `this` / `*this` / `this->x`、`Class::member` / `Class::func()`、ネストしたクラス定義、**修飾基底メンバ呼び出し** `Base::method(args)`（非仮想の直接バインド + this の基底調整。2026-08-23）、関数形式キャスト `T(expr)`（typedef・基本型・`Class::type`。G-CAST、2026-08-22。**ctor を持つクラス型の一時オブジェクトも対応** — 1 引数 `Foo(1)` は 2026-08-23、多引数 `T(a1,...,an)` は G-FCAST-N で 2026-08-23。ctor なしクラス / `T()` value-init は明示エラー）、`friend class X;`（受理して読み捨て。アクセス制御は元々未実装のため意味差なし。friend **関数**宣言は明示エラー。G2、2026-08-22）、先頭 `::`（グローバルスコープ修飾。型位置 `typedef ::C D;` / 式位置 `::gfn()`。**正式 lookup 実装** — ローカルや同名メンバが隠していてもグローバル束縛へ解決し、shadow テストは exit 0。G1、2026-08-22） |
 
 ---
 
@@ -98,6 +106,8 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 | **クラス内 `enum`** | `struct C{ enum E{A,B}; };` | `identifier が必要です` |
 | **デフォルトメンバ初期化子**（C++11） | `struct P{ int v = 5; };` | `',' が必要です（"=" が見つかりました）` |
 | **`operator new` のオーバーロード** | `static void* operator new(...)` | `unsupported operator` |
+| **暗黙のコピー代入**（メンバ／基底のメンバが `operator=` を持つ場合） | `struct M{ M& operator=(const M&); }; struct H{ M m; H(); }; H x,y; y = x;` | `implicit copy assignment is unsupported for a class whose member declares operator=; declare operator= for this class`。C++98 の暗黙コピー代入はメンバワイズだが tpp の struct 代入は memcpy なので、メンバの `operator=` が静かに飛ばされる（ヒープを持つメンバでは代入先バッファが漏れてコピー元と共有される）。**回避**: そのクラスに `operator=` を書く。POD 代入・`operator=` を書いたクラス自身の代入は不変 |
+| **派生 → 基底のスライシング（値）** | `struct D : B {}; D d; B b = d;` / `void take(B); take(d);` / `B f(const D& s){ return s; }` | コピー初期化は `slicing copy-initialization is unsupported; use direct-initialization`、値渡し・`return` は `'const struct D' から 'struct B' に変換できません`。**いずれも fail-closed**（BUG-49）。tpp は struct の引数・戻り値を copy ctor でなく memcpy で運ぶため、値スライスは派生側の vptr を基底オブジェクトへ運び込んでしまう。**回避**: 参照 `const B&` で渡すか、直接初期化 `B b(d);` を使う（どちらも正しく動く） |
 | `extern "C++" { ... }` | | 明示エラー |
 | `extern "C" { #include ... }` | | 未対応 |
 
@@ -107,10 +117,24 @@ C++ で外部ライブラリと繋ぐ場合は `extern "C"` インタフェー�
 
 | # | 機能 | 最小再現 | 期待 | 実際 |
 |---|---|---|---|---|
-| A | **コピーコンストラクタが呼ばれない** | `P a; P b = a;` | `b.v == 2` | **`b.v == 1`**（memcpy のまま） |
+| ~~A~~ | ~~**コピー初期化 `T b = a;` でコピーコンストラクタが呼ばれない**~~ | `P a; P b = a;` | `b.v == 2` | **FEAT-COPY-INIT で対応済み**（2026-08-29）。コピー ctor を解決して呼ぶ |
 | B | **委譲コンストラクタの本体が走らない**（C++11） | `P() : P(3) {}` | `p.v == 3` | **`p.v == 0`** |
-| C | **`return` 経路の自動デストラクタが呼ばれない** | `int f(){ P p; return p.v; }` | dtor 実行 | **未実行**（ブロック `}` 終了時のみ） |
-| D | **ローカル `static` オブジェクトの ctor が走らない** | `static P s;`（関数内） | `s.v == 7` | **`s.v == 0`** |
+| ~~C~~ | ~~**`return` 経路の自動デストラクタが呼ばれない**~~ | `int f(){ P p; return p.v; }` | dtor 実行 | **FEAT-4E-P3 で修正済み**（2026-09-01）。戻り値を退避し、全アクティブスコープを逆順破棄後に復元。`break` / `continue` / `goto` は別課題 |
+| ~~D~~ | ~~**ローカル `static` オブジェクトの ctor が走らない**~~ | `static P s;` / `static P s(args);`（関数内） | 初回到達時だけ ctor | **FEAT-4F-P2 で修正済み**（2026-09-01）。宣言ごとの匿名 static guard で init-once。C++98 の非 atomic guard。終了時 dtor は別課題 |
+| ~~A3~~ | ~~**派生 → 基底の変換でコピー ctor が多重適用される**~~（BUG-49） | `void f(const B&); f(d);` / `B x(d);` | コピーなし / 101 | **修正済み**（2026-08-29）。参照束縛は 401 → コピーなし、直接初期化は 501 → 101。**値変換**（値渡し・`return`）は誤コードを避けて明示エラー化（§3.1） |
+| ~~A2~~ | ~~**暗黙のコピー代入演算子がメンバワイズにならない**~~ | `operator=` を持つ `M` をメンバに持ち、自身は `operator=` を書いていない `H` で `y = x;` | メンバの `M::operator=` が走る | **明示エラーに変更**（2026-08-29）。memcpy で静かに `M::operator=` を飛ばしていたのを fail-closed 化（§3.1）。`operator=` を書いたクラス自身の代入・POD 代入は従来どおり |
+> **A は FEAT-COPY-INIT で解消**（2026-08-29）。残っていた 1 経路が
+> コピー初期化 `T b = a;` で、これを直接初期化 `T b(a);` と同じ構築へ接続した。
+> ユーザー定義コピー ctor があればオーバーロード解決して呼び、無い場合も
+> C++98 の暗黙コピー ctor に相当するメンバワイズ再構築を行う（`new T(obj)` の
+> BUG-46 / BUG-47 と同じ手順なので、ヒープバッファを持つメンバが
+> エイリアスして二重解放になることもない）。回帰テストは
+> `dev/test/a9/copy_init_ctor.cpp` / `copy_init_memberwise.cpp` /
+> `copy_init_pod.cpp`。
+> これでクラスのコピーは**コピー初期化・直接初期化・`operator=` による代入・
+> `new T(obj)`** のいずれも C++98 どおりに動く。引数渡し・`return`・mem-init で
+> クラス型が要求される位置は G-CONV の変換 ctor 適用（1 段）が担当する。
+
 > **BUG-30 / BUG-31 は修正済み**（2026-08-22）。BUG-30: メンバ関数を定義より前に
 > 呼ぶと（`.h` 宣言＋`.cpp` 定義の通常構成を含む）、単一メンバは実行時クラッシュ、
 > オーバーロードは誤解決していた。BUG-31: 静的データメンバのクラス外定義が次の
@@ -177,9 +201,9 @@ D3D の C++ ヘルパークラス・演算子も消える。`TCC_NO_FORCE_CINTER
 | **非 primary 基底のオーバーロード仮想** | **明示エラー** | override の対応付けが名前のみのため解決できない。誤コードを出さずコンパイルエラーにする（`overloaded virtual '...' on a non-primary base is not supported`）|
 | クラス名・基底名が長すぎる場合 | **明示エラー** | セカンダリ vtable シンボル名が 256 文字を超えるとエラー停止（旧: 無音で誤コード） |
 | メンバ関数ポインタ | 単一継承の embedded base まで | 多重継承 PMF は未対応 |
-| 暗黙の ctor / dtor | 派生クラス自身が ctor / dtor を**宣言している場合のみ**基底へ連鎖 | 暗黙 ctor/dtor 自体の合成は未対応。メンバ変数の ctor/dtor 連鎖も対象外 |
-| 基底の 0 引数 ctor 不在 | 黙って無呼び出し | 標準ではエラー |
-| ctor 有りで 0 引数 ctor 無しの `P f;` | 無警告で確保のみ | 標準ではエラー |
+| 暗黙の ctor / dtor | 派生クラス自身が ctor / dtor を**宣言している場合のみ**、基底とクラス型データメンバへ連鎖（メンバ連鎖は 2026-08-23 対応。mem-init が挙げないメンバを黙示構築し、逆順に破棄。実測: 外側が `ctor`/`dtor` を宣言していればメンバの ctor/dtor が 1 回ずつ走る） | 暗黙 ctor/dtor **そのものの合成**は未対応。ただし silent ではなく **`implicit default construction of non-trivial member is unsupported` で明示エラー**（fail-closed。2026-08-29 実測） |
+| 基底の 0 引数 ctor 不在 | **明示エラー** `base class has no default constructor`（旧: 黙って無呼び出し。2026-08-29 実測で fail-closed 化を確認） | 標準どおりエラーになる |
+| ctor 有りで 0 引数 ctor 無しの `P f;` | **無警告で確保のみ**（2026-08-29 実測で未解消。既存テスト保護のため据え置き — [実装済み.md](実装済み.md) §8） | 標準ではエラー |
 | 非メンバ `operator[]` | 使用可 | **TCC 拡張**（C++98 標準外） |
 | グローバル ctor/dtor | EXE のみ | DLL 対象外、`-run` 対象外。`.o` 分割リンク時は同一実行での compile が必要 |
 
@@ -189,12 +213,20 @@ D3D の C++ ヘルパークラス・演算子も消える。`TCC_NO_FORCE_CINTER
 
 1. **標準ライブラリは使えない**。`<iostream>` / `<string>` / `<vector>` などは無い。
    C 標準ライブラリ（`<stdio.h>` / `<string.h>` / `<math.h>` 等）と Win32 API を使う。
-2. **メモリ確保は `malloc` / `free`**。`new` / `delete` は使えない。
+2. **`new` / `delete` は使える**（G4、2026-08-22）。ただし **scalar POD の `new int`**、
+   **ctor/dtor を持つクラスの `new C[n]` / `delete[]`**、**`operator new` の置き換え**は
+   明示エラーになる。これらが要る場面では `malloc` / `free` を使う。
 3. **エラー処理は戻り値で行う**。例外は使えない。
-4. **多態は「単一継承 + 仮想関数」までに留める**。仮想デストラクタが無いため、
-   基底ポインタ経由の破棄は自分で型を管理する必要がある。
-5. **コピーは明示的に書く**。`P b = a;` はコピーコンストラクタを呼ばず memcpy になる。
-   ディープコピーが要るなら明示的なコピー関数を用意する。
+4. **多態は「単一継承 + 仮想関数」を基本にする**。仮想デストラクタと
+   `delete base_ptr` の complete-object 解放は G6（2026-08-22）で対応済みだが、
+   **仮想継承・菱形継承は未対応**で、多重継承下の深い再 override や
+   非 primary 基底のオーバーロード仮想は明示エラー（§4）になる。
+5. **クラスの「構築時の」コピーは通常どおり書ける**（FEAT-COPY-INIT、2026-08-29）。
+   `P b = a;` / `P b(a);` / `new P(a)` のいずれもコピー ctor（無ければ暗黙の
+   メンバワイズコピー）が走る。**代入 `b = a;` は `operator=` を自分で書く**こと。
+   `operator=` を持つメンバを含むクラスで暗黙のコピー代入に頼ると、
+   メンバワイズにならないため**コンパイルエラー**になる（§3.1。誤コードを
+   出さないための措置）。POD の代入は従来どおり動く。
 6. **メンバ呼び出しの引数に `this` 由来の式を直接書かない**（§3.2 E）。
    一度ローカル変数に受けてから渡す。
 7. **日本語コメントを含む `.cpp` は CP932 で保存するか、各行を ASCII 文字で終える**。
@@ -247,6 +279,10 @@ cl /nologo /EHsc /c <file>.cpp
 | BUG-43 | クラス外定義の仮想関数が vtable 構築時点で未解決 → 初回呼び出しで NULL 関数ポインタ経由のクラッシュ | **修正済み**（`cpp_lookup_virtual_impl` が既存グローバル未検出時に BUG-30 式の extern 作成へフォールバック。純粋仮想は対象外） |
 | BUG-44 | 全パラメータにデフォルトがある 1 引数以上の ctor が `cpp_class_has_default_ctor` で「既定 ctor でない」と誤判定され、`T t;` が ctor 呼び出しごと欠落（メンバ未初期化） | **修正済み**（ゼロ引数で呼べるか判定する `cpp_ctor_viable_with_zero_args` へ置換。副次的に `cpp_inherit_decl_defaults` のコンストラクタ探索がマングルトークン↔クラス名トークンの対応漏れで別オーバーロードを拾うバグも修正） |
 | BUG-45 | 同クラスの static メンバ関数への非修飾呼び出しが、定義より前の位置からだと C の「暗黙関数宣言」（無型 K&R）経路に落ちて呼び出し規約が不一致になり不正アドレスへジャンプ | **修正済み**（`cpp_lookup_static_member`（BUG-33 の extern 生成機構）で解決してから通常の解決済みシンボル経路へフォールスルー） |
+| BUG-46 | `new T(obj)` の暗黙コピー構築がメンバワイズでなくフラットなバイトコピーで、ヒープバッファを持つメンバが共有され二重解放（→ CRT ヒープ破壊 → 無関係な alloc/free でハング） | **修正済み**（`cpp_reconstruct_copied_class_members` を新設し、ctor を持つクラス型メンバをコピー用 ctor で再構築。2026-08-24） |
+| BUG-47 | BUG-46 の再構築呼び出しが引数 1 個固定で、既定引数付きパラメータを持つコピー用 ctor（`SimpleString(const SimpleString&, pos=0, n=npos)`）にゴミ値が渡る | **修正済み**（`cpp_apply_default_args` を同経路にも適用。2026-08-24） |
+| BUG-48 | 局所クラスを同一関数内で複数定義すると、最初の 1 つのスコープ終端デストラクタ呼び出しが静かに欠落 | **修正済み**（`cpp_class_sym_push` の global_stack 昇格でメンバ型の `ref` チェーンも `sym_copy_ref` で同じ寿命へコピー。2026-08-25） |
+| BUG-49 | 派生 → 基底の変換で、基底のコピー ctor が `cpp_conv_depth` の上限まで再帰適用される。**`const B&` への束縛でも一時が作られ（copy ctor 4 回）、`B&` 経由の書き込みが元オブジェクトへ届かず失われていた** | **修正済み**（2026-08-29）。`cpp_try_class_conversion()` の早期 return を `ref == class_sym` から `cpp_base_subobject_offset() >= 0` へ変更し、派生→基底を参照バインド／通常のコピー経路へ譲る。参照束縛は copy ctor 0 回・書き込みが正しく反映、直接初期化 `B x(d);` は 501 → 101。**値スライスのみ fail-closed**（§3.1） |
 
 過去のバグ事例と原因分析は [問題と原因.md](問題と原因.md)、
 残作業と着手順は [amateras対応作業履歴.md](amateras対応作業履歴.md) §5〜6 を参照。

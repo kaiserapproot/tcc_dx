@@ -1,0 +1,219 @@
+From 7a8e0b271e0f90b1356b43081c35101a485d03d6 Mon Sep 17 00:00:00 2001
+From: kaiser <kaiser@kaiser.app>
+Date: Wed, 2 Sep 2026 08:51:44 +0900
+Subject: [PATCH 11/13] =?utf-8?q?=20fix(cpp):=20=E5=8D=B1=E9=99=BA?=
+ =?utf-8?q?=E3=81=AA=E6=9A=97=E9=BB=99=E3=82=B3=E3=83=94=E3=83=BC=E4=BB=A3?=
+ =?utf-8?q?=E5=85=A5=E3=81=A8=E9=96=A2=E6=95=B0=E5=86=85=20static=20?=
+ =?utf-8?q?=E3=81=AE=20dtor=20=E3=82=92=20fail-closed=20=E3=81=AB=E3=81=99?=
+ =?utf-8?q?=E3=82=8B?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+---
+ dev/test/a9/derived_copy_assign.cpp           | 31 +++++++++++
+ dev/test/a9/negative/local_static_dtor.cpp    | 15 ++++++
+ .../a9/negative/local_static_dtor.expected    |  1 +
+ dev/test/a9/return_value_dtor.cpp             | 53 +++++++++++--------
+ tccgen.c                                      | 32 ++++++++---
+ 5 files changed, 102 insertions(+), 30 deletions(-)
+ create mode 100644 dev/test/a9/derived_copy_assign.cpp
+ create mode 100644 dev/test/a9/negative/local_static_dtor.cpp
+ create mode 100644 dev/test/a9/negative/local_static_dtor.expected
+
+diff --git a/dev/test/a9/derived_copy_assign.cpp b/dev/test/a9/derived_copy_assign.cpp
+new file mode 100644
+index 0000000..47432a9
+--- /dev/null
++++ b/dev/test/a9/derived_copy_assign.cpp
+@@ -0,0 +1,31 @@
++struct B {
++    int b;
++    B() { b = 0; }
++    B& operator=(const B& rhs)
++    {
++        b = rhs.b;
++        return *this;
++    }
++};
++
++struct D : B {
++    int d;
++    D() { d = 0; }
++};
++
++int main()
++{
++    D src;
++    D dst;
++
++    src.b = 11;
++    src.d = 22;
++    dst.b = 1;
++    dst.d = 2;
++    dst = src;
++    if (dst.b != 11)
++        return 1;
++    if (dst.d != 22)
++        return 2;
++    return 0;
++}
+diff --git a/dev/test/a9/negative/local_static_dtor.cpp b/dev/test/a9/negative/local_static_dtor.cpp
+new file mode 100644
+index 0000000..a901360
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_dtor.cpp
+@@ -0,0 +1,15 @@
++struct S {
++    S() {}
++    ~S() {}
++};
++
++void f()
++{
++    static S s;
++}
++
++int main()
++{
++    f();
++    return 0;
++}
+diff --git a/dev/test/a9/negative/local_static_dtor.expected b/dev/test/a9/negative/local_static_dtor.expected
+new file mode 100644
+index 0000000..5107119
+--- /dev/null
++++ b/dev/test/a9/negative/local_static_dtor.expected
+@@ -0,0 +1 @@
++function-local static destructor is unsupported
+diff --git a/dev/test/a9/return_value_dtor.cpp b/dev/test/a9/return_value_dtor.cpp
+index b746848..f994f1d 100644
+--- a/dev/test/a9/return_value_dtor.cpp
++++ b/dev/test/a9/return_value_dtor.cpp
+@@ -1,23 +1,32 @@
+-#include <stdlib.h>
+-
+-struct Owner {
+-    int *p;
+-    Owner() { p = (int *)malloc(sizeof(int)); *p = 7; }
+-    Owner(const Owner& other) {
+-        p = (int *)malloc(sizeof(int));
+-        *p = *other.p;
+-    }
+-    ~Owner() { free(p); }
+-};
+-
+-Owner make_owner()
+-{
+-    Owner value;
+-    return value;
++#include <stdlib.h>
++
++static int allocs;
++static int frees;
++
++struct Owner {
++    int *p;
++    Owner() { p = (int *)malloc(sizeof(int)); *p = 7; ++allocs; }
++    Owner(const Owner& other) {
++        p = (int *)malloc(sizeof(int));
++        *p = *other.p;
++        ++allocs;
++    }
++    ~Owner() { ++frees; free(p); }
++};
++
++Owner make_owner()
++{
++    Owner value;
++    *value.p = 7;
++    return value;
++}
++
++int main()
++{
++    {
++        Owner result = make_owner();
++        if (*result.p != 7)
++            return 1;
++    }
++    return allocs == frees ? 0 : 2;
+ }
+-
+-int main()
+-{
+-    Owner result = make_owner();
+-    return *result.p == 7 ? 0 : 1;
+-}
+\ No newline at end of file
+diff --git a/tccgen.c b/tccgen.c
+index dc4fd7b..a3eb86b 100644
+--- a/tccgen.c
++++ b/tccgen.c
+@@ -9530,13 +9530,6 @@ static int cpp_try_free_postop(int op_tok)
+     return 1;
+ }
+ 
+-// A flat struct store is a correct implementation of an implicit C++98 copy
+-// assignment only when every base and data member is itself byte-copy safe.
+-// References and const/volatile members are not assignable that way, a
+-// polymorphic object must not have its vptr copied, and a class subobject with
+-// a real copy-assignment operator must run it memberwise.  Reject those shapes
+-// until memberwise assignment codegen exists, while ignoring unrelated
+-// overloads such as M::operator=(int).
+ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym);
+ 
+ static int cpp_is_copy_assign_field(Sym *field, Sym *class_sym)
+@@ -9592,6 +9585,25 @@ static int cpp_implicit_copy_assign_type_is_safe(CType *type)
+     }
+     return 1;
+ }
++static int cpp_implicit_copy_assign_base_is_safe(CType *type)
++{
++    CType *elem_type;
++
++    if (!type)
++        return 1;
++    if (type->t & (VT_REFERENCE | VT_CONSTANT | VT_VOLATILE))
++        return 0;
++    if (type->t & VT_ARRAY) {
++        elem_type = pointed_type(type);
++        return cpp_implicit_copy_assign_base_is_safe(elem_type);
++    }
++    if ((type->t & VT_BTYPE) == VT_STRUCT && type->ref) {
++        if (0)
++            return 0;
++        return cpp_implicit_copy_assign_is_safe(type->ref);
++    }
++    return 1;
++}
+ 
+ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
+ {
+@@ -9611,7 +9623,7 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
+         if (cpp_is_base_field(f)) {
+             base_type.t = VT_STRUCT;
+             base_type.ref = f->parent_class;
+-            if (!cpp_implicit_copy_assign_type_is_safe(&base_type))
++            if (!cpp_implicit_copy_assign_base_is_safe(&base_type))
+                 return 0;
+             continue;
+         }
+@@ -9629,6 +9641,8 @@ static int cpp_try_member_binop(int op_tok)
+     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
+         return 0;
+     field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs, 1);
++    if (op_tok == '=' && field && field->parent_class != vtop[-1].type.ref)
++        return 0;
+     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
+         return 0;
+     if (field->type.ref && field->type.ref->f.func_virtual)
+@@ -16662,6 +16676,8 @@ static int decl(int l)
+                 int saved_var_tok = tok;
+                 int is_static = (btype.t & VT_STATIC) != 0;
+                 int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
++                if (is_static && cpp_find_dtor_field(btype.ref))
++                    tcc_error("function-local static destructor is unsupported");
+                 next();
+                 if (tok == '(') {
+                     next(); /* peek first token inside the parens */
