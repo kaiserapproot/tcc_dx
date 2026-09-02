@@ -9585,26 +9585,6 @@ static int cpp_implicit_copy_assign_type_is_safe(CType *type)
     }
     return 1;
 }
-static int cpp_implicit_copy_assign_base_is_safe(CType *type)
-{
-    CType *elem_type;
-
-    if (!type)
-        return 1;
-    if (type->t & (VT_REFERENCE | VT_CONSTANT | VT_VOLATILE))
-        return 0;
-    if (type->t & VT_ARRAY) {
-        elem_type = pointed_type(type);
-        return cpp_implicit_copy_assign_base_is_safe(elem_type);
-    }
-    if ((type->t & VT_BTYPE) == VT_STRUCT && type->ref) {
-        if (0)
-            return 0;
-        return cpp_implicit_copy_assign_is_safe(type->ref);
-    }
-    return 1;
-}
-
 static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
 {
     Sym *f;
@@ -9623,7 +9603,7 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
         if (cpp_is_base_field(f)) {
             base_type.t = VT_STRUCT;
             base_type.ref = f->parent_class;
-            if (!cpp_implicit_copy_assign_base_is_safe(&base_type))
+            if (!cpp_implicit_copy_assign_type_is_safe(&base_type))
                 return 0;
             continue;
         }
