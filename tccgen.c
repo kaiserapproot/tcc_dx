@@ -116,6 +116,14 @@ static struct temp_local_variable {
 } arr_temp_local_vars[MAX_TEMP_LOCAL_VARIABLE_NUMBER];
 static int nb_temp_local_vars;
 
+#define CPP_MAX_TEMP_OBJECTS 128
+typedef struct {
+    CType type;
+    int slot;
+} CppTempObject;
+static CppTempObject cpp_temp_objects[CPP_MAX_TEMP_OBJECTS];
+static int nb_cpp_temp_objects;
+
 static struct scope {
     struct scope* prev;
     struct { int loc, locorig, num; } vla;
@@ -1520,6 +1528,48 @@ static void cpp_emit_local_dtor(Sym *obj_sym)
     gfunc_call(1);
 }
 
+static void cpp_note_class_temp(CType *type, int slot)
+{
+    int i;
+
+    if (!tcc_state->cpp || !type || (type->t & VT_BTYPE) != VT_STRUCT
+        || !type->ref || !cpp_find_dtor_field(type->ref)
+        || nocode_wanted)
+        return;
+    for (i = 0; i < nb_cpp_temp_objects; i++) {
+        if (cpp_temp_objects[i].slot == slot)
+            return;
+    }
+    if (nb_cpp_temp_objects >= CPP_MAX_TEMP_OBJECTS)
+        tcc_error("too many live class temporaries");
+    cpp_temp_objects[nb_cpp_temp_objects].type = *type;
+    cpp_temp_objects[nb_cpp_temp_objects].slot = slot;
+    nb_cpp_temp_objects++;
+}
+
+static void cpp_emit_temp_dtor(CType *type, int slot)
+{
+    Sym obj_sym;
+
+    memset(&obj_sym, 0, sizeof obj_sym);
+    obj_sym.type = *type;
+    obj_sym.r = VT_LOCAL | VT_LVAL;
+    obj_sym.c = slot;
+    cpp_emit_local_dtor(&obj_sym);
+}
+
+static void cpp_flush_class_temps(void)
+{
+    int i;
+
+    if (!tcc_state->cpp)
+        return;
+    for (i = nb_cpp_temp_objects; i > 0; i--)
+        cpp_emit_temp_dtor(&cpp_temp_objects[i - 1].type,
+                           cpp_temp_objects[i - 1].slot);
+    nb_cpp_temp_objects = 0;
+}
+
 /* FEAT-4E: call dtors for locals declared since bottom (reverse decl order). */
 static void cpp_call_scope_dtors(Sym *bottom)
 {
@@ -1574,13 +1624,27 @@ static int cpp_scope_has_local_dtor(Sym *bottom)
    it after the dtor sequence.  The slot is not a Sym, so it is not itself
    visited by cpp_call_scope_dtors(). */
 static int cpp_spill_return_value(CType *func_type, CType *spill_type,
-                                  int *is_reference)
+                                  int *is_reference, int *return_prepared)
 {
     int size;
     int align;
     int slot;
+    int ret_align;
+    int ret_nregs;
+    int regsize;
+    int src_slot;
+    int dst_slot;
+    int dst_ptr_slot;
+    int direct_class;
+    CType src_ptype;
+    CType dst_ptype;
+    CType ret_type;
 
+    *return_prepared = 0;
     *is_reference = (func_type->t & VT_REFERENCE) != 0;
+    direct_class = !*is_reference
+        && (func_type->t & VT_BTYPE) == VT_STRUCT
+        && func_type->ref && cpp_find_dtor_field(func_type->ref);
     if (*is_reference) {
         /* Match gfunc_return(): a reference result is represented by the
            bound object's address, not by a copied object. */
@@ -1592,6 +1656,62 @@ static int cpp_spill_return_value(CType *func_type, CType *spill_type,
         *spill_type = vtop->type;
         spill_type->t &= ~VT_REFERENCE;
         vtop->type = *spill_type;
+    } else if (direct_class) {
+        /* A class with a user destructor must be copy-constructed before
+           the source local is destroyed.  For a hidden sret return the
+           caller's destination is already the complete object; for a
+           register return use a private object and let the caller
+           materialize and destroy it at the full-expression boundary. */
+        *spill_type = *func_type;
+        spill_type->t &= ~(VT_CONSTANT | VT_VOLATILE);
+        if (!(vtop->r & VT_LVAL)
+            && (vtop->r & VT_VALMASK) == VT_LOCAL)
+            vtop->r |= VT_LVAL;
+        if (!(vtop->r & VT_LVAL))
+            tcc_error("internal error: class return value is not addressable");
+        gaddrof();
+        mk_pointer(&vtop->type);
+        src_ptype = vtop->type;
+        src_slot = cpp_spill_ptr_to_temp(&src_ptype);
+
+        ret_nregs = gfunc_sret(func_type, func_var, &ret_type,
+                                &ret_align, &regsize);
+        if (ret_nregs <= 0) {
+            if (!cpp_emit_copied_class_subobject(func_type->ref, &src_ptype,
+                                                 func_vc, src_slot, 0, 0)) {
+                vset(&src_ptype, VT_LOCAL | VT_LVAL, func_vc);
+                indir();
+                vset(&src_ptype, VT_LOCAL | VT_LVAL, src_slot);
+                indir();
+                vstore();
+                vpop();
+            }
+            *return_prepared = 1;
+            return 0;
+        }
+
+        size = type_size(spill_type, &align);
+        if (size <= 0 || align <= 0)
+            tcc_error("internal error: invalid return spill type");
+        loc = (loc - size) & -align;
+        dst_slot = loc;
+        vset(spill_type, VT_LOCAL | VT_LVAL, dst_slot);
+        gaddrof();
+        mk_pointer(&vtop->type);
+        dst_ptype = vtop->type;
+        dst_ptr_slot = cpp_spill_ptr_to_temp(&dst_ptype);
+        if (!cpp_emit_copied_class_subobject(func_type->ref, &dst_ptype,
+                                             dst_ptr_slot, src_slot, 0, 0)) {
+            vset(&dst_ptype, VT_LOCAL | VT_LVAL, dst_ptr_slot);
+            indir();
+            vset(&src_ptype, VT_LOCAL | VT_LVAL, src_slot);
+            indir();
+            vstore();
+            vpop();
+            cpp_reconstruct_copied_class_members(func_type->ref, &dst_ptype,
+                                                 dst_ptr_slot, src_slot, 0, 0);
+        }
+        return dst_slot;
     } else {
         *spill_type = *func_type;
         /* The hidden slot is writable even for a top-level const return. */
@@ -8836,6 +8956,7 @@ static int cpp_try_class_conversion(CType *dt)
     gfunc_call(nb_args);
     // result: the constructed temporary, as an lvalue of T
     vset(&tt, VT_LOCAL | VT_LVAL, tslot);
+    cpp_note_class_temp(&tt, tslot);
     cpp_conv_depth--;
     return 1;
 }
@@ -8921,6 +9042,7 @@ static void cpp_functional_ctor_temp(CType *type)
     gfunc_call(nb_args);
     // result: the constructed temporary as an lvalue of T
     vset(&ct, VT_LOCAL | VT_LVAL, tslot);
+    cpp_note_class_temp(&ct, tslot);
 }
 
 static Sym* find_field(CType* type, int v, int* cumofs)
@@ -9162,6 +9284,8 @@ static void cpp_finish_member_call(Sym *s, SValue *user_args, int nb_user_args)
         }
         vsetc(&ret.type, ret.r, &ret.c);
         vtop->r2 = ret.r2;
+        if ((s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0)
+            cpp_note_class_temp(&s->type, ret.c.i);
 
         if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
             int addr, offset;
@@ -9183,6 +9307,7 @@ static void cpp_finish_member_call(Sym *s, SValue *user_args, int nb_user_args)
                 offset += regsize;
             }
             vset(&s->type, VT_LOCAL | VT_LVAL, addr);
+            cpp_note_class_temp(&s->type, addr);
         }
 
         t = s->type.t & VT_BTYPE;
@@ -9267,6 +9392,8 @@ static void cpp_finish_free_call(Sym *s, SValue *user_args, int nb_user_args)
         }
         vsetc(&ret.type, ret.r, &ret.c);
         vtop->r2 = ret.r2;
+        if ((s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0)
+            cpp_note_class_temp(&s->type, ret.c.i);
 
         if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
             int addr, offset;
@@ -9288,6 +9415,7 @@ static void cpp_finish_free_call(Sym *s, SValue *user_args, int nb_user_args)
                 offset += regsize;
             }
             vset(&s->type, VT_LOCAL | VT_LVAL, addr);
+            cpp_note_class_temp(&s->type, addr);
         }
 
         t = s->type.t & VT_BTYPE;
@@ -13751,6 +13879,8 @@ post_ops:
                 }
                 vsetc(&ret.type, ret.r, &ret.c);
                 vtop->r2 = ret.r2;
+                if ((s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0)
+                    cpp_note_class_temp(&s->type, ret.c.i);
 
                 /* handle packed struct return */
                 if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
@@ -13775,6 +13905,7 @@ post_ops:
                         offset += regsize;
                     }
                     vset(&s->type, VT_LOCAL | VT_LVAL, addr);
+                    cpp_note_class_temp(&s->type, addr);
                 }
 
                 /* Promote char/short return values. This is matters only
@@ -14565,8 +14696,10 @@ static void prev_scope(struct scope* o, int is_expr)
        tables, though.  sym_pop will do that.  */
 
        /* pop locally defined symbols */
-    if (tcc_state->cpp && !is_expr)
+    if (tcc_state->cpp && !is_expr) {
+        cpp_flush_class_temps();
         cpp_call_scope_dtors(o->lstk);
+    }
     pop_local_syms(o->lstk, is_expr);
     cur_scope = o->prev;
     --local_scope;
@@ -14696,9 +14829,11 @@ again:
                 gexpr();
                 vpop();
                 skip(';');
+                cpp_flush_class_temps();
                 continue;
             }
             decl(VT_LOCAL);
+            cpp_flush_class_temps();
             if (tok != '}') {
                 if (flags & STMT_EXPR)
                     vpop();
@@ -14720,11 +14855,15 @@ again:
         Sym *return_bottom;
         int return_has_dtors;
         int return_is_reference;
+        int return_prepared;
+        int return_direct_dtor;
         int return_slot;
 
         return_bottom = NULL;
         return_has_dtors = 0;
         return_is_reference = 0;
+        return_prepared = 0;
+        return_direct_dtor = 0;
         return_slot = 0;
         b = (func_vt.t & VT_BTYPE) != VT_VOID;
         if (tcc_state->cpp
@@ -14732,8 +14871,11 @@ again:
             && !(func_vt.t & VT_REFERENCE)
             && (func_vt.t & VT_BTYPE) == VT_STRUCT
             && func_vt.ref
-            && cpp_class_requires_destruction(func_vt.ref))
-            tcc_error("return by value of a class requiring destruction is unsupported");
+            && cpp_class_requires_destruction(func_vt.ref)) {
+            if (!cpp_find_dtor_field(func_vt.ref))
+                tcc_error("return by value of a class requiring destruction is unsupported");
+            return_direct_dtor = 1;
+        }
         if (tok != ';') {
             gexpr();
             if (b) {
@@ -14752,10 +14894,14 @@ again:
         if (tcc_state->cpp) {
             return_bottom = cpp_return_dtor_bottom();
             return_has_dtors = cpp_scope_has_local_dtor(return_bottom);
-            if (return_has_dtors && b)
+            if (b && (return_direct_dtor || return_has_dtors
+                      || nb_cpp_temp_objects))
                 return_slot = cpp_spill_return_value(&func_vt,
                                                      &return_spill_type,
-                                                     &return_is_reference);
+                                                     &return_is_reference,
+                                                     &return_prepared);
+            if (nb_cpp_temp_objects)
+                cpp_flush_class_temps();
             if (return_has_dtors)
                 cpp_call_scope_dtors(return_bottom);
             if (return_slot)
@@ -14763,7 +14909,7 @@ again:
                                          return_is_reference);
         }
         leave_scope(root_scope);
-        if (b)
+        if (b && !return_prepared)
             gfunc_return(&func_vt);
         skip(';');
         /* jump unless last stmt in top-level block */
@@ -15024,6 +15170,7 @@ again:
                 else {
                     gexpr();
                     vpop();
+                    cpp_flush_class_temps();
                 }
                 skip(';');
             }
@@ -16190,6 +16337,7 @@ static void gen_function(Sym* sym)
     sym_push2(&local_stack, SYM_FIELD, 0, 0);
     local_scope = 1; /* for function parameters */
     nb_temp_local_vars = 0;
+    nb_cpp_temp_objects = 0;
     gfunc_prolog(sym);
     tcc_debug_prolog_epilog(tcc_state, 0);
 
@@ -16326,6 +16474,7 @@ static void gen_function(Sym* sym)
     }
 
     block(0);
+    cpp_flush_class_temps();
     gsym(rsym);
 
     nocode_wanted = 0;
