@@ -1134,6 +1134,7 @@ struct filespec {
 #define VT_INLINE  0x00008000  /* inline definition */
 #define VT_REFERENCE 0x00010000  /* C++ reference type */
 #define VT_MPTR      0x00020000  /* C++ member pointer type (with VT_PTR) */
+#define VT_CPP_SRET  0x00040000  /* C++ non-trivial class return via hidden pointer */
 /* currently unused: 0x000[48]0000  */
 
 #define VT_STRUCT_SHIFT 20     /* shift for bitfield shift values (32 - 2*6) */
