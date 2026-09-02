@@ -103,6 +103,8 @@ static struct switch_t {
     int nocode_wanted;
     int* bsym;
     struct scope* scope;
+    int cpp_local_state_id;
+    Sym* break_dtor_bottom;
     struct switch_t* prev;
     SValue sv;
 } *cur_switch; /* ���݂� switch �\���� */
@@ -139,6 +141,7 @@ static struct scope {
     Sym* lstk, * llstk;
     int cpp_scope_id;
     int cpp_local_state_id;
+    Sym* break_dtor_bottom, * continue_dtor_bottom;
 } *cur_scope, * loop_scope, * root_scope;
 typedef struct CppScopeInfo {
     int parent;
@@ -155,6 +158,7 @@ typedef struct CppLocalInfo {
 static CppLocalInfo *cpp_local_infos;
 static int nb_cpp_local_infos;
 static int cpp_local_state_id;
+static int cpp_for_init_decl;
 
 typedef struct {
     Section* sec;
@@ -1863,6 +1867,17 @@ static int cpp_local_state_has_local_init_between(int top, int bottom)
         top = info->parent;
     }
     return top != bottom;
+}
+
+static void cpp_validate_switch_entry(int entry_state)
+{
+    if (!tcc_state->cpp)
+        return;
+    if (!cpp_local_state_reaches(cpp_local_state_id, entry_state))
+        tcc_error("invalid C++ switch metadata");
+    if (cpp_local_state_has_local_init_between(cpp_local_state_id,
+                                                entry_state))
+        tcc_error("switch case enters a scope requiring initialization is unsupported");
 }
 
 static int cpp_local_state_has_dtor_between(int top, int bottom)
@@ -15210,13 +15225,17 @@ static void prev_scope_s(struct scope* o)
 /* ------------------------------------------------------------------------- */
 /* call block from 'for do while' loops */
 
-static void lblock(int* bsym, int* csym)
+static void lblock(int* bsym, int* csym, Sym *break_dtor_bottom,
+                   Sym *continue_dtor_bottom)
 {
     struct scope* lo = loop_scope, * co = cur_scope;
     int* b = co->bsym, * c = co->csym;
+    Sym *bd = co->break_dtor_bottom, *cd = co->continue_dtor_bottom;
     if (csym) {
         co->csym = csym;
         loop_scope = co;
+        co->break_dtor_bottom = break_dtor_bottom;
+        co->continue_dtor_bottom = continue_dtor_bottom;
     }
     co->bsym = bsym;
     block(0);
@@ -15224,6 +15243,8 @@ static void lblock(int* bsym, int* csym)
     if (csym) {
         co->csym = c;
         loop_scope = lo;
+        co->break_dtor_bottom = bd;
+        co->continue_dtor_bottom = cd;
     }
 }
 
@@ -15233,6 +15254,8 @@ static void block(int flags)
     int a, b, c, d, e, t;
     struct scope o;
     Sym* s;
+    Sym *for_continue_bottom;
+    int saved_cpp_for_init_decl;
 
     if (flags & STMT_EXPR) {
         /* default return value is (void) */
@@ -15281,7 +15304,7 @@ again:
         cpp_flush_condition_temps();
         a = gvtst(1, 0);
         b = 0;
-        lblock(&a, &b);
+        lblock(&a, &b, o.lstk, o.lstk);
         gjmp_addr(d);
         gsym_addr(b, d);
         gsym(a);
@@ -15405,10 +15428,16 @@ again:
         /* compute jump */
         if (!cur_scope->bsym)
             tcc_error("break �͂����ł͎g�p�ł��܂���");
-        if (cur_switch && cur_scope->bsym == cur_switch->bsym)
+        if (cur_switch && cur_scope->bsym == cur_switch->bsym) {
+            if (cur_switch->break_dtor_bottom)
+                cpp_call_scope_dtors(cur_switch->break_dtor_bottom);
             leave_scope(cur_switch->scope);
-        else
+        }
+        else {
+            if (loop_scope)
+                cpp_call_scope_dtors(loop_scope->break_dtor_bottom);
             leave_scope(loop_scope);
+        }
         *cur_scope->bsym = gjmp(*cur_scope->bsym);
         skip(';');
 
@@ -15417,6 +15446,8 @@ again:
         /* compute jump */
         if (!cur_scope->csym)
             tcc_error("continue �͂����ł͎g�p�ł��܂���");
+        if (loop_scope)
+            cpp_call_scope_dtors(loop_scope->continue_dtor_bottom);
         leave_scope(loop_scope);
         *cur_scope->csym = gjmp(*cur_scope->csym);
         skip(';');
@@ -15428,11 +15459,14 @@ again:
         skip('(');
         if (tok != ';') {
             /* c99 for-loop init decl? */
+            saved_cpp_for_init_decl = cpp_for_init_decl;
+            cpp_for_init_decl = 1;
             if (!decl(VT_JMP)) {
                 /* no, regular for-loop init expr */
                 gexpr();
                 vpop();
             }
+            cpp_for_init_decl = saved_cpp_for_init_decl;
             cpp_flush_class_temps(0);
         }
         skip(';');
@@ -15454,7 +15488,8 @@ again:
             gsym(e);
         }
         skip(')');
-        lblock(&a, &b);
+        for_continue_bottom = local_stack;
+        lblock(&a, &b, for_continue_bottom, for_continue_bottom);
         gjmp_addr(d);
         gsym_addr(b, d);
         gsym(a);
@@ -15465,7 +15500,7 @@ again:
         new_scope_s(&o);
         a = b = 0;
         d = gind();
-        lblock(&a, &b);
+        lblock(&a, &b, o.lstk, o.lstk);
         gsym(b);
         skip(TOK_WHILE);
         skip('(');
@@ -15490,16 +15525,18 @@ again:
         cur_switch = sw;
 
         new_scope_s(&o);
+        sw->break_dtor_bottom = o.lstk;
         skip('(');
         gexpr();
         skip(')');
         cpp_flush_condition_temps();
+        sw->cpp_local_state_id = cpp_local_state_id;
         if (!is_integer_btype(vtop->type.t & VT_BTYPE))
             tcc_error("switch �̒l�������ł͂���܂���");
         sw->sv = *vtop--; /* save switch value */
         a = 0;
         b = gjmp(0); /* jump to first case */
-        lblock(&a, NULL);
+        lblock(&a, NULL, NULL, NULL);
         a = gjmp(a); /* add implicit break */
         /* case lookup */
         gsym(b);
@@ -15526,6 +15563,8 @@ again:
         struct case_t* cr;
         if (!cur_switch)
             expect("switch");
+        if (tcc_state->cpp)
+            cpp_validate_switch_entry(cur_switch->cpp_local_state_id);
         cr = tcc_malloc(sizeof(struct case_t));
         dynarray_add(&cur_switch->p, &cur_switch->n, cr);
         t = cur_switch->sv.type.t;
@@ -15547,6 +15586,8 @@ again:
     else if (t == TOK_DEFAULT) {
         if (!cur_switch)
             expect("switch");
+        if (tcc_state->cpp)
+            cpp_validate_switch_entry(cur_switch->cpp_local_state_id);
         if (cur_switch->def_sym)
             tcc_error("'default' ���������܂�");
         cur_switch->def_sym = cur_switch->nocode_wanted ? -1 : gind();
@@ -17372,7 +17413,7 @@ static int decl(int l)
                existing member-call path `f.Foo(args)` via token unget.
                A function-local static uses static storage plus a once guard. */
             if (tcc_state->cpp
-                && l == VT_LOCAL
+                && (l == VT_LOCAL || (l == VT_JMP && cpp_for_init_decl))
                 && (btype.t & VT_BTYPE) == VT_STRUCT
                 && btype.ref
                 && tok >= TOK_UIDENT
@@ -17417,6 +17458,8 @@ static int decl(int l)
                             next();
                             continue;
                         }
+                        if (l == VT_JMP)
+                            return 1;
                         skip(';');
                         break;
                     }
@@ -17460,6 +17503,8 @@ static int decl(int l)
                         next();
                         continue;
                     }
+                    if (l == VT_JMP)
+                        return 1;
                     skip(';');
                     break;
                 } else if (tok == '='
@@ -17542,6 +17587,8 @@ static int decl(int l)
                             next();
                             continue;
                         }
+                        if (l == VT_JMP)
+                            return 1;
                         skip(';');
                         break;
                     }
