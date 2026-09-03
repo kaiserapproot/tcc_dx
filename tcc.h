@@ -608,6 +608,10 @@ typedef struct Sym {
     struct TokenString *cpp_mem_init_list;
     struct Sym *parent_class; /* owning class (C++ member) */
     int cpp_vtable_tok; /* FEAT-5A: __cpp_vtable_<Class> token, 0 if none */
+    int cpp_scope_id; /* C++ goto source/target scope metadata */
+    int cpp_local_state_id; /* durable local-state snapshot for C++ goto */
+    int cpp_local_id; /* durable local-state node for a local symbol */
+    int cpp_nonvacuous_init; /* C++ goto initialization legality */
     /* G3: class-scope typedefs / nested type names live on this SEPARATE
        list (linked via ->prev by sym_push2), never on the member chain -
        the P0 audit showed layout/initializer/debug/ABI walkers would all

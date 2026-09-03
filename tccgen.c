@@ -137,7 +137,24 @@ static struct scope {
     struct { Sym* s; int n; } cl;
     int* bsym, * csym;
     Sym* lstk, * llstk;
+    int cpp_scope_id;
+    int cpp_local_state_id;
 } *cur_scope, * loop_scope, * root_scope;
+typedef struct CppScopeInfo {
+    int parent;
+    int local_state_id;
+} CppScopeInfo;
+
+static CppScopeInfo *cpp_scope_infos;
+static int nb_cpp_scope_infos;
+typedef struct CppLocalInfo {
+    int parent;
+    int scope_id;
+    int nonvacuous_init;
+} CppLocalInfo;
+static CppLocalInfo *cpp_local_infos;
+static int nb_cpp_local_infos;
+static int cpp_local_state_id;
 
 typedef struct {
     Section* sec;
@@ -1737,17 +1754,248 @@ static void cpp_flush_condition_temps(void)
     cpp_flush_class_temps(0);
 }
 
-/* FEAT-4E: call dtors for locals declared since bottom (reverse decl order). */
-static void cpp_call_scope_dtors(Sym *bottom)
+static CppLocalInfo *cpp_local_info(int id)
+{
+    if (id <= 0 || id > nb_cpp_local_infos)
+        return NULL;
+    return &cpp_local_infos[id - 1];
+}
+
+static int cpp_new_local_state(int parent, int scope_id,
+                               int nonvacuous_init)
+{
+    CppLocalInfo *p;
+    int id;
+
+    if (!tcc_state->cpp)
+        return 0;
+    p = tcc_realloc(cpp_local_infos,
+                    (nb_cpp_local_infos + 1) * sizeof *cpp_local_infos);
+    cpp_local_infos = p;
+    id = ++nb_cpp_local_infos;
+    p = &cpp_local_infos[id - 1];
+    p->parent = parent;
+    p->scope_id = scope_id;
+    p->nonvacuous_init = nonvacuous_init;
+    return id;
+}
+
+static int cpp_local_state_reaches(int top, int bottom)
+{
+    CppLocalInfo *info;
+    int depth;
+
+    for (depth = 0; top && depth <= nb_cpp_local_infos; depth++) {
+        if (top == bottom)
+            return 1;
+        info = cpp_local_info(top);
+        if (!info)
+            return 0;
+        top = info->parent;
+    }
+    return top == bottom;
+}
+
+static int cpp_local_state_contains(int ancestor, int state)
+{
+    CppLocalInfo *info;
+    int depth;
+
+    if (ancestor == 0)
+        return cpp_local_state_reaches(state, 0);
+    for (depth = 0; state && depth <= nb_cpp_local_infos; depth++) {
+        if (state == ancestor)
+            return 1;
+        info = cpp_local_info(state);
+        if (!info)
+            return 0;
+        state = info->parent;
+    }
+    return 0;
+}
+
+static int cpp_local_state_lca(int left, int right)
+{
+    CppLocalInfo *info;
+    int depth;
+
+    for (depth = 0; left && depth <= nb_cpp_local_infos; depth++) {
+        if (cpp_local_state_contains(left, right))
+            return left;
+        info = cpp_local_info(left);
+        if (!info)
+            return 0;
+        left = info->parent;
+    }
+    return 0;
+}
+
+static int cpp_local_state_is_between(int top, int bottom, int id)
+{
+    CppLocalInfo *info;
+    int depth;
+
+    for (depth = 0; top && depth <= nb_cpp_local_infos; depth++) {
+        if (top == bottom)
+            return 0;
+        if (top == id)
+            return 1;
+        info = cpp_local_info(top);
+        if (!info)
+            return 0;
+        top = info->parent;
+    }
+    return 0;
+}
+
+static int cpp_local_state_has_local_init_between(int top, int bottom)
+{
+    CppLocalInfo *info;
+    int depth;
+
+    for (depth = 0; top && top != bottom
+         && depth <= nb_cpp_local_infos; depth++) {
+        info = cpp_local_info(top);
+        if (!info)
+            return 1;
+        if (info->nonvacuous_init)
+            return 1;
+        top = info->parent;
+    }
+    return top != bottom;
+}
+
+static int cpp_local_state_has_dtor_between(int top, int bottom)
 {
     Sym *s;
 
-    if (!tcc_state->cpp || !bottom)
-        return;
-    for (s = local_stack; s != bottom; s = s->prev)
-        cpp_emit_local_dtor(s);
+    if (!tcc_state->cpp || top == bottom)
+        return 0;
+    if (!cpp_local_state_reaches(top, bottom))
+        tcc_error("invalid C++ local state metadata");
+    for (s = local_stack; s; s = s->prev) {
+        if (!s->cpp_local_id
+            || !cpp_local_state_is_between(top, bottom,
+                                           s->cpp_local_id))
+            continue;
+        if ((s->type.t & VT_BTYPE) == VT_STRUCT && s->type.ref
+            && cpp_find_dtor_field(s->type.ref))
+            return 1;
+    }
+    return 0;
 }
 
+static void cpp_emit_local_state_dtors(int top, int bottom)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp || top == bottom)
+        return;
+    if (!cpp_local_state_reaches(top, bottom))
+        tcc_error("invalid C++ local state metadata");
+    for (s = local_stack; s; s = s->prev) {
+        if (!s->cpp_local_id
+            || !cpp_local_state_is_between(top, bottom,
+                                           s->cpp_local_id))
+            continue;
+        cpp_emit_local_dtor(s);
+    }
+}
+
+static void cpp_call_scope_dtors_between(Sym *top, Sym *bottom)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp || !top || !bottom || top == bottom)
+        return;
+    for (s = top; s && s != bottom; s = s->prev)
+        cpp_emit_local_dtor(s);
+    if (s != bottom)
+        tcc_error("invalid C++ local scope metadata");
+}
+
+static void cpp_call_scope_dtors(Sym *bottom)
+{
+    if (!tcc_state->cpp || !bottom)
+        return;
+    cpp_call_scope_dtors_between(local_stack, bottom);
+}
+
+static int cpp_scope_has_local_dtor_between(Sym *top, Sym *bottom)
+{
+    Sym *s;
+
+    if (!tcc_state->cpp || !top)
+        return 0;
+    for (s = top; s && s != bottom; s = s->prev) {
+        if ((s->r & VT_VALMASK) != VT_LOCAL)
+            continue;
+        if ((s->type.t & VT_BTYPE) != VT_STRUCT || !s->type.ref)
+            continue;
+        if (cpp_find_dtor_field(s->type.ref))
+            return 1;
+    }
+    return 0;
+}
+static CppScopeInfo *cpp_scope_info(int id)
+{
+    if (id <= 0 || id > nb_cpp_scope_infos)
+        return NULL;
+    return &cpp_scope_infos[id - 1];
+}
+
+static int cpp_new_scope_info(int parent, int local_state_id)
+{
+    CppScopeInfo *p;
+    int id;
+
+    if (!tcc_state->cpp)
+        return 0;
+    p = tcc_realloc(cpp_scope_infos,
+                    (nb_cpp_scope_infos + 1) * sizeof *cpp_scope_infos);
+    cpp_scope_infos = p;
+    id = ++nb_cpp_scope_infos;
+    p = &cpp_scope_infos[id - 1];
+    p->parent = parent;
+    p->local_state_id = local_state_id;
+    return id;
+}
+
+static void cpp_validate_goto_target(int source_scope, int source_state,
+                                     int target_scope, int target_state)
+{
+    int lca;
+
+    if (!tcc_state->cpp)
+        return;
+    if (!source_scope || !target_scope
+        || !cpp_scope_info(source_scope)
+        || !cpp_scope_info(target_scope))
+        tcc_error("goto scope lifetime is unsupported");
+    lca = cpp_local_state_lca(source_state, target_state);
+    if (!cpp_local_state_reaches(source_state, lca)
+        || !cpp_local_state_reaches(target_state, lca)
+        || cpp_local_state_has_local_init_between(target_state, lca))
+        tcc_error("goto into a scope requiring initialization is unsupported");
+}
+
+static void cpp_emit_scope_exit_dtors(int source_scope, int source_state,
+                                      int target_scope, int target_state)
+{
+    int lca;
+
+    if (!tcc_state->cpp)
+        return;
+    if (!source_scope || !target_scope
+        || !cpp_scope_info(source_scope)
+        || !cpp_scope_info(target_scope))
+        tcc_error("invalid goto scope metadata");
+    lca = cpp_local_state_lca(source_state, target_state);
+    if (!cpp_local_state_reaches(source_state, lca)
+        || !cpp_local_state_reaches(target_state, lca))
+        tcc_error("invalid goto scope metadata");
+    cpp_emit_local_state_dtors(source_state, lca);
+}
 /* FEAT-4E-P3: return leaves every active block in the function, not only
    cur_scope.  Find the local-stack boundary captured by the outermost body
    block (the first real scope below root_scope). */
@@ -1770,21 +2018,64 @@ static Sym *cpp_return_dtor_bottom(void)
    every generated function. */
 static int cpp_scope_has_local_dtor(Sym *bottom)
 {
-    Sym *s;
-
-    if (!tcc_state->cpp || !bottom)
-        return 0;
-    for (s = local_stack; s && s != bottom; s = s->prev) {
-        if ((s->r & VT_VALMASK) != VT_LOCAL)
-            continue;
-        if ((s->type.t & VT_BTYPE) != VT_STRUCT || !s->type.ref)
-            continue;
-        if (cpp_find_dtor_field(s->type.ref))
-            return 1;
-    }
-    return 0;
+    return cpp_scope_has_local_dtor_between(local_stack, bottom);
 }
 
+static void cpp_block_cleanup(struct scope *o)
+{
+    int jmp;
+    Sym *g, *pcl, **pg;
+    CppScopeInfo *info;
+
+    if (!tcc_state->cpp || !o || !o->cpp_scope_id)
+        return;
+    info = cpp_scope_info(o->cpp_scope_id);
+    if (!info)
+        return;
+    jmp = 0;
+    for (pg = &pending_gotos; (g = *pg);) {
+        if (g->cpp_scope_id
+            && !(g->prev_tok->r & LABEL_FORWARD)) {
+            *pg = g->prev;
+            sym_free(g);
+            continue;
+        }
+        if (g->cpp_scope_id != o->cpp_scope_id) {
+            pg = &g->prev;
+            continue;
+        }
+        pcl = g->next;
+        if (!pcl)
+            tcc_error("invalid C++ goto metadata");
+        if (!cpp_local_state_reaches(g->cpp_local_state_id,
+                                     info->local_state_id))
+            tcc_error("invalid C++ goto metadata");
+        if (cpp_local_state_has_dtor_between(g->cpp_local_state_id,
+                                             info->local_state_id)) {
+            if (!jmp)
+                jmp = gjmp(0);
+            gsym(pcl->jnext);
+            cpp_emit_local_state_dtors(g->cpp_local_state_id,
+                                       info->local_state_id);
+            pcl->jnext = gjmp(0);
+        }
+        g->cpp_scope_id = info->parent;
+        g->cpp_local_state_id = info->local_state_id;
+        pcl->cpp_scope_id = info->parent;
+        pcl->cpp_local_state_id = info->local_state_id;
+        pg = &g->prev;
+    }
+    if (jmp)
+        gsym(jmp);
+}
+static void cpp_finish_scope(struct scope *o)
+{
+    if (!tcc_state->cpp || !o || !o->cpp_scope_id)
+        return;
+    cpp_block_cleanup(o);
+    cpp_flush_class_temps(local_scope);
+    cpp_call_scope_dtors(o->lstk);
+}
 /* A return expression is evaluated before automatic objects are destroyed,
    but every dtor call may clobber integer, floating-point, and struct-return
    registers.  Store the converted value in a dedicated stack slot and reload
@@ -4660,6 +4951,16 @@ ST_FUNC void tccgen_finish(TCCState* s1)
     loop_scope = NULL;
     all_cleanups = NULL;
     pending_gotos = NULL;
+    if (cpp_scope_infos)
+        tcc_free(cpp_scope_infos);
+    cpp_scope_infos = NULL;
+    nb_cpp_scope_infos = 0;
+    if (cpp_local_infos)
+        tcc_free(cpp_local_infos);
+    cpp_local_infos = NULL;
+    nb_cpp_local_infos = 0;
+    cpp_local_state_id = 0;
+
     nb_temp_local_vars = 0;
     global_label_stack = NULL;
     local_label_stack = NULL;
@@ -4878,6 +5179,10 @@ ST_FUNC Sym* sym_push2(Sym** ps, int v, int t, int c)
 
     s = sym_malloc();
     memset(s, 0, sizeof * s);
+    s->cpp_scope_id = 0;
+    s->cpp_local_state_id = 0;
+    s->cpp_local_id = 0;
+    s->cpp_nonvacuous_init = 0;
     s->v = v;
     s->type.t = t;
     s->c = c;
@@ -14800,6 +15105,10 @@ static void block_cleanup(struct scope* o)
         }
         else {
         remove_pending:
+            if (tcc_state->cpp && g->cpp_scope_id) {
+                pg = &g->prev;
+                continue;
+            }
             *pg = g->prev;
             sym_free(g);
         }
@@ -14840,6 +15149,9 @@ static void new_scope(struct scope* o)
 
     /* record local declaration stack position */
     o->lstk = local_stack;
+    o->cpp_local_state_id = cpp_local_state_id;
+    o->cpp_scope_id = cpp_new_scope_info(cur_scope->cpp_scope_id,
+                                         o->cpp_local_state_id);
     o->llstk = local_label_stack;
     ++local_scope;
 }
@@ -14864,10 +15176,10 @@ static void prev_scope(struct scope* o, int is_expr)
 
        /* pop locally defined symbols */
     if (tcc_state->cpp && !is_expr) {
-        cpp_flush_class_temps(local_scope);
-        cpp_call_scope_dtors(o->lstk);
+        cpp_finish_scope(o);
     }
     pop_local_syms(o->lstk, is_expr);
+    cpp_local_state_id = o->cpp_local_state_id;
     cur_scope = o->prev;
     --local_scope;
 }
@@ -15246,6 +15558,8 @@ again:
         vla_restore(cur_scope->vla.locorig);
         if (tok == '*' && gnu_ext) {
             /* computed goto */
+            if (tcc_state->cpp)
+                tcc_error("computed goto is unsupported in C++ mode");
             next();
             gexpr();
             if ((vtop->type.t & VT_BTYPE) != VT_PTR)
@@ -15263,15 +15577,30 @@ again:
 
             if (s->r & LABEL_FORWARD) {
                 /* start new goto chain for cleanups, linked via label->next */
-                if (cur_scope->cl.s && !nocode_wanted) {
+                if ((cur_scope->cl.s || tcc_state->cpp) && !nocode_wanted) {
                     sym_push2(&pending_gotos, SYM_FIELD, 0, cur_scope->cl.n);
                     pending_gotos->prev_tok = s;
+                    pending_gotos->cpp_scope_id = tcc_state->cpp
+                        ? cur_scope->cpp_scope_id : 0;
+                    pending_gotos->cpp_local_state_id = tcc_state->cpp
+                        ? cpp_local_state_id : 0;
                     s = sym_push2(&s->next, SYM_FIELD, 0, 0);
                     pending_gotos->next = s;
+                    s->cpp_scope_id = pending_gotos->cpp_scope_id;
+                    s->cpp_local_state_id =
+                        pending_gotos->cpp_local_state_id;
                 }
                 s->jnext = gjmp(s->jnext);
             }
             else {
+                if (tcc_state->cpp) {
+                    cpp_validate_goto_target(cur_scope->cpp_scope_id,
+                        cpp_local_state_id, s->cpp_scope_id,
+                        s->cpp_local_state_id);
+                    cpp_emit_scope_exit_dtors(cur_scope->cpp_scope_id,
+                        cpp_local_state_id, s->cpp_scope_id,
+                        s->cpp_local_state_id);
+                }
                 try_call_cleanup_goto(s->cleanupstate);
                 gjmp_addr(s->jind);
             }
@@ -15297,18 +15626,27 @@ again:
                 if (s->r == LABEL_DEFINED)
                     tcc_error("���x�� '%s' ���d�����Ă��܂�", get_tok_str(s->v, NULL));
                 s->r = LABEL_DEFINED;
-                if (s->next) {
-                    Sym* pcl; /* pending cleanup goto */
-                    for (pcl = s->next; pcl; pcl = pcl->prev)
-                        gsym(pcl->jnext);
-                    sym_pop(&s->next, NULL, 0);
-                }
-                else
-                    gsym(s->jnext);
             }
             else {
                 s = label_push(&global_label_stack, t, LABEL_DEFINED);
             }
+            if (tcc_state->cpp) {
+                s->cpp_scope_id = cur_scope->cpp_scope_id;
+                s->cpp_local_state_id = cpp_local_state_id;
+            }
+            if (s->next) {
+                Sym* pcl; /* pending cleanup goto */
+                for (pcl = s->next; pcl; pcl = pcl->prev) {
+                    if (tcc_state->cpp && pcl->cpp_scope_id)
+                        cpp_validate_goto_target(pcl->cpp_scope_id,
+                            pcl->cpp_local_state_id, s->cpp_scope_id,
+                            s->cpp_local_state_id);
+                    gsym(pcl->jnext);
+                }
+                sym_pop(&s->next, NULL, 0);
+            }
+            else
+                gsym(s->jnext);
             s->jind = gind();
             s->cleanupstate = cur_scope->cl.s;
 
@@ -16231,6 +16569,19 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
             }
 #endif
             sym = sym_push(v, type, r, addr);
+            if (tcc_state->cpp && !global
+                && (r & VT_VALMASK) == VT_LOCAL) {
+                sym->cpp_nonvacuous_init = has_init
+                    || (type->t & VT_REFERENCE)
+                    || ((type->t & VT_BTYPE) == VT_STRUCT
+                        && type->ref
+                        && (cpp_find_ctor_field(type->ref)
+                            || cpp_class_requires_destruction(type->ref)));
+                sym->cpp_local_id = cpp_new_local_state(
+                    cpp_local_state_id, cur_scope->cpp_scope_id,
+                    sym->cpp_nonvacuous_init);
+                cpp_local_state_id = sym->cpp_local_id;
+            }
             /* FEAT-5A: initialize the vptr of a local polymorphic object so
              * virtual calls dispatch through a valid vtable.  Virtual MI
              * (Phase 2): the needs-init predicate also covers classes whose
@@ -16513,6 +16864,14 @@ static void gen_function(Sym* sym)
     local_scope = 1; /* for function parameters */
     nb_temp_local_vars = 0;
     nb_cpp_temp_objects = 0;
+    cpp_scope_infos = NULL;
+    nb_cpp_scope_infos = 0;
+    if (cpp_local_infos)
+        tcc_free(cpp_local_infos);
+    cpp_local_infos = NULL;
+    nb_cpp_local_infos = 0;
+    cpp_local_state_id = 0;
+
     if (cpp_class_return_needs_sret(&func_vt))
         func_vt.t |= VT_CPP_SRET;
     gfunc_prolog(sym);
@@ -16686,6 +17045,16 @@ static void gen_function(Sym* sym)
     cur_text_section->data_offset = ind;
     local_scope = 0;
     label_pop(&global_label_stack, NULL, 0);
+    if (cpp_scope_infos)
+        tcc_free(cpp_scope_infos);
+    cpp_scope_infos = NULL;
+    nb_cpp_scope_infos = 0;
+    if (cpp_local_infos)
+        tcc_free(cpp_local_infos);
+    cpp_local_infos = NULL;
+    nb_cpp_local_infos = 0;
+    cpp_local_state_id = 0;
+
     sym_pop(&all_cleanups, NULL, 0);
 
     /* It's better to crash than to generate wrong code */
