@@ -70,6 +70,127 @@ static void rt_wait_sem(void) { WAIT_SEM(&rt_sem); }
 static void rt_post_sem(void) { POST_SEM(&rt_sem); }
 static int rt_get_caller_pc(addr_t *paddr, rt_frame *f, int level);
 static void rt_exit(rt_frame *f, int code);
+extern int tcc_compile_string(TCCState *s, const char *str);
+
+#ifdef TCC_TARGET_PE
+static int tcc_add_runmain(TCCState *s1)
+{
+    static const char runmain_source[] =
+        "typedef void (__cdecl *tcc_ctor_fn_t)(void);\n"
+        "extern tcc_ctor_fn_t __init_array_start;\n"
+        "extern tcc_ctor_fn_t __init_array_end;\n"
+        "extern tcc_ctor_fn_t __fini_array_start;\n"
+        "extern tcc_ctor_fn_t __fini_array_end;\n"
+        "static void tcc_run_ctors(void)\n"
+        "{\n"
+        "    tcc_ctor_fn_t *p, *e;\n"
+        "    p = (tcc_ctor_fn_t *)&__init_array_start;\n"
+        "    e = (tcc_ctor_fn_t *)&__init_array_end;\n"
+        "    for (; p < e; ++p) { if (*p) (*p)(); }\n"
+        "}\n"
+        "static void tcc_run_dtors(void)\n"
+        "{\n"
+        "    tcc_ctor_fn_t *p, *s;\n"
+        "    s = (tcc_ctor_fn_t *)&__fini_array_start;\n"
+        "    p = (tcc_ctor_fn_t *)&__fini_array_end;\n"
+        "    while (p > s) { --p; if (*p) (*p)(); }\n"
+        "}\n"
+        "typedef struct tcc_exit_entry {\n"
+        "    void *function;\n"
+        "    void *arg;\n"
+        "} tcc_exit_entry;\n"
+        "typedef struct tcc_exit_chunk {\n"
+        "    struct tcc_exit_chunk *prev;\n"
+        "    unsigned count;\n"
+        "    tcc_exit_entry entry[64];\n"
+        "} tcc_exit_chunk;\n"
+        "static tcc_exit_chunk *rt_exit_top;\n"
+        "extern void *malloc(unsigned);\n"
+        "extern void free(void *);\n"
+        "void __run_on_exit(int ret)\n"
+        "{\n"
+        "    tcc_exit_chunk *chunk, *prev;\n"
+        "    tcc_exit_entry entry;\n"
+        "    while (rt_exit_top) {\n"
+        "        chunk = rt_exit_top;\n"
+        "        while (chunk->count) {\n"
+        "            entry = chunk->entry[--chunk->count];\n"
+        "            ((void (*)(int, void *))entry.function)\n"
+        "                (ret, entry.arg);\n"
+        "        }\n"
+        "        prev = chunk->prev;\n"
+        "        free(chunk);\n"
+        "        rt_exit_top = prev;\n"
+        "    }\n"
+        "}\n"
+        "int on_exit(void *function, void *arg)\n"
+        "{\n"
+        "    tcc_exit_chunk *chunk;\n"
+        "    if (!rt_exit_top || rt_exit_top->count == 64) {\n"
+        "        chunk = (tcc_exit_chunk *)malloc(sizeof(tcc_exit_chunk));\n"
+        "        if (!chunk) return 1;\n"
+        "        chunk->prev = rt_exit_top;\n"
+        "        chunk->count = 0;\n"
+        "        rt_exit_top = chunk;\n"
+        "    }\n"
+        "    rt_exit_top->entry[rt_exit_top->count].function = function;\n"
+        "    rt_exit_top->entry[rt_exit_top->count].arg = arg;\n"
+        "    ++rt_exit_top->count;\n"
+        "    return 0;\n"
+        "}\n"
+        "int atexit(void (*function)(void))\n"
+        "{\n"
+        "    return on_exit((void *)function, 0);\n"
+        "}\n"
+        "int __cdecl __tcc_cpp_register_exit(void (*function)(void))\n"
+        "{\n"
+        "    return atexit(function);\n"
+        "}\n"
+        "typedef struct { void *ip; void *fp; void *sp; } tcc_rt_frame;\n"
+        "extern void __rt_exit(tcc_rt_frame *, int);\n"
+        "void exit(int code)\n"
+        "{\n"
+        "    tcc_rt_frame frame;\n"
+        "    tcc_run_dtors();\n"
+        "    __run_on_exit(code);\n"
+        "    frame.ip = (void *)exit;\n"
+        "    frame.fp = 0;\n"
+        "    frame.sp = 0;\n"
+        "    __rt_exit(&frame, code);\n"
+        "}\n"
+        "extern int main(int, char **, char **);\n"
+        "int _runmain(int argc, char **argv, char **envp)\n"
+        "{\n"
+        "    int ret;\n"
+        "    tcc_run_ctors();\n"
+        "    ret = main(argc, argv, envp);\n"
+        "    tcc_run_dtors();\n"
+        "    __run_on_exit(ret);\n"
+        "    return ret;\n"
+        "}\n";
+    unsigned char saved_cpp;
+    unsigned char saved_cpp_forced;
+    unsigned char saved_lex_c;
+    unsigned char saved_extern_c;
+    int ret;
+
+    tcc_add_cpp_runtime(s1);
+    saved_cpp = s1->cpp;
+    saved_cpp_forced = s1->cpp_forced;
+    saved_lex_c = s1->lex_c;
+    saved_extern_c = s1->extern_c;
+    s1->cpp = 0;
+    s1->cpp_forced = 0;
+    s1->lex_c = 1;
+    s1->extern_c = 0;
+    ret = tcc_compile_string(s1, runmain_source);
+    s1->cpp = saved_cpp;
+    s1->cpp_forced = saved_cpp_forced;
+    s1->lex_c = saved_lex_c;
+    s1->extern_c = saved_extern_c;
+    return ret;
+}
+#endif
 
 /* ------------------------------------------------------------- */
 /* defined when included from lib/bt-exe.c */
@@ -147,6 +268,8 @@ LIBTCCAPI int tcc_relocate(TCCState *s1)
 
     if (s1->run_ptr)
         exit(tcc_error_noabort("'tcc_relocate()' twice is no longer supported"));
+    if (tcc_cpp_runtime_needed(s1))
+        tcc_add_cpp_runtime(s1);
 #ifdef CONFIG_TCC_BACKTRACE
     if (s1->do_backtrace)
         tcc_add_symbol(s1, "_tcc_backtrace", _tcc_backtrace); /* for bt-log.c */
@@ -223,7 +346,12 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     if (s1->nostdlib) {
         s1->run_main = top_sym = s1->elf_entryname ? s1->elf_entryname : "_start";
     } else {
+#ifdef TCC_TARGET_PE
+        if (tcc_add_runmain(s1) < 0)
+            return -1;
+#else
         tcc_add_support(s1, "runmain.o");
+#endif
         s1->run_main = "_runmain";
         top_sym = "main";
     }

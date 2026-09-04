@@ -156,6 +156,11 @@ echo === a9\manual\pr_n4_break_continue_dtor.bat ===
 call a9\manual\pr_n4_break_continue_dtor.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem === PR-N5: function-local static destructor registration gate ===
+echo === a9\manual\pr_n5_local_static_dtor.bat ===
+call a9\manual\pr_n5_local_static_dtor.bat
+if errorlevel 1 set /a FAILED+=1
+
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
 rem Real-world sources that are NOT expected to compile yet - only the
