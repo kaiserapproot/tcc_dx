@@ -136,12 +136,34 @@ call :check_line_in "%RUNCPPLOG%" "GD" CPP_GD
 if not "!errorlevel!"=="0" goto compat_fail
 call :check_line_in "%RUNCPPLOG%" "A" CPP_A
 if not "!errorlevel!"=="0" goto compat_fail
-if !CPP_GC! geq !CPP_LC! goto compat_fail
-if !CPP_LC! geq !CPP_M! goto compat_fail
-if !CPP_M! geq !CPP_LD! goto compat_fail
-if !CPP_LD! geq !CPP_GD! goto compat_fail
-if !CPP_GD! geq !CPP_A! goto compat_fail
-echo TCC_RUN_CPP_DTOR=PASS
+call :check_cpp_order "%RUNCPPLOG%"
+if not "!errorlevel!"=="0" goto cpp_order_fail
+echo TCC_RUN_CPP_DTOR_RETURN=PASS
+
+set "RUNCPPEXITLOG=%OUT%\run_cpp_exit.log"
+"%TCC%" -DPR_N5_EXIT -run pr_n5_run_cpp.cpp >"%RUNCPPEXITLOG%" 2>&1
+if not "!errorlevel!"=="0" goto cpp_order_fail
+call :check_cpp_order "%RUNCPPEXITLOG%"
+if not "!errorlevel!"=="0" goto cpp_order_fail
+echo TCC_RUN_CPP_DTOR_EXIT=PASS
+
+set "EXECPPLOG=%OUT%\exe_cpp.log"
+"%TCC%" pr_n5_run_cpp.cpp -o "%OUT%\run_cpp.exe" >"%EXECPPLOG%.compile" 2>&1
+if not "!errorlevel!"=="0" goto cpp_order_fail
+"%OUT%\run_cpp.exe" >"%EXECPPLOG%" 2>&1
+if not "!errorlevel!"=="0" goto cpp_order_fail
+call :check_cpp_order "%EXECPPLOG%"
+if not "!errorlevel!"=="0" goto cpp_order_fail
+echo TCC_EXE_CPP_DTOR_RETURN=PASS
+
+set "EXECPPEXITLOG=%OUT%\exe_cpp_exit.log"
+"%TCC%" -DPR_N5_EXIT pr_n5_run_cpp.cpp -o "%OUT%\run_cpp_exit.exe" >"%EXECPPEXITLOG%.compile" 2>&1
+if not "!errorlevel!"=="0" goto cpp_order_fail
+"%OUT%\run_cpp_exit.exe" >"%EXECPPEXITLOG%" 2>&1
+if not "!errorlevel!"=="0" goto cpp_order_fail
+call :check_cpp_order "%EXECPPEXITLOG%"
+if not "!errorlevel!"=="0" goto cpp_order_fail
+echo TCC_EXE_CPP_DTOR_EXIT=PASS
 
 set "STRESSLOG=%OUT%\dtor_registry_stress_1024.log"
 "%TCC%" -run -DPR_N5_STRESS_COUNT=1024 pr_n5_dtor_registry_stress.c >"%STRESSLOG%" 2>&1
@@ -266,6 +288,18 @@ echo PR_N5_LOCAL_STATIC_DTOR=FAIL
 popd
 exit /b 1
 
+:cpp_order_fail
+if exist "%RUNCPPLOG%" type "%RUNCPPLOG%"
+if exist "%RUNCPPEXITLOG%" type "%RUNCPPEXITLOG%"
+if exist "%EXECPPLOG%.compile" type "%EXECPPLOG%.compile"
+if exist "%EXECPPLOG%" type "%EXECPPLOG%"
+if exist "%EXECPPEXITLOG%.compile" type "%EXECPPEXITLOG%.compile"
+if exist "%EXECPPEXITLOG%" type "%EXECPPEXITLOG%"
+echo CPP_DTOR_ATEXIT_ORDER=FAIL
+echo PR_N5_LOCAL_STATIC_DTOR=FAIL
+popd
+exit /b 1
+
 :global_exit_fail
 if exist "%GLOBAL_EXITLOG%.compile" type "%GLOBAL_EXITLOG%.compile"
 if exist "%GLOBAL_EXITLOG%" type "%GLOBAL_EXITLOG%"
@@ -343,3 +377,23 @@ exit /b 1
 findstr /n /x /c:"%~2" "%~1" >nul 2>nul
 if errorlevel 1 exit /b 0
 exit /b 1
+
+:check_cpp_order
+call :check_line_in "%~1" "GC" CPP_ORDER_GC
+if not "!errorlevel!"=="0" exit /b 1
+call :check_line_in "%~1" "LC" CPP_ORDER_LC
+if not "!errorlevel!"=="0" exit /b 1
+call :check_line_in "%~1" "M" CPP_ORDER_M
+if not "!errorlevel!"=="0" exit /b 1
+call :check_line_in "%~1" "LD" CPP_ORDER_LD
+if not "!errorlevel!"=="0" exit /b 1
+call :check_line_in "%~1" "A" CPP_ORDER_A
+if not "!errorlevel!"=="0" exit /b 1
+call :check_line_in "%~1" "GD" CPP_ORDER_GD
+if not "!errorlevel!"=="0" exit /b 1
+if !CPP_ORDER_GC! geq !CPP_ORDER_LC! exit /b 1
+if !CPP_ORDER_LC! geq !CPP_ORDER_M! exit /b 1
+if !CPP_ORDER_M! geq !CPP_ORDER_LD! exit /b 1
+if !CPP_ORDER_LD! geq !CPP_ORDER_A! exit /b 1
+if !CPP_ORDER_A! geq !CPP_ORDER_GD! exit /b 1
+exit /b 0

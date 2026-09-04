@@ -1,5 +1,8 @@
 extern "C" int puts(const char *);
 extern "C" int atexit(void (*)(void));
+#ifdef PR_N5_EXIT
+extern "C" void exit(int);
+#endif
 
 struct Global {
     Global()
@@ -44,5 +47,9 @@ int main()
         return 1;
     get_local();
     puts("M");
+#ifdef PR_N5_EXIT
+    exit(0);
+#else
     return 0;
+#endif
 }
