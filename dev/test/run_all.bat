@@ -165,6 +165,9 @@ rem === N6-01: per-thread TLS storage isolation gate ===
 echo === a9\manual\n6_01_tls_storage.bat ===
 call a9\manual\n6_01_tls_storage.bat
 if errorlevel 1 set /a FAILED+=1
+echo === a9\manual\n6_01_tls_initializer_unsupported.bat ===
+call a9\manual\n6_01_tls_initializer_unsupported.bat
+if errorlevel 1 set /a FAILED+=1
 
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===

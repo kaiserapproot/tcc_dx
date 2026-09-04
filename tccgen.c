@@ -6016,16 +6016,13 @@ ST_FUNC void vpush_helper_func(int v)
     vpushsym(&func_old_type, external_helper_sym(v));
 }
 
-static Sym *cpp_alloc_tls_global(int v, CType *type, int initial)
+static Sym *cpp_alloc_tls_global(int v, CType *type)
 {
     size_t offset;
-    int *valuep;
     Sym *desc;
     Sym *sym;
 
     offset = section_add(data_section, sizeof(int), sizeof(int));
-    valuep = (int *)(data_section->data + offset);
-    *valuep = initial;
     desc = get_sym_ref(&int_type, data_section, offset, sizeof(int));
     sym = sym_push(v, type, VT_CONST, 0);
     sym->cpp_tls_desc = desc;
@@ -18075,20 +18072,15 @@ static int decl(int l)
                     }
                     has_init = (tok == '=');
                     if (type.t & VT_CPP_TLS) {
-                        int cpp_tls_init;
-
                         if (!tcc_state->cpp || l != VT_CONST)
                             tcc_error("thread_local is supported only at namespace scope");
+                        if (has_init)
+                            tcc_error("thread_local initializers are unsupported in N6-01");
                         if ((type.t & ~VT_CPP_TLS) != VT_INT)
                             tcc_error("N6-01 supports only thread_local int");
                         if (ad.alias_target)
                             tcc_error("thread_local aliases are unsupported");
-                        cpp_tls_init = 0;
-                        if (has_init) {
-                            next();
-                            cpp_tls_init = expr_const();
-                        }
-                        sym = cpp_alloc_tls_global(v, &type, cpp_tls_init);
+                        sym = cpp_alloc_tls_global(v, &type);
                     }
                     else {
                     if (tcc_state->cpp

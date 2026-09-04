@@ -175,8 +175,6 @@ static int tcc_add_runmain(TCCState *s1)
     int ret;
 
     tcc_add_cpp_runtime(s1);
-    if (tcc_cpp_tls_runtime_needed(s1))
-        tcc_add_cpp_tls_runtime(s1);
     saved_cpp = s1->cpp;
     saved_cpp_forced = s1->cpp_forced;
     saved_lex_c = s1->lex_c;
@@ -272,8 +270,6 @@ LIBTCCAPI int tcc_relocate(TCCState *s1)
         exit(tcc_error_noabort("'tcc_relocate()' twice is no longer supported"));
     if (tcc_cpp_runtime_needed(s1))
         tcc_add_cpp_runtime(s1);
-    if (tcc_cpp_tls_runtime_needed(s1))
-        tcc_add_cpp_tls_runtime(s1);
 #ifdef CONFIG_TCC_BACKTRACE
     if (s1->do_backtrace)
         tcc_add_symbol(s1, "_tcc_backtrace", _tcc_backtrace); /* for bt-log.c */
