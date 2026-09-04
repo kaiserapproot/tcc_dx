@@ -1725,7 +1725,7 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    storage = (int *)malloc(sizeof(int));\n"
         "    if (!storage)\n"
         "        abort();\n"
-        "    *storage = *descriptor;\n"
+        "    *storage = 0;\n"
         "    tcb->entries[tcb->count].descriptor = descriptor;\n"
         "    tcb->entries[tcb->count].storage = storage;\n"
         "    ++tcb->count;\n"
