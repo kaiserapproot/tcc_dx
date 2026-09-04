@@ -612,6 +612,7 @@ typedef struct Sym {
     int cpp_local_state_id; /* durable local-state snapshot for C++ goto */
     int cpp_local_id; /* durable local-state node for a local symbol */
     int cpp_nonvacuous_init; /* C++ goto initialization legality */
+    struct Sym *cpp_tls_desc; /* N6-01: process-wide descriptor for TLS storage */
     /* G3: class-scope typedefs / nested type names live on this SEPARATE
        list (linked via ->prev by sym_push2), never on the member chain -
        the P0 audit showed layout/initializer/debug/ABI walkers would all
@@ -819,6 +820,8 @@ struct TCCState {
     unsigned char cpp_global_ctors;
     unsigned char cpp_runtime_needed;
     unsigned char cpp_runtime_injected;
+    unsigned char cpp_tls_runtime_needed;
+    unsigned char cpp_tls_runtime_injected;
 
     /* C language options */
     unsigned char char_is_unsigned;
@@ -1141,7 +1144,7 @@ struct filespec {
 #define VT_REFERENCE 0x00010000  /* C++ reference type */
 #define VT_MPTR      0x00020000  /* C++ member pointer type (with VT_PTR) */
 #define VT_CPP_SRET  0x00040000  /* C++ non-trivial class return via hidden pointer */
-/* currently unused: 0x000[48]0000  */
+#define VT_CPP_TLS   0x00080000  /* C++ namespace-scope thread_local object */
 
 #define VT_STRUCT_SHIFT 20     /* shift for bitfield shift values (32 - 2*6) */
 #define VT_STRUCT_MASK (((1U << (6+6)) - 1) << VT_STRUCT_SHIFT | VT_BITFIELD)
@@ -1159,7 +1162,7 @@ struct filespec {
 #define VT_ATOMIC   VT_VOLATILE
 
 /* type mask (except storage) */
-#define VT_STORAGE (VT_EXTERN | VT_STATIC | VT_TYPEDEF | VT_INLINE)
+#define VT_STORAGE (VT_EXTERN | VT_STATIC | VT_TYPEDEF | VT_INLINE | VT_CPP_TLS)
 #define VT_TYPE (~(VT_STORAGE|VT_STRUCT_MASK))
 
 /* symbol was created by tccasm.c first */
@@ -1373,6 +1376,8 @@ ST_FUNC void tcc_add_btstub(TCCState *s1);
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1);
 ST_FUNC void tcc_add_cpp_runtime(TCCState *s1);
 ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1);
+ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1);
+ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1);
 ST_FUNC void tcc_add_pragma_libs(TCCState *s1);
 PUB_FUNC int tcc_add_library_err(TCCState *s, const char *f);
 PUB_FUNC void tcc_print_stats(TCCState *s, unsigned total_time);
