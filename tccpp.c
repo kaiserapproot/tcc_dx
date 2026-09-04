@@ -484,6 +484,7 @@ static int is_cpp_only_keyword(int t)
     case TOK_NAMESPACE:
     case TOK_TRUE:
     case TOK_FALSE:
+    case TOK_CPP_THREAD_LOCAL:
     /* FEAT-BOOL: `bool` is a keyword only in C++ (in C it is an identifier /
        stdbool macro), so demote it to an identifier when lex_c is active. */
     case TOK_BOOL2:

@@ -169,7 +169,8 @@
      DEF(TOK_NAMESPACE, "namespace")
      DEF(TOK_TRUE, "true")
      DEF(TOK_FALSE, "false")
-/* FEAT-BOOL: C++ spelling of _Bool.  Registered as a C++-only keyword
+     DEF(TOK_CPP_THREAD_LOCAL, "thread_local")
+ /* FEAT-BOOL: C++ spelling of _Bool.  Registered as a C++-only keyword
    (is_cpp_only_keyword) so it is demoted to an identifier in C mode, where
    `bool` is not a keyword (it is a <stdbool.h> macro or a user identifier). */
      DEF(TOK_BOOL2, "bool")
