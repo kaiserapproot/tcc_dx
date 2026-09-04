@@ -1876,14 +1876,11 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
         /* cpp_global_ctors, not s1->cpp: the latter is per-TU and already
            restored to 0 by tcc_compile when the linker runs. */
         if (!s1->elf_entryname && TCC_OUTPUT_MEMORY != s1->output_type
-            && s1->cpp_global_ctors && strcmp(start_symbol, "__start") == 0) {
-            /* have_section: find_section would create an empty .init_array
-               on every C++ link even without global ctor objects. */
-            Section *ia = have_section(s1, ".init_array");
-            if (ia && ia->data_offset > 0) {
-                tcc_add_cpp_init_startup(s1);
+            && (s1->cpp_global_ctors || tcc_cpp_runtime_needed(s1))
+            && strcmp(start_symbol, "__start") == 0) {
+            tcc_add_cpp_init_startup(s1);
+            if (s1->cpp_init_startup_done)
                 start_symbol = "__tcc_cpp_start";
-            }
         }
 
         if (TCC_OUTPUT_MEMORY == s1->output_type && !s1->nostdlib)

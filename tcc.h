@@ -817,6 +817,8 @@ struct TCCState {
        s1->cpp itself is save/restored per TU by tcc_compile, so it is
        already 0 again at link time and cannot gate the PE startup. */
     unsigned char cpp_global_ctors;
+    unsigned char cpp_runtime_needed;
+    unsigned char cpp_runtime_injected;
 
     /* C language options */
     unsigned char char_is_unsigned;
@@ -1369,6 +1371,8 @@ ST_FUNC void tcc_add_bcheck(TCCState *s1);
 ST_FUNC void tcc_add_btstub(TCCState *s1);
 #endif
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1);
+ST_FUNC void tcc_add_cpp_runtime(TCCState *s1);
+ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1);
 ST_FUNC void tcc_add_pragma_libs(TCCState *s1);
 PUB_FUNC int tcc_add_library_err(TCCState *s, const char *f);
 PUB_FUNC void tcc_print_stats(TCCState *s, unsigned total_time);
