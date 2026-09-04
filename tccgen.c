@@ -2331,6 +2331,9 @@ static Sym *cpp_prepare_local_static_dtor(Sym *obj_sym)
         || !obj_sym->type.ref)
         return NULL;
     class_sym = obj_sym->type.ref;
+    if (tcc_state->output_type == TCC_OUTPUT_DLL
+        && cpp_class_requires_destruction(class_sym))
+        tcc_error("function-local static destructor in DLL is unsupported");
     dtor_field = cpp_find_dtor_field(class_sym);
     if (!dtor_field) {
         if (cpp_class_requires_destruction(class_sym))
@@ -2558,6 +2561,9 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
         class_sym = obj_sym->type.ref;
+        if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
+            && cpp_class_requires_destruction(class_sym))
+            tcc_error("global destructor runtime in DLL is unsupported");
         if (class_sym && !cpp_find_dtor_field(class_sym))
             cpp_validate_implicit_dtor(class_sym, 0);
         if (class_sym && cpp_find_dtor_field(class_sym)) {

@@ -1846,6 +1846,11 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
     const char *start_symbol;
     int pe_type;
 
+    if (TCC_OUTPUT_DLL == s1->output_type
+        && tcc_cpp_runtime_needed(s1)) {
+        tcc_error_noabort("C++ destructor runtime in DLL is unsupported");
+        return;
+    }
     if (TCC_OUTPUT_DLL == s1->output_type) {
         pe_type = PE_DLL;
         start_symbol = PE_STDSYM("__dllstart","@12");

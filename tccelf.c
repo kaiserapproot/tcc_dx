@@ -1622,21 +1622,44 @@ ST_FUNC void tcc_add_cpp_runtime(TCCState *s1)
     cstr_new(&cstr);
     cstr_cat(&cstr,
         "typedef void (__cdecl *tcc_cpp_dtor_fn_t)(void);\n"
-        "#define TCC_CPP_DTOR_MAX 1024\n"
-        "static tcc_cpp_dtor_fn_t tcc_cpp_dtor_stack[TCC_CPP_DTOR_MAX];\n"
-        "static unsigned tcc_cpp_dtor_count;\n"
+        "typedef struct tcc_cpp_dtor_chunk {\n"
+        "    struct tcc_cpp_dtor_chunk *prev;\n"
+        "    unsigned count;\n"
+        "    tcc_cpp_dtor_fn_t entry[64];\n"
+        "} tcc_cpp_dtor_chunk;\n"
+        "static tcc_cpp_dtor_chunk *tcc_cpp_dtor_top;\n"
+        "extern void *malloc(unsigned);\n"
+        "extern void free(void *);\n"
         "extern void abort(void);\n"
         "void __cdecl __tcc_cpp_register_dtor(tcc_cpp_dtor_fn_t fn)\n"
         "{\n"
-        "    if (tcc_cpp_dtor_count >= TCC_CPP_DTOR_MAX) abort();\n"
-        "    tcc_cpp_dtor_stack[tcc_cpp_dtor_count++] = fn;\n"
+        "    tcc_cpp_dtor_chunk *chunk;\n"
+        "    if (!tcc_cpp_dtor_top\n"
+        "        || tcc_cpp_dtor_top->count == 64) {\n"
+        "        chunk = (tcc_cpp_dtor_chunk *)malloc(\n"
+        "            sizeof(tcc_cpp_dtor_chunk));\n"
+        "        if (!chunk) abort();\n"
+        "        chunk->prev = tcc_cpp_dtor_top;\n"
+        "        chunk->count = 0;\n"
+        "        tcc_cpp_dtor_top = chunk;\n"
+        "    }\n"
+        "    tcc_cpp_dtor_top->entry[tcc_cpp_dtor_top->count++] = fn;\n"
         "}\n"
         "void __cdecl __tcc_cpp_run_dtors(void)\n"
         "{\n"
+        "    tcc_cpp_dtor_chunk *chunk, *prev;\n"
         "    tcc_cpp_dtor_fn_t fn;\n"
-        "    while (tcc_cpp_dtor_count != 0) {\n"
-        "        fn = tcc_cpp_dtor_stack[--tcc_cpp_dtor_count];\n"
-        "        if (fn) fn();\n"
+        "    while (tcc_cpp_dtor_top) {\n"
+        "        chunk = tcc_cpp_dtor_top;\n"
+        "        while (chunk->count) {\n"
+        "            fn = chunk->entry[--chunk->count];\n"
+        "            if (fn) fn();\n"
+        "        }\n"
+        "        if (tcc_cpp_dtor_top == chunk) {\n"
+        "            prev = chunk->prev;\n"
+        "            free(chunk);\n"
+        "            tcc_cpp_dtor_top = prev;\n"
+        "        }\n"
         "    }\n"
         "}\n",
         0);
@@ -1654,8 +1677,12 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
 
     /* cpp_global_ctors: s1->cpp is per-TU and already restored to 0
        when the linker calls this (see tcc_compile). */
-    if ((!s1->cpp_global_ctors && !tcc_cpp_runtime_needed(s1))
-        || TCC_OUTPUT_DLL == s1->output_type)
+    if (TCC_OUTPUT_DLL == s1->output_type) {
+        if (tcc_cpp_runtime_needed(s1))
+            tcc_error_noabort("C++ destructor runtime in DLL is unsupported");
+        return;
+    }
+    if (!s1->cpp_global_ctors && !tcc_cpp_runtime_needed(s1))
         return;
     if (s1->cpp_init_startup_done)
         return;
@@ -1717,8 +1744,8 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         /* ctors run after CRT init (they may use it).  Keep the CRT atexit
            hook only as a fallback for main() calling exit(); the TCC-owned
            registry is the destructor authority. */
-        "    tcc_cpp_run_init();\n"
         "    atexit(tcc_cpp_run_fini_once);\n"
+        "    tcc_cpp_run_init();\n"
         "    ret = main(argc,argv,env);\n"
         "    tcc_cpp_run_fini_once();\n"
         "    exit(ret);\n"
