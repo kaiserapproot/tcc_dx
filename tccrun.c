@@ -81,7 +81,6 @@ static int tcc_add_runmain(TCCState *s1)
         "extern tcc_ctor_fn_t __init_array_end;\n"
         "extern tcc_ctor_fn_t __fini_array_start;\n"
         "extern tcc_ctor_fn_t __fini_array_end;\n"
-        "extern void __tcc_cpp_run_dtors(void);\n"
         "static void tcc_run_ctors(void)\n"
         "{\n"
         "    tcc_ctor_fn_t *p, *e;\n"
@@ -94,35 +93,58 @@ static int tcc_add_runmain(TCCState *s1)
         "    tcc_ctor_fn_t *p, *s;\n"
         "    s = (tcc_ctor_fn_t *)&__fini_array_start;\n"
         "    p = (tcc_ctor_fn_t *)&__fini_array_end;\n"
-        "    __tcc_cpp_run_dtors();\n"
         "    while (p > s) { --p; if (*p) (*p)(); }\n"
         "}\n"
-        "static void *rt_exitfunc[32];\n"
-        "static void *rt_exitarg[32];\n"
-        "static int __rt_nr_exit;\n"
+        "typedef struct tcc_exit_entry {\n"
+        "    void *function;\n"
+        "    void *arg;\n"
+        "} tcc_exit_entry;\n"
+        "typedef struct tcc_exit_chunk {\n"
+        "    struct tcc_exit_chunk *prev;\n"
+        "    unsigned count;\n"
+        "    tcc_exit_entry entry[64];\n"
+        "} tcc_exit_chunk;\n"
+        "static tcc_exit_chunk *rt_exit_top;\n"
+        "extern void *malloc(unsigned);\n"
+        "extern void free(void *);\n"
         "void __run_on_exit(int ret)\n"
         "{\n"
-        "    int n;\n"
-        "    n = __rt_nr_exit;\n"
-        "    while (n) {\n"
-        "        --n;\n"
-        "        ((void (*)(int, void *))rt_exitfunc[n])\n"
-        "            (ret, rt_exitarg[n]);\n"
+        "    tcc_exit_chunk *chunk, *prev;\n"
+        "    tcc_exit_entry entry;\n"
+        "    while (rt_exit_top) {\n"
+        "        chunk = rt_exit_top;\n"
+        "        while (chunk->count) {\n"
+        "            entry = chunk->entry[--chunk->count];\n"
+        "            ((void (*)(int, void *))entry.function)\n"
+        "                (ret, entry.arg);\n"
+        "        }\n"
+        "        prev = chunk->prev;\n"
+        "        free(chunk);\n"
+        "        rt_exit_top = prev;\n"
         "    }\n"
         "}\n"
         "int on_exit(void *function, void *arg)\n"
         "{\n"
-        "    int n;\n"
-        "    n = __rt_nr_exit;\n"
-        "    if (n >= 32) return 1;\n"
-        "    rt_exitfunc[n] = function;\n"
-        "    rt_exitarg[n] = arg;\n"
-        "    __rt_nr_exit = n + 1;\n"
+        "    tcc_exit_chunk *chunk;\n"
+        "    if (!rt_exit_top || rt_exit_top->count == 64) {\n"
+        "        chunk = (tcc_exit_chunk *)malloc(sizeof(tcc_exit_chunk));\n"
+        "        if (!chunk) return 1;\n"
+        "        chunk->prev = rt_exit_top;\n"
+        "        chunk->count = 0;\n"
+        "        rt_exit_top = chunk;\n"
+        "    }\n"
+        "    rt_exit_top->entry[rt_exit_top->count].function = function;\n"
+        "    rt_exit_top->entry[rt_exit_top->count].arg = arg;\n"
+        "    ++rt_exit_top->count;\n"
         "    return 0;\n"
         "}\n"
         "int atexit(void (*function)(void))\n"
         "{\n"
         "    return on_exit((void *)function, 0);\n"
+        "}\n"
+        "int __cdecl __tcc_cpp_register_exit(void (*function)(void))\n"
+        "{\n"
+        "    return atexit(function);\n"
         "}\n"
         "typedef struct { void *ip; void *fp; void *sp; } tcc_rt_frame;\n"
         "extern void __rt_exit(tcc_rt_frame *, int);\n"
@@ -304,7 +326,6 @@ ST_FUNC void tcc_run_free(TCCState *s1)
 LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
 {
     int (*prog_main)(int, char **, char **), ret;
-    void (*cpp_run_dtors)(void);
     const char *top_sym;
     jmp_buf main_jb;
 
@@ -340,8 +361,6 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     prog_main = (void*)get_sym_addr(s1, s1->run_main, 1, 1);
     if ((addr_t)-1 == (addr_t)prog_main)
         return -1;
-    cpp_run_dtors = (void (*)(void))tcc_get_symbol(s1,
-                                                  "__tcc_cpp_run_dtors");
     errno = 0; /* clean errno value */
     fflush(stdout);
     fflush(stderr);
@@ -352,8 +371,6 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     else if (RT_EXIT_ZERO == ret)
         ret = 0;
 
-    if (cpp_run_dtors)
-        cpp_run_dtors();
     if (s1->dflag & 16 && ret) /* tcc -dt -run ... */
         fprintf(s1->ppfp, "[returns %d]\n", ret), fflush(s1->ppfp);
     return ret;
