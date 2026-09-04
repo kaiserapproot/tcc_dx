@@ -70,6 +70,49 @@ static void rt_wait_sem(void) { WAIT_SEM(&rt_sem); }
 static void rt_post_sem(void) { POST_SEM(&rt_sem); }
 static int rt_get_caller_pc(addr_t *paddr, rt_frame *f, int level);
 static void rt_exit(rt_frame *f, int code);
+extern int tcc_compile_string(TCCState *s, const char *str);
+
+#ifdef TCC_TARGET_PE
+static int tcc_add_runmain(TCCState *s1)
+{
+    static const char runmain_source[] =
+        "typedef struct { void *ip; void *fp; void *sp; } tcc_rt_frame;\n"
+        "extern void __rt_exit(tcc_rt_frame *, int);\n"
+        "extern int main(int, char **, char **);\n"
+        "void exit(int code)\n"
+        "{\n"
+        "    tcc_rt_frame frame;\n"
+        "    frame.ip = (void *)exit;\n"
+        "    frame.fp = 0;\n"
+        "    frame.sp = 0;\n"
+        "    __rt_exit(&frame, code);\n"
+        "}\n"
+        "int _runmain(int argc, char **argv, char **envp)\n"
+        "{\n"
+        "    return main(argc, argv, envp);\n"
+        "}\n";
+    unsigned char saved_cpp;
+    unsigned char saved_cpp_forced;
+    unsigned char saved_lex_c;
+    unsigned char saved_extern_c;
+    int ret;
+
+    saved_cpp = s1->cpp;
+    saved_cpp_forced = s1->cpp_forced;
+    saved_lex_c = s1->lex_c;
+    saved_extern_c = s1->extern_c;
+    s1->cpp = 0;
+    s1->cpp_forced = 0;
+    s1->lex_c = 1;
+    s1->extern_c = 0;
+    ret = tcc_compile_string(s1, runmain_source);
+    s1->cpp = saved_cpp;
+    s1->cpp_forced = saved_cpp_forced;
+    s1->lex_c = saved_lex_c;
+    s1->extern_c = saved_extern_c;
+    return ret;
+}
+#endif
 
 /* ------------------------------------------------------------- */
 /* defined when included from lib/bt-exe.c */
@@ -147,6 +190,8 @@ LIBTCCAPI int tcc_relocate(TCCState *s1)
 
     if (s1->run_ptr)
         exit(tcc_error_noabort("'tcc_relocate()' twice is no longer supported"));
+    if (tcc_cpp_runtime_needed(s1))
+        tcc_add_cpp_runtime(s1);
 #ifdef CONFIG_TCC_BACKTRACE
     if (s1->do_backtrace)
         tcc_add_symbol(s1, "_tcc_backtrace", _tcc_backtrace); /* for bt-log.c */
@@ -203,6 +248,7 @@ ST_FUNC void tcc_run_free(TCCState *s1)
 LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
 {
     int (*prog_main)(int, char **, char **), ret;
+    void (*cpp_run_dtors)(void);
     const char *top_sym;
     jmp_buf main_jb;
 
@@ -223,7 +269,12 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     if (s1->nostdlib) {
         s1->run_main = top_sym = s1->elf_entryname ? s1->elf_entryname : "_start";
     } else {
+#ifdef TCC_TARGET_PE
+        if (tcc_add_runmain(s1) < 0)
+            return -1;
+#else
         tcc_add_support(s1, "runmain.o");
+#endif
         s1->run_main = "_runmain";
         top_sym = "main";
     }
@@ -233,6 +284,8 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     prog_main = (void*)get_sym_addr(s1, s1->run_main, 1, 1);
     if ((addr_t)-1 == (addr_t)prog_main)
         return -1;
+    cpp_run_dtors = (void (*)(void))tcc_get_symbol(s1,
+                                                  "__tcc_cpp_run_dtors");
     errno = 0; /* clean errno value */
     fflush(stdout);
     fflush(stderr);
@@ -243,6 +296,8 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     else if (RT_EXIT_ZERO == ret)
         ret = 0;
 
+    if (cpp_run_dtors)
+        cpp_run_dtors();
     if (s1->dflag & 16 && ret) /* tcc -dt -run ... */
         fprintf(s1->ppfp, "[returns %d]\n", ret), fflush(s1->ppfp);
     return ret;

@@ -65,11 +65,68 @@ if !D111_LINE! geq !D11_LINE! goto order_fail
 if !D11_LINE! geq !D7_LINE! goto order_fail
 if !D7_LINE! geq !D5_LINE! goto order_fail
 if !DQ13_LINE! geq !D111_LINE! goto order_fail
+set "RUNLOG=%OUT%\local_static_dtor.run.log"
+"%TCC%" -run ..\local_static_dtor.cpp >"%RUNLOG%" 2>&1
+if not "!errorlevel!"=="0" goto run_fail
+set "COUNT=0"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"END" "%RUNLOG%"') do set /a COUNT+=1
+if not "!COUNT!"=="1" goto run_fail
+set "COUNT=0"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"D5" "%RUNLOG%"') do set /a COUNT+=1
+if not "!COUNT!"=="1" goto run_fail
+set "COUNT=0"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DQ13" "%RUNLOG%"') do set /a COUNT+=1
+if not "!COUNT!"=="1" goto run_fail
+echo LOCAL_STATIC_DTOR_TCC_RUN=PASS
+
+set "MULTIOUT=%OUT%\multi"
+if not exist "%MULTIOUT%" mkdir "%MULTIOUT%"
+set "MULTILOG=%MULTIOUT%\local_static_multi.log"
+"%TCC%" -c local_static_multi_a.cpp -o "%MULTIOUT%\a.o" >"%MULTILOG%.a" 2>&1
+if not "!errorlevel!"=="0" goto multi_fail
+"%TCC%" -c local_static_multi_b.cpp -o "%MULTIOUT%\b.o" >"%MULTILOG%.b" 2>&1
+if not "!errorlevel!"=="0" goto multi_fail
+"%TCC%" "%MULTIOUT%\a.o" "%MULTIOUT%\b.o" local_static_multi_main.cpp -o "%MULTIOUT%\local_static_multi.exe" >"%MULTILOG%.link" 2>&1
+if not "!errorlevel!"=="0" goto multi_fail
+"%MULTIOUT%\local_static_multi.exe" >"%MULTILOG%" 2>&1
+if not "!errorlevel!"=="0" goto multi_fail
+set "COUNT=0"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"END" "%MULTILOG%"') do set /a COUNT+=1
+if not "!COUNT!"=="1" goto multi_fail
+set "COUNT=0"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DB" "%MULTILOG%"') do set /a COUNT+=1
+if not "!COUNT!"=="1" goto multi_fail
+set "COUNT=0"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DA" "%MULTILOG%"') do set /a COUNT+=1
+if not "!COUNT!"=="1" goto multi_fail
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"END" "%MULTILOG%"') do set "MULTI_END_LINE=%%n"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DB" "%MULTILOG%"') do set "MULTI_DB_LINE=%%n"
+for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DA" "%MULTILOG%"') do set "MULTI_DA_LINE=%%n"
+if !MULTI_END_LINE! geq !MULTI_DB_LINE! goto multi_fail
+if !MULTI_DB_LINE! geq !MULTI_DA_LINE! goto multi_fail
+echo LOCAL_STATIC_DTOR_MULTI_TU=PASS
 echo LOCAL_STATIC_DTOR=PASS
 echo LOCAL_STATIC_DTOR_REVERSE_ORDER=PASS
 echo PR_N5_LOCAL_STATIC_DTOR=PASS
 popd
 exit /b 0
+
+:run_fail
+type "%RUNLOG%"
+echo LOCAL_STATIC_DTOR_TCC_RUN=FAIL
+echo PR_N5_LOCAL_STATIC_DTOR=FAIL
+popd
+exit /b 1
+
+:multi_fail
+if exist "%MULTILOG%.a" type "%MULTILOG%.a"
+if exist "%MULTILOG%.b" type "%MULTILOG%.b"
+if exist "%MULTILOG%.link" type "%MULTILOG%.link"
+if exist "%MULTILOG%" type "%MULTILOG%"
+echo LOCAL_STATIC_DTOR_MULTI_TU=FAIL
+echo PR_N5_LOCAL_STATIC_DTOR=FAIL
+popd
+exit /b 1
 
 :order_fail
 type "%LOG%"

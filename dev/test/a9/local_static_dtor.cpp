@@ -80,6 +80,7 @@ int main()
     P &e = get_copy();
     P &f = get_copy();
     Q &g = get_plain();
+    Q &h = get_plain();
 
     if (a.id != 5 || b.id != 5)
         return 1;
@@ -87,7 +88,7 @@ int main()
         return 2;
     if (e.id != 111 || f.id != 111)
         return 3;
-    if (g.id != 13)
+    if (g.id != 13 || h.id != 13)
         return 4;
     if (ctor_count != 3 || copy_count != 1)
         return 5;

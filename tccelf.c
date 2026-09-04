@@ -1601,25 +1601,67 @@ static void tcc_compile_injected_c_no_debug(TCCState *s, const char *str)
     s->test_coverage = save_test_coverage;
 }
 
+ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1)
+{
+    if (s1->cpp_runtime_needed)
+        return 1;
+    if (find_elf_sym(s1->symtab, "__tcc_cpp_register_dtor")
+        || find_elf_sym(s1->symtab, "___tcc_cpp_register_dtor")
+        || find_elf_sym(s1->symtab, "__tcc_cpp_run_dtors")
+        || find_elf_sym(s1->symtab, "___tcc_cpp_run_dtors"))
+        return 1;
+    return 0;
+}
+
+ST_FUNC void tcc_add_cpp_runtime(TCCState *s1)
+{
+    CString cstr;
+
+    if (s1->cpp_runtime_injected)
+        return;
+    cstr_new(&cstr);
+    cstr_cat(&cstr,
+        "typedef void (__cdecl *tcc_cpp_dtor_fn_t)(void);\n"
+        "#define TCC_CPP_DTOR_MAX 1024\n"
+        "static tcc_cpp_dtor_fn_t tcc_cpp_dtor_stack[TCC_CPP_DTOR_MAX];\n"
+        "static unsigned tcc_cpp_dtor_count;\n"
+        "extern void abort(void);\n"
+        "void __cdecl __tcc_cpp_register_dtor(tcc_cpp_dtor_fn_t fn)\n"
+        "{\n"
+        "    if (tcc_cpp_dtor_count >= TCC_CPP_DTOR_MAX) abort();\n"
+        "    tcc_cpp_dtor_stack[tcc_cpp_dtor_count++] = fn;\n"
+        "}\n"
+        "void __cdecl __tcc_cpp_run_dtors(void)\n"
+        "{\n"
+        "    tcc_cpp_dtor_fn_t fn;\n"
+        "    while (tcc_cpp_dtor_count != 0) {\n"
+        "        fn = tcc_cpp_dtor_stack[--tcc_cpp_dtor_count];\n"
+        "        if (fn) fn();\n"
+        "    }\n"
+        "}\n",
+        0);
+    tcc_compile_injected_c_no_debug(s1, cstr.data);
+    cstr_free(&cstr);
+    s1->cpp_runtime_injected = 1;
+}
+
 /* FEAT-4G: PE console EXE entry that walks .init_array / .fini_array
-   before main.  Injected only when a C++ TU registered init_array
-   entries; avoids rebuilding libtcc1 crt1.o. */
+   before main.  Injected when a C++ TU needs startup or destructor runtime
+   support; avoids rebuilding libtcc1 crt1.o. */
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
 {
-    Section *s;
     CString cstr;
 
     /* cpp_global_ctors: s1->cpp is per-TU and already restored to 0
        when the linker calls this (see tcc_compile). */
-    if (!s1->cpp_global_ctors || TCC_OUTPUT_DLL == s1->output_type)
+    if ((!s1->cpp_global_ctors && !tcc_cpp_runtime_needed(s1))
+        || TCC_OUTPUT_DLL == s1->output_type)
         return;
     if (s1->cpp_init_startup_done)
         return;
-    s = have_section(s1, ".init_array");
-    if (!s || s->data_offset == 0)
-        return;
 
     s1->cpp_init_startup_done = 1;
+    tcc_add_cpp_runtime(s1);
 
     cstr_new(&cstr);
     cstr_cat(&cstr,
@@ -1628,6 +1670,7 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "extern tcc_ctor_fn_t __init_array_end;\n"
         "extern tcc_ctor_fn_t __fini_array_start;\n"
         "extern tcc_ctor_fn_t __fini_array_end;\n"
+        "extern void __tcc_cpp_run_dtors(void);\n"
         "static void tcc_cpp_run_init(void)\n"
         "{\n"
         "    tcc_ctor_fn_t *p, *e;\n"
@@ -1641,6 +1684,14 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "    s = (tcc_ctor_fn_t *)&__fini_array_start;\n"
         "    p = (tcc_ctor_fn_t *)&__fini_array_end;\n"
         "    while (p > s) { --p; if (*p) (*p)(); }\n"
+        "}\n"
+        "static int tcc_cpp_fini_done;\n"
+        "static void tcc_cpp_run_fini_once(void)\n"
+        "{\n"
+        "    if (tcc_cpp_fini_done) return;\n"
+        "    tcc_cpp_fini_done = 1;\n"
+        "    __tcc_cpp_run_dtors();\n"
+        "    tcc_cpp_run_fini();\n"
         "}\n"
         "typedef struct { int newmode; } _startupinfo;\n"
         "int __cdecl __getmainargs(int*,char***,char***,int,_startupinfo*);\n"
@@ -1657,17 +1708,20 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
            need __declspec(dllimport) (pe_check_symbols rejects them). */
         "void _tcc_cpp_start(void)\n"
         "{\n"
-        "    int argc; char **argv; char **env;\n"
+        "    int argc; char **argv; char **env; int ret;\n"
         "    _startupinfo si;\n"
         "    __set_app_type(1);\n"
         "    _controlfp(0x10000,0x30000);\n"
         "    si.newmode = 0;\n"
         "    __getmainargs(&argc,&argv,&env,0,&si);\n"
-        /* ctors run after CRT init (they may use it); atexit LIFO makes
-           the fini walk run before CRT teardown. */
+        /* ctors run after CRT init (they may use it).  Keep the CRT atexit
+           hook only as a fallback for main() calling exit(); the TCC-owned
+           registry is the destructor authority. */
         "    tcc_cpp_run_init();\n"
-        "    atexit(tcc_cpp_run_fini);\n"
-        "    exit(main(argc,argv,env));\n"
+        "    atexit(tcc_cpp_run_fini_once);\n"
+        "    ret = main(argc,argv,env);\n"
+        "    tcc_cpp_run_fini_once();\n"
+        "    exit(ret);\n"
         "}\n"
         /* len 0 = strlen+1: keep the NUL in the CString.  With -1 the
            injected source is not NUL-terminated and tcc_compile's
