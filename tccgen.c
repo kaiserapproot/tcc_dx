@@ -213,6 +213,7 @@ static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
    the definition point of this base-subobject predicate. */
 static int cpp_is_base_field(Sym *f);
 static int cpp_class_requires_destruction(Sym *class_sym);
+static void cpp_emit_local_static_dtor_registration(Sym *wrapper_sym);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
 static Sym *cpp_cur_class;
@@ -692,6 +693,10 @@ static int cpp_default_arg_replay;
 // G4 (new/delete): `void *malloc(...)` / `void free(...)` and the plain
 // void / void* types they need.  Initialized in tccgen_init.
 static CType cpp_malloc_type, cpp_free_type, cpp_voidp_type, cpp_void_type;
+static CType cpp_local_static_dtor_type;
+static CType cpp_local_static_dtor_ptr_type;
+static CType cpp_local_static_register_type;
+static int cpp_local_static_register_tok;
 
 // C3 (crash-prevention plan): recursion guards.  Depth is measured by
 // STACK ADDRESS distance from the anchor tccgen_compile plants, not by a
@@ -2238,8 +2243,11 @@ static int cpp_begin_local_static_init(Sym *guard_sym)
 }
 
 /* Exceptions are unsupported, so reaching here means construction finished. */
-static void cpp_finish_local_static_init(Sym *guard_sym, int skip_jmp)
+static void cpp_finish_local_static_init(Sym *guard_sym, int skip_jmp,
+                                         Sym *dtor_wrapper)
 {
+    if (dtor_wrapper)
+        cpp_emit_local_static_dtor_registration(dtor_wrapper);
     vset(&guard_sym->type, guard_sym->r | VT_SYM, 0);
     vtop->sym = guard_sym;
     vpushi(1);
@@ -2248,16 +2256,112 @@ static void cpp_finish_local_static_init(Sym *guard_sym, int skip_jmp)
     gsym(skip_jmp);
 }
 
-/* FEAT-4G: deferred global ctor/dtor thunks for .init_array / .fini_array. */
+/* FEAT-4G: deferred global ctor/dtor thunks. */
 typedef struct CppGlobalDynEntry {
     Sym *obj_sym;
     TokenString *ctor_args; /* NULL for default ctor or dtor entry */
     int is_dtor;
+    Sym *wrapper_sym;
 } CppGlobalDynEntry;
 
 static CppGlobalDynEntry **cpp_global_dyns;
 static int nb_cpp_global_dyns;
-static int cpp_global_dyn_serial;
+
+typedef struct CppLocalStaticDtorEntry {
+    Sym *obj_sym;
+    Sym *wrapper_sym;
+} CppLocalStaticDtorEntry;
+
+static CppLocalStaticDtorEntry **cpp_local_static_dtors;
+static int nb_cpp_local_static_dtors;
+
+static Sym *cpp_new_static_function_sym(CType *type)
+{
+    Sym *sym;
+
+    sym = sym_push2(&global_stack, anon_sym++, type->t, 0);
+    sym->type.ref = type->ref;
+    sym->r = VT_CONST | VT_SYM;
+    sym->type.t |= VT_STATIC;
+    put_extern_sym(sym, NULL, 0, 0);
+    return sym;
+}
+
+static Sym *cpp_copy_local_static_obj(Sym *obj_sym)
+{
+    Sym *copy;
+
+    if (!obj_sym)
+        return NULL;
+    /* The declaration symbol is popped with its containing function.  Keep
+       only the ELF symbol index, storage flags and class type on the global
+       stack until the deferred dtor thunk has been emitted. */
+    copy = sym_push2(&global_stack, anon_sym++, obj_sym->type.t, obj_sym->c);
+    copy->type.ref = obj_sym->type.ref;
+    copy->r = obj_sym->r;
+    return copy;
+}
+
+static Sym *cpp_new_local_static_dtor(Sym *obj_sym)
+{
+    CppLocalStaticDtorEntry *ent;
+    Sym *obj_copy;
+    Sym *wrapper_sym;
+
+    obj_copy = cpp_copy_local_static_obj(obj_sym);
+    if (!obj_copy)
+        return NULL;
+    wrapper_sym = cpp_new_static_function_sym(&cpp_local_static_dtor_type);
+    ent = tcc_malloc(sizeof *ent);
+    ent->obj_sym = obj_copy;
+    ent->wrapper_sym = wrapper_sym;
+    dynarray_add(&cpp_local_static_dtors, &nb_cpp_local_static_dtors, ent);
+    return wrapper_sym;
+}
+
+static Sym *cpp_prepare_local_static_dtor(Sym *obj_sym)
+{
+    Sym *dtor_field;
+    Sym *dtor_global;
+    Sym *class_sym;
+    CType obj_type;
+
+    if (!obj_sym || !tcc_state->cpp
+        || (obj_sym->type.t & VT_BTYPE) != VT_STRUCT
+        || !obj_sym->type.ref)
+        return NULL;
+    class_sym = obj_sym->type.ref;
+    if (tcc_state->output_type == TCC_OUTPUT_DLL
+        && cpp_class_requires_destruction(class_sym))
+        tcc_error("function-local static destructor in DLL is unsupported");
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (!dtor_field) {
+        if (cpp_class_requires_destruction(class_sym))
+            tcc_error("function-local static implicit destructor is unsupported");
+        return NULL;
+    }
+    obj_type.t = VT_STRUCT;
+    obj_type.ref = class_sym;
+    dtor_global = cpp_lookup_member_func(dtor_field, &obj_type);
+    if (dtor_global)
+        put_extern_sym(dtor_global, NULL, 0, 0);
+    cpp_validate_explicit_dtor_members(class_sym);
+    return cpp_new_local_static_dtor(obj_sym);
+}
+
+static void cpp_emit_local_static_dtor_registration(Sym *wrapper_sym)
+{
+    Sym *register_sym;
+
+    if (!wrapper_sym)
+        return;
+    register_sym = external_global_sym(cpp_local_static_register_tok,
+                                       &cpp_local_static_register_type);
+    vpushsym(&cpp_local_static_register_type, register_sym);
+    vpushsym(&cpp_local_static_dtor_ptr_type, wrapper_sym);
+    gfunc_call(1);
+    tcc_state->cpp_runtime_needed = 1;
+}
 
 static TokenString *cpp_save_paren_expr_tokens(void)
 {
@@ -2453,9 +2557,13 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     ent->obj_sym = obj_sym;
     ent->ctor_args = ctor_args;
     ent->is_dtor = is_dtor;
+    ent->wrapper_sym = NULL;
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
         class_sym = obj_sym->type.ref;
+        if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
+            && cpp_class_requires_destruction(class_sym))
+            tcc_error("global destructor runtime in DLL is unsupported");
         if (class_sym && !cpp_find_dtor_field(class_sym))
             cpp_validate_implicit_dtor(class_sym, 0);
         if (class_sym && cpp_find_dtor_field(class_sym)) {
@@ -2463,9 +2571,22 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
             ent->obj_sym = obj_sym;
             ent->ctor_args = NULL;
             ent->is_dtor = 1;
+            ent->wrapper_sym = NULL;
             dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
         }
     }
+}
+
+static Sym *cpp_find_global_dtor_wrapper(Sym *obj_sym)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_global_dyns; i++) {
+        if (cpp_global_dyns[i]->is_dtor
+            && cpp_global_dyns[i]->obj_sym == obj_sym)
+            return cpp_global_dyns[i]->wrapper_sym;
+    }
+    return NULL;
 }
 
 /* returns the gfunc_call arg count so the thunk can size its scratch
@@ -2596,19 +2717,61 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
     }
 }
 
+static void cpp_emit_dtor_thunk(Sym *wrapper, Sym *obj_sym)
+{
+    int thunk_start;
+    int sub_imm_off;
+    int nb_call_args;
+    int scratch;
+
+    loc = 0;
+    thunk_start = ind = cur_text_section->data_offset;
+    put_extern_sym(wrapper, cur_text_section, ind, 0);
+
+    /* Minimal cdecl thunk: establish a frame, reserve call scratch,
+       call dtor, then return. */
+#if PTR_SIZE == 8
+    o(0xe5894855);
+    o(0xec8148);
+#else
+    o(0xe58955);
+    o(0xec81);
+#endif
+    sub_imm_off = ind;
+    gen_le32(0x20);
+    nb_call_args = cpp_emit_global_dtor_call(obj_sym);
+#if PTR_SIZE == 8
+    scratch = nb_call_args * 8;
+    if (scratch < 32)
+        scratch = 32;
+    scratch = (scratch + 15) & -16;
+#else
+    scratch = 0;
+#endif
+    write32le(cur_text_section->data + sub_imm_off, scratch);
+    o(0xc9);
+    o(0xc3);
+    check_vstack();
+    cur_text_section->data_offset = ind;
+    put_extern_sym(wrapper, cur_text_section, thunk_start, ind - thunk_start);
+}
+
 static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
 {
     CType void_type;
     CType func_type;
     Sym *proto;
     Sym *wrapper;
-    char name[48];
-    const char *sec;
-    int name_tok;
+    Sym *dtor_wrapper;
     int thunk_start;
     int sub_imm_off;
     int nb_call_args;
     int scratch;
+
+    if (ent->is_dtor) {
+        cpp_emit_dtor_thunk(ent->wrapper_sym, ent->obj_sym);
+        return;
+    }
 
     void_type.t = VT_VOID;
     func_type.t = VT_FUNC;
@@ -2616,11 +2779,7 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
     proto->f.func_call = FUNC_CDECL;
     proto->f.func_type = FUNC_NEW;
     func_type.ref = proto;
-
-    snprintf(name, sizeof(name), ent->is_dtor ? "__cpp_gd_%d" : "__cpp_gi_%d",
-        cpp_global_dyn_serial++);
-    name_tok = tok_alloc(name, strlen(name))->tok;
-    wrapper = external_global_sym(name_tok, &func_type);
+    wrapper = cpp_new_static_function_sym(&func_type);
 
     loc = 0;
     thunk_start = ind = cur_text_section->data_offset;
@@ -2643,10 +2802,10 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
     sub_imm_off = ind;
     gen_le32(0x20);
 
-    if (ent->is_dtor)
-        nb_call_args = cpp_emit_global_dtor_call(ent->obj_sym);
-    else
-        nb_call_args = cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
+    nb_call_args = cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
+    dtor_wrapper = cpp_find_global_dtor_wrapper(ent->obj_sym);
+    if (dtor_wrapper)
+        cpp_emit_local_static_dtor_registration(dtor_wrapper);
 
     /* same sizing rule as gfunc_call's stack staging ([rsp+arg*8],
        32-byte minimum), 16-aligned to keep the callee entry aligned.
@@ -2668,8 +2827,7 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
     cur_text_section->data_offset = ind;
     put_extern_sym(wrapper, cur_text_section, thunk_start, ind - thunk_start);
 
-    sec = ent->is_dtor ? ".fini_array" : ".init_array";
-    add_array(tcc_state, sec, wrapper->c);
+    add_array(tcc_state, ".init_array", wrapper->c);
 
     /* no tok_str_free(ent->ctor_args) here: begin_macro(arg_toks, 1)
        hands ownership to end_macro, which already frees the string;
@@ -2687,13 +2845,34 @@ static void cpp_finish_global_dyns(TCCState *s1)
     saved_nocode = nocode_wanted;
     nocode_wanted = 0;
     cur_text_section = text_section;
-    cpp_global_dyn_serial = 0;
+    for (i = 0; i < nb_cpp_global_dyns; i++) {
+        if (cpp_global_dyns[i]->is_dtor)
+            cpp_global_dyns[i]->wrapper_sym =
+                cpp_new_static_function_sym(&cpp_local_static_dtor_type);
+    }
     for (i = 0; i < nb_cpp_global_dyns; i++)
         cpp_emit_global_dyn_thunk(cpp_global_dyns[i]);
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     /* survives the per-TU save/restore of s1->cpp; gates the PE startup
        injection at link time (tccpe.c). */
     s1->cpp_global_ctors = 1;
+    nocode_wanted = saved_nocode;
+}
+
+static void cpp_finish_local_static_dtors(TCCState *s1)
+{
+    int i;
+    int saved_nocode;
+
+    if (!s1->cpp || nb_cpp_local_static_dtors == 0)
+        return;
+    saved_nocode = nocode_wanted;
+    nocode_wanted = 0;
+    cur_text_section = text_section;
+    for (i = 0; i < nb_cpp_local_static_dtors; i++)
+        cpp_emit_dtor_thunk(cpp_local_static_dtors[i]->wrapper_sym,
+                            cpp_local_static_dtors[i]->obj_sym);
+    dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
     nocode_wanted = saved_nocode;
 }
 
@@ -4892,6 +5071,26 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_free_type.ref = sym_push(SYM_FIELD, &cpp_void_type, 0, 0);
     cpp_free_type.ref->f.func_call = FUNC_CDECL;
     cpp_free_type.ref->f.func_type = FUNC_OLD;
+    cpp_local_static_dtor_type.t = VT_FUNC;
+    cpp_local_static_dtor_type.ref = sym_push(SYM_FIELD, &cpp_void_type, 0, 0);
+    cpp_local_static_dtor_type.ref->f.func_call = FUNC_CDECL;
+    cpp_local_static_dtor_type.ref->f.func_type = FUNC_NEW;
+    cpp_local_static_dtor_ptr_type = cpp_local_static_dtor_type;
+    mk_pointer(&cpp_local_static_dtor_ptr_type);
+    cpp_local_static_register_type.t = VT_FUNC;
+    cpp_local_static_register_type.ref =
+        sym_push(SYM_FIELD, &cpp_void_type, 0, 0);
+    cpp_local_static_register_type.ref->f.func_call = FUNC_CDECL;
+    cpp_local_static_register_type.ref->f.func_type = FUNC_NEW;
+    {
+        Sym *param;
+        param = sym_push(SYM_FIELD, &cpp_local_static_dtor_ptr_type, 0, 0);
+        cpp_local_static_register_type.ref->next = param;
+        cpp_local_static_register_type.ref->f.func_args = 1;
+    }
+    cpp_local_static_register_tok =
+        tok_alloc("__tcc_cpp_register_dtor",
+                  strlen("__tcc_cpp_register_dtor"))->tok;
 #ifdef precedence_parser
     init_prec();
 #endif
@@ -4904,7 +5103,7 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_this_sym = NULL;
     cpp_cur_func_class = NULL;
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
-    cpp_global_dyn_serial = 0;
+    dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
     /* Virtual MI (Phase 2): drop thunks a failed/aborted TU left pending so
        they cannot be emitted against stale Syms in the next compilation. */
     dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
@@ -4938,6 +5137,7 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     cpp_finish_virtual_thunks(s1);
     cpp_finish_global_dyns(s1);
     gen_inline_functions(s1);
+    cpp_finish_local_static_dtors(s1);
     check_vstack();
     /* �|��P�ʂ̏��̏I��� */
 #if TCC_EH_FRAME
@@ -17428,17 +17628,18 @@ static int decl(int l)
                         /* `Foo f(args);` -> `f.Foo(args);` (local) */
                         Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                         Sym *guard_sym;
+                        Sym *dtor_wrapper;
                         int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
                         int guard_skip;
 
-                        if (is_static && cpp_class_requires_destruction(btype.ref))
-                            tcc_error("function-local static destructor is unsupported");
-
                         guard_sym = NULL;
+                        dtor_wrapper = NULL;
                         guard_skip = 0;
                         decl_initializer_alloc(&type, &ad, obj_r,
                                                0, saved_var_tok, 0);
                         if (is_static) {
+                            dtor_wrapper = cpp_prepare_local_static_dtor(
+                                sym_find(saved_var_tok));
                             guard_sym = cpp_alloc_local_static_guard();
                             guard_skip = cpp_begin_local_static_init(guard_sym);
                         }
@@ -17453,7 +17654,8 @@ static int decl(int l)
                         expr_eq();
                         vpop();
                         if (is_static)
-                            cpp_finish_local_static_init(guard_sym, guard_skip);
+                            cpp_finish_local_static_init(guard_sym, guard_skip,
+                                                         dtor_wrapper);
                         if (tok == ',') {
                             next();
                             continue;
@@ -17476,17 +17678,18 @@ static int decl(int l)
                        a function-local static in its once-only guard. */
                     Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                     Sym *guard_sym;
+                    Sym *dtor_wrapper;
                     int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
                     int guard_skip;
 
-                    if (is_static && cpp_class_requires_destruction(btype.ref))
-                        tcc_error("function-local static destructor is unsupported");
-
                     guard_sym = NULL;
+                    dtor_wrapper = NULL;
                     guard_skip = 0;
                     decl_initializer_alloc(&type, &ad, obj_r,
                                            0, saved_var_tok, 0);
                     if (is_static) {
+                        dtor_wrapper = cpp_prepare_local_static_dtor(
+                            sym_find(saved_var_tok));
                         guard_sym = cpp_alloc_local_static_guard();
                         guard_skip = cpp_begin_local_static_init(guard_sym);
                     }
@@ -17498,7 +17701,8 @@ static int decl(int l)
                     expr_eq();
                     vpop();
                     if (is_static)
-                        cpp_finish_local_static_init(guard_sym, guard_skip);
+                        cpp_finish_local_static_init(guard_sym, guard_skip,
+                                                     dtor_wrapper);
                     if (tok == ',') {
                         next();
                         continue;
@@ -17520,11 +17724,11 @@ static int decl(int l)
                        case is brought to the same semantics here. */
                     Sym *obj_sym;
                     Sym *guard_sym;
+                    Sym *dtor_wrapper;
                     int guard_skip;
-                    if (is_static && cpp_class_requires_destruction(btype.ref))
-                        tcc_error("function-local static destructor is unsupported");
 
                     guard_sym = NULL;
+                    dtor_wrapper = NULL;
                     guard_skip = 0;
                     next();
                     if (tok == '{') {
@@ -17540,6 +17744,8 @@ static int decl(int l)
                         if (!obj_sym)
                             tcc_error("internal error: copy-init object lost");
                         if (is_static) {
+                            dtor_wrapper = cpp_prepare_local_static_dtor(
+                                sym_find(saved_var_tok));
                             guard_sym = cpp_alloc_local_static_guard();
                             guard_skip = cpp_begin_local_static_init(guard_sym);
                         }
@@ -17582,7 +17788,8 @@ static int decl(int l)
                             vpop();
                         }
                         if (is_static)
-                            cpp_finish_local_static_init(guard_sym, guard_skip);
+                            cpp_finish_local_static_init(guard_sym, guard_skip,
+                                                         dtor_wrapper);
                         if (tok == ',') {
                             next();
                             continue;
@@ -17816,8 +18023,14 @@ static int decl(int l)
                             static_elem_type = *pointed_type(&static_elem_type);
                         if ((static_elem_type.t & VT_BTYPE) == VT_STRUCT
                             && static_elem_type.ref
-                            && cpp_class_requires_destruction(static_elem_type.ref))
-                            tcc_error("function-local static destructor is unsupported");
+                            && cpp_class_requires_destruction(static_elem_type.ref)
+                            && ((type.t & VT_ARRAY)
+                                || !cpp_find_dtor_field(static_elem_type.ref))) {
+                            if (type.t & VT_ARRAY)
+                                tcc_error("function-local static destructor is unsupported");
+                            else
+                                tcc_error("function-local static implicit destructor is unsupported");
+                        }
                     }
                     if (has_init && (type.t & VT_VLA))
                         tcc_error("�ϒ��z��͏������ł��܂���");
@@ -17877,6 +18090,30 @@ static int decl(int l)
                             /* uninitialized global variables may be overridden */
                             type.t |= VT_EXTERN;
                         decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
+                        if (tcc_state->cpp
+                            && l == VT_LOCAL
+                            && (type.t & VT_STATIC)
+                            && !(type.t & (VT_REFERENCE | VT_ARRAY))
+                            && (type.t & VT_BTYPE) == VT_STRUCT
+                            && type.ref
+                            && cpp_find_dtor_field(type.ref)) {
+                            Sym *static_obj_sym;
+                            Sym *static_dtor_wrapper;
+                            Sym *static_guard_sym;
+                            int static_guard_skip;
+
+                            static_obj_sym = sym_find(v);
+                            if (!static_obj_sym)
+                                tcc_error("internal error: local static object lost");
+                            static_dtor_wrapper =
+                                cpp_prepare_local_static_dtor(static_obj_sym);
+                            static_guard_sym = cpp_alloc_local_static_guard();
+                            static_guard_skip =
+                                cpp_begin_local_static_init(static_guard_sym);
+                            cpp_finish_local_static_init(static_guard_sym,
+                                                         static_guard_skip,
+                                                         static_dtor_wrapper);
+                        }
                     }
 
                     if (ad.alias_target && l == VT_CONST) {
