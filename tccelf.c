@@ -1606,9 +1606,7 @@ ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1)
     if (s1->cpp_runtime_needed)
         return 1;
     if (find_elf_sym(s1->symtab, "__tcc_cpp_register_dtor")
-        || find_elf_sym(s1->symtab, "___tcc_cpp_register_dtor")
-        || find_elf_sym(s1->symtab, "__tcc_cpp_run_dtors")
-        || find_elf_sym(s1->symtab, "___tcc_cpp_run_dtors"))
+        || find_elf_sym(s1->symtab, "___tcc_cpp_register_dtor"))
         return 1;
     return 0;
 }
@@ -1622,45 +1620,11 @@ ST_FUNC void tcc_add_cpp_runtime(TCCState *s1)
     cstr_new(&cstr);
     cstr_cat(&cstr,
         "typedef void (__cdecl *tcc_cpp_dtor_fn_t)(void);\n"
-        "typedef struct tcc_cpp_dtor_chunk {\n"
-        "    struct tcc_cpp_dtor_chunk *prev;\n"
-        "    unsigned count;\n"
-        "    tcc_cpp_dtor_fn_t entry[64];\n"
-        "} tcc_cpp_dtor_chunk;\n"
-        "static tcc_cpp_dtor_chunk *tcc_cpp_dtor_top;\n"
-        "extern void *malloc(unsigned);\n"
-        "extern void free(void *);\n"
+        "extern int __tcc_cpp_register_exit(tcc_cpp_dtor_fn_t);\n"
         "extern void abort(void);\n"
         "void __cdecl __tcc_cpp_register_dtor(tcc_cpp_dtor_fn_t fn)\n"
         "{\n"
-        "    tcc_cpp_dtor_chunk *chunk;\n"
-        "    if (!tcc_cpp_dtor_top\n"
-        "        || tcc_cpp_dtor_top->count == 64) {\n"
-        "        chunk = (tcc_cpp_dtor_chunk *)malloc(\n"
-        "            sizeof(tcc_cpp_dtor_chunk));\n"
-        "        if (!chunk) abort();\n"
-        "        chunk->prev = tcc_cpp_dtor_top;\n"
-        "        chunk->count = 0;\n"
-        "        tcc_cpp_dtor_top = chunk;\n"
-        "    }\n"
-        "    tcc_cpp_dtor_top->entry[tcc_cpp_dtor_top->count++] = fn;\n"
-        "}\n"
-        "void __cdecl __tcc_cpp_run_dtors(void)\n"
-        "{\n"
-        "    tcc_cpp_dtor_chunk *chunk, *prev;\n"
-        "    tcc_cpp_dtor_fn_t fn;\n"
-        "    while (tcc_cpp_dtor_top) {\n"
-        "        chunk = tcc_cpp_dtor_top;\n"
-        "        while (chunk->count) {\n"
-        "            fn = chunk->entry[--chunk->count];\n"
-        "            if (fn) fn();\n"
-        "        }\n"
-        "        if (tcc_cpp_dtor_top == chunk) {\n"
-        "            prev = chunk->prev;\n"
-        "            free(chunk);\n"
-        "            tcc_cpp_dtor_top = prev;\n"
-        "        }\n"
-        "    }\n"
+        "    if (__tcc_cpp_register_exit(fn) != 0) abort();\n"
         "}\n",
         0);
     tcc_compile_injected_c_no_debug(s1, cstr.data);
@@ -1697,7 +1661,6 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "extern tcc_ctor_fn_t __init_array_end;\n"
         "extern tcc_ctor_fn_t __fini_array_start;\n"
         "extern tcc_ctor_fn_t __fini_array_end;\n"
-        "extern void __tcc_cpp_run_dtors(void);\n"
         "static void tcc_cpp_run_init(void)\n"
         "{\n"
         "    tcc_ctor_fn_t *p, *e;\n"
@@ -1717,7 +1680,6 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "{\n"
         "    if (tcc_cpp_fini_done) return;\n"
         "    tcc_cpp_fini_done = 1;\n"
-        "    __tcc_cpp_run_dtors();\n"
         "    tcc_cpp_run_fini();\n"
         "}\n"
         "typedef struct { int newmode; } _startupinfo;\n"
@@ -1725,6 +1687,10 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "void __cdecl __set_app_type(int);\n"
         "unsigned int __cdecl _controlfp(unsigned int,unsigned int);\n"
         "extern int atexit(void (*)(void));\n"
+        "int __cdecl __tcc_cpp_register_exit(tcc_ctor_fn_t fn)\n"
+        "{\n"
+        "    return atexit(fn);\n"
+        "}\n"
         "extern void exit(int);\n"
         "int main(int,char**,char**);\n"
         /* single leading underscore: pe_add_runtime strips one '_' from
