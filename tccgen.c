@@ -5234,6 +5234,12 @@ ST_FUNC void tccgen_init(TCCState* s1)
     // void (*ctor)(void *))`.  N6-01 took only the descriptor and always
     // handed out a zeroed int; class objects need their size and a
     // per-thread constructor, so the runtime contract grew to 3 arguments.
+    // N6-03: a 4th argument `void (*dtor)(void *)` selects registration in
+    // the per-thread destructor registry after a successful construction.
+    // The frontend still rejects classes with non-trivial destructors
+    // (NONTRIVIAL_DTOR_FRONTEND_ACCEPTANCE=NO), so generated code always
+    // passes a null dtor; the parameter exists so the runtime registry
+    // foundation has its final ABI and can be measured directly.
     cpp_tls_addr_type.t = VT_FUNC;
     cpp_tls_addr_type.ref =
         sym_push(SYM_FIELD, &cpp_voidp_type, 0, 0);
@@ -5243,16 +5249,19 @@ ST_FUNC void tccgen_init(TCCState* s1)
         Sym *param_desc;
         Sym *param_size;
         Sym *param_ctor;
+        Sym *param_dtor;
         CType uint_type;
         uint_type.t = VT_INT | VT_UNSIGNED;
         uint_type.ref = NULL;
+        param_dtor = sym_push(SYM_FIELD, &cpp_tls_ctor_ptr_type, 0, 0);
         param_ctor = sym_push(SYM_FIELD, &cpp_tls_ctor_ptr_type, 0, 0);
+        param_ctor->next = param_dtor;
         param_size = sym_push(SYM_FIELD, &uint_type, 0, 0);
         param_size->next = param_ctor;
         param_desc = sym_push(SYM_FIELD, &cpp_tls_int_ptr_type, 0, 0);
         param_desc->next = param_size;
         cpp_tls_addr_type.ref->next = param_desc;
-        cpp_tls_addr_type.ref->f.func_args = 3;
+        cpp_tls_addr_type.ref->f.func_args = 4;
     }
     cpp_tls_addr_tok =
         tok_alloc("__tcc_cpp_tls_addr",
@@ -6320,7 +6329,13 @@ static void cpp_push_tls_lvalue(Sym *sym)
         null_cv.i = 0;
         vsetc(&cpp_tls_ctor_ptr_type, VT_CONST, &null_cv);
     }
-    gfunc_call(3);
+    // N6-03: destructor callback.  Always null from the frontend: classes
+    // that need destruction are still fail-closed in cpp_validate_tls_class,
+    // so no object reaches the runtime with something to register.  N6-04
+    // will replace this with the dtor thunk once destruction is implemented.
+    null_cv.i = 0;
+    vsetc(&cpp_tls_ctor_ptr_type, VT_CONST, &null_cv);
+    gfunc_call(4);
     ret.type = obj_type;
     mk_pointer(&ret.type);
     ret.c.i = 0;
