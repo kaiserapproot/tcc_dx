@@ -1748,6 +1748,12 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    storage = calloc(1, size);\n"
         "    if (!storage)\n"
         "        abort();\n"
+        // N6-02 REVIEW FIX-2: the compiler only admits objects whose alignment
+        // is <= MEMORY_ALLOCATION_ALIGNMENT (16 on x64 / 8 on x86, i.e.
+        // 2*sizeof(void*)); assert the allocator actually delivered it so a
+        // CRT that breaks the contract fails loudly instead of misaligning.
+        "    if (((UINT_PTR)storage) & (2 * sizeof(void *) - 1))\n"
+        "        abort();\n"
         "    index = tcb->count;\n"
         "    tcb->entries[index].descriptor = descriptor;\n"
         "    tcb->entries[index].storage = storage;\n"
