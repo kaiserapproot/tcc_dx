@@ -168,6 +168,12 @@ if errorlevel 1 set /a FAILED+=1
 echo === a9\manual\n6_01_tls_initializer_unsupported.bat ===
 call a9\manual\n6_01_tls_initializer_unsupported.bat
 if errorlevel 1 set /a FAILED+=1
+rem N6-01 closure: address isolation authority must come from two workers
+rem that are alive at the same time (barrier/event), not from sequential
+rem create/join where the OS may legitimately reuse addresses.
+echo === a9\manual\n6_01_tls_concurrent.bat ===
+call a9\manual\n6_01_tls_concurrent.bat
+if errorlevel 1 set /a FAILED+=1
 
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
