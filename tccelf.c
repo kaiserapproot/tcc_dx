@@ -1632,6 +1632,111 @@ ST_FUNC void tcc_add_cpp_runtime(TCCState *s1)
     s1->cpp_runtime_injected = 1;
 }
 
+ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1)
+{
+    if (s1->cpp_tls_runtime_needed)
+        return 1;
+    if (find_elf_sym(s1->symtab, "__tcc_cpp_tls_addr")
+        || find_elf_sym(s1->symtab, "___tcc_cpp_tls_addr"))
+        return 1;
+    return 0;
+}
+
+ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
+{
+    CString cstr;
+
+    if (s1->cpp_tls_runtime_injected)
+        return;
+    if (TCC_OUTPUT_DLL == s1->output_type) {
+        tcc_error_noabort("C++ thread_local TLS in DLL is unsupported");
+        return;
+    }
+    cstr_new(&cstr);
+    cstr_cat(&cstr,
+        "#include <windows.h>\n"
+        "#include <stdlib.h>\n"
+        "typedef DWORD tcc_cpp_tls_key_t;\n"
+        "typedef struct tcc_cpp_tls_entry {\n"
+        "    int *descriptor;\n"
+        "    int *storage;\n"
+        "} tcc_cpp_tls_entry;\n"
+        "typedef struct tcc_cpp_tls_tcb {\n"
+        "    unsigned count;\n"
+        "    unsigned capacity;\n"
+        "    tcc_cpp_tls_entry *entries;\n"
+        "} tcc_cpp_tls_tcb;\n"
+        "static volatile tcc_cpp_tls_key_t tcc_cpp_tls_key = (tcc_cpp_tls_key_t)-1;\n"
+        "static char tcc_cpp_tls_n6_key_lock[] = {'t','c','c','_','c','p','p','_','t','l','s','_','n','6','_','k','e','y','_','l','o','c','k',0};\n"
+        "static tcc_cpp_tls_key_t tcc_cpp_tls_get_key(void)\n"
+        "{\n"
+        "    HANDLE lock;\n"
+        "    if (tcc_cpp_tls_key != (tcc_cpp_tls_key_t)-1)\n"
+        "        return tcc_cpp_tls_key;\n"
+        "    lock = CreateMutexA(0, 0, tcc_cpp_tls_n6_key_lock);\n"
+        "    if (!lock || WaitForSingleObject(lock, INFINITE) != WAIT_OBJECT_0)\n"
+        "        abort();\n"
+        "    if (tcc_cpp_tls_key == (tcc_cpp_tls_key_t)-1) {\n"
+        "        tcc_cpp_tls_key = TlsAlloc();\n"
+        "        if (tcc_cpp_tls_key == (tcc_cpp_tls_key_t)-1)\n"
+        "            abort();\n"
+        "    }\n"
+        "    ReleaseMutex(lock);\n"
+        "    CloseHandle(lock);\n"
+        "    return tcc_cpp_tls_key;\n"
+        "}\n"
+        "static tcc_cpp_tls_tcb *tcc_cpp_tls_get_tcb(void)\n"
+        "{\n"
+        "    tcc_cpp_tls_key_t key;\n"
+        "    tcc_cpp_tls_tcb *tcb;\n"
+        "    key = tcc_cpp_tls_get_key();\n"
+        "    tcb = (tcc_cpp_tls_tcb *)TlsGetValue(key);\n"
+        "    if (!tcb) {\n"
+        "        tcb = (tcc_cpp_tls_tcb *)malloc(sizeof(tcc_cpp_tls_tcb));\n"
+        "        if (!tcb)\n"
+        "            abort();\n"
+        "        tcb->count = 0;\n"
+        "        tcb->capacity = 0;\n"
+        "        tcb->entries = 0;\n"
+        "        if (!TlsSetValue(key, tcb))\n"
+        "            abort();\n"
+        "    }\n"
+        "    return tcb;\n"
+        "}\n"
+        "int *__cdecl __tcc_cpp_tls_addr(int *descriptor)\n"
+        "{\n"
+        "    unsigned i, new_capacity;\n"
+        "    int *storage;\n"
+        "    tcc_cpp_tls_tcb *tcb;\n"
+        "    tcc_cpp_tls_entry *entries;\n"
+        "    tcb = tcc_cpp_tls_get_tcb();\n"
+        "    for (i = 0; i < tcb->count; ++i)\n"
+        "        if (tcb->entries[i].descriptor == descriptor)\n"
+        "            return tcb->entries[i].storage;\n"
+        "    if (tcb->count == tcb->capacity) {\n"
+        "        new_capacity = tcb->capacity ? tcb->capacity * 2 : 8;\n"
+        "        entries = (tcc_cpp_tls_entry *)realloc(tcb->entries,\n"
+        "            new_capacity * sizeof(tcc_cpp_tls_entry));\n"
+        "        if (!entries)\n"
+        "            abort();\n"
+        "        tcb->entries = entries;\n"
+        "        tcb->capacity = new_capacity;\n"
+        "    }\n"
+        "    storage = (int *)malloc(sizeof(int));\n"
+        "    if (!storage)\n"
+        "        abort();\n"
+        "    *storage = 0;\n"
+        "    tcb->entries[tcb->count].descriptor = descriptor;\n"
+        "    tcb->entries[tcb->count].storage = storage;\n"
+        "    ++tcb->count;\n"
+        "    return storage;\n"
+        "}\n",
+        0);
+    tcc_compile_injected_c_no_debug(s1, cstr.data);
+    cstr_free(&cstr);
+    s1->cpp_tls_runtime_injected = 1;
+}
+
 /* FEAT-4G: PE console EXE entry that walks .init_array / .fini_array
    before main.  Injected when a C++ TU needs startup or destructor runtime
    support; avoids rebuilding libtcc1 crt1.o. */
