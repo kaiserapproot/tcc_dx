@@ -705,6 +705,14 @@ static int cpp_tls_addr_tok;
 // exactly once per thread, right after it allocates that thread's storage.
 static CType cpp_tls_ctor_type;
 static CType cpp_tls_ctor_ptr_type;
+// N6-02 REVIEW FIX-2: alignment the TLS runtime can guarantee.  Storage
+// comes from the CRT calloc() in the injected runtime (tccelf.c), whose
+// result is aligned to MEMORY_ALLOCATION_ALIGNMENT (winnt.h / ntdef.h:
+// 16 on _WIN64, 8 otherwise; the MSVC CRT documents the same "fundamental
+// alignment" for malloc/calloc).  Objects that need more are rejected at
+// the declaration instead of being placed misaligned; N6-02 deliberately
+// does not add an aligned allocator.
+#define CPP_TLS_ALLOC_ALIGN (PTR_SIZE == 8 ? 16 : 8)
 
 // C3 (crash-prevention plan): recursion guards.  Depth is measured by
 // STACK ADDRESS distance from the anchor tccgen_compile plants, not by a
@@ -2864,7 +2872,14 @@ static void cpp_emit_tls_ctor_thunk(Sym *wrapper, Sym *class_sym)
     put_extern_sym(wrapper, cur_text_section, thunk_start, ind - thunk_start);
 }
 
-static void cpp_finish_tls_ctors(TCCState *s1)
+// N6-02 REVIEW FIX-1: thunk emission and holder release are two steps.
+// The holders must outlive EVERY TLS access codegen of the TU: deferred
+// inline member bodies are compiled by gen_inline_functions() AFTER the
+// thunks are emitted, and cpp_find_tls_ctor_wrapper() looks the callback
+// up in cpp_tls_ctors at each access site.  Resetting the array here
+// (as 11f4831 did) made a first touch from an inline body pass ctor=NULL
+// and silently hand out a zero-filled, unconstructed object.
+static void cpp_emit_tls_ctor_thunks(TCCState *s1)
 {
     int i;
     int saved_nocode;
@@ -2877,8 +2892,19 @@ static void cpp_finish_tls_ctors(TCCState *s1)
     for (i = 0; i < nb_cpp_tls_ctors; i++)
         cpp_emit_tls_ctor_thunk(cpp_tls_ctors[i]->wrapper_sym,
                                 cpp_tls_ctors[i]->class_sym);
-    dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
     nocode_wanted = saved_nocode;
+}
+
+// Last reader of cpp_tls_ctors in a TU.  Called only after
+// gen_inline_functions() has drained all deferred bodies, i.e. after the
+// last possible cpp_push_tls_lvalue() of the TU.  The wrapper Syms
+// themselves stay on global_stack until tccgen_finish(); only the holder
+// array is released here.
+static void cpp_release_tls_ctor_entries(TCCState *s1)
+{
+    if (!s1->cpp)
+        return;
+    dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
 }
 
 static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
@@ -5309,9 +5335,12 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     // N6-02: before gen_inline_functions for the same reason as the global
     // ctor thunks - the thunk references the (possibly inline) constructor,
     // which must be marked used before the inline bodies are emitted.
-    cpp_finish_tls_ctors(s1);
+    cpp_emit_tls_ctor_thunks(s1);
     gen_inline_functions(s1);
     cpp_finish_local_static_dtors(s1);
+    // N6-02 REVIEW FIX-1: release the ctor-thunk holders only now, after the
+    // inline bodies (the last TLS access sites of the TU) have been emitted.
+    cpp_release_tls_ctor_entries(s1);
     check_vstack();
     /* �|��P�ʂ̏��̏I��� */
 #if TCC_EH_FRAME
@@ -6224,6 +6253,25 @@ static void cpp_validate_tls_class(Sym *class_sym)
     } else {
         cpp_validate_implicit_default_ctor(class_sym, 0);
     }
+}
+
+// N6-02 REVIEW FIX-2: the runtime never receives the alignment, so any
+// object whose natural alignment (struct attribute included) or explicit
+// declaration attribute exceeds what calloc() guarantees is fail-closed.
+static void cpp_validate_tls_alignment(CType *type, AttributeDef *ad)
+{
+    CType obj_type;
+    int align;
+
+    obj_type = *type;
+    obj_type.t &= ~VT_CPP_TLS;
+    type_size(&obj_type, &align);
+    if (align > CPP_TLS_ALLOC_ALIGN)
+        tcc_error("thread_local object alignment %d exceeds the TLS runtime "
+                  "allocator guarantee (%d); over-aligned thread_local is "
+                  "unsupported in N6-02", align, CPP_TLS_ALLOC_ALIGN);
+    if (ad && ad->a.aligned)
+        tcc_error("thread_local with an alignment attribute is unsupported in N6-02");
 }
 
 // N6-02: register the deferred per-thread constructor thunk for
@@ -11347,6 +11395,14 @@ do_decl:
                     skip(';');
                     continue;
                 }
+                // N6-02 REVIEW FIX-5: a bare `thread_local` member kept
+                // VT_CPP_TLS in the field type; 11f4831 only failed later with
+                // the generic "invalid type for 'value'" message (measured).
+                // Name the unsupported form here instead.  Class-scope TLS
+                // (`static thread_local`) is rejected in parse_btype; the
+                // non-static spelling is ill-formed C++ anyway.
+                if (btype.t & VT_CPP_TLS)
+                    tcc_error("thread_local class member is unsupported in N6-02 (namespace-scope thread_local only)");
                 while (1) {
                     if (flexible)
                         tcc_error("flexible array member cannot follow unnamed struct: %s",
@@ -11793,6 +11849,16 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             g = VT_CPP_TLS;
             goto storage;
         storage:
+            // N6-02 REVIEW FIX-5: `static thread_local` / `extern thread_local`
+            // are valid C++ but outside the N6-02 subset (function-local /
+            // class-static / extern TLS need per-thread guards and cross-TU
+            // descriptors that do not exist yet).  Name the unsupported form
+            // instead of the generic storage-class conflict message.
+            if (tcc_state->cpp
+                && ((g == VT_CPP_TLS && (t & (VT_STATIC | VT_EXTERN)))
+                    || ((g == VT_STATIC || g == VT_EXTERN) && (t & VT_CPP_TLS))))
+                tcc_error("%s thread_local is unsupported in N6-02 (namespace-scope thread_local only)",
+                          ((g | t) & VT_STATIC) ? "static" : "extern");
             if (t & (VT_EXTERN | VT_STATIC | VT_TYPEDEF | VT_CPP_TLS) & ~g)
                 tcc_error("�X�g���[�W�N���X�������w�肳��Ă��܂�");
             t |= g;
@@ -18331,6 +18397,7 @@ static int decl(int l)
                         }
                         if (ad.alias_target)
                             tcc_error("thread_local aliases are unsupported");
+                        cpp_validate_tls_alignment(&type, &ad);
                         sym = cpp_alloc_tls_global(v, &type);
                         if ((type.t & VT_BTYPE) == VT_STRUCT)
                             cpp_register_tls_ctor(sym, type.ref);
