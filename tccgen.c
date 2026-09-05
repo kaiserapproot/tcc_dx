@@ -700,6 +700,19 @@ static int cpp_local_static_register_tok;
 static CType cpp_tls_int_ptr_type;
 static CType cpp_tls_addr_type;
 static int cpp_tls_addr_tok;
+// N6-02: `void __cdecl (*)(void *)` - the per-thread lazy constructor
+// callback handed to the TLS runtime.  The runtime (tccelf.c) calls it
+// exactly once per thread, right after it allocates that thread's storage.
+static CType cpp_tls_ctor_type;
+static CType cpp_tls_ctor_ptr_type;
+// N6-02 REVIEW FIX-2: alignment the TLS runtime can guarantee.  Storage
+// comes from the CRT calloc() in the injected runtime (tccelf.c), whose
+// result is aligned to MEMORY_ALLOCATION_ALIGNMENT (winnt.h / ntdef.h:
+// 16 on _WIN64, 8 otherwise; the MSVC CRT documents the same "fundamental
+// alignment" for malloc/calloc).  Objects that need more are rejected at
+// the declaration instead of being placed misaligned; N6-02 deliberately
+// does not add an aligned allocator.
+#define CPP_TLS_ALLOC_ALIGN (PTR_SIZE == 8 ? 16 : 8)
 
 // C3 (crash-prevention plan): recursion guards.  Depth is measured by
 // STACK ADDRESS distance from the anchor tccgen_compile plants, not by a
@@ -2278,6 +2291,19 @@ typedef struct CppLocalStaticDtorEntry {
 static CppLocalStaticDtorEntry **cpp_local_static_dtors;
 static int nb_cpp_local_static_dtors;
 
+// N6-02: one entry per `thread_local Class obj;` whose class has a
+// constructor.  The wrapper is a `void (void *obj)` thunk emitted at TU end
+// (cpp_finish_tls_ctors) and passed to __tcc_cpp_tls_addr at every access
+// site, so the constructor runs on the accessing thread's own storage.
+typedef struct CppTlsCtorEntry {
+    Sym *obj_sym;
+    Sym *class_sym;
+    Sym *wrapper_sym;
+} CppTlsCtorEntry;
+
+static CppTlsCtorEntry **cpp_tls_ctors;
+static int nb_cpp_tls_ctors;
+
 static Sym *cpp_new_static_function_sym(CType *type)
 {
     Sym *sym;
@@ -2623,7 +2649,37 @@ static int cpp_emit_global_dtor_call(Sym *obj_sym)
 
 /* returns the gfunc_call arg count (this + ctor args) so the thunk can
    size its scratch area (0 when no ctor was found). */
+// N6-02: the ctor-call emitter is split so that the object address can come
+// from somewhere other than a global symbol - the TLS ctor thunk receives
+// it as its incoming `void *` parameter.  `obj_addr` must already be a
+// pointer-typed SValue (no code is emitted to form it here).
+static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
+                                 TokenString *arg_toks);
+
 static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
+{
+    SValue obj_addr;
+
+    if (!cpp_find_ctor_field(obj_sym->type.ref))
+        return 0;
+    // addend 0: obj_sym->c is the ELF symbol index for globals, not a
+    // section offset; passing it skewed the object address by c bytes.
+    // Forming the address is pure vstack bookkeeping (VT_CONST|VT_SYM),
+    // so doing it before the argument expressions emits no code.
+    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+    vtop->sym = obj_sym;
+    gaddrof();
+    // BUG-16: gaddrof keeps the struct type, so gfunc_call would pass the
+    // global by value - for objects larger than 8 bytes Win64 stages a copy
+    // and the ctor initializes that copy, leaving the real global zeroed.
+    mk_pointer(&vtop->type);
+    obj_addr = *vtop;
+    vpop();
+    return cpp_emit_ctor_call_at(obj_sym->type.ref, &obj_addr, arg_toks);
+}
+
+static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
+                                 TokenString *arg_toks)
 {
     Sym *ctor_field;
     Sym *ctor_global;
@@ -2636,8 +2692,9 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
     int i;
 
     obj_type.t = VT_STRUCT;
-    obj_type.ref = obj_sym->type.ref;
-    ctor_field = cpp_find_ctor_field(obj_sym->type.ref);
+    obj_type.ref = class_sym;
+    obj_addr = *obj_addr_in;
+    ctor_field = cpp_find_ctor_field(class_sym);
     if (!ctor_field)
         return 0;
     ctor_global = cpp_lookup_member_func(ctor_field, &obj_type);
@@ -2694,17 +2751,6 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
         cpp_apply_default_args(ctor_global->type.ref, &nb_args, &sa);
         na = nb_args;
     }
-    /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
-       section offset; passing it skewed the object address by c bytes. */
-    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
-    vtop->sym = obj_sym;
-    gaddrof();
-    /* BUG-16: gaddrof keeps the struct type, so gfunc_call would pass the
-       global by value - for objects larger than 8 bytes Win64 stages a copy
-       and the ctor initializes that copy, leaving the real global zeroed. */
-    mk_pointer(&vtop->type);
-    obj_addr = *vtop;
-    vpop();
     if (na == 0) {
         vpushv(&obj_addr);
         gfunc_call(1);
@@ -2757,6 +2803,108 @@ static void cpp_emit_dtor_thunk(Sym *wrapper, Sym *obj_sym)
     check_vstack();
     cur_text_section->data_offset = ind;
     put_extern_sym(wrapper, cur_text_section, thunk_start, ind - thunk_start);
+}
+
+// N6-02: `static void wrapper(void *obj)` - constructs the class object at
+// the address the TLS runtime passes in.  Same hand-written frame as
+// cpp_emit_dtor_thunk (gfunc_prolog/epilog are avoided for the same
+// reasons); the only addition is homing the incoming pointer argument in
+// a frame slot so gfunc_call can load it as an ordinary VT_LOCAL lvalue.
+static void cpp_emit_tls_ctor_thunk(Sym *wrapper, Sym *class_sym)
+{
+    int thunk_start;
+    int sub_imm_off;
+    int nb_call_args;
+    int scratch;
+    SValue obj_addr;
+    CType ptr_type;
+
+    ptr_type.t = VT_STRUCT;
+    ptr_type.ref = class_sym;
+    mk_pointer(&ptr_type);
+
+    loc = 0;
+    thunk_start = ind = cur_text_section->data_offset;
+    put_extern_sym(wrapper, cur_text_section, ind, 0);
+
+#if PTR_SIZE == 8
+    // push rbp; mov rbp,rsp; sub rsp,imm32 (patched below)
+    o(0xe5894855);
+    o(0xec8148);
+    sub_imm_off = ind;
+    gen_le32(0x20);
+    // mov [rbp-8],rcx : home the `void *obj` argument.  loc is moved past
+    // the slot so any register spill gfunc_call might need cannot reuse it.
+    o(0xf84d8948);
+    loc = -8;
+    vset(&ptr_type, VT_LOCAL | VT_LVAL, -8);
+#else
+    // push ebp; mov ebp,esp; sub esp,imm32 - cdecl arg 0 sits at [ebp+8]
+    o(0xe58955);
+    o(0xec81);
+    sub_imm_off = ind;
+    gen_le32(0x20);
+    vset(&ptr_type, VT_LOCAL | VT_LVAL, 8);
+#endif
+    obj_addr = *vtop;
+    vpop();
+
+    nb_call_args = cpp_emit_ctor_call_at(class_sym, &obj_addr, NULL);
+
+#if PTR_SIZE == 8
+    // gfunc_call stages stack args at [rsp+arg*8] with a 32-byte shadow
+    // minimum; the homed argument slot needs 8 more bytes above that, so
+    // add 16 and keep the callee entry 16-aligned.
+    scratch = nb_call_args * 8;
+    if (scratch < 32)
+        scratch = 32;
+    scratch = (scratch + 16 + 15) & -16;
+#else
+    scratch = 0;
+#endif
+    write32le(cur_text_section->data + sub_imm_off, scratch);
+    o(0xc9);
+    o(0xc3);
+    check_vstack();
+    // o()/g() advance only ind; sync data_offset so later emitters
+    // (gen_inline_functions) do not overwrite this thunk.
+    cur_text_section->data_offset = ind;
+    put_extern_sym(wrapper, cur_text_section, thunk_start, ind - thunk_start);
+}
+
+// N6-02 REVIEW FIX-1: thunk emission and holder release are two steps.
+// The holders must outlive EVERY TLS access codegen of the TU: deferred
+// inline member bodies are compiled by gen_inline_functions() AFTER the
+// thunks are emitted, and cpp_find_tls_ctor_wrapper() looks the callback
+// up in cpp_tls_ctors at each access site.  Resetting the array here
+// (as 11f4831 did) made a first touch from an inline body pass ctor=NULL
+// and silently hand out a zero-filled, unconstructed object.
+static void cpp_emit_tls_ctor_thunks(TCCState *s1)
+{
+    int i;
+    int saved_nocode;
+
+    if (!s1->cpp || nb_cpp_tls_ctors == 0)
+        return;
+    saved_nocode = nocode_wanted;
+    nocode_wanted = 0;
+    cur_text_section = text_section;
+    for (i = 0; i < nb_cpp_tls_ctors; i++)
+        cpp_emit_tls_ctor_thunk(cpp_tls_ctors[i]->wrapper_sym,
+                                cpp_tls_ctors[i]->class_sym);
+    nocode_wanted = saved_nocode;
+}
+
+// Last reader of cpp_tls_ctors in a TU.  Called only after
+// gen_inline_functions() has drained all deferred bodies, i.e. after the
+// last possible cpp_push_tls_lvalue() of the TU.  The wrapper Syms
+// themselves stay on global_stack until tccgen_finish(); only the holder
+// array is released here.
+static void cpp_release_tls_ctor_entries(TCCState *s1)
+{
+    if (!s1->cpp)
+        return;
+    dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
 }
 
 static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
@@ -5068,16 +5216,43 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_void_type.ref = NULL;
     cpp_tls_int_ptr_type = int_type;
     mk_pointer(&cpp_tls_int_ptr_type);
+    // N6-02: the constructor callback type must exist before the resolver
+    // prototype below references it as its third parameter.
+    cpp_tls_ctor_type.t = VT_FUNC;
+    cpp_tls_ctor_type.ref = sym_push(SYM_FIELD, &cpp_void_type, 0, 0);
+    cpp_tls_ctor_type.ref->f.func_call = FUNC_CDECL;
+    cpp_tls_ctor_type.ref->f.func_type = FUNC_NEW;
+    {
+        Sym *param;
+        param = sym_push(SYM_FIELD, &cpp_voidp_type, 0, 0);
+        cpp_tls_ctor_type.ref->next = param;
+        cpp_tls_ctor_type.ref->f.func_args = 1;
+    }
+    cpp_tls_ctor_ptr_type = cpp_tls_ctor_type;
+    mk_pointer(&cpp_tls_ctor_ptr_type);
+    // N6-02: `void *__tcc_cpp_tls_addr(int *descriptor, unsigned size,
+    // void (*ctor)(void *))`.  N6-01 took only the descriptor and always
+    // handed out a zeroed int; class objects need their size and a
+    // per-thread constructor, so the runtime contract grew to 3 arguments.
     cpp_tls_addr_type.t = VT_FUNC;
     cpp_tls_addr_type.ref =
-        sym_push(SYM_FIELD, &cpp_tls_int_ptr_type, 0, 0);
+        sym_push(SYM_FIELD, &cpp_voidp_type, 0, 0);
     cpp_tls_addr_type.ref->f.func_call = FUNC_CDECL;
     cpp_tls_addr_type.ref->f.func_type = FUNC_NEW;
     {
-        Sym *param;
-        param = sym_push(SYM_FIELD, &cpp_tls_int_ptr_type, 0, 0);
-        cpp_tls_addr_type.ref->next = param;
-        cpp_tls_addr_type.ref->f.func_args = 1;
+        Sym *param_desc;
+        Sym *param_size;
+        Sym *param_ctor;
+        CType uint_type;
+        uint_type.t = VT_INT | VT_UNSIGNED;
+        uint_type.ref = NULL;
+        param_ctor = sym_push(SYM_FIELD, &cpp_tls_ctor_ptr_type, 0, 0);
+        param_size = sym_push(SYM_FIELD, &uint_type, 0, 0);
+        param_size->next = param_ctor;
+        param_desc = sym_push(SYM_FIELD, &cpp_tls_int_ptr_type, 0, 0);
+        param_desc->next = param_size;
+        cpp_tls_addr_type.ref->next = param_desc;
+        cpp_tls_addr_type.ref->f.func_args = 3;
     }
     cpp_tls_addr_tok =
         tok_alloc("__tcc_cpp_tls_addr",
@@ -5123,6 +5298,8 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_cur_func_class = NULL;
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
+    // N6-02: same stale-Sym protection for pending TLS ctor thunks.
+    dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
     /* Virtual MI (Phase 2): drop thunks a failed/aborted TU left pending so
        they cannot be emitted against stale Syms in the next compilation. */
     dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
@@ -5155,8 +5332,15 @@ ST_FUNC int tccgen_compile(TCCState* s1)
        emitting inside struct_decl could land mid-function for local classes. */
     cpp_finish_virtual_thunks(s1);
     cpp_finish_global_dyns(s1);
+    // N6-02: before gen_inline_functions for the same reason as the global
+    // ctor thunks - the thunk references the (possibly inline) constructor,
+    // which must be marked used before the inline bodies are emitted.
+    cpp_emit_tls_ctor_thunks(s1);
     gen_inline_functions(s1);
     cpp_finish_local_static_dtors(s1);
+    // N6-02 REVIEW FIX-1: release the ctor-thunk holders only now, after the
+    // inline bodies (the last TLS access sites of the TU) have been emitted.
+    cpp_release_tls_ctor_entries(s1);
     check_vstack();
     /* �|��P�ʂ̏��̏I��� */
 #if TCC_EH_FRAME
@@ -6029,16 +6213,116 @@ static Sym *cpp_alloc_tls_global(int v, CType *type)
     return sym;
 }
 
+// N6-02: find the constructor thunk registered for a thread_local object
+// (NULL for `thread_local int` and for classes without a constructor).
+static Sym *cpp_find_tls_ctor_wrapper(Sym *obj_sym)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_tls_ctors; i++) {
+        if (cpp_tls_ctors[i]->obj_sym == obj_sym)
+            return cpp_tls_ctors[i]->wrapper_sym;
+    }
+    return NULL;
+}
+
+// N6-02 fail-closed gate for `thread_local Class obj;`.  Accepted: a class
+// whose default construction is either trivial or a viable user default
+// constructor, and whose destruction is trivial.  Rejected with a
+// diagnostic (never silently mis-compiled):
+//  - any non-trivial destructor, explicit or inherited from members/bases:
+//    N6-02 has no per-thread dtor registry / thread-exit cleanup
+//    (N6_02_NONTRIVIAL_DTOR=NOT_IMPLEMENTED);
+//  - polymorphic classes: the vptr is written by decl-site code
+//    (cpp_init_local_vptr / cpp_init_global_vptr), not by the ctor, so a
+//    heap TLS object would keep a null vptr;
+//  - classes with constructors but no zero-argument overload;
+//  - implicit default construction that the local/global paths also reject.
+static void cpp_validate_tls_class(Sym *class_sym)
+{
+    if (!class_sym)
+        return;
+    if (cpp_class_requires_destruction(class_sym))
+        tcc_error("thread_local object with non-trivial destructor is unsupported in N6-02");
+    if (cpp_class_needs_vptr_init(class_sym))
+        tcc_error("thread_local polymorphic class object is unsupported in N6-02");
+    if (cpp_find_ctor_field(class_sym)) {
+        if (!cpp_class_has_default_ctor(class_sym))
+            tcc_error("thread_local object of class without default constructor is unsupported");
+        cpp_validate_explicit_ctor_members(class_sym);
+    } else {
+        cpp_validate_implicit_default_ctor(class_sym, 0);
+    }
+}
+
+// N6-02 REVIEW FIX-2: the runtime never receives the alignment, so any
+// object whose natural alignment (struct attribute included) or explicit
+// declaration attribute exceeds what calloc() guarantees is fail-closed.
+static void cpp_validate_tls_alignment(CType *type, AttributeDef *ad)
+{
+    CType obj_type;
+    int align;
+
+    obj_type = *type;
+    obj_type.t &= ~VT_CPP_TLS;
+    type_size(&obj_type, &align);
+    if (align > CPP_TLS_ALLOC_ALIGN)
+        tcc_error("thread_local object alignment %d exceeds the TLS runtime "
+                  "allocator guarantee (%d); over-aligned thread_local is "
+                  "unsupported in N6-02", align, CPP_TLS_ALLOC_ALIGN);
+    if (ad && ad->a.aligned)
+        tcc_error("thread_local with an alignment attribute is unsupported in N6-02");
+}
+
+// N6-02: register the deferred per-thread constructor thunk for
+// `thread_local Class obj;`.  Only the wrapper Sym is created here; its
+// body is emitted at TU end so that struct_decl / the enclosing decl loop
+// never emit code mid-declaration.
+static void cpp_register_tls_ctor(Sym *obj_sym, Sym *class_sym)
+{
+    CppTlsCtorEntry *ent;
+
+    if (!obj_sym || !class_sym || !cpp_find_ctor_field(class_sym))
+        return;
+    ent = tcc_malloc(sizeof *ent);
+    ent->obj_sym = obj_sym;
+    ent->class_sym = class_sym;
+    ent->wrapper_sym = cpp_new_static_function_sym(&cpp_tls_ctor_type);
+    dynarray_add(&cpp_tls_ctors, &nb_cpp_tls_ctors, ent);
+}
+
 static void cpp_push_tls_lvalue(Sym *sym)
 {
     Sym *resolver_sym;
+    Sym *ctor_wrapper;
     SValue ret;
+    CType obj_type;
+    CValue null_cv;
+    int size;
+    int align;
 
+    // The object type is the declared type minus the storage-class bit;
+    // VT_CPP_TLS must not leak into the lvalue the expression code sees.
+    obj_type = sym->type;
+    obj_type.t &= ~VT_CPP_TLS;
+    size = type_size(&obj_type, &align);
+    ctor_wrapper = cpp_find_tls_ctor_wrapper(sym);
     resolver_sym = external_global_sym(cpp_tls_addr_tok, &cpp_tls_addr_type);
     vpushsym(&cpp_tls_addr_type, resolver_sym);
     vpushsym(&cpp_tls_int_ptr_type, sym->cpp_tls_desc);
-    gfunc_call(1);
-    ret.type = cpp_tls_int_ptr_type;
+    vpushi(size);
+    // N6-02: the runtime constructs the object on first access of each
+    // thread; pass a null callback when there is nothing to construct
+    // (the storage is zero-filled by the runtime, matching N6-01 int).
+    if (ctor_wrapper) {
+        vpushsym(&cpp_tls_ctor_ptr_type, ctor_wrapper);
+    } else {
+        null_cv.i = 0;
+        vsetc(&cpp_tls_ctor_ptr_type, VT_CONST, &null_cv);
+    }
+    gfunc_call(3);
+    ret.type = obj_type;
+    mk_pointer(&ret.type);
     ret.c.i = 0;
     PUT_R_RET(&ret, ret.type.t);
     vsetc(&ret.type, ret.r, &ret.c);
@@ -11111,6 +11395,14 @@ do_decl:
                     skip(';');
                     continue;
                 }
+                // N6-02 REVIEW FIX-5: a bare `thread_local` member kept
+                // VT_CPP_TLS in the field type; 11f4831 only failed later with
+                // the generic "invalid type for 'value'" message (measured).
+                // Name the unsupported form here instead.  Class-scope TLS
+                // (`static thread_local`) is rejected in parse_btype; the
+                // non-static spelling is ill-formed C++ anyway.
+                if (btype.t & VT_CPP_TLS)
+                    tcc_error("thread_local class member is unsupported in N6-02 (namespace-scope thread_local only)");
                 while (1) {
                     if (flexible)
                         tcc_error("flexible array member cannot follow unnamed struct: %s",
@@ -11557,6 +11849,16 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             g = VT_CPP_TLS;
             goto storage;
         storage:
+            // N6-02 REVIEW FIX-5: `static thread_local` / `extern thread_local`
+            // are valid C++ but outside the N6-02 subset (function-local /
+            // class-static / extern TLS need per-thread guards and cross-TU
+            // descriptors that do not exist yet).  Name the unsupported form
+            // instead of the generic storage-class conflict message.
+            if (tcc_state->cpp
+                && ((g == VT_CPP_TLS && (t & (VT_STATIC | VT_EXTERN)))
+                    || ((g == VT_STATIC || g == VT_EXTERN) && (t & VT_CPP_TLS))))
+                tcc_error("%s thread_local is unsupported in N6-02 (namespace-scope thread_local only)",
+                          ((g | t) & VT_STATIC) ? "static" : "extern");
             if (t & (VT_EXTERN | VT_STATIC | VT_TYPEDEF | VT_CPP_TLS) & ~g)
                 tcc_error("�X�g���[�W�N���X�������w�肳��Ă��܂�");
             t |= g;
@@ -17608,10 +17910,15 @@ static int decl(int l)
             /* FEAT-4G: global `Foo g;` / `Foo g(args);` with ctor.  Kept
                separate from the local FEAT-4B/4F rewrite: mixing both in one
                block left global decls in a bad token state (hang). */
+            // N6-02: `thread_local Class obj;` must NOT take this startup
+            // (.init_array) construction path - its object lives in
+            // per-thread runtime storage and is constructed lazily by the
+            // TLS resolver, so it falls through to the VT_CPP_TLS branch.
             if (tcc_state->cpp
                 && l == VT_CONST
                 && (btype.t & VT_BTYPE) == VT_STRUCT
                 && btype.ref
+                && !(btype.t & VT_CPP_TLS)
                 && tok >= TOK_UIDENT
                 && cpp_find_ctor_field(btype.ref)) {
                 int saved_var_tok = tok;
@@ -18075,12 +18382,25 @@ static int decl(int l)
                         if (!tcc_state->cpp || l != VT_CONST)
                             tcc_error("thread_local is supported only at namespace scope");
                         if (has_init)
-                            tcc_error("thread_local initializers are unsupported in N6-01");
-                        if ((type.t & ~VT_CPP_TLS) != VT_INT)
-                            tcc_error("N6-01 supports only thread_local int");
+                            tcc_error("thread_local initializers are unsupported in N6-02");
+                        // N6-02: `thread_local int` (N6-01) or a plain class
+                        // type; the class must pass cpp_validate_tls_class
+                        // (fail-closed for destructors, polymorphism, ...).
+                        if ((type.t & ~VT_CPP_TLS) == VT_INT) {
+                            // N6-01 primitive storage
+                        } else if ((type.t & VT_BTYPE) == VT_STRUCT
+                                   && type.ref
+                                   && (type.t & ~(VT_CPP_TLS | VT_BTYPE)) == 0) {
+                            cpp_validate_tls_class(type.ref);
+                        } else {
+                            tcc_error("N6-02 supports only thread_local int or a plain class type");
+                        }
                         if (ad.alias_target)
                             tcc_error("thread_local aliases are unsupported");
+                        cpp_validate_tls_alignment(&type, &ad);
                         sym = cpp_alloc_tls_global(v, &type);
+                        if ((type.t & VT_BTYPE) == VT_STRUCT)
+                            cpp_register_tls_ctor(sym, type.ref);
                     }
                     else {
                     if (tcc_state->cpp
