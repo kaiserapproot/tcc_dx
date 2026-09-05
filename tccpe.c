@@ -353,6 +353,10 @@ struct pe_info {
     ADDR3264 imagebase;
     const char *start_symbol;
     DWORD start_addr;
+    // N6-03: RVA/size of the C++ TLS runtime's IMAGE_TLS_DIRECTORY
+    // (__tcc_cpp_tls_dir, tccelf.c).  0 when the TU has no thread_local.
+    DWORD tls_dir_addr;
+    DWORD tls_dir_size;
     DWORD imp_offs;
     DWORD imp_size;
     DWORD iat_offs;
@@ -687,6 +691,14 @@ static int pe_write(struct pe_info *pe)
         if (pe->exp_size) {
             pe_set_datadir(&pe_header, IMAGE_DIRECTORY_ENTRY_EXPORT,
                 pe->exp_offs, pe->exp_size);
+        }
+        // N6-03: publish the TLS directory so the loader delivers
+        // DLL_THREAD_DETACH to the runtime's thread-exit hook.  This is the
+        // only hook mechanism a normal EXE gets without a DLL; measured in
+        // N6-03-00 (MSVC probe, then tcc-built gates) before being wired here.
+        if (pe->tls_dir_size) {
+            pe_set_datadir(&pe_header, IMAGE_DIRECTORY_ENTRY_TLS,
+                pe->tls_dir_addr, pe->tls_dir_size);
         }
 
         memcpy(psh->Name, sh_name, umin(strlen(sh_name), sizeof psh->Name));
@@ -2026,6 +2038,17 @@ ST_FUNC int pe_output_file(TCCState *s1, const char *filename)
         relocate_sections(s1);
         pe.start_addr = (DWORD)
             (get_sym_addr(s1, pe.start_symbol, 1, 1) - pe.imagebase);
+        // N6-03: the injected TLS runtime (tccelf.c) defines
+        // __tcc_cpp_tls_dir, an IMAGE_TLS_DIRECTORY with pointer-sized
+        // fields (4*PTR_SIZE + 2*DWORD).  Absent in TUs without thread_local.
+        {
+            addr_t tls_dir;
+            tls_dir = get_sym_addr(s1, "__tcc_cpp_tls_dir", 0, 1);
+            if (tls_dir != (addr_t)-1) {
+                pe.tls_dir_addr = (DWORD)(tls_dir - pe.imagebase);
+                pe.tls_dir_size = 4 * PTR_SIZE + 2 * sizeof(DWORD);
+            }
+        }
         if (0 == s1->nb_errors)
             pe_write(&pe);
         dynarray_reset(&pe.sec_info, &pe.sec_count);

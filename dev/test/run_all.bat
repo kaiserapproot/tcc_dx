@@ -197,6 +197,14 @@ rem N6-02 review FIX-4: recursive initialization (direct / indirect) aborts.
 echo === a9\manual\n6_02_tls_recursive_init.bat ===
 call a9\manual\n6_02_tls_recursive_init.bat
 if errorlevel 1 set /a FAILED+=1
+rem N6-03: thread-exit hook (PE TLS callback, DLL_THREAD_DETACH) Authority in a tcc EXE.
+echo === a9\manual\n6_03_thread_exit_hook.bat ===
+call a9\manual\n6_03_thread_exit_hook.bat
+if errorlevel 1 set /a FAILED+=1
+rem N6-03: per-thread dtor registry foundation (construction order, isolation, no drain).
+echo === a9\manual\n6_03_dtor_registry.bat ===
+call a9\manual\n6_03_dtor_registry.bat
+if errorlevel 1 set /a FAILED+=1
 
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
