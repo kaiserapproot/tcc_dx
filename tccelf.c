@@ -1657,9 +1657,16 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "#include <windows.h>\n"
         "#include <stdlib.h>\n"
         "typedef DWORD tcc_cpp_tls_key_t;\n"
+        // N6-02: storage is an opaque object of the compiler-supplied size;
+        // `state` tracks per-thread construction so a constructor that
+        // re-enters its own thread_local object is caught (fail-closed abort)
+        // instead of being constructed twice or recursing forever.
+        // 0 = never used, 1 = constructor running, 2 = constructed.
+        "typedef void (__cdecl *tcc_cpp_tls_ctor_t)(void *);\n"
         "typedef struct tcc_cpp_tls_entry {\n"
         "    int *descriptor;\n"
-        "    int *storage;\n"
+        "    void *storage;\n"
+        "    int state;\n"
         "} tcc_cpp_tls_entry;\n"
         "typedef struct tcc_cpp_tls_tcb {\n"
         "    unsigned count;\n"
@@ -1703,16 +1710,30 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    }\n"
         "    return tcb;\n"
         "}\n"
-        "int *__cdecl __tcc_cpp_tls_addr(int *descriptor)\n"
+        // N6-02 contract (matches cpp_tls_addr_type in tccgen.c):
+        // - first access on a thread allocates `size` zero-filled bytes and,
+        //   when `ctor` is non-null, runs it exactly once on that thread;
+        // - later accesses on the same thread return the same address;
+        // - the entry is registered BEFORE the ctor runs so a nested access
+        //   to the same object from inside the ctor is detected (state 1)
+        //   and aborts instead of allocating/constructing a second object;
+        // - the ctor may touch OTHER thread_local objects, which can realloc
+        //   tcb->entries, so the entry is re-addressed by index afterwards.
+        "void *__cdecl __tcc_cpp_tls_addr(int *descriptor, unsigned size,\n"
+        "                                 tcc_cpp_tls_ctor_t ctor)\n"
         "{\n"
-        "    unsigned i, new_capacity;\n"
-        "    int *storage;\n"
+        "    unsigned i, new_capacity, index;\n"
+        "    void *storage;\n"
         "    tcc_cpp_tls_tcb *tcb;\n"
         "    tcc_cpp_tls_entry *entries;\n"
         "    tcb = tcc_cpp_tls_get_tcb();\n"
-        "    for (i = 0; i < tcb->count; ++i)\n"
-        "        if (tcb->entries[i].descriptor == descriptor)\n"
+        "    for (i = 0; i < tcb->count; ++i) {\n"
+        "        if (tcb->entries[i].descriptor == descriptor) {\n"
+        "            if (tcb->entries[i].state != 2)\n"
+        "                abort();\n"
         "            return tcb->entries[i].storage;\n"
+        "        }\n"
+        "    }\n"
         "    if (tcb->count == tcb->capacity) {\n"
         "        new_capacity = tcb->capacity ? tcb->capacity * 2 : 8;\n"
         "        entries = (tcc_cpp_tls_entry *)realloc(tcb->entries,\n"
@@ -1722,13 +1743,20 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "        tcb->entries = entries;\n"
         "        tcb->capacity = new_capacity;\n"
         "    }\n"
-        "    storage = (int *)malloc(sizeof(int));\n"
+        "    if (size == 0)\n"
+        "        size = 1;\n"
+        "    storage = calloc(1, size);\n"
         "    if (!storage)\n"
         "        abort();\n"
-        "    *storage = 0;\n"
-        "    tcb->entries[tcb->count].descriptor = descriptor;\n"
-        "    tcb->entries[tcb->count].storage = storage;\n"
+        "    index = tcb->count;\n"
+        "    tcb->entries[index].descriptor = descriptor;\n"
+        "    tcb->entries[index].storage = storage;\n"
+        "    tcb->entries[index].state = ctor ? 1 : 2;\n"
         "    ++tcb->count;\n"
+        "    if (ctor) {\n"
+        "        ctor(storage);\n"
+        "        tcb->entries[index].state = 2;\n"
+        "    }\n"
         "    return storage;\n"
         "}\n",
         0);
