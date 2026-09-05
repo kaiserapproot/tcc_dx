@@ -175,6 +175,29 @@ echo === a9\manual\n6_01_tls_concurrent.bat ===
 call a9\manual\n6_01_tls_concurrent.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem === N6-02: per-thread lazy non-trivial default constructor gate ===
+echo === a9\manual\n6_02_tls_lazy_ctor.bat ===
+call a9\manual\n6_02_tls_lazy_ctor.bat
+if errorlevel 1 set /a FAILED+=1
+rem N6-02 fail-closed: non-trivial dtor / polymorphic / no default ctor /
+rem implicit member ctor / non-plain type must be rejected with a diagnostic.
+echo === a9\manual\n6_02_tls_fail_closed.bat ===
+call a9\manual\n6_02_tls_fail_closed.bat
+if errorlevel 1 set /a FAILED+=1
+rem N6-02 review FIX-1: TLS ctor holders must survive gen_inline_functions
+rem (first touch from deferred inline bodies / cold nested TLS ctor).
+echo === a9\manual\n6_02_tls_inline_first_touch.bat ===
+call a9\manual\n6_02_tls_inline_first_touch.bat
+if errorlevel 1 set /a FAILED+=1
+rem N6-02 review FIX-2: alignment authority of the calloc-backed TLS storage.
+echo === a9\manual\n6_02_tls_alignment.bat ===
+call a9\manual\n6_02_tls_alignment.bat
+if errorlevel 1 set /a FAILED+=1
+rem N6-02 review FIX-4: recursive initialization (direct / indirect) aborts.
+echo === a9\manual\n6_02_tls_recursive_init.bat ===
+call a9\manual\n6_02_tls_recursive_init.bat
+if errorlevel 1 set /a FAILED+=1
+
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
 rem Real-world sources that are NOT expected to compile yet - only the

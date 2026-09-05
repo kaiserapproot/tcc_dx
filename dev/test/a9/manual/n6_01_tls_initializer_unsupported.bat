@@ -15,7 +15,8 @@ if "!errorlevel!"=="0" (
   popd
   exit /b 1
 )
-findstr /c:"thread_local initializers are unsupported in N6-01" "%LOG%" >nul
+rem N6-02 renamed the stage suffix of the diagnostic; match the stable prefix.
+findstr /c:"thread_local initializers are unsupported" "%LOG%" >nul
 if errorlevel 1 (
   type "%LOG%"
   echo N6_01_TLS_INITIALIZER_FAIL_CLOSED=WRONG_DIAGNOSTIC
