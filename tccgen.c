@@ -697,6 +697,9 @@ static CType cpp_local_static_dtor_type;
 static CType cpp_local_static_dtor_ptr_type;
 static CType cpp_local_static_register_type;
 static int cpp_local_static_register_tok;
+static CType cpp_tls_int_ptr_type;
+static CType cpp_tls_addr_type;
+static int cpp_tls_addr_tok;
 
 // C3 (crash-prevention plan): recursion guards.  Depth is measured by
 // STACK ADDRESS distance from the anchor tccgen_compile plants, not by a
@@ -5063,6 +5066,22 @@ ST_FUNC void tccgen_init(TCCState* s1)
     mk_pointer(&cpp_voidp_type);
     cpp_void_type.t = VT_VOID;
     cpp_void_type.ref = NULL;
+    cpp_tls_int_ptr_type = int_type;
+    mk_pointer(&cpp_tls_int_ptr_type);
+    cpp_tls_addr_type.t = VT_FUNC;
+    cpp_tls_addr_type.ref =
+        sym_push(SYM_FIELD, &cpp_tls_int_ptr_type, 0, 0);
+    cpp_tls_addr_type.ref->f.func_call = FUNC_CDECL;
+    cpp_tls_addr_type.ref->f.func_type = FUNC_NEW;
+    {
+        Sym *param;
+        param = sym_push(SYM_FIELD, &cpp_tls_int_ptr_type, 0, 0);
+        cpp_tls_addr_type.ref->next = param;
+        cpp_tls_addr_type.ref->f.func_args = 1;
+    }
+    cpp_tls_addr_tok =
+        tok_alloc("__tcc_cpp_tls_addr",
+                  strlen("__tcc_cpp_tls_addr"))->tok;
     cpp_malloc_type.t = VT_FUNC;
     cpp_malloc_type.ref = sym_push(SYM_FIELD, &cpp_voidp_type, 0, 0);
     cpp_malloc_type.ref->f.func_call = FUNC_CDECL;
@@ -5995,6 +6014,36 @@ ST_FUNC Sym* external_helper_sym(int v)
 ST_FUNC void vpush_helper_func(int v)
 {
     vpushsym(&func_old_type, external_helper_sym(v));
+}
+
+static Sym *cpp_alloc_tls_global(int v, CType *type)
+{
+    size_t offset;
+    Sym *desc;
+    Sym *sym;
+
+    offset = section_add(data_section, sizeof(int), sizeof(int));
+    desc = get_sym_ref(&int_type, data_section, offset, sizeof(int));
+    sym = sym_push(v, type, VT_CONST, 0);
+    sym->cpp_tls_desc = desc;
+    return sym;
+}
+
+static void cpp_push_tls_lvalue(Sym *sym)
+{
+    Sym *resolver_sym;
+    SValue ret;
+
+    resolver_sym = external_global_sym(cpp_tls_addr_tok, &cpp_tls_addr_type);
+    vpushsym(&cpp_tls_addr_type, resolver_sym);
+    vpushsym(&cpp_tls_int_ptr_type, sym->cpp_tls_desc);
+    gfunc_call(1);
+    ret.type = cpp_tls_int_ptr_type;
+    ret.c.i = 0;
+    PUT_R_RET(&ret, ret.type.t);
+    vsetc(&ret.type, ret.r, &ret.c);
+    indir();
+    tcc_state->cpp_tls_runtime_needed = 1;
 }
 
 /* �V���{���������}�[�W���� */
@@ -11502,8 +11551,13 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
         case TOK_TYPEDEF:
             g = VT_TYPEDEF;
             goto storage;
+        case TOK_CPP_THREAD_LOCAL:
+            if (!tcc_state->cpp)
+                tcc_error("thread_local is C++ only");
+            g = VT_CPP_TLS;
+            goto storage;
         storage:
-            if (t & (VT_EXTERN | VT_STATIC | VT_TYPEDEF) & ~g)
+            if (t & (VT_EXTERN | VT_STATIC | VT_TYPEDEF | VT_CPP_TLS) & ~g)
                 tcc_error("�X�g���[�W�N���X�������w�肳��Ă��܂�");
             t |= g;
             next();
@@ -13975,6 +14029,10 @@ tok_next:
             if (!s)
                 tcc_error("'%s' is not declared in global scope",
                           get_tok_str(t, NULL));
+        }
+        if (s && s->cpp_tls_desc) {
+            cpp_push_tls_lvalue(s);
+            break;
         }
         if (!s || IS_ASM_SYM(s)) {
             const char* name = get_tok_str(t, NULL);
@@ -18013,6 +18071,18 @@ static int decl(int l)
                         r |= VT_LVAL;
                     }
                     has_init = (tok == '=');
+                    if (type.t & VT_CPP_TLS) {
+                        if (!tcc_state->cpp || l != VT_CONST)
+                            tcc_error("thread_local is supported only at namespace scope");
+                        if (has_init)
+                            tcc_error("thread_local initializers are unsupported in N6-01");
+                        if ((type.t & ~VT_CPP_TLS) != VT_INT)
+                            tcc_error("N6-01 supports only thread_local int");
+                        if (ad.alias_target)
+                            tcc_error("thread_local aliases are unsupported");
+                        sym = cpp_alloc_tls_global(v, &type);
+                    }
+                    else {
                     if (tcc_state->cpp
                         && l == VT_LOCAL
                         && (type.t & VT_STATIC)
@@ -18114,6 +18184,8 @@ static int decl(int l)
                                                          static_guard_skip,
                                                          static_dtor_wrapper);
                         }
+                    }
+
                     }
 
                     if (ad.alias_target && l == VT_CONST) {
