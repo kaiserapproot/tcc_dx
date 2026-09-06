@@ -10,7 +10,9 @@
 // Measurement method: each worker captures its TCB pointer with
 // __tcc_cpp_tls_n6_current_tcb() while alive; after WaitForSingleObject the
 // main thread reads that TCB back with __tcc_cpp_tls_n6_tcb_inspect().  This
-// is valid only because N6-03 never frees a TCB (deferred to N6-04).
+// is valid only because N6-04A never frees a TCB (memory reclaim = N6-04B).
+// N6-04: cleanup_state is now 0 RUNNING / 1 DRAINING / 2 DONE, so after join
+// the expected state is 2 (P has no destructor: nothing to drain).
 //
 // Measured:
 //   N6_03_THREAD_RETURN_HOOK     thread proc returns normally
@@ -89,7 +91,7 @@ static void check_tcb(const char *name, WorkerArg *a)
     __tcc_cpp_tls_n6_tcb_inspect(a->tcb, &owner, &cleanup_tid, &hooks, &state, &dtors);
     ok = (a->tcb != 0 && a->value_seen == 123
           && a->hook_count_while_alive == 0 && a->cleanup_state_while_alive == 0
-          && hooks == 1 && state == 1
+          && hooks == 1 && state == 2
           && owner == a->tid && cleanup_tid == a->tid && dtors == 0);
     printf("%s: tcb=%s alive{hook_count=%u state=%d} joined{hook_count=%u state=%d "
            "owner_tid_eq_worker=%s cleanup_tid_eq_worker=%s dtor_count=%u} value=%d -> %s\n",
