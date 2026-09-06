@@ -1661,7 +1661,9 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // `state` tracks per-thread construction so a constructor that
         // re-enters its own thread_local object is caught (fail-closed abort)
         // instead of being constructed twice or recursing forever.
-        // 0 = never used, 1 = constructor running, 2 = constructed.
+        // 0 = never used, 1 = constructor running, 2 = constructed,
+        // 3 = destroyed (N6-04: set after the dtor returned during the
+        // thread-exit drain; a later access on that thread is fail-closed).
         "typedef void (__cdecl *tcc_cpp_tls_ctor_t)(void *);\n"
         "typedef void (__cdecl *tcc_cpp_tls_dtor_t)(void *);\n"
         "typedef struct tcc_cpp_tls_entry {\n"
@@ -1674,8 +1676,8 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // `dtor` is the L4 code address of the destructor thunk.  Nothing in
         // the runtime ever stores a compiler Sym pointer
         // (RUNTIME_RETAINS_COMPILER_SYM_POINTER=NO).  Entries are appended in
-        // actual construction order; N6-03 only records them - the LIFO drain
-        // is N6-04.
+        // actual construction order and drained LIFO by
+        // tcc_cpp_tls_thread_cleanup on the owning thread's exit (N6-04).
         "typedef struct tcc_cpp_tls_dtor_entry {\n"
         "    void *object;\n"
         "    tcc_cpp_tls_dtor_t dtor;\n"
@@ -1686,11 +1688,15 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         //   hook_count    - DLL_THREAD_DETACH deliveries seen for this TCB,
         //   cleanup_tid   - GetCurrentThreadId() inside the hook (must equal
         //                   owner_tid: the hook runs on the exiting thread),
-        //   cleanup_state - 0 live / 1 thread-exit hook entered.  Once set,
-        //                   a first-time initialization or a new dtor
-        //                   registration on this thread is fail-closed
+        //   cleanup_state - N6-04 cleanup state machine:
+        //                   0 RUNNING  / 1 DRAINING (hook entered, dtors
+        //                   running) / 2 DONE.  Once non-zero, a first-time
+        //                   initialization or a new dtor registration on this
+        //                   thread is fail-closed
         //                   (SPEC: N6_TLS_FIRST_INITIALIZATION_DURING_CLEANUP /
-        //                   N6_DTOR_REGISTRATION_AFTER_CLEANUP_STARTED).
+        //                   N6_DTOR_REGISTRATION_AFTER_CLEANUP_STARTED) and a
+        //                   second hook delivery never starts a second drain
+        //                   (N6_CLEANUP_ALREADY_STARTED=NO_SECOND_DTOR_PASS).
         // All hook state lives in the TCB (HOOK_STATE_OWNER=PER_THREAD_TCB);
         // the callback path has no process-global log or lock (N6-03 review).
         "typedef struct tcc_cpp_tls_tcb {\n"
@@ -1758,17 +1764,48 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // per thread.  Measured first with an MSVC-built probe (N6-03-00) and
         // then with tcc-built EXEs (n6_03_thread_exit_hook.cpp).  The
         // thread's TlsGetValue slot is still intact here, so the TCB is
-        // reachable.  N6-03 only marks the TCB (hook_count / cleanup_tid /
-        // cleanup_state); the callback path takes no lock, allocates and
-        // frees nothing and calls no user destructor (N6-04).  Threads that
-        // never touched TLS have no TCB and are ignored.  Main-thread
-        // termination (main return / exit / ExitProcess) is N6-05;
-        // TerminateThread is out of scope.
+        // reachable.  Threads that never touched TLS have no TCB and are
+        // ignored.  Main-thread termination (main return / exit /
+        // ExitProcess) is N6-05; TerminateThread is out of scope.
+        //
+        // N6-04: the hook drains the thread's own registry LIFO
+        // (DTOR_ORDER=REVERSE_ACTUAL_CONSTRUCTION_ORDER) on the exiting
+        // thread itself.  Each entry is removed BEFORE its destructor is
+        // called (DRAIN_POP_BEFORE_CALLBACK=YES), so a re-entrant hook or a
+        // destructor that reaches the runtime can never run the same
+        // destructor twice.  hook_count is bumped for every delivery, but a
+        // delivery that finds cleanup_state != 0 never starts a second pass.
+        // Destructors run in the Windows loader notification context
+        // (N6_04_CONTEXT_RESTRICTION=WINDOWS_LOADER_NOTIFICATION_CONTEXT):
+        // the runtime itself takes no lock, allocates and frees nothing here
+        // (memory reclaim is a separate gate, N6-04B), and makes no claim
+        // about arbitrary Win32 calls inside user destructors.
+        // Already-constructed objects stay readable during the drain
+        // (EXISTING_TLS_ACCESS_DURING_DRAIN=SUPPORTED); after an object's
+        // destructor returned its entry is marked destroyed (state 3) so a
+        // later access on this thread aborts instead of handing out a dead
+        // object.
         "static void __cdecl tcc_cpp_tls_thread_cleanup(tcc_cpp_tls_tcb *tcb)\n"
         "{\n"
+        "    tcc_cpp_tls_dtor_entry entry;\n"
+        "    unsigned i;\n"
+        "    ++tcb->hook_count;\n"
+        "    if (tcb->cleanup_state != 0)\n"
+        "        return;\n"
         "    tcb->cleanup_state = 1;\n"
         "    tcb->cleanup_tid = GetCurrentThreadId();\n"
-        "    ++tcb->hook_count;\n"
+        "    while (tcb->dtor_count != 0) {\n"
+        "        entry = tcb->dtors[tcb->dtor_count - 1];\n"
+        "        --tcb->dtor_count;\n"
+        "        entry.dtor(entry.object);\n"
+        "        for (i = 0; i < tcb->count; ++i) {\n"
+        "            if (tcb->entries[i].storage == entry.object) {\n"
+        "                tcb->entries[i].state = 3;\n"
+        "                break;\n"
+        "            }\n"
+        "        }\n"
+        "    }\n"
+        "    tcb->cleanup_state = 2;\n"
         "}\n"
         "static void NTAPI tcc_cpp_tls_pe_callback(PVOID h, DWORD reason, PVOID pv)\n"
         "{\n"
@@ -1829,9 +1866,10 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "}\n"
         // Reads the hook state of a TCB whose pointer the test captured with
         // __tcc_cpp_tls_n6_current_tcb() while its thread was alive.  Valid
-        // after the thread has been joined only because N6-03 never frees a
-        // TCB (TLS_TCB_CLEANUP=DEFERRED_BY_SPEC_N6_04); N6-04 must re-derive
-        // this gate from destructor side effects instead.
+        // after the thread has been joined only because N6-04A never frees a
+        // TCB (memory reclaim is the separate N6-04B gate); the N6-04 dtor
+        // gates are derived from destructor side effects, this is only the
+        // hook-state cross-check.
         "void __cdecl __tcc_cpp_tls_n6_tcb_inspect(void *tcb_ptr, DWORD *owner_tid,\n"
         "                                          DWORD *cleanup_tid,\n"
         "                                          unsigned *hook_count,\n"
@@ -1859,11 +1897,12 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         //   and aborts instead of allocating/constructing a second object;
         // - the ctor may touch OTHER thread_local objects, which can realloc
         //   tcb->entries, so the entry is re-addressed by index afterwards.
-        // N6-03: `dtor` (null from the frontend until N6-04) is appended to the
-        // per-thread registry only after the constructor has returned, i.e.
-        // in the INITIALIZED state and in actual construction order.  Nothing
-        // is registered while the entry is INITIALIZING, and the registry is
-        // never drained here.
+        // N6-03/N6-04: `dtor` (the relocated address of the per-thread dtor
+        // thunk, or null) is appended to the per-thread registry only after
+        // the constructor has returned, i.e. in the INITIALIZED state and in
+        // actual construction order.  Nothing is registered while the entry
+        // is INITIALIZING, and the registry is never drained here (only by
+        // tcc_cpp_tls_thread_cleanup on thread exit).
         "void *__cdecl __tcc_cpp_tls_addr(int *descriptor, unsigned size,\n"
         "                                 tcc_cpp_tls_ctor_t ctor,\n"
         "                                 tcc_cpp_tls_dtor_t dtor)\n"
@@ -1874,6 +1913,11 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    tcc_cpp_tls_entry *entries;\n"
         "    tcc_cpp_tls_dtor_entry *dtors;\n"
         "    tcb = tcc_cpp_tls_get_tcb();\n"
+        // An existing entry is handed out only in the INITIALIZED state:
+        // INITIALIZING (recursive init) and, since N6-04, DESTROYED (access
+        // after this thread's drain already ran the dtor) both abort.
+        // Constructed-and-not-yet-destroyed objects stay accessible while
+        // the drain is running (EXISTING_TLS_ACCESS_DURING_DRAIN=SUPPORTED).
         "    for (i = 0; i < tcb->count; ++i) {\n"
         "        if (tcb->entries[i].descriptor == descriptor) {\n"
         "            if (tcb->entries[i].state != 2)\n"

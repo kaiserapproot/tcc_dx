@@ -2304,6 +2304,23 @@ typedef struct CppTlsCtorEntry {
 static CppTlsCtorEntry **cpp_tls_ctors;
 static int nb_cpp_tls_ctors;
 
+// N6-04: one entry per `thread_local Class obj;` whose class has a
+// user-declared destructor.  The wrapper is a `void (void *obj)` thunk
+// emitted at TU end (cpp_emit_tls_dtor_thunks) and passed to
+// __tcc_cpp_tls_addr at every access site; the runtime appends its
+// relocated code address to the per-thread registry after the ctor has
+// returned and calls it on the owning thread's exit (LIFO).  Same L2
+// holder lifetime as CppTlsCtorEntry (released by
+// cpp_release_tls_ctor_entries after gen_inline_functions).
+typedef struct CppTlsDtorEntry {
+    Sym *obj_sym;
+    Sym *class_sym;
+    Sym *wrapper_sym;
+} CppTlsDtorEntry;
+
+static CppTlsDtorEntry **cpp_tls_dtors;
+static int nb_cpp_tls_dtors;
+
 static Sym *cpp_new_static_function_sym(CType *type)
 {
     Sym *sym;
@@ -2618,16 +2635,16 @@ static Sym *cpp_find_global_dtor_wrapper(Sym *obj_sym)
     return NULL;
 }
 
-/* returns the gfunc_call arg count so the thunk can size its scratch
-   area (0 when the class has no dtor and no call was emitted). */
-static int cpp_emit_global_dtor_call(Sym *obj_sym)
+// N6-04: the dtor-call emitter is split like cpp_emit_ctor_call_at so the
+// object address can come from the TLS dtor thunk's incoming `void *`
+// parameter instead of a global symbol.  `obj_addr_in` must already be a
+// pointer-typed SValue; forming it emits no code here.
+static int cpp_emit_dtor_call_at(Sym *class_sym, SValue *obj_addr_in)
 {
-    Sym *class_sym;
     Sym *dtor_field;
     Sym *dtor_global;
     CType obj_type;
 
-    class_sym = obj_sym->type.ref;
     dtor_field = cpp_find_dtor_field(class_sym);
     if (!dtor_field)
         return 0;
@@ -2637,14 +2654,31 @@ static int cpp_emit_global_dtor_call(Sym *obj_sym)
     vset(&dtor_global->type, dtor_global->r | VT_SYM, 0);
     vtop->sym = dtor_global;
     vtop->r &= ~VT_LVAL;
+    vpushv(obj_addr_in);
+    gfunc_call(1);
+    return 1;
+}
+
+/* returns the gfunc_call arg count so the thunk can size its scratch
+   area (0 when the class has no dtor and no call was emitted). */
+static int cpp_emit_global_dtor_call(Sym *obj_sym)
+{
+    Sym *class_sym;
+    SValue obj_addr;
+
+    class_sym = obj_sym->type.ref;
+    if (!cpp_find_dtor_field(class_sym))
+        return 0;
     /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
-       section offset; passing it skewed the object address by c bytes. */
+       section offset; passing it skewed the object address by c bytes.
+       Forming the address is pure vstack bookkeeping (VT_CONST|VT_SYM). */
     vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
     vtop->sym = obj_sym;
     gaddrof();
     mk_pointer(&vtop->type);    /* BUG-16: see cpp_emit_local_dtor. */
-    gfunc_call(1);
-    return 1;
+    obj_addr = *vtop;
+    vpop();
+    return cpp_emit_dtor_call_at(class_sym, &obj_addr);
 }
 
 /* returns the gfunc_call arg count (this + ctor args) so the thunk can
@@ -2810,7 +2844,10 @@ static void cpp_emit_dtor_thunk(Sym *wrapper, Sym *obj_sym)
 // cpp_emit_dtor_thunk (gfunc_prolog/epilog are avoided for the same
 // reasons); the only addition is homing the incoming pointer argument in
 // a frame slot so gfunc_call can load it as an ordinary VT_LOCAL lvalue.
-static void cpp_emit_tls_ctor_thunk(Sym *wrapper, Sym *class_sym)
+// N6-04: with is_dtor != 0 the same frame calls the class destructor
+// instead (the per-thread registry hands the thunk the L6 storage address
+// of the object constructed on that thread).
+static void cpp_emit_tls_thunk(Sym *wrapper, Sym *class_sym, int is_dtor)
 {
     int thunk_start;
     int sub_imm_off;
@@ -2849,7 +2886,10 @@ static void cpp_emit_tls_ctor_thunk(Sym *wrapper, Sym *class_sym)
     obj_addr = *vtop;
     vpop();
 
-    nb_call_args = cpp_emit_ctor_call_at(class_sym, &obj_addr, NULL);
+    if (is_dtor)
+        nb_call_args = cpp_emit_dtor_call_at(class_sym, &obj_addr);
+    else
+        nb_call_args = cpp_emit_ctor_call_at(class_sym, &obj_addr, NULL);
 
 #if PTR_SIZE == 8
     // gfunc_call stages stack args at [rsp+arg*8] with a 32-byte shadow
@@ -2890,21 +2930,41 @@ static void cpp_emit_tls_ctor_thunks(TCCState *s1)
     nocode_wanted = 0;
     cur_text_section = text_section;
     for (i = 0; i < nb_cpp_tls_ctors; i++)
-        cpp_emit_tls_ctor_thunk(cpp_tls_ctors[i]->wrapper_sym,
-                                cpp_tls_ctors[i]->class_sym);
+        cpp_emit_tls_thunk(cpp_tls_ctors[i]->wrapper_sym,
+                           cpp_tls_ctors[i]->class_sym, 0);
     nocode_wanted = saved_nocode;
 }
 
-// Last reader of cpp_tls_ctors in a TU.  Called only after
+// N6-04: destructor thunks, emitted at the same point as the ctor thunks
+// (before gen_inline_functions so an inline destructor gets marked used;
+// holders released only by cpp_release_tls_ctor_entries afterwards).
+static void cpp_emit_tls_dtor_thunks(TCCState *s1)
+{
+    int i;
+    int saved_nocode;
+
+    if (!s1->cpp || nb_cpp_tls_dtors == 0)
+        return;
+    saved_nocode = nocode_wanted;
+    nocode_wanted = 0;
+    cur_text_section = text_section;
+    for (i = 0; i < nb_cpp_tls_dtors; i++)
+        cpp_emit_tls_thunk(cpp_tls_dtors[i]->wrapper_sym,
+                           cpp_tls_dtors[i]->class_sym, 1);
+    nocode_wanted = saved_nocode;
+}
+
+// Last reader of cpp_tls_ctors / cpp_tls_dtors in a TU.  Called only after
 // gen_inline_functions() has drained all deferred bodies, i.e. after the
 // last possible cpp_push_tls_lvalue() of the TU.  The wrapper Syms
 // themselves stay on global_stack until tccgen_finish(); only the holder
-// array is released here.
+// arrays are released here.
 static void cpp_release_tls_ctor_entries(TCCState *s1)
 {
     if (!s1->cpp)
         return;
     dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
+    dynarray_reset(&cpp_tls_dtors, &nb_cpp_tls_dtors);
 }
 
 static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
@@ -5309,6 +5369,8 @@ ST_FUNC void tccgen_init(TCCState* s1)
     dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
     // N6-02: same stale-Sym protection for pending TLS ctor thunks.
     dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
+    // N6-04: and for pending TLS dtor thunks.
+    dynarray_reset(&cpp_tls_dtors, &nb_cpp_tls_dtors);
     /* Virtual MI (Phase 2): drop thunks a failed/aborted TU left pending so
        they cannot be emitted against stale Syms in the next compilation. */
     dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
@@ -5345,10 +5407,12 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     // ctor thunks - the thunk references the (possibly inline) constructor,
     // which must be marked used before the inline bodies are emitted.
     cpp_emit_tls_ctor_thunks(s1);
+    // N6-04: dtor thunks follow the same ordering constraint.
+    cpp_emit_tls_dtor_thunks(s1);
     gen_inline_functions(s1);
     cpp_finish_local_static_dtors(s1);
-    // N6-02 REVIEW FIX-1: release the ctor-thunk holders only now, after the
-    // inline bodies (the last TLS access sites of the TU) have been emitted.
+    // N6-02 REVIEW FIX-1: release the ctor/dtor-thunk holders only now, after
+    // the inline bodies (the last TLS access sites of the TU) have been emitted.
     cpp_release_tls_ctor_entries(s1);
     check_vstack();
     /* �|��P�ʂ̏��̏I��� */
@@ -6235,13 +6299,27 @@ static Sym *cpp_find_tls_ctor_wrapper(Sym *obj_sym)
     return NULL;
 }
 
+// N6-04: find the destructor thunk registered for a thread_local object
+// (NULL when the class needs no destruction).
+static Sym *cpp_find_tls_dtor_wrapper(Sym *obj_sym)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_tls_dtors; i++) {
+        if (cpp_tls_dtors[i]->obj_sym == obj_sym)
+            return cpp_tls_dtors[i]->wrapper_sym;
+    }
+    return NULL;
+}
+
 // N6-02 fail-closed gate for `thread_local Class obj;`.  Accepted: a class
 // whose default construction is either trivial or a viable user default
-// constructor, and whose destruction is trivial.  Rejected with a
-// diagnostic (never silently mis-compiled):
-//  - any non-trivial destructor, explicit or inherited from members/bases:
-//    N6-02 has no per-thread dtor registry / thread-exit cleanup
-//    (N6_02_NONTRIVIAL_DTOR=NOT_IMPLEMENTED);
+// constructor.  Rejected with a diagnostic (never silently mis-compiled):
+//  - N6-04: destruction is accepted only through a user-declared destructor
+//    (the per-thread registry runs it on the owning thread's exit).  A
+//    class whose destruction is non-trivial only via members/bases has no
+//    destructor thunk target and stays fail-closed, like the global path
+//    (cpp_validate_implicit_dtor);
 //  - polymorphic classes: the vptr is written by decl-site code
 //    (cpp_init_local_vptr / cpp_init_global_vptr), not by the ctor, so a
 //    heap TLS object would keep a null vptr;
@@ -6251,8 +6329,11 @@ static void cpp_validate_tls_class(Sym *class_sym)
 {
     if (!class_sym)
         return;
-    if (cpp_class_requires_destruction(class_sym))
-        tcc_error("thread_local object with non-trivial destructor is unsupported in N6-02");
+    if (cpp_class_requires_destruction(class_sym)) {
+        if (!cpp_find_dtor_field(class_sym))
+            tcc_error("thread_local object with implicit non-trivial destructor is unsupported in N6-04");
+        cpp_validate_explicit_dtor_members(class_sym);
+    }
     if (cpp_class_needs_vptr_init(class_sym))
         tcc_error("thread_local polymorphic class object is unsupported in N6-02");
     if (cpp_find_ctor_field(class_sym)) {
@@ -6300,10 +6381,29 @@ static void cpp_register_tls_ctor(Sym *obj_sym, Sym *class_sym)
     dynarray_add(&cpp_tls_ctors, &nb_cpp_tls_ctors, ent);
 }
 
+// N6-04: register the deferred per-thread destructor thunk for
+// `thread_local Class obj;` whose class declares a destructor
+// (cpp_validate_tls_class has already rejected implicit-only destruction).
+// The thunk has the same `void (void *)` shape as the ctor thunk, so the
+// ctor function type is reused for its Sym.
+static void cpp_register_tls_dtor(Sym *obj_sym, Sym *class_sym)
+{
+    CppTlsDtorEntry *ent;
+
+    if (!obj_sym || !class_sym || !cpp_find_dtor_field(class_sym))
+        return;
+    ent = tcc_malloc(sizeof *ent);
+    ent->obj_sym = obj_sym;
+    ent->class_sym = class_sym;
+    ent->wrapper_sym = cpp_new_static_function_sym(&cpp_tls_ctor_type);
+    dynarray_add(&cpp_tls_dtors, &nb_cpp_tls_dtors, ent);
+}
+
 static void cpp_push_tls_lvalue(Sym *sym)
 {
     Sym *resolver_sym;
     Sym *ctor_wrapper;
+    Sym *dtor_wrapper;
     SValue ret;
     CType obj_type;
     CValue null_cv;
@@ -6316,6 +6416,7 @@ static void cpp_push_tls_lvalue(Sym *sym)
     obj_type.t &= ~VT_CPP_TLS;
     size = type_size(&obj_type, &align);
     ctor_wrapper = cpp_find_tls_ctor_wrapper(sym);
+    dtor_wrapper = cpp_find_tls_dtor_wrapper(sym);
     resolver_sym = external_global_sym(cpp_tls_addr_tok, &cpp_tls_addr_type);
     vpushsym(&cpp_tls_addr_type, resolver_sym);
     vpushsym(&cpp_tls_int_ptr_type, sym->cpp_tls_desc);
@@ -6329,12 +6430,15 @@ static void cpp_push_tls_lvalue(Sym *sym)
         null_cv.i = 0;
         vsetc(&cpp_tls_ctor_ptr_type, VT_CONST, &null_cv);
     }
-    // N6-03: destructor callback.  Always null from the frontend: classes
-    // that need destruction are still fail-closed in cpp_validate_tls_class,
-    // so no object reaches the runtime with something to register.  N6-04
-    // will replace this with the dtor thunk once destruction is implemented.
-    null_cv.i = 0;
-    vsetc(&cpp_tls_ctor_ptr_type, VT_CONST, &null_cv);
+    // N6-04: destructor callback.  The runtime appends it to the calling
+    // thread's registry only after the constructor has returned and runs it
+    // on that thread's exit; null when the class needs no destruction.
+    if (dtor_wrapper) {
+        vpushsym(&cpp_tls_ctor_ptr_type, dtor_wrapper);
+    } else {
+        null_cv.i = 0;
+        vsetc(&cpp_tls_ctor_ptr_type, VT_CONST, &null_cv);
+    }
     gfunc_call(4);
     ret.type = obj_type;
     mk_pointer(&ret.type);
@@ -18400,7 +18504,8 @@ static int decl(int l)
                             tcc_error("thread_local initializers are unsupported in N6-02");
                         // N6-02: `thread_local int` (N6-01) or a plain class
                         // type; the class must pass cpp_validate_tls_class
-                        // (fail-closed for destructors, polymorphism, ...).
+                        // (fail-closed for implicit-only destructors,
+                        // polymorphism, ...; N6-04 accepts a user dtor).
                         if ((type.t & ~VT_CPP_TLS) == VT_INT) {
                             // N6-01 primitive storage
                         } else if ((type.t & VT_BTYPE) == VT_STRUCT
@@ -18414,8 +18519,12 @@ static int decl(int l)
                             tcc_error("thread_local aliases are unsupported");
                         cpp_validate_tls_alignment(&type, &ad);
                         sym = cpp_alloc_tls_global(v, &type);
-                        if ((type.t & VT_BTYPE) == VT_STRUCT)
+                        if ((type.t & VT_BTYPE) == VT_STRUCT) {
                             cpp_register_tls_ctor(sym, type.ref);
+                            // N6-04: per-thread destructor thunk (LIFO
+                            // drain on the owning thread's exit).
+                            cpp_register_tls_dtor(sym, type.ref);
+                        }
                     }
                     else {
                     if (tcc_state->cpp
