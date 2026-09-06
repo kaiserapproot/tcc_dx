@@ -12,10 +12,16 @@
 //   NO_REGISTRATION_WHILE_INITIALIZING     C's ctor sees only [A] registered
 //   TRIVIAL_OBJECT_NOT_REGISTERED          dtor=NULL object (T) is absent
 //   while both workers are alive no dtor callback has run
-// N6-04 (drain implemented): after join each worker's TCB shows hook_count=1,
-//   cleanup_tid=its own tid, cleanup_state=2 (DONE), dtor_count=0 (drained),
-//   and the callbacks ran exactly once per worker in LIFO order B, C, A on
-//   the owning thread (the callback records the slot stored in the object).
+// N6-04 (drain implemented): the callbacks ran exactly once per worker in LIFO
+//   order B, C, A on the owning thread (the callback records the slot stored
+//   in the object).  The first callback of each worker reads its own TCB
+//   while it is still alive (drain in progress): hook_count=1, cleanup_tid=
+//   its own tid, cleanup_state=1 (DRAINING), dtor_count=2 (3 registered, B
+//   popped before its callback).
+// N6-04B (reclaim implemented): the TCB is freed at the end of the thread's
+//   cleanup, so after join the TCB is NOT read; instead the accounting
+//   counters must show 2 hooks, 2 drains, 2 TCB frees and every allocation
+//   category with ALLOC == FREE (4 objects per worker: A, C, T, B).
 #include <windows.h>
 #include <stdio.h>
 
@@ -28,7 +34,12 @@ void *__tcc_cpp_tls_n6_current_tcb(void);
 void __tcc_cpp_tls_n6_tcb_inspect(void *tcb, DWORD *owner_tid, DWORD *cleanup_tid,
                                   unsigned *hook_count, int *cleanup_state,
                                   unsigned *dtor_count);
+unsigned __tcc_cpp_tls_n6_stats(long *out, unsigned max);
 }
+enum { ST_TCB_ALLOC, ST_TCB_FREE, ST_ENTRIES_ALLOC, ST_ENTRIES_FREE, ST_OBJECT_ALLOC,
+       ST_OBJECT_FREE, ST_DTORS_ALLOC, ST_DTORS_FREE, ST_HOOK_DELIVERED, ST_DRAIN_STARTED,
+       ST_DRAIN_COMPLETED, ST_RECLAIM_COMPLETED, ST_SLOT_CLEAR_FAILURE,
+       ST_CROSS_THREAD_RECLAIM_SKIPPED, ST_DTOR_CALLS, ST_COUNT };
 
 static int descA, descB, descC, descT;
 static CRITICAL_SECTION g_cs;
@@ -40,6 +51,13 @@ struct DrainLog {
     char order[8];
     DWORD tid[8];
     volatile int n;
+    // hook state read from the live TCB inside the first callback (N6-04B:
+    // the TCB no longer exists after join).
+    void *volatile tcb_in_drain;
+    volatile DWORD cleanup_tid_in_drain;
+    volatile unsigned hooks_in_drain;
+    volatile int state_in_drain;
+    volatile unsigned dtor_count_in_drain;
 };
 static DrainLog g_drain[3];
 
@@ -47,6 +65,17 @@ static void log_dtor(void *p, char tag)
 {
     int slot = ((int *)p)[1];
     DrainLog *d = &g_drain[(slot >= 1 && slot <= 2) ? slot : 0];
+    if (d->n == 0) {
+        DWORD cleanup_tid = 0;
+        unsigned hooks = 0, dtors = 9;
+        int state = 0;
+        d->tcb_in_drain = __tcc_cpp_tls_n6_current_tcb();
+        __tcc_cpp_tls_n6_tcb_inspect(d->tcb_in_drain, 0, &cleanup_tid, &hooks, &state, &dtors);
+        d->cleanup_tid_in_drain = cleanup_tid;
+        d->hooks_in_drain = hooks;
+        d->state_in_drain = state;
+        d->dtor_count_in_drain = dtors;
+    }
     if (d->n < 8) {
         d->order[d->n] = tag;
         d->tid[d->n] = GetCurrentThreadId();
@@ -145,11 +174,11 @@ int main()
     HANDLE ha, hb;
     int fail = 0;
     int a_in_b, b_in_a;
-    DWORD cleanup_tid = 0;
-    unsigned hooks = 0, dtors = 0;
-    int state = 0;
+    long st0[ST_COUNT], st1[ST_COUNT];
+    int k;
 
     InitializeCriticalSection(&g_cs);
+    __tcc_cpp_tls_n6_stats(st0, ST_COUNT);
     memset(&ra, 0, sizeof ra);
     memset(&rb, 0, sizeof rb);
     memset(g_drain, 0, sizeof g_drain);
@@ -198,22 +227,48 @@ int main()
     CloseHandle(hb);
     CloseHandle(ra.go);
 
-    // After join (N6-04): each worker's TCB was hooked once on its own thread,
-    // the drain finished (cleanup_state=2) and the registry is empty.  Reading
-    // the TCB after join is valid only because N6-04A never frees it.
-    __tcc_cpp_tls_n6_tcb_inspect(ra.tcb, 0, &cleanup_tid, &hooks, &state, &dtors);
-    if (hooks != 1 || dtors != 0 || state != 2 || cleanup_tid != ra.tid) {
-        printf("WORKER_A_TCB_AFTER_JOIN=FAIL hooks=%u state=%d dtors=%u cleanup_tid_eq=%d\n", hooks, state, dtors, cleanup_tid == ra.tid);
-        fail = 1;
-    } else {
-        printf("WORKER_A_TCB_AFTER_JOIN=PASS hook_count=1 cleanup_state=2 dtor_count=0 cleanup_tid=A\n");
+    // Hook state as seen from inside the first callback of each worker (N6-04):
+    // hooked once, on its own thread, DRAINING, and B already popped
+    // (dtor_count 3 -> 2 before the callback).  The TCB itself is gone after
+    // join (N6-04B reclaim), so nothing is read from ra.tcb / rb.tcb here.
+    for (k = 1; k <= 2; ++k) {
+        DrainLog *d = &g_drain[k];
+        Result *r = k == 1 ? &ra : &rb;
+        int ok = d->tcb_in_drain == r->tcb && d->hooks_in_drain == 1
+                 && d->state_in_drain == 1 && d->dtor_count_in_drain == 2
+                 && d->cleanup_tid_in_drain == r->tid;
+        printf("WORKER_%c_TCB_IN_DRAIN=%s same_tcb=%s hook_count=%u cleanup_state=%d dtor_count=%u cleanup_tid_eq_owner=%s\n",
+               k == 1 ? 'A' : 'B', ok ? "PASS" : "FAIL",
+               d->tcb_in_drain == r->tcb ? "YES" : "NO", d->hooks_in_drain,
+               d->state_in_drain, d->dtor_count_in_drain,
+               d->cleanup_tid_in_drain == r->tid ? "YES" : "NO");
+        if (!ok)
+            fail = 1;
     }
-    __tcc_cpp_tls_n6_tcb_inspect(rb.tcb, 0, &cleanup_tid, &hooks, &state, &dtors);
-    if (hooks != 1 || dtors != 0 || state != 2 || cleanup_tid != rb.tid) {
-        printf("WORKER_B_TCB_AFTER_JOIN=FAIL hooks=%u state=%d dtors=%u cleanup_tid_eq=%d\n", hooks, state, dtors, cleanup_tid == rb.tid);
-        fail = 1;
-    } else {
-        printf("WORKER_B_TCB_AFTER_JOIN=PASS hook_count=1 cleanup_state=2 dtor_count=0 cleanup_tid=B\n");
+    // N6-04B: after join both TCBs were hooked, drained and reclaimed; every
+    // N6 allocation category balances (2 TCB, 2 entry arrays, 8 objects,
+    // 2 dtor arrays).
+    __tcc_cpp_tls_n6_stats(st1, ST_COUNT);
+    {
+        long d_hook = st1[ST_HOOK_DELIVERED] - st0[ST_HOOK_DELIVERED];
+        long d_drain = st1[ST_DRAIN_COMPLETED] - st0[ST_DRAIN_COMPLETED];
+        long d_reclaim = st1[ST_RECLAIM_COMPLETED] - st0[ST_RECLAIM_COMPLETED];
+        long d_tcb_a = st1[ST_TCB_ALLOC] - st0[ST_TCB_ALLOC];
+        long d_tcb_f = st1[ST_TCB_FREE] - st0[ST_TCB_FREE];
+        long d_obj_a = st1[ST_OBJECT_ALLOC] - st0[ST_OBJECT_ALLOC];
+        long d_obj_f = st1[ST_OBJECT_FREE] - st0[ST_OBJECT_FREE];
+        long d_ent_a = st1[ST_ENTRIES_ALLOC] - st0[ST_ENTRIES_ALLOC];
+        long d_ent_f = st1[ST_ENTRIES_FREE] - st0[ST_ENTRIES_FREE];
+        long d_dt_a = st1[ST_DTORS_ALLOC] - st0[ST_DTORS_ALLOC];
+        long d_dt_f = st1[ST_DTORS_FREE] - st0[ST_DTORS_FREE];
+        int ok = d_hook == 2 && d_drain == 2 && d_reclaim == 2
+                 && d_tcb_a == 2 && d_tcb_f == 2 && d_obj_a == 8 && d_obj_f == 8
+                 && d_ent_a == 2 && d_ent_f == 2 && d_dt_a == 2 && d_dt_f == 2;
+        printf("AFTER_JOIN_ACCOUNTING=%s hooks=%ld drains=%ld reclaims=%ld tcb=%ld/%ld objects=%ld/%ld entries=%ld/%ld dtors=%ld/%ld\n",
+               ok ? "PASS" : "FAIL", d_hook, d_drain, d_reclaim, d_tcb_a, d_tcb_f,
+               d_obj_a, d_obj_f, d_ent_a, d_ent_f, d_dt_a, d_dt_f);
+        if (!ok)
+            fail = 1;
     }
     // N6-04 drain: registered [A,C,B] -> drained B,C,A, once each, on the owner.
     {
