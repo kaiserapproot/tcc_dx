@@ -14,6 +14,10 @@
 //   N6_04_CONCURRENT_THREADS         A/B 同時生存 + 同時 exit で各 thread exactly once
 //   N6_04_DTOR_RUNS_ON_OWNER_THREAD  A_DTOR_THREAD_ID=A_THREAD_ID, B_... = B_...
 //   registry snapshot (生存中) == 実構築順  (REGISTRATION_ORDER=ACTUAL_CONSTRUCTION_ORDER)
+//   hook state は最初の dtor 内 (drain 中, TCB 生存) で観測: hook_count=1,
+//     cleanup_state=1, cleanup_tid == owner_tid == worker tid, dtor_count=2
+//     (3 登録, 1 pop 済み = pop-before-callback).  N6-04B 以降 TCB は thread exit で
+//     解放されるので join 後は TCB を読まず accounting counter (TCB_FREE +2) を見る.
 #include <windows.h>
 #include <stdio.h>
 
@@ -23,7 +27,12 @@ unsigned __tcc_cpp_tls_n6_registry_snapshot(void **objects, void **dtors, unsign
 void __tcc_cpp_tls_n6_tcb_inspect(void *tcb, DWORD *owner_tid, DWORD *cleanup_tid,
                                   unsigned *hook_count, int *cleanup_state,
                                   unsigned *dtor_count);
+unsigned __tcc_cpp_tls_n6_stats(long *out, unsigned max);
 }
+enum { ST_TCB_ALLOC, ST_TCB_FREE, ST_ENTRIES_ALLOC, ST_ENTRIES_FREE, ST_OBJECT_ALLOC,
+       ST_OBJECT_FREE, ST_DTORS_ALLOC, ST_DTORS_FREE, ST_HOOK_DELIVERED, ST_DRAIN_STARTED,
+       ST_DRAIN_COMPLETED, ST_RECLAIM_COMPLETED, ST_SLOT_CLEAR_FAILURE,
+       ST_CROSS_THREAD_RECLAIM_SKIPPED, ST_DTOR_CALLS, ST_COUNT };
 
 struct Record {
     volatile DWORD tid;
@@ -38,6 +47,13 @@ struct Record {
     unsigned snapshot_n;
     volatile int ready;
     HANDLE go;
+    // 最初の dtor 内で読んだ hook state (drain 中).
+    void *volatile tcb_in_drain;
+    volatile DWORD owner_in_drain;
+    volatile DWORD cleanup_tid_in_drain;
+    volatile unsigned hooks_in_drain;
+    volatile int state_in_drain;
+    volatile unsigned dtor_count_in_drain;
 };
 static Record g_rec[3];
 
@@ -54,6 +70,19 @@ static void log_ctor(char tag)
 static void log_dtor(char tag)
 {
     Record *r = &g_rec[g_slot];
+    if (r->dtor_n == 0) {
+        // 最初の dtor: TCB はまだ生存 (drain 中). hook state をここで観測する.
+        DWORD owner = 0, cleanup_tid = 0;
+        unsigned hooks = 0, dtors = 9;
+        int state = 0;
+        r->tcb_in_drain = __tcc_cpp_tls_n6_current_tcb();
+        __tcc_cpp_tls_n6_tcb_inspect(r->tcb_in_drain, &owner, &cleanup_tid, &hooks, &state, &dtors);
+        r->owner_in_drain = owner;
+        r->cleanup_tid_in_drain = cleanup_tid;
+        r->hooks_in_drain = hooks;
+        r->state_in_drain = state;
+        r->dtor_count_in_drain = dtors;
+    }
     if (r->dtor_n < 8) {
         r->dtor_order[r->dtor_n] = tag;
         r->dtor_tid[r->dtor_n] = GetCurrentThreadId();
@@ -98,13 +127,13 @@ static DWORD WINAPI worker(void *p)
 
 static int check(const char *name, Record *r, const char *expect_ctor, const char *expect_dtor)
 {
-    DWORD owner = 0, cleanup_tid = 0;
-    unsigned hooks = 0, dtors = 9;
-    int state = 0;
-    int i, ok, tid_ok = 1, snap_ok;
+    int i, ok, tid_ok = 1, snap_ok, hook_ok;
     void *expect_snap[3];
 
-    __tcc_cpp_tls_n6_tcb_inspect(r->tcb, &owner, &cleanup_tid, &hooks, &state, &dtors);
+    // join 後の TCB は解放済み (N6-04B). drain 中に読んだ値で hook state を検証.
+    hook_ok = r->tcb != 0 && r->tcb_in_drain == r->tcb
+              && r->hooks_in_drain == 1 && r->state_in_drain == 1 && r->dtor_count_in_drain == 2
+              && r->owner_in_drain == r->tid && r->cleanup_tid_in_drain == r->tid;
     r->ctor_order[3] = 0;
     r->dtor_order[3] = 0;
     for (i = 0; i < 3; ++i)
@@ -120,18 +149,20 @@ static int check(const char *name, Record *r, const char *expect_ctor, const cha
     ok = r->ctor_n == 3 && r->dtor_n == 3
          && strcmp(r->ctor_order, expect_ctor) == 0
          && strcmp(r->dtor_order, expect_dtor) == 0
-         && tid_ok && snap_ok
-         && hooks == 1 && state == 2 && dtors == 0
-         && owner == r->tid && cleanup_tid == r->tid;
+         && tid_ok && snap_ok && hook_ok;
     printf("%s: CTOR_ORDER=%c,%c,%c DTOR_ORDER=%c,%c,%c (expected ctor %c,%c,%c dtor %c,%c,%c) "
            "ctor_n=%d dtor_n=%d dtor_tids_eq_owner=%s registry_snapshot_eq_ctor_order=%s "
-           "joined{hook_count=%u state=%d dtor_count=%u} -> %s\n",
+           "in_drain{same_tcb=%s hook_count=%u state=%d dtor_count=%u owner_eq=%s cleanup_tid_eq=%s} -> %s\n",
            name, r->ctor_order[0], r->ctor_order[1], r->ctor_order[2],
            r->dtor_order[0], r->dtor_order[1], r->dtor_order[2],
            expect_ctor[0], expect_ctor[1], expect_ctor[2],
            expect_dtor[0], expect_dtor[1], expect_dtor[2],
            r->ctor_n, r->dtor_n, tid_ok ? "YES" : "NO", snap_ok ? "YES" : "NO",
-           hooks, state, dtors, ok ? "PASS" : "FAIL");
+           r->tcb_in_drain == r->tcb ? "YES" : "NO",
+           r->hooks_in_drain, r->state_in_drain, r->dtor_count_in_drain,
+           r->owner_in_drain == r->tid ? "YES" : "NO",
+           r->cleanup_tid_in_drain == r->tid ? "YES" : "NO",
+           ok ? "PASS" : "FAIL");
     return ok;
 }
 
@@ -139,9 +170,11 @@ int main()
 {
     HANDLE h1, h2, go;
     int fail = 0;
+    long st0[ST_COUNT], st1[ST_COUNT];
 
     memset(g_rec, 0, sizeof g_rec);
     g_slot = 0;
+    __tcc_cpp_tls_n6_stats(st0, ST_COUNT);
     go = CreateEvent(NULL, TRUE, FALSE, NULL);
     g_rec[1].go = g_rec[2].go = go;
     h1 = CreateThread(NULL, 0, worker, (void *)(INT_PTR)1, 0, NULL);
@@ -175,6 +208,18 @@ int main()
             && g_rec[2].dtor_tid[2] == g_rec[2].tid) ? "B_THREAD_ID" : "MISMATCH");
     printf("MAIN_SLOT_CTOR_N=%d MAIN_SLOT_DTOR_N=%d\n", g_rec[0].ctor_n, g_rec[0].dtor_n);
     if (g_rec[0].ctor_n != 0 || g_rec[0].dtor_n != 0)
+        fail = 1;
+    // join 後: 2 worker 分の hook / drain / TCB 解放が counter に現れる.
+    __tcc_cpp_tls_n6_stats(st1, ST_COUNT);
+    printf("AFTER_JOIN: hooks=%ld drains=%ld dtor_calls=%ld tcb_free=%ld (expected 2,2,6,2)\n",
+           st1[ST_HOOK_DELIVERED] - st0[ST_HOOK_DELIVERED],
+           st1[ST_DRAIN_COMPLETED] - st0[ST_DRAIN_COMPLETED],
+           st1[ST_DTOR_CALLS] - st0[ST_DTOR_CALLS],
+           st1[ST_TCB_FREE] - st0[ST_TCB_FREE]);
+    if (st1[ST_HOOK_DELIVERED] - st0[ST_HOOK_DELIVERED] != 2
+        || st1[ST_DRAIN_COMPLETED] - st0[ST_DRAIN_COMPLETED] != 2
+        || st1[ST_DTOR_CALLS] - st0[ST_DTOR_CALLS] != 6
+        || st1[ST_TCB_FREE] - st0[ST_TCB_FREE] != 2)
         fail = 1;
 
     if (fail) {
