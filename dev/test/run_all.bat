@@ -201,9 +201,13 @@ rem N6-03: thread-exit hook (PE TLS callback, DLL_THREAD_DETACH) Authority in a 
 echo === a9\manual\n6_03_thread_exit_hook.bat ===
 call a9\manual\n6_03_thread_exit_hook.bat
 if errorlevel 1 set /a FAILED+=1
-rem N6-03: per-thread dtor registry foundation (construction order, isolation, no drain).
+rem N6-03: per-thread dtor registry foundation (construction order, isolation; N6-04 drain via raw ABI).
 echo === a9\manual\n6_03_dtor_registry.bat ===
 call a9\manual\n6_03_dtor_registry.bat
+if errorlevel 1 set /a FAILED+=1
+rem N6-04: per-thread thread_local destructor LIFO drain on the owning thread's exit.
+echo === a9\manual\n6_04_tls_dtor.bat ===
+call a9\manual\n6_04_tls_dtor.bat
 if errorlevel 1 set /a FAILED+=1
 
 

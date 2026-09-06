@@ -10,8 +10,10 @@ set /a FAILED=0
 echo === N6-02 fail-closed gates (thread_local class type) ===
 rem Each case must: exit non-zero, print the expected diagnostic, produce
 rem no output file, and not crash (negative exit code).
-call :negative n6_02_tls_dtor_unsupported "thread_local object with non-trivial destructor is unsupported in N6-02"
-call :negative n6_02_tls_member_dtor_unsupported "thread_local object with non-trivial destructor is unsupported in N6-02"
+rem N6-04: a user-declared destructor is now accepted (n6_04_tls_dtor.bat covers
+rem the former n6_02_tls_dtor_unsupported case as a positive gate); destruction
+rem that is non-trivial only through members/bases stays fail-closed.
+call :negative n6_02_tls_member_dtor_unsupported "thread_local object with implicit non-trivial destructor is unsupported in N6-04"
 call :negative n6_02_tls_no_default_ctor_unsupported "thread_local object of class without default constructor is unsupported"
 call :negative n6_02_tls_polymorphic_unsupported "thread_local polymorphic class object is unsupported in N6-02"
 call :negative n6_02_tls_implicit_member_ctor_unsupported "implicit default construction of non-trivial member is unsupported"
@@ -32,7 +34,8 @@ if not "!FAILED!"=="0" (
   exit /b 1
 )
 echo N6_02_TLS_FAIL_CLOSED=PASS
-echo N6_02_NONTRIVIAL_DTOR=FAIL_CLOSED
+echo N6_04_EXPLICIT_DTOR=ACCEPTED (n6_04_tls_dtor.bat)
+echo N6_04_IMPLICIT_NONTRIVIAL_DTOR=FAIL_CLOSED
 echo N6_02_POLYMORPHIC_CLASS=FAIL_CLOSED
 echo N6_02_NO_DEFAULT_CTOR=FAIL_CLOSED
 echo N6_02_OVERALIGNED_CLASS=FAIL_CLOSED
