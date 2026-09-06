@@ -1684,11 +1684,15 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // OS_THREAD_TLS) and carries the N6-03 thread-exit hook state:
         //   owner_tid     - GetCurrentThreadId() of the creating thread,
         //   hook_count    - DLL_THREAD_DETACH deliveries seen for this TCB,
+        //   cleanup_tid   - GetCurrentThreadId() inside the hook (must equal
+        //                   owner_tid: the hook runs on the exiting thread),
         //   cleanup_state - 0 live / 1 thread-exit hook entered.  Once set,
         //                   a first-time initialization or a new dtor
         //                   registration on this thread is fail-closed
         //                   (SPEC: N6_TLS_FIRST_INITIALIZATION_DURING_CLEANUP /
         //                   N6_DTOR_REGISTRATION_AFTER_CLEANUP_STARTED).
+        // All hook state lives in the TCB (HOOK_STATE_OWNER=PER_THREAD_TCB);
+        // the callback path has no process-global log or lock (N6-03 review).
         "typedef struct tcc_cpp_tls_tcb {\n"
         "    unsigned count;\n"
         "    unsigned capacity;\n"
@@ -1697,15 +1701,12 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    unsigned dtor_capacity;\n"
         "    tcc_cpp_tls_dtor_entry *dtors;\n"
         "    DWORD owner_tid;\n"
+        "    DWORD cleanup_tid;\n"
         "    unsigned hook_count;\n"
         "    int cleanup_state;\n"
         "} tcc_cpp_tls_tcb;\n"
         "static volatile tcc_cpp_tls_key_t tcc_cpp_tls_key = (tcc_cpp_tls_key_t)-1;\n"
         "static char tcc_cpp_tls_n6_key_lock[] = {'t','c','c','_','c','p','p','_','t','l','s','_','n','6','_','k','e','y','_','l','o','c','k',0};\n"
-        // Process-wide lock for the thread-exit record log below.  It is
-        // initialized under the named mutex before the key is published, so
-        // any code that observes key != -1 may use it.
-        "static CRITICAL_SECTION tcc_cpp_tls_n6_lock;\n"
         "static tcc_cpp_tls_key_t tcc_cpp_tls_get_key(void)\n"
         "{\n"
         "    HANDLE lock;\n"
@@ -1715,12 +1716,9 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    if (!lock || WaitForSingleObject(lock, INFINITE) != WAIT_OBJECT_0)\n"
         "        abort();\n"
         "    if (tcc_cpp_tls_key == (tcc_cpp_tls_key_t)-1) {\n"
-        "        tcc_cpp_tls_key_t new_key;\n"
-        "        InitializeCriticalSection(&tcc_cpp_tls_n6_lock);\n"
-        "        new_key = TlsAlloc();\n"
-        "        if (new_key == (tcc_cpp_tls_key_t)-1)\n"
+        "        tcc_cpp_tls_key = TlsAlloc();\n"
+        "        if (tcc_cpp_tls_key == (tcc_cpp_tls_key_t)-1)\n"
         "            abort();\n"
-        "        tcc_cpp_tls_key = new_key;\n"
         "    }\n"
         "    ReleaseMutex(lock);\n"
         "    CloseHandle(lock);\n"
@@ -1743,6 +1741,7 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "        tcb->dtor_capacity = 0;\n"
         "        tcb->dtors = 0;\n"
         "        tcb->owner_tid = GetCurrentThreadId();\n"
+        "        tcb->cleanup_tid = 0;\n"
         "        tcb->hook_count = 0;\n"
         "        tcb->cleanup_state = 0;\n"
         "        if (!TlsSetValue(key, tcb))\n"
@@ -1759,36 +1758,17 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // per thread.  Measured first with an MSVC-built probe (N6-03-00) and
         // then with tcc-built EXEs (n6_03_thread_exit_hook.cpp).  The
         // thread's TlsGetValue slot is still intact here, so the TCB is
-        // reachable.  N6-03 only records the delivery; no destructor runs and
-        // no memory is freed (N6-04).  Threads that never touched TLS have no
-        // TCB and are ignored.  Main-thread termination (main return / exit /
-        // ExitProcess) is N6-05; TerminateThread is out of scope.
-        "typedef struct tcc_cpp_tls_exit_record {\n"
-        "    DWORD tid;\n"
-        "    void *tcb;\n"
-        "    unsigned hook_count;\n"
-        "    unsigned dtor_count;\n"
-        "} tcc_cpp_tls_exit_record;\n"
-        "#define TCC_CPP_TLS_EXIT_RECORDS 64\n"
-        "static tcc_cpp_tls_exit_record tcc_cpp_tls_exit_log[TCC_CPP_TLS_EXIT_RECORDS];\n"
-        "static unsigned tcc_cpp_tls_exit_log_count;\n"
-        "static unsigned tcc_cpp_tls_exit_log_dropped;\n"
+        // reachable.  N6-03 only marks the TCB (hook_count / cleanup_tid /
+        // cleanup_state); the callback path takes no lock, allocates and
+        // frees nothing and calls no user destructor (N6-04).  Threads that
+        // never touched TLS have no TCB and are ignored.  Main-thread
+        // termination (main return / exit / ExitProcess) is N6-05;
+        // TerminateThread is out of scope.
         "static void __cdecl tcc_cpp_tls_thread_cleanup(tcc_cpp_tls_tcb *tcb)\n"
         "{\n"
-        "    tcc_cpp_tls_exit_record *rec;\n"
         "    tcb->cleanup_state = 1;\n"
+        "    tcb->cleanup_tid = GetCurrentThreadId();\n"
         "    ++tcb->hook_count;\n"
-        "    EnterCriticalSection(&tcc_cpp_tls_n6_lock);\n"
-        "    if (tcc_cpp_tls_exit_log_count < TCC_CPP_TLS_EXIT_RECORDS) {\n"
-        "        rec = &tcc_cpp_tls_exit_log[tcc_cpp_tls_exit_log_count++];\n"
-        "        rec->tid = GetCurrentThreadId();\n"
-        "        rec->tcb = tcb;\n"
-        "        rec->hook_count = tcb->hook_count;\n"
-        "        rec->dtor_count = tcb->dtor_count;\n"
-        "    } else {\n"
-        "        ++tcc_cpp_tls_exit_log_dropped;\n"
-        "    }\n"
-        "    LeaveCriticalSection(&tcc_cpp_tls_n6_lock);\n"
         "}\n"
         "static void NTAPI tcc_cpp_tls_pe_callback(PVOID h, DWORD reason, PVOID pv)\n"
         "{\n"
@@ -1847,39 +1827,28 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    }\n"
         "    return tcb->dtor_count;\n"
         "}\n"
-        "int __cdecl __tcc_cpp_tls_n6_exit_record(DWORD tid, void **tcb,\n"
-        "                                         unsigned *hook_count,\n"
-        "                                         unsigned *dtor_count)\n"
+        // Reads the hook state of a TCB whose pointer the test captured with
+        // __tcc_cpp_tls_n6_current_tcb() while its thread was alive.  Valid
+        // after the thread has been joined only because N6-03 never frees a
+        // TCB (TLS_TCB_CLEANUP=DEFERRED_BY_SPEC_N6_04); N6-04 must re-derive
+        // this gate from destructor side effects instead.
+        "void __cdecl __tcc_cpp_tls_n6_tcb_inspect(void *tcb_ptr, DWORD *owner_tid,\n"
+        "                                          DWORD *cleanup_tid,\n"
+        "                                          unsigned *hook_count,\n"
+        "                                          int *cleanup_state,\n"
+        "                                          unsigned *dtor_count)\n"
         "{\n"
-        "    unsigned i, found;\n"
-        "    if (tcc_cpp_tls_key == (tcc_cpp_tls_key_t)-1)\n"
-        "        return 0;\n"
-        "    found = 0;\n"
-        "    EnterCriticalSection(&tcc_cpp_tls_n6_lock);\n"
-        "    for (i = 0; i < tcc_cpp_tls_exit_log_count; ++i) {\n"
-        "        if (tcc_cpp_tls_exit_log[i].tid == tid) {\n"
-        "            if (++found == 1) {\n"
-        "                if (tcb)\n"
-        "                    *tcb = tcc_cpp_tls_exit_log[i].tcb;\n"
-        "                if (hook_count)\n"
-        "                    *hook_count = tcc_cpp_tls_exit_log[i].hook_count;\n"
-        "                if (dtor_count)\n"
-        "                    *dtor_count = tcc_cpp_tls_exit_log[i].dtor_count;\n"
-        "            }\n"
-        "        }\n"
-        "    }\n"
-        "    LeaveCriticalSection(&tcc_cpp_tls_n6_lock);\n"
-        "    return (int)found;\n"
-        "}\n"
-        "unsigned __cdecl __tcc_cpp_tls_n6_exit_record_total(void)\n"
-        "{\n"
-        "    unsigned n;\n"
-        "    if (tcc_cpp_tls_key == (tcc_cpp_tls_key_t)-1)\n"
-        "        return 0;\n"
-        "    EnterCriticalSection(&tcc_cpp_tls_n6_lock);\n"
-        "    n = tcc_cpp_tls_exit_log_count + tcc_cpp_tls_exit_log_dropped;\n"
-        "    LeaveCriticalSection(&tcc_cpp_tls_n6_lock);\n"
-        "    return n;\n"
+        "    tcc_cpp_tls_tcb *tcb = (tcc_cpp_tls_tcb *)tcb_ptr;\n"
+        "    if (owner_tid)\n"
+        "        *owner_tid = tcb ? tcb->owner_tid : 0;\n"
+        "    if (cleanup_tid)\n"
+        "        *cleanup_tid = tcb ? tcb->cleanup_tid : 0;\n"
+        "    if (hook_count)\n"
+        "        *hook_count = tcb ? tcb->hook_count : 0;\n"
+        "    if (cleanup_state)\n"
+        "        *cleanup_state = tcb ? tcb->cleanup_state : 0;\n"
+        "    if (dtor_count)\n"
+        "        *dtor_count = tcb ? tcb->dtor_count : 0;\n"
         "}\n"
         // N6-02 contract (matches cpp_tls_addr_type in tccgen.c):
         // - first access on a thread allocates `size` zero-filled bytes and,
