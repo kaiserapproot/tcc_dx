@@ -15,7 +15,8 @@
 //   TRIVIAL_OBJECT_NOT_REGISTERED          dtor=NULL object (T) is absent
 //   DTOR_EXECUTION=NOT_IMPLEMENTED         no dtor callback ever runs, even
 //                                          after both workers have exited
-//   exit records carry dtor_count=3 for each worker (hook saw the registry)
+//   after join each worker's TCB shows hook_count=1, cleanup_tid=its own tid
+//   and dtor_count=3 (registry intact, nothing drained)
 #include <windows.h>
 #include <stdio.h>
 
@@ -25,8 +26,9 @@ void *__tcc_cpp_tls_addr(int *descriptor, unsigned size, void (*ctor)(void *),
 unsigned __tcc_cpp_tls_n6_registry_snapshot(void **objects, void **dtors,
                                             unsigned max);
 void *__tcc_cpp_tls_n6_current_tcb(void);
-int __tcc_cpp_tls_n6_exit_record(DWORD tid, void **tcb, unsigned *hook_count,
-                                 unsigned *dtor_count);
+void __tcc_cpp_tls_n6_tcb_inspect(void *tcb, DWORD *owner_tid, DWORD *cleanup_tid,
+                                  unsigned *hook_count, int *cleanup_state,
+                                  unsigned *dtor_count);
 }
 
 static int descA, descB, descC, descT;
@@ -120,7 +122,7 @@ int main()
     HANDLE ha, hb;
     int fail = 0;
     int a_in_b, b_in_a;
-    void *tcb = 0;
+    DWORD cleanup_tid = 0;
     unsigned hooks = 0, dtors = 0;
 
     InitializeCriticalSection(&g_cs);
@@ -165,18 +167,22 @@ int main()
     CloseHandle(hb);
     CloseHandle(ra.go);
 
-    // hook saw each registry (dtor_count=3) but ran nothing.
-    if (__tcc_cpp_tls_n6_exit_record(ra.tid, &tcb, &hooks, &dtors) != 1 || hooks != 1 || dtors != 3 || tcb != ra.tcb) {
-        printf("WORKER_A_EXIT_RECORD=FAIL hooks=%u dtors=%u\n", hooks, dtors);
+    // After join: each worker's TCB was hooked once on its own thread and still
+    // holds its 3 registry entries (nothing drained).  Reading the TCB after
+    // join is valid only because N6-03 never frees it (N6-04).
+    __tcc_cpp_tls_n6_tcb_inspect(ra.tcb, 0, &cleanup_tid, &hooks, 0, &dtors);
+    if (hooks != 1 || dtors != 3 || cleanup_tid != ra.tid) {
+        printf("WORKER_A_TCB_AFTER_JOIN=FAIL hooks=%u dtors=%u cleanup_tid_eq=%d\n", hooks, dtors, cleanup_tid == ra.tid);
         fail = 1;
     } else {
-        printf("WORKER_A_EXIT_RECORD=PASS hook_count=1 dtor_count=3\n");
+        printf("WORKER_A_TCB_AFTER_JOIN=PASS hook_count=1 dtor_count=3 cleanup_tid=A\n");
     }
-    if (__tcc_cpp_tls_n6_exit_record(rb.tid, &tcb, &hooks, &dtors) != 1 || hooks != 1 || dtors != 3 || tcb != rb.tcb) {
-        printf("WORKER_B_EXIT_RECORD=FAIL hooks=%u dtors=%u\n", hooks, dtors);
+    __tcc_cpp_tls_n6_tcb_inspect(rb.tcb, 0, &cleanup_tid, &hooks, 0, &dtors);
+    if (hooks != 1 || dtors != 3 || cleanup_tid != rb.tid) {
+        printf("WORKER_B_TCB_AFTER_JOIN=FAIL hooks=%u dtors=%u cleanup_tid_eq=%d\n", hooks, dtors, cleanup_tid == rb.tid);
         fail = 1;
     } else {
-        printf("WORKER_B_EXIT_RECORD=PASS hook_count=1 dtor_count=3\n");
+        printf("WORKER_B_TCB_AFTER_JOIN=PASS hook_count=1 dtor_count=3 cleanup_tid=B\n");
     }
     printf("DTOR_CALLBACKS_EXECUTED=%ld (expected 0: N6_03_DTOR_EXECUTION=NOT_IMPLEMENTED)\n", g_dtor_calls);
     if (g_dtor_calls != 0)
