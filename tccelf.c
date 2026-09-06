@@ -1724,10 +1724,15 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // the C runtime keep their own allocators; only N6 is changed.
         "static void *tcc_cpp_tls_alloc(SIZE_T size, int zero)\n"
         "{\n"
+        // zero=1 uses HEAP_ZERO_MEMORY (N6-04B calloc replacement for object
+        // storage).  TCB uses zero=0 and explicit field init in get_tcb().
         "    return HeapAlloc(GetProcessHeap(), zero ? HEAP_ZERO_MEMORY : 0, size);\n"
         "}\n"
         "static void *tcc_cpp_tls_realloc(void *p, SIZE_T size)\n"
         "{\n"
+        // HeapReAlloc requires a prior HeapAlloc/HeapReAlloc block; NULL p is
+        // not valid input (unlike CRT realloc).  First growth of entries/dtors
+        // passes p==NULL from a zero-initialized TCB, so route to HeapAlloc.
         "    if (!p)\n"
         "        return HeapAlloc(GetProcessHeap(), 0, size);\n"
         "    return HeapReAlloc(GetProcessHeap(), 0, p, size);\n"
