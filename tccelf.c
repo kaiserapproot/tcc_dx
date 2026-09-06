@@ -1711,6 +1711,71 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    unsigned hook_count;\n"
         "    int cleanup_state;\n"
         "} tcc_cpp_tls_tcb;\n"
+        // N6-04B allocator authority: every thread-owned N6 allocation (TCB,
+        // entry array, object storage, dtor registry array) goes through
+        // these wrappers and the wrappers go to the Kernel32 process heap
+        // (TLS_ALLOCATOR_AUTHORITY=KERNEL32_PROCESS_HEAP).  The reclaim runs
+        // inside the DLL_THREAD_DETACH loader notification, where Microsoft's
+        // DllMain guidance excludes the dynamic CRT memory functions, so
+        // malloc/realloc/calloc/free are not used anywhere in this runtime
+        // (CRT_MALLOC_IN_TLS_DETACH=NO).  HeapAlloc guarantees
+        // MEMORY_ALLOCATION_ALIGNMENT, the same 2*sizeof(void*) contract the
+        // frontend admits (asserted at the object allocation below).  N5 and
+        // the C runtime keep their own allocators; only N6 is changed.
+        "static void *tcc_cpp_tls_alloc(SIZE_T size, int zero)\n"
+        "{\n"
+        // zero=1 uses HEAP_ZERO_MEMORY (N6-04B calloc replacement for object
+        // storage).  TCB uses zero=0 and explicit field init in get_tcb().
+        "    return HeapAlloc(GetProcessHeap(), zero ? HEAP_ZERO_MEMORY : 0, size);\n"
+        "}\n"
+        "static void *tcc_cpp_tls_realloc(void *p, SIZE_T size)\n"
+        "{\n"
+        // HeapReAlloc requires a prior HeapAlloc/HeapReAlloc block; NULL p is
+        // not valid input (unlike CRT realloc).  First growth of entries/dtors
+        // passes p==NULL from a zero-initialized TCB, so route to HeapAlloc.
+        "    if (!p)\n"
+        "        return HeapAlloc(GetProcessHeap(), 0, size);\n"
+        "    return HeapReAlloc(GetProcessHeap(), 0, p, size);\n"
+        "}\n"
+        "static void tcc_cpp_tls_free(void *p)\n"
+        "{\n"
+        "    if (p)\n"
+        "        HeapFree(GetProcessHeap(), 0, p);\n"
+        "}\n"
+        // N6-04B accounting (inspection only, not a user-facing API; read by
+        // the N6 gates through __tcc_cpp_tls_n6_stats).  Process-global
+        // monotonic counters bumped with a single lock-prefixed xadd: no lock
+        // object, no wait, safe in the loader notification context.  The
+        // reclaim gates prove ALLOC==FREE from these counters, never from the
+        // working set (the heap keeps freed regions mapped).  Index layout is
+        // the contract with the tests:
+        //  0 TCB_ALLOC        1 TCB_FREE
+        //  2 ENTRIES_ALLOC    3 ENTRIES_FREE   (entry array; realloc growth
+        //                                       is a resize, not a new alloc)
+        //  4 OBJECT_ALLOC     5 OBJECT_FREE
+        //  6 DTORS_ALLOC      7 DTORS_FREE     (dtor registry array)
+        //  8 HOOK_DELIVERED   9 DRAIN_STARTED  10 DRAIN_COMPLETED
+        // 11 RECLAIM_COMPLETED  12 SLOT_CLEAR_FAILURE
+        // 13 CROSS_THREAD_RECLAIM_SKIPPED  14 DTOR_CALLS
+        "enum {\n"
+        "    TCC_CPP_TLS_N6_TCB_ALLOC, TCC_CPP_TLS_N6_TCB_FREE,\n"
+        "    TCC_CPP_TLS_N6_ENTRIES_ALLOC, TCC_CPP_TLS_N6_ENTRIES_FREE,\n"
+        "    TCC_CPP_TLS_N6_OBJECT_ALLOC, TCC_CPP_TLS_N6_OBJECT_FREE,\n"
+        "    TCC_CPP_TLS_N6_DTORS_ALLOC, TCC_CPP_TLS_N6_DTORS_FREE,\n"
+        "    TCC_CPP_TLS_N6_HOOK_DELIVERED, TCC_CPP_TLS_N6_DRAIN_STARTED,\n"
+        "    TCC_CPP_TLS_N6_DRAIN_COMPLETED, TCC_CPP_TLS_N6_RECLAIM_COMPLETED,\n"
+        "    TCC_CPP_TLS_N6_SLOT_CLEAR_FAILURE,\n"
+        "    TCC_CPP_TLS_N6_CROSS_THREAD_RECLAIM_SKIPPED,\n"
+        "    TCC_CPP_TLS_N6_DTOR_CALLS,\n"
+        "    TCC_CPP_TLS_N6_STAT_COUNT\n"
+        "};\n"
+        "static volatile long tcc_cpp_tls_n6_stat[TCC_CPP_TLS_N6_STAT_COUNT];\n"
+        "static void tcc_cpp_tls_n6_count(int which)\n"
+        "{\n"
+        "    long v = 1;\n"
+        "    __asm__ __volatile__(\"lock; xaddl %0, %1\"\n"
+        "        : \"+r\"(v), \"+m\"(tcc_cpp_tls_n6_stat[which]) : : \"memory\");\n"
+        "}\n"
         "static volatile tcc_cpp_tls_key_t tcc_cpp_tls_key = (tcc_cpp_tls_key_t)-1;\n"
         "static char tcc_cpp_tls_n6_key_lock[] = {'t','c','c','_','c','p','p','_','t','l','s','_','n','6','_','k','e','y','_','l','o','c','k',0};\n"
         "static tcc_cpp_tls_key_t tcc_cpp_tls_get_key(void)\n"
@@ -1737,9 +1802,10 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    key = tcc_cpp_tls_get_key();\n"
         "    tcb = (tcc_cpp_tls_tcb *)TlsGetValue(key);\n"
         "    if (!tcb) {\n"
-        "        tcb = (tcc_cpp_tls_tcb *)malloc(sizeof(tcc_cpp_tls_tcb));\n"
+        "        tcb = (tcc_cpp_tls_tcb *)tcc_cpp_tls_alloc(sizeof(tcc_cpp_tls_tcb), 0);\n"
         "        if (!tcb)\n"
         "            abort();\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_TCB_ALLOC);\n"
         "        tcb->count = 0;\n"
         "        tcb->capacity = 0;\n"
         "        tcb->entries = 0;\n"
@@ -1777,26 +1843,49 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // delivery that finds cleanup_state != 0 never starts a second pass.
         // Destructors run in the Windows loader notification context
         // (N6_04_CONTEXT_RESTRICTION=WINDOWS_LOADER_NOTIFICATION_CONTEXT):
-        // the runtime itself takes no lock, allocates and frees nothing here
-        // (memory reclaim is a separate gate, N6-04B), and makes no claim
-        // about arbitrary Win32 calls inside user destructors.
+        // the runtime itself takes no lock and never calls the CRT allocator
+        // here, and makes no claim about arbitrary Win32 calls inside user
+        // destructors.
         // Already-constructed objects stay readable during the drain
         // (EXISTING_TLS_ACCESS_DURING_DRAIN=SUPPORTED); after an object's
         // destructor returned its entry is marked destroyed (state 3) so a
         // later access on this thread aborts instead of handing out a dead
         // object.
+        //
+        // N6-04B: memory reclaim, strictly after the drain.  Order authority:
+        //   drain all dtors -> cleanup_state DONE -> TlsSetValue(key, NULL)
+        //   -> free object storage -> free entry array -> free dtor array
+        //   -> free TCB.
+        // Nothing is freed while a destructor can still run: a later dtor may
+        // legitimately read an earlier-constructed object (B::~B uses a) and
+        // the DESTROYED-entry guard needs the entry metadata until the drain
+        // has finished, so per-object "dtor then free" is deliberately not
+        // done.  The TLS slot is cleared BEFORE the TCB is freed so no window
+        // exists in which the slot points at freed memory; if TlsSetValue
+        // fails the TCB and its children are leaked on purpose
+        // (TLS_SLOT_CLEAR_FAILURE=FAIL_CLOSED: a leak is safer than a
+        // dangling TCB).  Reclaim is done only by the owning thread
+        // (ALLOCATING_THREAD==DESTRUCTOR_THREAD==RECLAIM_THREAD); a
+        // cleanup on any other thread leaks instead of freeing cross-thread.
+        // The reclaim phase runs even when dtor_count==0 (thread_local int):
+        // an empty destructor phase never skips the memory phase.
         "static void __cdecl tcc_cpp_tls_thread_cleanup(tcc_cpp_tls_tcb *tcb)\n"
         "{\n"
         "    tcc_cpp_tls_dtor_entry entry;\n"
-        "    unsigned i;\n"
+        "    tcc_cpp_tls_entry *entries;\n"
+        "    tcc_cpp_tls_dtor_entry *dtors;\n"
+        "    unsigned i, count;\n"
         "    ++tcb->hook_count;\n"
+        "    tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_HOOK_DELIVERED);\n"
         "    if (tcb->cleanup_state != 0)\n"
         "        return;\n"
         "    tcb->cleanup_state = 1;\n"
         "    tcb->cleanup_tid = GetCurrentThreadId();\n"
+        "    tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_DRAIN_STARTED);\n"
         "    while (tcb->dtor_count != 0) {\n"
         "        entry = tcb->dtors[tcb->dtor_count - 1];\n"
         "        --tcb->dtor_count;\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_DTOR_CALLS);\n"
         "        entry.dtor(entry.object);\n"
         "        for (i = 0; i < tcb->count; ++i) {\n"
         "            if (tcb->entries[i].storage == entry.object) {\n"
@@ -1806,6 +1895,41 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "        }\n"
         "    }\n"
         "    tcb->cleanup_state = 2;\n"
+        "    tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_DRAIN_COMPLETED);\n"
+        "    if (tcb->cleanup_tid != tcb->owner_tid) {\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_CROSS_THREAD_RECLAIM_SKIPPED);\n"
+        "        return;\n"
+        "    }\n"
+        "    if (!TlsSetValue(tcc_cpp_tls_key, 0)) {\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_SLOT_CLEAR_FAILURE);\n"
+        "        return;\n"
+        "    }\n"
+        "    entries = tcb->entries;\n"
+        "    count = tcb->count;\n"
+        "    dtors = tcb->dtors;\n"
+        "    tcb->entries = 0;\n"
+        "    tcb->count = 0;\n"
+        "    tcb->capacity = 0;\n"
+        "    tcb->dtors = 0;\n"
+        "    tcb->dtor_capacity = 0;\n"
+        "    for (i = 0; i < count; ++i) {\n"
+        "        if (entries[i].storage) {\n"
+        "            tcc_cpp_tls_free(entries[i].storage);\n"
+        "            entries[i].storage = 0;\n"
+        "            tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_OBJECT_FREE);\n"
+        "        }\n"
+        "    }\n"
+        "    if (entries) {\n"
+        "        tcc_cpp_tls_free(entries);\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_ENTRIES_FREE);\n"
+        "    }\n"
+        "    if (dtors) {\n"
+        "        tcc_cpp_tls_free(dtors);\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_DTORS_FREE);\n"
+        "    }\n"
+        "    tcc_cpp_tls_free(tcb);\n"
+        "    tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_TCB_FREE);\n"
+        "    tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_RECLAIM_COMPLETED);\n"
         "}\n"
         "static void NTAPI tcc_cpp_tls_pe_callback(PVOID h, DWORD reason, PVOID pv)\n"
         "{\n"
@@ -1865,11 +1989,11 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    return tcb->dtor_count;\n"
         "}\n"
         // Reads the hook state of a TCB whose pointer the test captured with
-        // __tcc_cpp_tls_n6_current_tcb() while its thread was alive.  Valid
-        // after the thread has been joined only because N6-04A never frees a
-        // TCB (memory reclaim is the separate N6-04B gate); the N6-04 dtor
-        // gates are derived from destructor side effects, this is only the
-        // hook-state cross-check.
+        // __tcc_cpp_tls_n6_current_tcb().  Since N6-04B the TCB is freed at
+        // the end of the thread's cleanup, so this is valid only while the
+        // owning thread is alive or from inside a destructor running in that
+        // thread's drain (cleanup_state==1); the gates read it there and use
+        // __tcc_cpp_tls_n6_stats after the join.
         "void __cdecl __tcc_cpp_tls_n6_tcb_inspect(void *tcb_ptr, DWORD *owner_tid,\n"
         "                                          DWORD *cleanup_tid,\n"
         "                                          unsigned *hook_count,\n"
@@ -1887,6 +2011,32 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "        *cleanup_state = tcb ? tcb->cleanup_state : 0;\n"
         "    if (dtor_count)\n"
         "        *dtor_count = tcb ? tcb->dtor_count : 0;\n"
+        "}\n"
+        // N6-04B accounting snapshot: copies up to `max` counters in the index
+        // order documented at tcc_cpp_tls_n6_stat and returns the number of
+        // counters the runtime has.  Plain loads: the gates read it either
+        // from the drain (own thread) or after every worker has been joined.
+        "unsigned __cdecl __tcc_cpp_tls_n6_stats(long *out, unsigned max)\n"
+        "{\n"
+        "    unsigned i;\n"
+        "    for (i = 0; i < max && i < TCC_CPP_TLS_N6_STAT_COUNT; ++i)\n"
+        "        out[i] = tcc_cpp_tls_n6_stat[i];\n"
+        "    return TCC_CPP_TLS_N6_STAT_COUNT;\n"
+        "}\n"
+        // N6-04B: runs the thread cleanup for the calling thread now, exactly
+        // as the DLL_THREAD_DETACH hook would (same drain + reclaim
+        // authority).  Returns 1 when a TCB was found, 0 when the thread has
+        // none (already reclaimed or never touched TLS) and nothing was done.
+        // Used by the SECOND_CLEANUP_NOOP gate; it is the semantic entry N6-05
+        // will connect to main return / exit(), not a new cleanup path.
+        "int __cdecl __tcc_cpp_tls_n6_cleanup_current_thread(void)\n"
+        "{\n"
+        "    tcc_cpp_tls_tcb *tcb;\n"
+        "    tcb = (tcc_cpp_tls_tcb *)__tcc_cpp_tls_n6_current_tcb();\n"
+        "    if (!tcb)\n"
+        "        return 0;\n"
+        "    tcc_cpp_tls_thread_cleanup(tcb);\n"
+        "    return 1;\n"
         "}\n"
         // N6-02 contract (matches cpp_tls_addr_type in tccgen.c):
         // - first access on a thread allocates `size` zero-filled bytes and,
@@ -1931,22 +2081,25 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "        abort();\n"
         "    if (tcb->count == tcb->capacity) {\n"
         "        new_capacity = tcb->capacity ? tcb->capacity * 2 : 8;\n"
-        "        entries = (tcc_cpp_tls_entry *)realloc(tcb->entries,\n"
+        "        entries = (tcc_cpp_tls_entry *)tcc_cpp_tls_realloc(tcb->entries,\n"
         "            new_capacity * sizeof(tcc_cpp_tls_entry));\n"
         "        if (!entries)\n"
         "            abort();\n"
+        "        if (!tcb->entries)\n"
+        "            tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_ENTRIES_ALLOC);\n"
         "        tcb->entries = entries;\n"
         "        tcb->capacity = new_capacity;\n"
         "    }\n"
         "    if (size == 0)\n"
         "        size = 1;\n"
-        "    storage = calloc(1, size);\n"
+        "    storage = tcc_cpp_tls_alloc(size, 1);\n"
         "    if (!storage)\n"
         "        abort();\n"
+        "    tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_OBJECT_ALLOC);\n"
         // N6-02 REVIEW FIX-2: the compiler only admits objects whose alignment
         // is <= MEMORY_ALLOCATION_ALIGNMENT (16 on x64 / 8 on x86, i.e.
         // 2*sizeof(void*)); assert the allocator actually delivered it so a
-        // CRT that breaks the contract fails loudly instead of misaligning.
+        // heap that breaks the contract fails loudly instead of misaligning.
         "    if (((UINT_PTR)storage) & (2 * sizeof(void *) - 1))\n"
         "        abort();\n"
         "    index = tcb->count;\n"
@@ -1963,10 +2116,12 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "            abort();\n"
         "        if (tcb->dtor_count == tcb->dtor_capacity) {\n"
         "            new_capacity = tcb->dtor_capacity ? tcb->dtor_capacity * 2 : 8;\n"
-        "            dtors = (tcc_cpp_tls_dtor_entry *)realloc(tcb->dtors,\n"
+        "            dtors = (tcc_cpp_tls_dtor_entry *)tcc_cpp_tls_realloc(tcb->dtors,\n"
         "                new_capacity * sizeof(tcc_cpp_tls_dtor_entry));\n"
         "            if (!dtors)\n"
         "                abort();\n"
+        "            if (!tcb->dtors)\n"
+        "                tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_DTORS_ALLOC);\n"
         "            tcb->dtors = dtors;\n"
         "            tcb->dtor_capacity = new_capacity;\n"
         "        }\n"

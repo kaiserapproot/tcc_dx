@@ -209,6 +209,10 @@ rem N6-04: per-thread thread_local destructor LIFO drain on the owning thread's 
 echo === a9\manual\n6_04_tls_dtor.bat ===
 call a9\manual\n6_04_tls_dtor.bat
 if errorlevel 1 set /a FAILED+=1
+rem N6-04B: worker-thread TLS storage reclaim (TCB / entries / objects / dtor registry) after the drain.
+echo === a9\manual\n6_04b_tls_reclaim.bat ===
+call a9\manual\n6_04b_tls_reclaim.bat
+if errorlevel 1 set /a FAILED+=1
 
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
