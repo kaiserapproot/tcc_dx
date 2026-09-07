@@ -1642,6 +1642,116 @@ ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1)
     return 0;
 }
 
+static int tcc_cpp_n6_main_enter_sym_present(TCCState *s1)
+{
+    if (find_elf_sym(s1->symtab, "__tcc_cpp_tls_n6_main_enter")
+        || find_elf_sym(s1->symtab, "___tcc_cpp_tls_n6_main_enter")
+        || find_elf_sym(s1->symtab, "_tcc_cpp_tls_n6_main_enter"))
+        return 1;
+    return 0;
+}
+
+ST_FUNC int tcc_cpp_n6_main_gateway_needed(TCCState *s1)
+{
+    if (s1->cpp_n6_main_gateway_needed)
+        return 1;
+    return tcc_cpp_n6_main_enter_sym_present(s1);
+}
+
+ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)
+{
+    CString cstr;
+
+    if (s1->cpp_n6_main_runtime_injected)
+        return;
+    if (TCC_OUTPUT_DLL == s1->output_type)
+        return;
+    cstr_new(&cstr);
+    cstr_cat(&cstr,
+        "#include <windows.h>\n"
+        "#include <stdlib.h>\n"
+        // N6-05 main-thread gateway without thread_local: finalize reaches
+        // FINALIZED even when no TCB exists (TLS drain is a no-op here).
+        "static DWORD tcc_cpp_tls_n6_main_thread_id;\n"
+        "static volatile LONG tcc_cpp_tls_n6_main_state;\n"
+        "void __cdecl __tcc_cpp_tls_n6_main_enter(void)\n"
+        "{\n"
+        "    if (tcc_cpp_tls_n6_main_state != 0)\n"
+        "        abort();\n"
+        // Suppress WER/GP fault UI on intentional fail-closed abort() paths
+        // (batch/CI otherwise blocks for minutes waiting for user dismissal).
+        "    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);\n"
+        "    tcc_cpp_tls_n6_main_thread_id = GetCurrentThreadId();\n"
+        "    tcc_cpp_tls_n6_main_state = 1;\n"
+        "}\n"
+        "DWORD __cdecl __tcc_cpp_tls_n6_main_thread_id(void)\n"
+        "{\n"
+        "    return tcc_cpp_tls_n6_main_thread_id;\n"
+        "}\n"
+        "int __cdecl __tcc_cpp_tls_n6_main_state(void)\n"
+        "{\n"
+        "    return (int)tcc_cpp_tls_n6_main_state;\n"
+        "}\n"
+        "static void tcc_cpp_tls_n6_main_finalize_once(void)\n"
+        "{\n"
+        "    if (GetCurrentThreadId() != tcc_cpp_tls_n6_main_thread_id)\n"
+        "        abort();\n"
+        "    if (tcc_cpp_tls_n6_main_state == 3)\n"
+        "        return;\n"
+        "    if (tcc_cpp_tls_n6_main_state == 2)\n"
+        "        abort();\n"
+        "    if (tcc_cpp_tls_n6_main_state != 1)\n"
+        "        abort();\n"
+        "    tcc_cpp_tls_n6_main_state = 2;\n"
+        "    tcc_cpp_tls_n6_main_state = 3;\n"
+        "}\n"
+        "void __cdecl __tcc_cpp_tls_n6_main_finalize(void)\n"
+        "{\n"
+        "    tcc_cpp_tls_n6_main_finalize_once();\n"
+        "}\n"
+        "typedef void (__cdecl *tcc_cpp_n6_real_exit_fn)(int);\n"
+        "static tcc_cpp_n6_real_exit_fn tcc_cpp_n6_real_exit;\n"
+        "static void tcc_cpp_n6_resolve_real_exit(void)\n"
+        "{\n"
+        "    HMODULE h;\n"
+        "    if (tcc_cpp_n6_real_exit)\n"
+        "        return;\n"
+        "    h = GetModuleHandleA(\"msvcrt.dll\");\n"
+        "    if (!h)\n"
+        "        abort();\n"
+        "    tcc_cpp_n6_real_exit = (tcc_cpp_n6_real_exit_fn)\n"
+        "        GetProcAddress(h, \"exit\");\n"
+        "    if (!tcc_cpp_n6_real_exit)\n"
+        "        abort();\n"
+        "}\n"
+        "void __cdecl __tcc_cpp_n6_process_exit(int code)\n"
+        "{\n"
+        "    tcc_cpp_n6_resolve_real_exit();\n"
+        "    tcc_cpp_n6_real_exit(code);\n"
+        "}\n"
+        "void __cdecl exit(int code)\n"
+        "{\n"
+        "    tcc_cpp_n6_resolve_real_exit();\n"
+        "    if (tcc_cpp_tls_n6_main_thread_id != 0) {\n"
+        "        if (GetCurrentThreadId() == tcc_cpp_tls_n6_main_thread_id) {\n"
+        "            if (tcc_cpp_tls_n6_main_state == 2)\n"
+        "                abort();\n"
+        "            if (tcc_cpp_tls_n6_main_state == 3)\n"
+        "                abort();\n"
+        "            if (tcc_cpp_tls_n6_main_state == 1)\n"
+        "                tcc_cpp_tls_n6_main_finalize_once();\n"
+        "        } else {\n"
+        "            abort();\n"
+        "        }\n"
+        "    }\n"
+        "    tcc_cpp_n6_real_exit(code);\n"
+        "}\n",
+        0);
+    tcc_compile_injected_c_no_debug(s1, cstr.data);
+    cstr_free(&cstr);
+    s1->cpp_n6_main_runtime_injected = 1;
+}
+
 ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
 {
     CString cstr;
@@ -1767,9 +1877,17 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    TCC_CPP_TLS_N6_SLOT_CLEAR_FAILURE,\n"
         "    TCC_CPP_TLS_N6_CROSS_THREAD_RECLAIM_SKIPPED,\n"
         "    TCC_CPP_TLS_N6_DTOR_CALLS,\n"
+        "    TCC_CPP_TLS_N6_POST_FINALIZE_TCB,\n"
+        "    TCC_CPP_TLS_N6_POST_FINALIZE_OBJECT,\n"
         "    TCC_CPP_TLS_N6_STAT_COUNT\n"
         "};\n"
         "static volatile long tcc_cpp_tls_n6_stat[TCC_CPP_TLS_N6_STAT_COUNT];\n"
+        // N6-05: main-thread normal termination authority (separate from TCB
+        // lazy init).  0 NOT_ENTERED, 1 RUNNING, 2 FINALIZING, 3 FINALIZED.
+        // main_thread_id is fixed in main_enter before user main(); never
+        // inferred from \"first TCB creator\".
+        "static DWORD tcc_cpp_tls_n6_main_thread_id;\n"
+        "static volatile LONG tcc_cpp_tls_n6_main_state;\n"
         "static void tcc_cpp_tls_n6_count(int which)\n"
         "{\n"
         "    long v = 1;\n"
@@ -1802,6 +1920,14 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    key = tcc_cpp_tls_get_key();\n"
         "    tcb = (tcc_cpp_tls_tcb *)TlsGetValue(key);\n"
         "    if (!tcb) {\n"
+        // N6-05 tombstone: after main finalize on the main thread, TLS slot
+        // is NULL and state is FINALIZED; never allocate a post-shutdown TCB.
+        "        if (tcc_cpp_tls_n6_main_thread_id\n"
+        "            && GetCurrentThreadId() == tcc_cpp_tls_n6_main_thread_id\n"
+        "            && tcc_cpp_tls_n6_main_state == 3) {\n"
+        "            tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_POST_FINALIZE_TCB);\n"
+        "            abort();\n"
+        "        }\n"
         "        tcb = (tcc_cpp_tls_tcb *)tcc_cpp_tls_alloc(sizeof(tcc_cpp_tls_tcb), 0);\n"
         "        if (!tcb)\n"
         "            abort();\n"
@@ -2038,6 +2164,94 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    tcc_cpp_tls_thread_cleanup(tcb);\n"
         "    return 1;\n"
         "}\n"
+        // N6-05: capture main thread identity once before user main().
+        "void __cdecl __tcc_cpp_tls_n6_main_enter(void)\n"
+        "{\n"
+        "    if (tcc_cpp_tls_n6_main_state != 0)\n"
+        "        abort();\n"
+        // Suppress WER/GP fault UI on intentional fail-closed abort() paths
+        // (batch/CI otherwise blocks for minutes waiting for user dismissal).
+        "    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);\n"
+        "    tcc_cpp_tls_n6_main_thread_id = GetCurrentThreadId();\n"
+        "    tcc_cpp_tls_n6_main_state = 1;\n"
+        "}\n"
+        "DWORD __cdecl __tcc_cpp_tls_n6_main_thread_id(void)\n"
+        "{\n"
+        "    return tcc_cpp_tls_n6_main_thread_id;\n"
+        "}\n"
+        "int __cdecl __tcc_cpp_tls_n6_main_state(void)\n"
+        "{\n"
+        "    return (int)tcc_cpp_tls_n6_main_state;\n"
+        "}\n"
+        // N6-05: sole main-thread TLS finalization authority (reuses N6-04/04B
+        // tcc_cpp_tls_thread_cleanup).  Runs even when no TCB exists.
+        "static void tcc_cpp_tls_n6_main_finalize_once(void)\n"
+        "{\n"
+        "    tcc_cpp_tls_tcb *tcb;\n"
+        "    tcc_cpp_tls_key_t key;\n"
+        "    if (GetCurrentThreadId() != tcc_cpp_tls_n6_main_thread_id)\n"
+        "        abort();\n"
+        "    if (tcc_cpp_tls_n6_main_state == 3)\n"
+        "        return;\n"
+        "    if (tcc_cpp_tls_n6_main_state == 2)\n"
+        "        abort();\n"
+        "    if (tcc_cpp_tls_n6_main_state != 1)\n"
+        "        abort();\n"
+        "    tcc_cpp_tls_n6_main_state = 2;\n"
+        "    if (tcc_cpp_tls_key != (tcc_cpp_tls_key_t)-1) {\n"
+        "        key = tcc_cpp_tls_key;\n"
+        "        tcb = (tcc_cpp_tls_tcb *)TlsGetValue(key);\n"
+        "        if (tcb)\n"
+        "            tcc_cpp_tls_thread_cleanup(tcb);\n"
+        "    }\n"
+        "    tcc_cpp_tls_n6_main_state = 3;\n"
+        "}\n"
+        "void __cdecl __tcc_cpp_tls_n6_main_finalize(void)\n"
+        "{\n"
+        "    tcc_cpp_tls_n6_main_finalize_once();\n"
+        "}\n"
+        // Startup wrapper calls this after main_finalize; user exit() must not
+        // re-enter after FINALIZED (fail-closed).
+        "typedef void (__cdecl *tcc_cpp_n6_real_exit_fn)(int);\n"
+        "static tcc_cpp_n6_real_exit_fn tcc_cpp_n6_real_exit;\n"
+        "static void tcc_cpp_n6_resolve_real_exit(void)\n"
+        "{\n"
+        "    HMODULE h;\n"
+        "    if (tcc_cpp_n6_real_exit)\n"
+        "        return;\n"
+        "    h = GetModuleHandleA(\"msvcrt.dll\");\n"
+        "    if (!h)\n"
+        "        abort();\n"
+        "    tcc_cpp_n6_real_exit = (tcc_cpp_n6_real_exit_fn)\n"
+        "        GetProcAddress(h, \"exit\");\n"
+        "    if (!tcc_cpp_n6_real_exit)\n"
+        "        abort();\n"
+        "}\n"
+        "void __cdecl __tcc_cpp_n6_process_exit(int code)\n"
+        "{\n"
+        "    tcc_cpp_n6_resolve_real_exit();\n"
+        "    tcc_cpp_n6_real_exit(code);\n"
+        "}\n"
+        // N6-05 normal-exit gateway: intercept exit() at runtime symbol
+        // boundary (no frontend identifier rewrite).  Worker threads and
+        // re-entry during FINALIZING/FINALIZED are fail-closed.
+        "void __cdecl exit(int code)\n"
+        "{\n"
+        "    tcc_cpp_n6_resolve_real_exit();\n"
+        "    if (tcc_cpp_tls_n6_main_thread_id != 0) {\n"
+        "        if (GetCurrentThreadId() == tcc_cpp_tls_n6_main_thread_id) {\n"
+        "            if (tcc_cpp_tls_n6_main_state == 2)\n"
+        "                abort();\n"
+        "            if (tcc_cpp_tls_n6_main_state == 3)\n"
+        "                abort();\n"
+        "            if (tcc_cpp_tls_n6_main_state == 1)\n"
+        "                tcc_cpp_tls_n6_main_finalize_once();\n"
+        "        } else {\n"
+        "            abort();\n"
+        "        }\n"
+        "    }\n"
+        "    tcc_cpp_n6_real_exit(code);\n"
+        "}\n"
         // N6-02 contract (matches cpp_tls_addr_type in tccgen.c):
         // - first access on a thread allocates `size` zero-filled bytes and,
         //   when `ctor` is non-null, runs it exactly once on that thread;
@@ -2062,6 +2276,13 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    tcc_cpp_tls_tcb *tcb;\n"
         "    tcc_cpp_tls_entry *entries;\n"
         "    tcc_cpp_tls_dtor_entry *dtors;\n"
+        // N6-05 tombstone: block new TLS initialization on finalized main.
+        "    if (tcc_cpp_tls_n6_main_thread_id\n"
+        "        && GetCurrentThreadId() == tcc_cpp_tls_n6_main_thread_id\n"
+        "        && tcc_cpp_tls_n6_main_state == 3) {\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_POST_FINALIZE_OBJECT);\n"
+        "        abort();\n"
+        "    }\n"
         "    tcb = tcc_cpp_tls_get_tcb();\n"
         // An existing entry is handed out only in the INITIALIZED state:
         // INITIALIZING (recursive init) and, since N6-04, DESTROYED (access
@@ -2135,14 +2356,27 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
     tcc_compile_injected_c_no_debug(s1, cstr.data);
     cstr_free(&cstr);
     s1->cpp_tls_runtime_injected = 1;
+    s1->cpp_n6_main_runtime_injected = 1;
 }
 
 /* FEAT-4G: PE console EXE entry that walks .init_array / .fini_array
    before main.  Injected when a C++ TU needs startup or destructor runtime
    support; avoids rebuilding libtcc1 crt1.o. */
+static int tcc_cpp_start_sym_present(TCCState *s1)
+{
+    if (find_elf_sym(s1->symtab, "_tcc_cpp_start")
+        || find_elf_sym(s1->symtab, "__tcc_cpp_start")
+        || find_elf_sym(s1->symtab, "___tcc_cpp_start"))
+        return 1;
+    return 0;
+}
+
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
 {
     CString cstr;
+    int need_n5;
+    int need_n6;
+    int use_n6_wrapper;
 
     /* cpp_global_ctors: s1->cpp is per-TU and already restored to 0
        when the linker calls this (see tcc_compile). */
@@ -2151,16 +2385,49 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
             tcc_error_noabort("C++ destructor runtime in DLL is unsupported");
         return;
     }
-    if (!s1->cpp_global_ctors && !tcc_cpp_runtime_needed(s1))
+    need_n5 = s1->cpp_global_ctors || tcc_cpp_runtime_needed(s1);
+    need_n6 = tcc_cpp_n6_main_gateway_needed(s1) || tcc_cpp_tls_runtime_needed(s1);
+    if (!need_n5 && !need_n6)
         return;
     if (s1->cpp_init_startup_done)
         return;
 
-    s1->cpp_init_startup_done = 1;
-    tcc_add_cpp_runtime(s1);
+    if (need_n5)
+        tcc_add_cpp_runtime(s1);
+    if (need_n6 && !s1->cpp_n6_main_runtime_injected && !s1->cpp_tls_runtime_injected)
+        tcc_add_cpp_n6_main_runtime(s1);
+    /* need_n6 already reflects flags + symtab at link; also trust runtime
+       injection markers (flags alone can be stale vs symtab timing). */
+    use_n6_wrapper = need_n6 || s1->cpp_tls_runtime_injected
+        || s1->cpp_n6_main_runtime_injected;
 
     cstr_new(&cstr);
-    cstr_cat(&cstr,
+    if (use_n6_wrapper && !need_n5) {
+        cstr_cat(&cstr,
+        "typedef struct { int newmode; } _startupinfo;\n"
+        "int __cdecl __getmainargs(int*,char***,char***,int,_startupinfo*);\n"
+        "void __cdecl __set_app_type(int);\n"
+        "unsigned int __cdecl _controlfp(unsigned int,unsigned int);\n"
+        "void __cdecl __tcc_cpp_tls_n6_main_enter(void);\n"
+        "void __cdecl __tcc_cpp_tls_n6_main_finalize(void);\n"
+        "void __cdecl __tcc_cpp_n6_process_exit(int);\n"
+        "int main(int,char**,char**);\n"
+        "void _tcc_cpp_start(void)\n"
+        "{\n"
+        "    int argc; char **argv; char **env; int ret;\n"
+        "    _startupinfo si;\n"
+        "    __set_app_type(1);\n"
+        "    _controlfp(0x10000,0x30000);\n"
+        "    si.newmode = 0;\n"
+        "    __getmainargs(&argc,&argv,&env,0,&si);\n"
+        "    __tcc_cpp_tls_n6_main_enter();\n"
+        "    ret = main(argc,argv,env);\n"
+        "    __tcc_cpp_tls_n6_main_finalize();\n"
+        "    __tcc_cpp_n6_process_exit(ret);\n"
+        "}\n",
+        0);
+    } else if (need_n5) {
+        cstr_cat(&cstr,
         "typedef void (__cdecl *tcc_ctor_fn_t)(void);\n"
         "extern tcc_ctor_fn_t __init_array_start;\n"
         "extern tcc_ctor_fn_t __init_array_end;\n"
@@ -2196,14 +2463,18 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "{\n"
         "    return atexit(fn);\n"
         "}\n"
-        "extern void exit(int);\n"
+            , 0);
+        if (use_n6_wrapper) {
+            cstr_cat(&cstr,
+        "void __cdecl __tcc_cpp_tls_n6_main_enter(void);\n"
+        "void __cdecl __tcc_cpp_tls_n6_main_finalize(void);\n"
+        "void __cdecl __tcc_cpp_n6_process_exit(int);\n"
+            , 0);
+        } else {
+            cstr_cat(&cstr, "extern void exit(int);\n", 0);
+        }
+        cstr_cat(&cstr,
         "int main(int,char**,char**);\n"
-        /* single leading underscore: pe_add_runtime strips one '_' from
-           the start_symbol table name ("__tcc_cpp_start" -> entry
-           "_tcc_cpp_start"), same convention as "__start" vs crt "_start".
-           argc/argv/env are locals passed to __getmainargs like crt1.c:
-           msvcrt's __argc/__argv/_environ are DATA imports and would
-           need __declspec(dllimport) (pe_check_symbols rejects them). */
         "void _tcc_cpp_start(void)\n"
         "{\n"
         "    int argc; char **argv; char **env; int ret;\n"
@@ -2212,20 +2483,30 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "    _controlfp(0x10000,0x30000);\n"
         "    si.newmode = 0;\n"
         "    __getmainargs(&argc,&argv,&env,0,&si);\n"
-        /* ctors run after CRT init (they may use it).  Keep the CRT atexit
-           hook only as a fallback for main() calling exit(); the TCC-owned
-           registry is the destructor authority. */
+        , 0);
+        if (use_n6_wrapper)
+            cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_enter();\n", 0);
+        cstr_cat(&cstr,
         "    atexit(tcc_cpp_run_fini_once);\n"
         "    tcc_cpp_run_init();\n"
         "    ret = main(argc,argv,env);\n"
-        "    tcc_cpp_run_fini_once();\n"
-        "    exit(ret);\n"
-        "}\n"
-        /* len 0 = strlen+1: keep the NUL in the CString.  With -1 the
-           injected source is not NUL-terminated and tcc_compile's
-           strlen() runs into heap garbage (random \x01 parse errors). */
         , 0);
+        if (use_n6_wrapper)
+            cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_finalize();\n", 0);
+        if (use_n6_wrapper)
+            cstr_cat(&cstr, "    __tcc_cpp_n6_process_exit(ret);\n", 0);
+        else {
+            cstr_cat(&cstr, "    tcc_cpp_run_fini_once();\n", 0);
+            cstr_cat(&cstr, "    exit(ret);\n", 0);
+        }
+        cstr_cat(&cstr, "}\n", 0);
+    }
     tcc_compile_injected_c_no_debug(s1, cstr.data);
+    if (s1->nb_errors || !tcc_cpp_start_sym_present(s1)) {
+        cstr_free(&cstr);
+        return;
+    }
+    s1->cpp_init_startup_done = 1;
     cstr_free(&cstr);
 }
 

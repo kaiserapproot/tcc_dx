@@ -17526,6 +17526,8 @@ static void gen_function(Sym* sym)
     }
 
     funcname = get_tok_str(sym->v, NULL);
+    if (tcc_state->cpp && !strcmp(funcname, "main"))
+        tcc_state->cpp_n6_main_gateway_needed = 1;
     func_ind = ind;
     func_vt = sym->type.ref->type;
     func_var = sym->type.ref->f.func_type == FUNC_ELLIPSIS;
