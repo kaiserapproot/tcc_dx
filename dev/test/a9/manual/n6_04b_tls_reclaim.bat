@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_04b_tls_reclaim"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set /a FAILED=0
 
 echo === N6-04B: worker-thread TLS storage reclaim after destructor drain (Kernel32 process heap) ===
@@ -53,7 +54,7 @@ if not "!RC!"=="0" (
   set /a FAILED+=1
   goto :eof
 )
-findstr /c:"%MARK%" "%LOG%" >nul
+"%FINDSTR%" /c:"%MARK%" "%LOG%" >nul
 if errorlevel 1 (
   echo %KEY%=OUTPUT_FAIL
   set /a FAILED+=1

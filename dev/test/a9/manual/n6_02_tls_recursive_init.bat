@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_02_tls_recursive_init"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set /a FAILED=0
 
 echo === N6-02 FIX-4: recursive TLS initialization must abort (fail-closed) ===
@@ -38,7 +39,7 @@ if not "!errorlevel!"=="0" (
 "%OUT%\%NAME%.exe" >"%LOG%" 2>&1
 set "RC=!errorlevel!"
 type "%LOG%"
-findstr /c:"UNEXPECTED_RETURN" "%LOG%" >nul
+"%FINDSTR%" /c:"UNEXPECTED_RETURN" "%LOG%" >nul
 if not errorlevel 1 (
   echo %KEY%=UNINITIALIZED_VALUE_RETURNED
   set /a FAILED+=1
@@ -49,7 +50,7 @@ if not "!RC!"=="42" (
   set /a FAILED+=1
   goto :eof
 )
-findstr /c:"%KEY%=ABORT_FAIL_CLOSED" "%LOG%" >nul
+"%FINDSTR%" /c:"!KEY!=ABORT_FAIL_CLOSED" "%LOG%" >nul
 if errorlevel 1 (
   echo %KEY%=OUTPUT_FAIL
   set /a FAILED+=1

@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_pr_n4_goto_lifetime"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set "FAILED=0"
 set "CRLOG=%OUT%\compile.log"
 
@@ -93,7 +94,7 @@ echo === %~2 ===
 set "EC=!errorlevel!"
 set "CRASH="
 if !EC! lss 0 set "CRASH=1"
-findstr /c:"internal error" "%OUT%\%~n1.log" >nul 2>nul
+"%FINDSTR%" /c:"internal error" "%OUT%\%~n1.log" >nul 2>nul
 if not errorlevel 1 set "CRASH=1"
 if defined CRASH (
   echo %~2=CRASH
@@ -104,7 +105,7 @@ if !EC! equ 0 (
   echo %~2=FAIL
   exit /b 1
 )
-findstr /c:"goto into a scope requiring initialization is unsupported" "%OUT%\%~n1.log" >nul 2>nul
+"%FINDSTR%" /c:"goto into a scope requiring initialization is unsupported" "%OUT%\%~n1.log" >nul 2>nul
 if errorlevel 1 (
   echo %~2=WRONG_DIAGNOSTIC
   type "%OUT%\%~n1.log"

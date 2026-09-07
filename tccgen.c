@@ -17526,7 +17526,8 @@ static void gen_function(Sym* sym)
     }
 
     funcname = get_tok_str(sym->v, NULL);
-    if (tcc_state->cpp && !strcmp(funcname, "main"))
+    if (tcc_state->cpp && !sym->parent_class && sym_scope(sym) == 0
+        && !strcmp(funcname, "main"))
         tcc_state->cpp_n6_main_gateway_needed = 1;
     func_ind = ind;
     func_vt = sym->type.ref->type;

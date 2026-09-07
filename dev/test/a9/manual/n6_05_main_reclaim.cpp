@@ -1,6 +1,7 @@
 // N6-05 G4: main TLS reclaim completes (OUTSTANDING=0) before atexit callbacks.
 #include <stdio.h>
 #include <stdlib.h>
+#include <windows.h>
 
 extern "C" unsigned __tcc_cpp_tls_n6_stats(long *out, unsigned max);
 
@@ -16,7 +17,7 @@ struct Tls {
 };
 thread_local Tls tls;
 
-static void inspect_at_atexit()
+static void inspect_at_atexit(void)
 {
     long st[ST_COUNT];
     long outstanding;
@@ -28,7 +29,7 @@ static void inspect_at_atexit()
     printf("OUTSTANDING=%ld\n", outstanding);
     fflush(stdout);
     if (outstanding != 0)
-        exit(91);
+        ExitProcess(91);
 }
 
 int main()

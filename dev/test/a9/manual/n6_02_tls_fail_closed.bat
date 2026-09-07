@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_02_tls_fail_closed"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set /a FAILED=0
 
 echo === N6-02 fail-closed gates (thread_local class type) ===
@@ -70,7 +71,7 @@ if exist "%OUT%\%NAME%.exe" (
   set /a FAILED+=1
   goto :eof
 )
-findstr /c:"%EXPECT%" "%LOG%" >nul
+"%FINDSTR%" /c:"!EXPECT!" "%LOG%" >nul
 if errorlevel 1 (
   type "%LOG%"
   echo %NAME%=WRONG_DIAGNOSTIC

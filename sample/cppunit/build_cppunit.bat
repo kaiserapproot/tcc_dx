@@ -3,9 +3,16 @@ setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0"
 
 set "ROOT=%~dp0..\.."
+for %%I in ("!ROOT!") do set "ROOT=%%~fI"
 set "TCC=..\..\dev\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_cppunit_gate_%RANDOM%_%RANDOM%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
+if exist "%ProgramFiles%\Git\cmd\git.exe" (
+    set "GIT=%ProgramFiles%\Git\cmd\git.exe"
+) else (
+    set "GIT=git"
+)
 set /a FAILED=0
 if not exist "%OUT%" mkdir "%OUT%"
 
@@ -58,23 +65,22 @@ if exist "%OUT%\all_test_tpp.exe" (
 )
 
 rem Baseline identity is part of the gate, not a reviewer-maintained list.
-for /f "delims=" %%H in ('git -C "%ROOT%" rev-parse cppunit-original-base 2^>nul') do if not defined BASE_HASH set "BASE_HASH=%%H"
+set "BASE_HASH="
+"!GIT!" -C "!ROOT!" rev-parse cppunit-original-base >"!OUT!\basehash.txt" 2>nul
+if exist "!OUT!\basehash.txt" set /p BASE_HASH=<"!OUT!\basehash.txt"
 if /i not "!BASE_HASH!"=="ad882a3c5673a238354d6ad72bac88342a18335e" (
     echo [G7 FAIL] unexpected cppunit-original-base: !BASE_HASH!
     set /a FAILED+=1
 )
 
 set /a BASE_COUNT=0
-git -C "%ROOT%" ls-tree -r --name-only cppunit-original-base -- sample/cppunit >"%OUT%\baseline.list" 2>nul
+"!GIT!" -C "!ROOT!" ls-tree -r --name-only cppunit-original-base -- sample/cppunit >"!OUT!\baseline.list" 2>nul
 if errorlevel 1 (
     echo [G7 FAIL] cannot enumerate baseline tree
     set /a FAILED+=1
 )
-for /f "delims=" %%F in ('findstr /r /i "\.cpp" "%OUT%\baseline.list"') do (
+for /f "usebackq delims=" %%F in ("!OUT!\baseline.list") do (
     if /i not "%%F"=="sample/cppunit/all_test.cpp" call :g7_check_original "%%F"
-)
-for /f "delims=" %%F in ('findstr /r /i "\.h" "%OUT%\baseline.list"') do (
-    call :g7_check_original "%%F"
 )
 if not "!BASE_COUNT!"=="31" (
     echo [G7 FAIL] baseline source/header count !BASE_COUNT! ^(expected 31^)
@@ -89,7 +95,7 @@ popd
 exit /b !FAILED!
 
 :g7_require_line
-findstr /x /c:"%~2" "%~1" >nul 2>nul
+"%FINDSTR%" /x /c:"%~2" "%~1" >nul 2>nul
 if errorlevel 1 (
     echo [G7 FAIL] missing exact line: %~2
     set /a FAILED+=1
@@ -99,7 +105,7 @@ exit /b 0
 :g7_check_original
 if /i not "%~x1"==".cpp" if /i not "%~x1"==".h" exit /b 0
 set /a BASE_COUNT+=1
-git -C "%ROOT%" diff --exit-code cppunit-original-base -- "%~1" >nul 2>nul
+"!GIT!" -C "!ROOT!" diff --exit-code cppunit-original-base -- "%~1" >nul 2>nul
 if errorlevel 1 (
     echo [G7 FAIL] modified baseline file: %~1
     set /a FAILED+=1

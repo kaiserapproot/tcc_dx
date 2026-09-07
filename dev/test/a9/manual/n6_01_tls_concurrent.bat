@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_01_tls_concurrent"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set "LOG=%OUT%\n6_01_tls_concurrent.log"
 
 echo === N6-01 TLS concurrent-worker isolation ===
@@ -22,7 +23,7 @@ if not "!errorlevel!"=="0" (
   popd
   exit /b 1
 )
-findstr /c:"N6_01_CONCURRENT_CROSS_THREAD_ADDRESS=PASS" "%LOG%" >nul
+"%FINDSTR%" /c:"N6_01_CONCURRENT_CROSS_THREAD_ADDRESS=PASS" "%LOG%" >nul
 if errorlevel 1 (
   type "%LOG%"
   echo N6_01_CONCURRENT_CROSS_THREAD_ADDRESS=OUTPUT_FAIL
