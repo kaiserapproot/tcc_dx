@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_03_dtor_registry"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set "LOG=%OUT%\n6_03_dtor_registry.log"
 
 echo === N6-03: per-thread destructor registry foundation (no drain) ===
@@ -23,7 +24,7 @@ if not "!RUN_RC!"=="0" (
   popd
   exit /b 1
 )
-findstr /c:"N6_03_DTOR_REGISTRY=PASS" "%LOG%" >nul
+"%FINDSTR%" /c:"N6_03_DTOR_REGISTRY=PASS" "%LOG%" >nul
 if errorlevel 1 (
   echo N6_03_DTOR_REGISTRY=OUTPUT_FAIL
   popd

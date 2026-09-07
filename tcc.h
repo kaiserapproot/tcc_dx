@@ -822,6 +822,10 @@ struct TCCState {
     unsigned char cpp_runtime_injected;
     unsigned char cpp_tls_runtime_needed;
     unsigned char cpp_tls_runtime_injected;
+    /* N6-05: any C++ TU defining main() in a NORMAL_EXE needs the main-thread
+       finalization gateway even when the TU uses no thread_local. */
+    unsigned char cpp_n6_main_gateway_needed;
+    unsigned char cpp_n6_main_runtime_injected;
 
     /* C language options */
     unsigned char char_is_unsigned;
@@ -1376,7 +1380,10 @@ ST_FUNC void tcc_add_btstub(TCCState *s1);
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1);
 ST_FUNC void tcc_add_cpp_runtime(TCCState *s1);
 ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1);
+ST_FUNC int tcc_cpp_global_init_needed(TCCState *s1);
 ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1);
+ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1);
+ST_FUNC int tcc_cpp_n6_main_gateway_needed(TCCState *s1);
 ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1);
 ST_FUNC void tcc_add_pragma_libs(TCCState *s1);
 PUB_FUNC int tcc_add_library_err(TCCState *s, const char *f);
