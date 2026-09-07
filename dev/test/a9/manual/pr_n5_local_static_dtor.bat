@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_pr_n5_local_static_dtor"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set "LOG=%OUT%\local_static_dtor.log"
 set "FAILED=0"
 
@@ -68,14 +69,11 @@ if !DQ13_LINE! geq !D111_LINE! goto order_fail
 set "RUNLOG=%OUT%\local_static_dtor.run.log"
 "%TCC%" -run ..\local_static_dtor.cpp >"%RUNLOG%" 2>&1
 if not "!errorlevel!"=="0" goto run_fail
-set "COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"END" "%RUNLOG%"') do set /a COUNT+=1
+call :count_marker "%RUNLOG%" "END"
 if not "!COUNT!"=="1" goto run_fail
-set "COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"D5" "%RUNLOG%"') do set /a COUNT+=1
+call :count_marker "%RUNLOG%" "D5"
 if not "!COUNT!"=="1" goto run_fail
-set "COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DQ13" "%RUNLOG%"') do set /a COUNT+=1
+call :count_marker "%RUNLOG%" "DQ13"
 if not "!COUNT!"=="1" goto run_fail
 echo LOCAL_STATIC_DTOR_TCC_RUN=PASS
 
@@ -208,7 +206,7 @@ echo TCC_RUN_GLOBAL_CTOR_EXIT=PASS
 set "DLLLOG=%OUT%\local_static_dtor_dll.log"
 "%TCC%" -shared pr_n5_local_static_dtor_dll.cpp -o "%OUT%\local_static_dtor.dll" >"%DLLLOG%" 2>&1
 if "!errorlevel!"=="0" goto dll_policy_fail
-findstr /c:"function-local static destructor in DLL is unsupported" "%DLLLOG%" >nul 2>nul
+"%FINDSTR%" /c:"function-local static destructor in DLL is unsupported" "%DLLLOG%" >nul 2>nul
 if errorlevel 1 goto dll_policy_fail
 echo CPP_LOCAL_STATIC_DTOR_DLL=UNSUPPORTED_FAIL_CLOSED
 set "DLLOBJ=%OUT%\local_static_dtor_dll.o"
@@ -216,7 +214,7 @@ set "DLLOBJ=%OUT%\local_static_dtor_dll.o"
 if not "!errorlevel!"=="0" goto dll_policy_fail
 "%TCC%" -shared "%DLLOBJ%" -o "%OUT%\local_static_dtor_object.dll" >"%DLLLOG%.object_link" 2>&1
 if "!errorlevel!"=="0" goto dll_policy_fail
-findstr /c:"C++ destructor runtime in DLL is unsupported" "%DLLLOG%.object_link" >nul 2>nul
+"%FINDSTR%" /c:"C++ destructor runtime in DLL is unsupported" "%DLLLOG%.object_link" >nul 2>nul
 if errorlevel 1 goto dll_policy_fail
 echo CPP_LOCAL_STATIC_DTOR_DLL_OBJECT=UNSUPPORTED_FAIL_CLOSED
 
@@ -231,18 +229,15 @@ if not "!errorlevel!"=="0" goto multi_fail
 if not "!errorlevel!"=="0" goto multi_fail
 "%MULTIOUT%\local_static_multi.exe" >"%MULTILOG%" 2>&1
 if not "!errorlevel!"=="0" goto multi_fail
-set "COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"END" "%MULTILOG%"') do set /a COUNT+=1
+call :count_marker "%MULTILOG%" "END"
 if not "!COUNT!"=="1" goto multi_fail
-set "COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DB" "%MULTILOG%"') do set /a COUNT+=1
+call :count_marker "%MULTILOG%" "DB"
 if not "!COUNT!"=="1" goto multi_fail
-set "COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DA" "%MULTILOG%"') do set /a COUNT+=1
+call :count_marker "%MULTILOG%" "DA"
 if not "!COUNT!"=="1" goto multi_fail
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"END" "%MULTILOG%"') do set "MULTI_END_LINE=%%n"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DB" "%MULTILOG%"') do set "MULTI_DB_LINE=%%n"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"DA" "%MULTILOG%"') do set "MULTI_DA_LINE=%%n"
+call :line_marker "%MULTILOG%" "END" MULTI_END_LINE
+call :line_marker "%MULTILOG%" "DB" MULTI_DB_LINE
+call :line_marker "%MULTILOG%" "DA" MULTI_DA_LINE
 if !MULTI_END_LINE! geq !MULTI_DB_LINE! goto multi_fail
 if !MULTI_DB_LINE! geq !MULTI_DA_LINE! goto multi_fail
 echo LOCAL_STATIC_DTOR_MULTI_TU=PASS
@@ -343,17 +338,33 @@ echo PR_N5_LOCAL_STATIC_DTOR=FAIL
 popd
 exit /b 1
 
-:check_once
+:count_marker
 set "COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"%~1" "%LOG%"') do set /a COUNT+=1
+set "MATCH=%OUT%\count_%RANDOM%.txt"
+"%FINDSTR%" /n /x /c:"%~2" "%~1" >"%MATCH%" 2>nul
+for /f "usebackq delims=" %%a in ("%MATCH%") do set /a COUNT+=1
+exit /b 0
+
+:line_marker
+set "MATCH=%OUT%\line_%RANDOM%.txt"
+"%FINDSTR%" /n /x /c:"%~2" "%~1" >"%MATCH%" 2>nul
+for /f "usebackq tokens=1 delims=:" %%n in ("%MATCH%") do set "%~3=%%n"
+exit /b 0
+
+:check_once
+set "MATCH=%OUT%\check_once_%RANDOM%.txt"
+"%FINDSTR%" /n /x /c:"%~1" "%LOG%" >"%MATCH%" 2>nul
+set "COUNT=0"
+for /f "usebackq delims=" %%a in ("%MATCH%") do set /a COUNT+=1
 if "!COUNT!"=="1" exit /b 0
 echo expected exactly one line: %~1
 type "%LOG%"
 exit /b 1
 
 :check_absent
-findstr /n /x /c:"%~1" "%LOG%" >nul 2>nul
-if not errorlevel 1 (
+set "MATCH=%OUT%\check_absent_%RANDOM%.txt"
+"%FINDSTR%" /n /x /c:"%~1" "%LOG%" >"%MATCH%" 2>nul
+for /f "usebackq delims=" %%a in ("%MATCH%") do (
   echo unexpected line: %~1
   type "%LOG%"
   exit /b 1
@@ -361,12 +372,16 @@ if not errorlevel 1 (
 exit /b 0
 
 :line_of
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"%~1" "%LOG%"') do set "%~2=%%n"
+set "MATCH=%OUT%\line_of_%RANDOM%.txt"
+"%FINDSTR%" /n /x /c:"%~1" "%LOG%" >"%MATCH%" 2>nul
+for /f "usebackq tokens=1 delims=:" %%n in ("%MATCH%") do set "%~2=%%n"
 exit /b 0
 
 :check_line_in
+set "MATCH=%OUT%\check_line_%RANDOM%.txt"
+"%FINDSTR%" /n /x /c:"%~2" "%~1" >"%MATCH%" 2>nul
 set "CHECK_COUNT=0"
-for /f "tokens=1 delims=:" %%n in ('findstr /n /x /c:"%~2" "%~1"') do (
+for /f "usebackq tokens=1 delims=:" %%n in ("%MATCH%") do (
   set /a CHECK_COUNT+=1
   set "%~3=%%n"
 )
@@ -374,9 +389,10 @@ if "!CHECK_COUNT!"=="1" exit /b 0
 exit /b 1
 
 :check_absent_in
-findstr /n /x /c:"%~2" "%~1" >nul 2>nul
-if errorlevel 1 exit /b 0
-exit /b 1
+set "MATCH=%OUT%\check_absent_in_%RANDOM%.txt"
+"%FINDSTR%" /n /x /c:"%~2" "%~1" >"%MATCH%" 2>nul
+for /f "usebackq delims=" %%a in ("%MATCH%") do exit /b 1
+exit /b 0
 
 :check_cpp_order
 call :check_line_in "%~1" "GC" CPP_ORDER_GC

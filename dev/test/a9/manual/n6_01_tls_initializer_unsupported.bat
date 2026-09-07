@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_01_tls_initializer"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set "LOG=%OUT%\n6_01_tls_initializer.log"
 
 echo === N6-01 unsupported initializer ===
@@ -16,7 +17,7 @@ if "!errorlevel!"=="0" (
   exit /b 1
 )
 rem N6-02 renamed the stage suffix of the diagnostic; match the stable prefix.
-findstr /c:"thread_local initializers are unsupported" "%LOG%" >nul
+"%FINDSTR%" /c:"thread_local initializers are unsupported" "%LOG%" >nul
 if errorlevel 1 (
   type "%LOG%"
   echo N6_01_TLS_INITIALIZER_FAIL_CLOSED=WRONG_DIAGNOSTIC

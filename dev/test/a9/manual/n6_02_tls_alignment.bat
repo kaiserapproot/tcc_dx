@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_02_tls_alignment"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set "LOG=%OUT%\n6_02_tls_alignment.log"
 
 echo === N6-02 FIX-2: TLS object alignment authority (calloc, 16 on x64) ===
@@ -23,7 +24,7 @@ if not "!RUN_RC!"=="0" (
   popd
   exit /b 1
 )
-findstr /c:"N6_02_TLS_ALIGNMENT=PASS" "%LOG%" >nul
+"%FINDSTR%" /c:"N6_02_TLS_ALIGNMENT=PASS" "%LOG%" >nul
 if errorlevel 1 (
   type "%LOG%"
   echo N6_02_TLS_ALIGNMENT=OUTPUT_FAIL

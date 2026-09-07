@@ -9,6 +9,7 @@ if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set /a FAILED=0
 set /a CRASHES=0
 set "CRLOG=%TEMP%\tcc_gate_err.log"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 
 rem === Known investigation sources (compile failure is a documented gap,
 rem     NOT a regression) -> excluded from gating, shown for info only.
@@ -31,7 +32,7 @@ for %%f in (smoke\*.c smoke\*.cpp a2\*.c a2\*.cpp a3\*.c a3\*.cpp a4\*.cpp a5\*.
     set "EC=!errorlevel!"
     set "ISCRASH="
     if !EC! lss 0 set "ISCRASH=1"
-    findstr /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
+    "%FINDSTR%" /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
     if defined ISCRASH (
         echo   [CRASH] %%f exit=!EC!
         type "%CRLOG%"
@@ -40,7 +41,7 @@ for %%f in (smoke\*.c smoke\*.cpp a2\*.c a2\*.cpp a3\*.c a3\*.cpp a4\*.cpp a5\*.
     ) else if !EC! neq 0 (
         type "%CRLOG%"
         set "ISKNOWN="
-        echo !KNOWNFAIL! | findstr /c:" %%~nxf " >nul && set "ISKNOWN=1"
+        echo !KNOWNFAIL! | "%FINDSTR%" /c:" %%~nxf " >nul && set "ISKNOWN=1"
         if defined ISKNOWN (
             echo   [known gap, non-gating] %%f
         ) else (
@@ -66,7 +67,7 @@ for %%f in (a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp 
         type "%CRLOG%"
         set "ISCRASH="
         if !EC! lss 0 set "ISCRASH=1"
-        findstr /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
+        "%FINDSTR%" /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
         if defined ISCRASH (
             echo   [CRASH] %%f exit=!EC!
             set /a CRASHES+=1
@@ -100,7 +101,7 @@ for %%f in (a9\negative\*.cpp) do (
     set "EC=!errorlevel!"
     set "ISCRASH="
     if !EC! lss 0 set "ISCRASH=1"
-    findstr /c:"internal error" "%NEGOUT%\%%~nf.log" >nul 2>nul && set "ISCRASH=1"
+    "%FINDSTR%" /c:"internal error" "%NEGOUT%\%%~nf.log" >nul 2>nul && set "ISCRASH=1"
     if defined ISCRASH (
         echo   [CRASH] %%f exit=!EC!
         type "%NEGOUT%\%%~nf.log"
@@ -113,7 +114,7 @@ for %%f in (a9\negative\*.cpp) do (
         if exist "%%~dpnf.expected" (
             set "NEGPAT="
             for /f "usebackq delims=" %%p in ("%%~dpnf.expected") do set "NEGPAT=%%p"
-            findstr /c:"!NEGPAT!" "%NEGOUT%\%%~nf.log" >nul
+            "%FINDSTR%" /c:"!NEGPAT!" "%NEGOUT%\%%~nf.log" >nul
             if errorlevel 1 (
                 echo   [NEGATIVE FAIL] %%f rejected, but not with "!NEGPAT!"
                 type "%NEGOUT%\%%~nf.log"
@@ -213,6 +214,10 @@ rem N6-04B: worker-thread TLS storage reclaim (TCB / entries / objects / dtor re
 echo === a9\manual\n6_04b_tls_reclaim.bat ===
 call a9\manual\n6_04b_tls_reclaim.bat
 if errorlevel 1 set /a FAILED+=1
+rem N6-05: main-thread normal termination (TLS finalize before static/atexit).
+echo === a9\manual\n6_05_main_termination.bat ===
+call a9\manual\n6_05_main_termination.bat
+if errorlevel 1 set /a FAILED+=1
 
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
@@ -228,7 +233,7 @@ for %%f in (..\..\sample\cppunit\*.cpp) do (
     set "EC=!errorlevel!"
     set "ISCRASH="
     if !EC! lss 0 set "ISCRASH=1"
-    findstr /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
+    "%FINDSTR%" /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
     if defined ISCRASH (
         echo   [CRASH] cppunit corpus: %%~nxf exit=!EC!
         type "%CRLOG%"

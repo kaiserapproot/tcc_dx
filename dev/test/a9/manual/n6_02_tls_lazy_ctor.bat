@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_02_tls_lazy_ctor"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set "LOG=%OUT%\n6_02_tls_lazy_ctor.log"
 
 echo === N6-02 per-thread lazy non-trivial default constructor ===
@@ -23,7 +24,7 @@ if not "!RUN_RC!"=="0" (
   popd
   exit /b 1
 )
-findstr /c:"N6_02_TLS_LAZY_CTOR=PASS" "%LOG%" >nul
+"%FINDSTR%" /c:"N6_02_TLS_LAZY_CTOR=PASS" "%LOG%" >nul
 if errorlevel 1 (
   type "%LOG%"
   echo N6_02_TLS_LAZY_CTOR=OUTPUT_FAIL
