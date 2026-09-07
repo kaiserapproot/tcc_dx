@@ -13,6 +13,7 @@ static DWORD WINAPI worker(void *p)
 int main()
 {
     HANDLE h;
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
     h = CreateThread(NULL, 0, worker, NULL, 0, NULL);
     if (!h)
         return 1;

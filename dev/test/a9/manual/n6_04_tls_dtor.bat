@@ -5,6 +5,7 @@ set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%TEMP%\tcc_n6_04_tls_dtor"
 if not exist "%OUT%" mkdir "%OUT%"
+set "FINDSTR=%SystemRoot%\System32\findstr.exe"
 set /a FAILED=0
 
 echo === N6-04: per-thread thread_local destructor LIFO drain (PE TLS callback) ===
@@ -55,7 +56,7 @@ if not "!RC!"=="0" (
   goto :eof
 )
 if not "%MARK%"=="" (
-  findstr /c:"%MARK%" "%LOG%" >nul
+  "%FINDSTR%" /c:"%MARK%" "%LOG%" >nul
   if errorlevel 1 (
     echo %KEY%=OUTPUT_FAIL
     set /a FAILED+=1
@@ -79,13 +80,13 @@ if not "!errorlevel!"=="0" (
 "%OUT%\%NAME%.exe" >"%LOG%" 2>&1
 set "RC=!errorlevel!"
 type "%LOG%"
-findstr /c:"UNEXPECTED_RETURN" "%LOG%" >nul
+"%FINDSTR%" /c:"UNEXPECTED_RETURN" "%LOG%" >nul
 if not errorlevel 1 (
   echo %KEY%=NEW_TLS_SILENTLY_ACCEPTED
   set /a FAILED+=1
   goto :eof
 )
-findstr /c:"UNEXPECTED_JOIN" "%LOG%" >nul
+"%FINDSTR%" /c:"UNEXPECTED_JOIN" "%LOG%" >nul
 if not errorlevel 1 (
   echo %KEY%=NEW_TLS_SILENTLY_ACCEPTED
   set /a FAILED+=1
@@ -96,7 +97,7 @@ if not "!RC!"=="42" (
   set /a FAILED+=1
   goto :eof
 )
-findstr /c:"%KEY%=ABORT_FAIL_CLOSED" "%LOG%" >nul
+"%FINDSTR%" /c:"%KEY%=ABORT_FAIL_CLOSED" "%LOG%" >nul
 if errorlevel 1 (
   echo %KEY%=OUTPUT_FAIL
   set /a FAILED+=1

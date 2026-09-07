@@ -1870,7 +1870,8 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
     }
     if (tcc_cpp_tls_runtime_needed(s1))
         tcc_add_cpp_tls_runtime(s1);
-    else if (tcc_cpp_n6_main_gateway_needed(s1))
+    else if (tcc_cpp_n6_main_gateway_needed(s1)
+             && !tcc_cpp_global_init_needed(s1))
         tcc_add_cpp_n6_main_runtime(s1);
     if (TCC_OUTPUT_DLL == s1->output_type) {
         pe_type = PE_DLL;
@@ -1902,7 +1903,7 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
         /* cpp_global_ctors, not s1->cpp: the latter is per-TU and already
            restored to 0 by tcc_compile when the linker runs. */
         if (!s1->elf_entryname && TCC_OUTPUT_MEMORY != s1->output_type
-            && (s1->cpp_global_ctors || tcc_cpp_runtime_needed(s1)
+            && (tcc_cpp_global_init_needed(s1)
                 || tcc_cpp_tls_runtime_needed(s1)
                 || tcc_cpp_n6_main_gateway_needed(s1))
             && strcmp(start_symbol, "__start") == 0) {

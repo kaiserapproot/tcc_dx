@@ -1611,6 +1611,19 @@ ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1)
     return 0;
 }
 
+ST_FUNC int tcc_cpp_global_init_needed(TCCState *s1)
+{
+    Section *s;
+    if (s1->cpp_global_ctors)
+        return 1;
+    if (tcc_cpp_runtime_needed(s1))
+        return 1;
+    s = find_section(s1, ".init_array");
+    if (s && s->data_offset > 0)
+        return 1;
+    return 0;
+}
+
 ST_FUNC void tcc_add_cpp_runtime(TCCState *s1)
 {
     CString cstr;
@@ -1678,9 +1691,6 @@ ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)
         "{\n"
         "    if (tcc_cpp_tls_n6_main_state != 0)\n"
         "        abort();\n"
-        // Suppress WER/GP fault UI on intentional fail-closed abort() paths
-        // (batch/CI otherwise blocks for minutes waiting for user dismissal).
-        "    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);\n"
         "    tcc_cpp_tls_n6_main_thread_id = GetCurrentThreadId();\n"
         "    tcc_cpp_tls_n6_main_state = 1;\n"
         "}\n"
@@ -2169,9 +2179,6 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "{\n"
         "    if (tcc_cpp_tls_n6_main_state != 0)\n"
         "        abort();\n"
-        // Suppress WER/GP fault UI on intentional fail-closed abort() paths
-        // (batch/CI otherwise blocks for minutes waiting for user dismissal).
-        "    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);\n"
         "    tcc_cpp_tls_n6_main_thread_id = GetCurrentThreadId();\n"
         "    tcc_cpp_tls_n6_main_state = 1;\n"
         "}\n"
@@ -2385,21 +2392,85 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
             tcc_error_noabort("C++ destructor runtime in DLL is unsupported");
         return;
     }
-    need_n5 = s1->cpp_global_ctors || tcc_cpp_runtime_needed(s1);
+    need_n5 = tcc_cpp_global_init_needed(s1);
     need_n6 = tcc_cpp_n6_main_gateway_needed(s1) || tcc_cpp_tls_runtime_needed(s1);
     if (!need_n5 && !need_n6)
         return;
     if (s1->cpp_init_startup_done)
         return;
 
+    use_n6_wrapper = tcc_cpp_tls_runtime_needed(s1) || s1->cpp_tls_runtime_injected
+        || s1->cpp_n6_main_runtime_injected
+        || (tcc_cpp_n6_main_gateway_needed(s1) && !need_n5);
+
+    /* FEAT-4G baseline startup: global init without N6 wrapper (no TLS). */
+    if (need_n5 && !use_n6_wrapper) {
+        s1->cpp_init_startup_done = 1;
+        tcc_add_cpp_runtime(s1);
+        cstr_new(&cstr);
+        cstr_cat(&cstr,
+        "typedef void (__cdecl *tcc_ctor_fn_t)(void);\n"
+        "extern tcc_ctor_fn_t __init_array_start;\n"
+        "extern tcc_ctor_fn_t __init_array_end;\n"
+        "extern tcc_ctor_fn_t __fini_array_start;\n"
+        "extern tcc_ctor_fn_t __fini_array_end;\n"
+        "static void tcc_cpp_run_init(void)\n"
+        "{\n"
+        "    tcc_ctor_fn_t *p, *e;\n"
+        "    p = (tcc_ctor_fn_t *)&__init_array_start;\n"
+        "    e = (tcc_ctor_fn_t *)&__init_array_end;\n"
+        "    for (; p < e; ++p) { if (*p) (*p)(); }\n"
+        "}\n"
+        "static void tcc_cpp_run_fini(void)\n"
+        "{\n"
+        "    tcc_ctor_fn_t *p, *s;\n"
+        "    s = (tcc_ctor_fn_t *)&__fini_array_start;\n"
+        "    p = (tcc_ctor_fn_t *)&__fini_array_end;\n"
+        "    while (p > s) { --p; if (*p) (*p)(); }\n"
+        "}\n"
+        "static int tcc_cpp_fini_done;\n"
+        "static void tcc_cpp_run_fini_once(void)\n"
+        "{\n"
+        "    if (tcc_cpp_fini_done) return;\n"
+        "    tcc_cpp_fini_done = 1;\n"
+        "    tcc_cpp_run_fini();\n"
+        "}\n"
+        "typedef struct { int newmode; } _startupinfo;\n"
+        "int __cdecl __getmainargs(int*,char***,char***,int,_startupinfo*);\n"
+        "void __cdecl __set_app_type(int);\n"
+        "unsigned int __cdecl _controlfp(unsigned int,unsigned int);\n"
+        "extern int atexit(void (*)(void));\n"
+        "int __cdecl __tcc_cpp_register_exit(tcc_ctor_fn_t fn)\n"
+        "{\n"
+        "    return atexit(fn);\n"
+        "}\n"
+        "extern void exit(int);\n"
+        "int main(int,char**,char**);\n"
+        "void _tcc_cpp_start(void)\n"
+        "{\n"
+        "    int argc; char **argv; char **env; int ret;\n"
+        "    _startupinfo si;\n"
+        "    __set_app_type(1);\n"
+        "    _controlfp(0x10000,0x30000);\n"
+        "    si.newmode = 0;\n"
+        "    __getmainargs(&argc,&argv,&env,0,&si);\n"
+        "    atexit(tcc_cpp_run_fini_once);\n"
+        "    tcc_cpp_run_init();\n"
+        "    ret = main(argc,argv,env);\n"
+        "    tcc_cpp_run_fini_once();\n"
+        "    exit(ret);\n"
+        "}\n",
+        0);
+        tcc_compile_injected_c_no_debug(s1, cstr.data);
+        cstr_free(&cstr);
+        return;
+    }
+
     if (need_n5)
         tcc_add_cpp_runtime(s1);
-    if (need_n6 && !s1->cpp_n6_main_runtime_injected && !s1->cpp_tls_runtime_injected)
+    if (use_n6_wrapper && !need_n5 && !s1->cpp_n6_main_runtime_injected
+        && !s1->cpp_tls_runtime_injected)
         tcc_add_cpp_n6_main_runtime(s1);
-    /* need_n6 already reflects flags + symtab at link; also trust runtime
-       injection markers (flags alone can be stale vs symtab timing). */
-    use_n6_wrapper = need_n6 || s1->cpp_tls_runtime_injected
-        || s1->cpp_n6_main_runtime_injected;
 
     cstr_new(&cstr);
     if (use_n6_wrapper && !need_n5) {
@@ -2501,12 +2572,11 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         }
         cstr_cat(&cstr, "}\n", 0);
     }
-    tcc_compile_injected_c_no_debug(s1, cstr.data);
-    if (s1->nb_errors || !tcc_cpp_start_sym_present(s1)) {
-        cstr_free(&cstr);
-        return;
-    }
     s1->cpp_init_startup_done = 1;
+    tcc_compile_injected_c_no_debug(s1, cstr.data);
+    if (use_n6_wrapper && need_n5 && !s1->cpp_n6_main_runtime_injected
+        && !s1->cpp_tls_runtime_injected)
+        tcc_add_cpp_n6_main_runtime(s1);
     cstr_free(&cstr);
 }
 

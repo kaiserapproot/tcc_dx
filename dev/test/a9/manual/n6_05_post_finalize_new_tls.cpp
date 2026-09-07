@@ -1,6 +1,12 @@
 // N6-05 G3: after main finalize, new main-thread TLS initialization is fail-closed.
 #include <stdio.h>
 #include <stdlib.h>
+#include <windows.h>
+
+static void n6_05_suppress_wer(void)
+{
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+}
 
 extern "C" unsigned __tcc_cpp_tls_n6_stats(long *out, unsigned max);
 
@@ -27,6 +33,7 @@ static void gate_cb()
 
 int main()
 {
+    n6_05_suppress_wer();
     if (atexit(gate_cb) != 0)
         return 1;
     return 0;

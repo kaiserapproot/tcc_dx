@@ -1,8 +1,12 @@
 // N6-05 G3: after main finalize, accessing destroyed main-thread TLS is fail-closed.
-// TCC does not emit global static C++ dtors yet; atexit runs in the same post-TLS
-// termination phase as static destructors for ordering gates (see tls_vs_atexit).
 #include <stdio.h>
 #include <stdlib.h>
+#include <windows.h>
+
+static void n6_05_suppress_wer(void)
+{
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+}
 
 struct X {
     X() {}
@@ -26,6 +30,7 @@ static void gate_cb()
 
 int main()
 {
+    n6_05_suppress_wer();
     if (atexit(gate_cb) != 0)
         return 1;
     touch_x();

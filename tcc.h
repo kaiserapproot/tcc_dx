@@ -1380,6 +1380,7 @@ ST_FUNC void tcc_add_btstub(TCCState *s1);
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1);
 ST_FUNC void tcc_add_cpp_runtime(TCCState *s1);
 ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1);
+ST_FUNC int tcc_cpp_global_init_needed(TCCState *s1);
 ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1);
 ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1);
 ST_FUNC int tcc_cpp_n6_main_gateway_needed(TCCState *s1);
