@@ -217,6 +217,10 @@ if errorlevel 1 set /a FAILED+=1
 rem N6-05: main-thread normal termination (TLS finalize before static/atexit).
 echo === a9\manual\n6_05_main_termination.bat ===
 call a9\manual\n6_05_main_termination.bat
+if errorlevel 1 exit /b 1
+
+echo === a9\manual\n6_06a_main_termination.bat ===
+call a9\manual\n6_06a_main_termination.bat
 if errorlevel 1 set /a FAILED+=1
 
 

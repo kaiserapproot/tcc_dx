@@ -75,7 +75,20 @@ extern int tcc_compile_string(TCCState *s, const char *str);
 #ifdef TCC_TARGET_PE
 static int tcc_add_runmain(TCCState *s1)
 {
-    static const char runmain_source[] =
+    CString cstr;
+    int need_n6;
+    unsigned char saved_cpp;
+    unsigned char saved_cpp_forced;
+    unsigned char saved_lex_c;
+    unsigned char saved_extern_c;
+    int ret;
+
+    tcc_add_cpp_runtime(s1);
+    need_n6 = tcc_cpp_tls_runtime_needed(s1);
+    cstr_new(&cstr);
+    if (need_n6)
+        cstr_cat(&cstr, "void abort(void);\n", -1);
+    cstr_cat(&cstr,
         "typedef void (__cdecl *tcc_ctor_fn_t)(void);\n"
         "extern tcc_ctor_fn_t __init_array_start;\n"
         "extern tcc_ctor_fn_t __init_array_end;\n"
@@ -145,12 +158,32 @@ static int tcc_add_runmain(TCCState *s1)
         "int __cdecl __tcc_cpp_register_exit(void (*function)(void))\n"
         "{\n"
         "    return atexit(function);\n"
-        "}\n"
+        "}\n",
+        -1);
+    if (need_n6) {
+        cstr_cat(&cstr,
+        "void __cdecl __tcc_cpp_tls_n6_run_enter(void);\n"
+        "void __cdecl __tcc_cpp_tls_n6_run_finalize(void);\n"
+        "int __cdecl __tcc_cpp_tls_n6_run_state(void);\n",
+        -1);
+    }
+    cstr_cat(&cstr,
         "typedef struct { void *ip; void *fp; void *sp; } tcc_rt_frame;\n"
         "extern void __rt_exit(tcc_rt_frame *, int);\n"
         "void exit(int code)\n"
         "{\n"
-        "    tcc_rt_frame frame;\n"
+        "    tcc_rt_frame frame;\n",
+        -1);
+    if (need_n6) {
+        cstr_cat(&cstr,
+        "    if (__tcc_cpp_tls_n6_run_state() == 2)\n"
+        "        abort();\n"
+        "    if (__tcc_cpp_tls_n6_run_state() == 3)\n"
+        "        abort();\n"
+        "    __tcc_cpp_tls_n6_run_finalize();\n",
+        -1);
+    }
+    cstr_cat(&cstr,
         "    tcc_run_dtors();\n"
         "    __run_on_exit(code);\n"
         "    frame.ip = (void *)exit;\n"
@@ -161,20 +194,29 @@ static int tcc_add_runmain(TCCState *s1)
         "extern int main(int, char **, char **);\n"
         "int _runmain(int argc, char **argv, char **envp)\n"
         "{\n"
-        "    int ret;\n"
+        "    int ret;\n",
+        -1);
+    if (need_n6) {
+        cstr_cat(&cstr,
+        "    __tcc_cpp_tls_n6_run_enter();\n",
+        -1);
+    }
+    cstr_cat(&cstr,
         "    tcc_run_ctors();\n"
-        "    ret = main(argc, argv, envp);\n"
+        "    ret = main(argc, argv, envp);\n",
+        -1);
+    if (need_n6) {
+        cstr_cat(&cstr,
+        "    __tcc_cpp_tls_n6_run_finalize();\n",
+        -1);
+    }
+    cstr_cat(&cstr,
         "    tcc_run_dtors();\n"
         "    __run_on_exit(ret);\n"
         "    return ret;\n"
-        "}\n";
-    unsigned char saved_cpp;
-    unsigned char saved_cpp_forced;
-    unsigned char saved_lex_c;
-    unsigned char saved_extern_c;
-    int ret;
-
-    tcc_add_cpp_runtime(s1);
+        "}\n",
+        -1);
+    cstr_cat(&cstr, "", 0);
     saved_cpp = s1->cpp;
     saved_cpp_forced = s1->cpp_forced;
     saved_lex_c = s1->lex_c;
@@ -183,7 +225,8 @@ static int tcc_add_runmain(TCCState *s1)
     s1->cpp_forced = 0;
     s1->lex_c = 1;
     s1->extern_c = 0;
-    ret = tcc_compile_string(s1, runmain_source);
+    ret = tcc_compile_string(s1, cstr.data);
+    cstr_free(&cstr);
     s1->cpp = saved_cpp;
     s1->cpp_forced = saved_cpp_forced;
     s1->lex_c = saved_lex_c;
