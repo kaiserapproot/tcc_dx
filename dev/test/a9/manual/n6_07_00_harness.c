@@ -126,6 +126,7 @@ static int probe_direct_relocate_boundary(const char *libpath)
     TCCState *s;
     fn_i0 main_fn;
     fn_i0 run_st_fn, main_st_fn;
+    fn_i0 cleanup_fn;
 
     s = new_state_memory(libpath);
     if (!s)
@@ -146,6 +147,12 @@ static int probe_direct_relocate_boundary(const char *libpath)
     printf("TCC_DELETE_PROMOTES_TO_EXECUTION_END=NO\n");
     printf("N6_RUN_STATE_AFTER_MANUAL_MAIN=%d\n", run_st_fn ? run_st_fn() : -1);
     printf("N6_MAIN_STATE_SYMBOL=%s\n", main_st_fn ? "PRESENT" : "ABSENT");
+    // N6-07-06 / N6-07-04: direct relocate host must quiesce TLS before tcc_delete.
+    cleanup_fn = (fn_i0)tcc_get_symbol(s, "__tcc_cpp_tls_n6_cleanup_current_thread");
+    if (cleanup_fn)
+        cleanup_fn();
+    printf("HOST_MANUAL_EXECUTION_CLEANUP_BEFORE_TCC_DELETE=%s\n",
+        cleanup_fn ? "YES" : "NO");
     fflush(stdout);
     tcc_delete(s);
     return 0;
