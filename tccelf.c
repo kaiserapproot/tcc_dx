@@ -1900,9 +1900,9 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // inferred from \"first TCB creator\".
         "static DWORD tcc_cpp_tls_n6_main_thread_id;\n"
         "static volatile LONG tcc_cpp_tls_n6_main_state;\n"
-        // N6-06A: per tcc_run() execution epoch (TCC_OUTPUT_MEMORY only).
-        // 0 IDLE, 1 RUNNING, 2 FINALIZING, 3 FINALIZED; FINALIZED allows
-        // the next run_enter() to start a new epoch (not a process tombstone).
+        // N6-06A: per tcc_run() execution (TCC_OUTPUT_MEMORY only).
+        // 0 IDLE, 1 RUNNING, 2 FINALIZING, 3 FINALIZED (terminal).
+        // run_enter() from FINALIZED is fail-closed; one shot per runtime image.
         "static unsigned tcc_cpp_tls_n6_run_epoch;\n"
         "static DWORD tcc_cpp_tls_n6_run_owner_tid;\n"
         "static volatile LONG tcc_cpp_tls_n6_run_state;\n"
@@ -2201,14 +2201,9 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "}\n"
         "void __cdecl __tcc_cpp_tls_n6_run_enter(void)\n"
         "{\n"
-        "    if (tcc_cpp_tls_n6_run_state == 1 || tcc_cpp_tls_n6_run_state == 2)\n"
+        "    if (tcc_cpp_tls_n6_run_state != 0)\n"
         "        abort();\n"
-        "    if (tcc_cpp_tls_n6_run_state == 0)\n"
-        "        tcc_cpp_tls_n6_run_epoch = 1;\n"
-        "    else if (tcc_cpp_tls_n6_run_state == 3)\n"
-        "        ++tcc_cpp_tls_n6_run_epoch;\n"
-        "    else\n"
-        "        abort();\n"
+        "    tcc_cpp_tls_n6_run_epoch = 1;\n"
         "    tcc_cpp_tls_n6_run_owner_tid = GetCurrentThreadId();\n"
         "    tcc_cpp_tls_n6_run_state = 1;\n"
         "}\n"
