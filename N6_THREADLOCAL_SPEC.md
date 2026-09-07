@@ -329,7 +329,8 @@ host が `__tcc_cpp_tls_n6_cleanup_current_thread()` を呼んでから `tcc_del
 ### N6-08: regression
 
 既存C経路、N5 process-wide destructor、非TLS C++ global/local staticの挙動を
-変更しないことを確認する。
+変更しないことを確認する。最終 gate は `n6_08_final_regression.bat`（N6-01..07
+authority batch 呼び出し + churn/termination stress + C/N5/CPPUnit G7）。
 
 ## 10. N6-00 SPEC FREEZE AUTHORITY
 
@@ -441,6 +442,41 @@ N6_07_MERGE_COMMIT=a012ec7
 N6_07_MASTER_GATE=PASS
 N6_07_PUSH_TO_ORIGIN=YES
 N6_08_START=YES
+N6_08_00_COMMIT=92c12e3
+N6_08_IMPL_COMMIT=ed7fb95
+N6_08_CLOSURE_COMMIT=9661f91
+
+N6_01=COMPLETE
+N6_02=COMPLETE
+N6_03=COMPLETE
+N6_04=COMPLETE
+N6_04B=COMPLETE
+N6_05=COMPLETE
+N6_06=COMPLETE
+N6_07=COMPLETE
+N6_08=COMPLETE
+
+N6_THREAD_LOCAL=COMPLETE
+N6_CLOSURE_ALLOWED=YES
+N6=COMPLETE
+
+NORMAL_EXE_TLS=SUPPORTED
+TCC_RUN_TLS=SUPPORTED
+DIRECT_RELOCATE_TLS=LIMITED_BY_CURRENT_API
+DLL_TLS=FAIL_CLOSED
+
+N6_08_FINAL_REGRESSION=PASS
+N6_08_GATING_FAILURES=0
+N6_08_CRASHES=0
+
+N6_08_PRODUCTION_CHANGE=NONE
+N6_08_PUBLIC_API_CHANGE=NONE
+
+RUN_ALL_GATING_FAILURES=0
+RUN_ALL_CRASHES=0
+FULL_GATE=PASS
+FULL_GATE_AT_N6_08_CLOSURE_COMMIT=PASS
+BUILD_BAT=PASS
 ```
 
 Gate paths:
@@ -450,4 +486,6 @@ Gate paths:
 - `N6_07_04_GATE`: `dev/test/a9/manual/n6_07_04_measure.bat`
 - `N6_07_05_GATE`: `dev/test/a9/manual/n6_07_05_measure.bat`
 - `N6_07_06_GATE`: `dev/test/a9/manual/n6_07_06_measure.bat`
-- `FULL_GATE_AT_N6_07_HEAD`: repo root `build.bat`
+- `N6_08_FINAL_REGRESSION`: `dev/test/a9/manual/n6_08_final_regression.bat`
+- `N6_08_STRESS`: `dev/test/a9/manual/n6_08_stress.bat`
+- `FULL_GATE_AT_N6_08_HEAD`: repo root `build.bat`
