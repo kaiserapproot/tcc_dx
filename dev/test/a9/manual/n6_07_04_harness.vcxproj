@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A9070704-0000-4000-8000-000000000704}</ProjectGuid>
+    <RootNamespace>n6_07_04_harness</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(ProjectDir)..\..\..\..\x64\Release\</OutDir>
+    <IntDir>$(ProjectDir)..\..\..\..\x64\Release\n6_07_04_harness\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;TCC_TARGET_PE;TCC_TARGET_X86_64;_CRT_SECURE_NO_WARNINGS;ONE_SOURCE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>kernel32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\..\i386-asm.c" />
+    <ClCompile Include="..\..\..\..\libtcc.c" />
+    <ClCompile Include="..\..\..\..\tccasm.c" />
+    <ClCompile Include="..\..\..\..\tccdbg.c" />
+    <ClCompile Include="..\..\..\..\tccelf.c" />
+    <ClCompile Include="..\..\..\..\tccgen.c" />
+    <ClCompile Include="..\..\..\..\tccpe.c" />
+    <ClCompile Include="..\..\..\..\tccpp.c" />
+    <ClCompile Include="..\..\..\..\tccrun.c" />
+    <ClCompile Include="..\..\..\..\x86_64-gen.c" />
+    <ClCompile Include="..\..\..\..\x86_64-link.c" />
+    <ClCompile Include="n6_07_04_harness.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

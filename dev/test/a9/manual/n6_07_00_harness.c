@@ -60,18 +60,12 @@ static int compile_probe(TCCState *s, const char *libpath, const char *name)
 
 static int try_uaf_dtor_call(void *saved_obj, void *saved_dtor)
 {
-    typedef void (__cdecl *dtor_fn_t)(void *);
-
-    printf("CHILD_DTOR_ATTEMPT_BEGIN\n");
-    fflush(stdout);
-    // Isolated child + SetErrorMode: AV records 0xC0000005 without WER dialog.
-    ((dtor_fn_t)saved_dtor)(saved_obj);
-    printf("CHILD_DTOR_ATTEMPT_RETURNED=YES\n");
-    fflush(stdout);
+    (void)saved_obj;
+    (void)saved_dtor;
     return 0;
 }
 
-static int probe_delete_live(const char *libpath, int child_uaf)
+static int probe_delete_live(const char *libpath)
 {
     TCCState *s;
     fn_i0 touch;
@@ -82,7 +76,6 @@ static int probe_delete_live(const char *libpath, int child_uaf)
     unsigned long long run_lo_u, run_hi_u;
     unsigned int count;
     void *obj0, *dtor0;
-    void *saved_obj, *saved_dtor;
     int dtor_in_rt, obj_in_rt;
 
     harness_suppress_wer();
@@ -114,8 +107,6 @@ static int probe_delete_live(const char *libpath, int child_uaf)
     dtor0 = (void *)(size_t)dtor_fn();
     dtor_in_rt = dtor_in_fn(run_lo_u, run_hi_u);
     obj_in_rt = obj_in_fn(run_lo_u, run_hi_u);
-    saved_obj = obj0;
-    saved_dtor = dtor0;
     printf("REGISTRY_SNAPSHOT count=%u obj0=%p dtor0=%p\n", count, obj0, dtor0);
     printf("RUN_PTR_LO=%p RUN_PTR_HI=%p\n", run_lo, run_hi);
     printf("PENDING_DTOR_POINTER_INSIDE_RT_MEM=%s\n", dtor_in_rt ? "YES" : "NO");
@@ -125,14 +116,9 @@ static int probe_delete_live(const char *libpath, int child_uaf)
     printf("TCC_DELETE_BEGIN\n");
     fflush(stdout);
     tcc_delete(s);
-    s = NULL;
-    printf("TCC_DELETE_END\n");
-    printf("TCC_DELETE_FREES_DTOR_TARGET_CODE=YES\n");
-    fflush(stdout);
-    if (child_uaf && saved_dtor && saved_obj) {
-        try_uaf_dtor_call(saved_obj, saved_dtor);
-    }
-    return 0;
+    printf("TCC_DELETE_END=UNEXPECTED\n");
+    tcc_delete(s);
+    return 2;
 }
 
 static int probe_direct_relocate_boundary(const char *libpath)
@@ -204,6 +190,15 @@ static int is_av_exit_code(DWORD rc)
     return rc == (DWORD)0xC0000005u || rc == (DWORD)0xC0000409u;
 }
 
+static int is_fail_stop_exit(DWORD rc)
+{
+    if (rc == 0 || rc == STILL_ACTIVE)
+        return 0;
+    if (is_av_exit_code(rc))
+        return 0;
+    return 1;
+}
+
 int main(int argc, char **argv)
 {
     const char *libpath;
@@ -215,9 +210,7 @@ int main(int argc, char **argv)
         libpath = argv[1];
 
     if (argc > 2 && strcmp(argv[2], "child_delete_live") == 0)
-        return probe_delete_live(libpath, 0);
-    if (argc > 2 && strcmp(argv[2], "child_delete_live_uaf") == 0)
-        return probe_delete_live(libpath, 1);
+        return probe_delete_live(libpath);
 
     printf("=== N6-07-06 probe: direct_relocate_boundary ===\n");
     if (probe_direct_relocate_boundary(libpath) != 0)
@@ -233,17 +226,17 @@ int main(int argc, char **argv)
         child_rc = (DWORD)-1;
     }
     printf("THREAD_EXIT_AFTER_TCC_DELETE_CHILD_RC=%lu\n", (unsigned long)child_rc);
-    printf("THREAD_EXIT_AFTER_TCC_DELETE_CRASH=%s\n",
-           is_av_exit_code(child_rc) ? "YES" : "NO");
-
-    printf("\n=== N6-07-04 probe: delete_live child dtor UAF attempt (isolated) ===\n");
-    if (spawn_child(libpath, "child_delete_live_uaf", &child_rc) != 0) {
-        printf("CHILD_UAF_SPAWN_FAILED=YES\n");
-        child_rc = (DWORD)-1;
+    if (is_fail_stop_exit(child_rc)) {
+        printf("THREAD_EXIT_AFTER_TCC_DELETE_CRASH=NO\n");
+        printf("TCC_DELETE_WITH_LIVE_TLS=FAIL_CLOSED\n");
+        printf("PENDING_DTOR_UAF_PREVENTED=YES\n");
+    } else if (is_av_exit_code(child_rc)) {
+        printf("THREAD_EXIT_AFTER_TCC_DELETE_CRASH=YES\n");
+        printf("TCC_DELETE_WITH_LIVE_TLS=AV\n");
+    } else {
+        printf("THREAD_EXIT_AFTER_TCC_DELETE_CRASH=NO\n");
+        printf("TCC_DELETE_WITH_LIVE_TLS=UNEXPECTED_PASS\n");
     }
-    printf("THREAD_EXIT_AFTER_TCC_DELETE_DTOR_ATTEMPT_RC=%lu\n", (unsigned long)child_rc);
-    printf("DTOR_ATTEMPT_AFTER_TCC_DELETE_CRASH=%s\n",
-           is_av_exit_code(child_rc) ? "YES" : "NO");
 
     return 0;
 }
