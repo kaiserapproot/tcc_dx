@@ -237,6 +237,8 @@ fail-closedする。
 | main return | SUPPORTED |
 | exit() | SUPPORTED_MAIN_THREAD_ONLY |
 | worker threadの正常終了 | SUPPORTED |
+| worker threadの ExitThread() | SUPPORTED |
+| worker threadの _endthreadex() | SUPPORTED |
 | tcc -run | SUPPORTED |
 | libtccのtcc_run()経路 | SUPPORTED |
 | libtccのtcc_relocate()後の任意host呼出し | LIMITED / 明示cleanupが必要 |
@@ -314,7 +316,15 @@ main returnとexit()を共通cleanupへ接続し、exactly-onceを検証する�
 ### N6-07: fail-closed
 
 未対応構文、DLL、未対応型、recursive initializationをsilent fallbackなしで
-拒否する。
+拒否する。live N6 TLS 残留時の `tcc_delete()` は fail-closed（`run_ptr` 解放しない）。
+
+`-run` / `TCC_OUTPUT_MEMORY` では `ExitThread` / `_endthreadex` を link-symbol
+wrapper で intercept し、`tcc_cpp_tls_thread_cleanup()` 後に実 API を呼ぶ
+（destructor + reclaim。N6-07-02/03）。
+
+libtcc direct relocate + manual `main()` 呼び出しは LIMITED:
+host が `__tcc_cpp_tls_n6_cleanup_current_thread()` を呼んでから `tcc_delete()`
+すること。
 
 ### N6-08: regression
 
@@ -343,6 +353,8 @@ main returnとexit()を共通cleanupへ接続し、exactly-onceを検証する�
     N6_MAIN_RETURN=SUPPORTED
     N6_EXIT=SUPPORTED_MAIN_THREAD_ONLY
     N6_WORKER_THREAD_EXIT=SUPPORTED
+    N6_WORKER_EXITTHREAD=SUPPORTED
+    N6_WORKER_ENDTHREADEX=SUPPORTED
     N6_TCC_RUN=SUPPORTED
     N6_LIBTCC=LIMITED
     N6_DLL=NOT_SUPPORTED
@@ -366,3 +378,73 @@ main returnとexit()を共通cleanupへ接続し、exactly-onceを検証する�
     N6_N5_BEHAVIOR_CHANGE=NONE
     N6_00_CODE_IMPLEMENTATION=NONE
     N6_00_SPEC_FREEZE=PASS
+
+## 11. N6-07 FINAL AUTHORITY
+
+```text
+=== N6-07 FINAL ===
+
+BASE_COMMIT=5a73e18
+
+N6_07_00_COMMIT=2631937
+N6_07_IMPL_COMMIT=8ebd840
+N6_07_REGRESSION_COMMIT=a071014
+N6_07_CLOSURE_COMMIT=f65c732
+
+N6_07_01_DLL_MODE=FAIL_CLOSED
+DLL_TLS_SILENT_FALLBACK=NO
+
+N6_07_02_DIRECT_EXITTHREAD=SUPPORTED_VIA_N6_WRAPPER
+N6_07_03_DIRECT_ENDTHREADEX=SUPPORTED_VIA_N6_WRAPPER
+
+EXITTHREAD_TLS_DTOR=PASS
+EXITTHREAD_TLS_RECLAIM=PASS
+ENDTHREADEX_TLS_DTOR=PASS
+ENDTHREADEX_TLS_RECLAIM=PASS
+
+N6_07_04_TCC_DELETE_LIVE_TLS=FAIL_CLOSED
+TCC_DELETE_IS_EXECUTION_END_AUTHORITY=NO
+TCC_DELETE_FORCES_TLS_CLEANUP=NO
+
+PENDING_DTOR_UAF_PREVENTED=YES
+TCC_DELETE_WITH_LIVE_TLS_RETURNS_NORMALLY=NO
+
+N6_07_05_UNSUPPORTED_TLS_FORM_COUNT=15
+N6_07_05_SILENT_ACCEPTANCE_COUNT=0
+
+N6_07_06_DIRECT_RELOCATE=LIMITED_BY_CURRENT_API
+HOST_MANUAL_EXECUTION_CLEANUP_BEFORE_TCC_DELETE=YES
+
+DIRECT_RELOCATE_COMPLETE_CPP_EXECUTION=NO
+DIRECT_RELOCATE_AUTOMATIC_TLS_FINALIZATION=NO
+
+N6_TCB_STORAGE_AUTHORITY=OS_THREAD_TLS
+N6_FLS_AS_TCB_AUTHORITY=NO
+
+PUBLIC_API_CHANGE=NONE
+
+FULL_GATE_AT_N6_07_HEAD=PASS
+N6_07_00_GATE=PASS
+N6_07_01_GATE=PASS
+N6_07_02_GATE=PASS
+N6_07_03_GATE=PASS
+N6_07_04_GATE=PASS
+N6_07_05_GATE=PASS
+N6_07_06_GATE=PASS
+
+RUN_ALL_GATING_FAILURES=0
+RUN_ALL_CRASHES=0
+
+N6_07=COMPLETE
+N6_07_CLOSURE_ALLOWED=YES
+N6_08_START=YES
+```
+
+Gate paths:
+
+- `N6_07_00_GATE` / `N6_07_02_GATE` / `N6_07_03_GATE`: `dev/test/a9/manual/n6_07_00_measure.bat`
+- `N6_07_01_GATE`: `dev/test/a9/manual/n6_07_01_measure.bat`
+- `N6_07_04_GATE`: `dev/test/a9/manual/n6_07_04_measure.bat`
+- `N6_07_05_GATE`: `dev/test/a9/manual/n6_07_05_measure.bat`
+- `N6_07_06_GATE`: `dev/test/a9/manual/n6_07_06_measure.bat`
+- `FULL_GATE_AT_N6_07_HEAD`: repo root `build.bat`
