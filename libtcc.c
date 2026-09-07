@@ -926,6 +926,17 @@ LIBTCCAPI TCCState *tcc_new(void)
 
 LIBTCCAPI void tcc_delete(TCCState *s1)
 {
+#if defined _WIN32 && defined TCC_IS_NATIVE
+    /* N6-07-04: gate before symtab teardown and before run_ptr free. */
+    if (s1->run_ptr && tcc_cpp_tls_runtime_needed(s1)) {
+        void (__cdecl *gate)(void);
+
+        gate = (void (__cdecl *)(void))tcc_get_symbol(s1,
+            "__tcc_cpp_tls_n6_tcc_delete_gate");
+        if (gate)
+            gate();
+    }
+#endif
     /* free sections */
     tccelf_delete(s1);
 
