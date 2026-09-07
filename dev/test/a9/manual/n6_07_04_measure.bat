@@ -11,7 +11,7 @@ set "HARNESS=!REPO!\x64\Release\n6_07_04_harness.exe"
 set "LOG=!OUT!\harness.log"
 
 echo === N6-07-04: tcc_delete live TLS fail-closed ===
-echo BASE_COMMIT=2631937
+echo BASE_COMMIT=8ebd840
 echo.
 
 if not exist "!HARNESS!" (
