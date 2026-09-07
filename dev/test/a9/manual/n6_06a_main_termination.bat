@@ -35,10 +35,16 @@ if not "!FAILED!"=="0" (
 echo N6_06A_MAIN_TERMINATION=PASS
 echo N6_06A_LONGJMP_MODEL_CHANGED=NO
 echo N6_06A_RUN_MAIN_FINALIZE_DRAINS_WORKERS=NO
-echo N6_06A_RUN_WORKER_TLS_AUTOMATIC_THREAD_EXIT_CLEANUP=UNPROVEN
-echo N6_06A_SAME_RUNTIME_IMAGE_SECOND_EPOCH=UNPROVEN
-echo N6_06A_FINALIZED_TO_NEXT_EPOCH_TRANSITION=UNPROVEN
-echo N6_06A_CLOSURE_ALLOWED=NO
+echo N6_06A_RUN_WORKER_TLS_EXPLICIT_CLEANUP=PASS
+echo N6_06A_RUN_WORKER_TLS_AUTOMATIC_THREAD_EXIT_CLEANUP=DEFERRED_TO_N6_06A2
+echo N6_06A_RUN_OWNER_THREAD_TLS=SUPPORTED
+echo N6_06A_RUN_WORKER_THREAD_LOCAL=DEFERRED_TO_N6_06A2
+echo TCC_RUN_EXECUTIONS_PER_RUNTIME_IMAGE=ONE
+echo N6_06A_SAME_RUNTIME_IMAGE_SECOND_EPOCH=UNSUPPORTED
+echo N6_06A_FINALIZED_TO_NEXT_EPOCH_TRANSITION=NOT_SUPPORTED
+echo N6_06A_CLOSURE_ALLOWED=YES
+echo N6_06A2_START=YES
+echo N6_06B_START=NO
 popd
 exit /b 0
 
@@ -183,9 +189,14 @@ echo !KEY!=FAIL_CLOSED
 goto :eof
 
 :libtcc_cross_tccstate
-set "REPO=!ROOT!\.."
+cd /d "%~dp0"
+for %%I in ("!ROOT!") do set "TCC_DEV_ROOT=%%~fI"
+for %%I in ("!ROOT!\..") do set "REPO=%%~fI"
 set "HARNESS=!REPO!\x64\Release\n6_06a_libtcc_harness.exe"
-set "LIBPATH=!ROOT!"
+if not defined VSCMD_VER (
+  call "C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat" -arch=x64 >nul 2>&1
+)
+cd /d "%~dp0"
 msbuild n6_06a_libtcc_harness.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal >"!OUT!\libtcc_build.log" 2>&1
 if not "!errorlevel!"=="0" (
   type "!OUT!\libtcc_build.log"
@@ -198,9 +209,9 @@ if not exist "!HARNESS!" (
   set /a FAILED+=1
   goto :eof
 )
-"!HARNESS!" "!LIBPATH!" >"!OUT!\libtcc_second.log" 2>&1
+"!HARNESS!" "!TCC_DEV_ROOT!" >"!OUT!\libtcc_cross.log" 2>&1
 set "RC=!errorlevel!"
-type "!OUT!\libtcc_second.log"
+type "!OUT!\libtcc_cross.log"
 if !RC! LSS 0 (
   echo N6_06A_CROSS_TCCSTATE_TOMBSTONE_ISOLATION=CRASH rc=!RC!
   set /a FAILED+=1
@@ -211,7 +222,7 @@ if not "!RC!"=="0" (
   set /a FAILED+=1
   goto :eof
 )
-"!FINDSTR!" /c:"N6_06A_CROSS_TCCSTATE_TOMBSTONE_ISOLATION=PASS" "!OUT!\libtcc_second.log" >nul
+"!FINDSTR!" /c:"N6_06A_CROSS_TCCSTATE_TOMBSTONE_ISOLATION=PASS" "!OUT!\libtcc_cross.log" >nul
 if errorlevel 1 (
   echo N6_06A_CROSS_TCCSTATE_TOMBSTONE_ISOLATION=OUTPUT_FAIL
   set /a FAILED+=1
@@ -220,11 +231,31 @@ if errorlevel 1 (
 echo N6_06A_CROSS_TCCSTATE_TOMBSTONE_ISOLATION=PASS
 echo N6_06A_SECOND_EXECUTION_SAME_PROCESS=PASS
 echo N6_06A_SECOND_EXECUTION_SAME_HOST_THREAD=PASS
-"!FINDSTR!" /c:"SAME_TCCSTATE_SECOND_TCC_RUN_ATTEMPTED=YES" "!OUT!\libtcc_second.log" >nul
+"!HARNESS!" "!TCC_DEV_ROOT!" contract >"!OUT!\libtcc_contract.log" 2>&1
+set "RC=!errorlevel!"
+type "!OUT!\libtcc_contract.log"
+if not "!RC!"=="0" (
+  echo N6_06A_SAME_TCCSTATE_CONTRACT=HARNESS_FAIL rc=!RC!
+  set /a FAILED+=1
+  goto :eof
+)
+"!FINDSTR!" /c:"SAME_TCCSTATE_SECOND_TCC_RUN_ATTEMPTED=YES" "!OUT!\libtcc_contract.log" >nul
 if errorlevel 1 (
   echo N6_06A_SAME_TCCSTATE_CONTRACT=MISSING
   set /a FAILED+=1
   goto :eof
 )
-type "!OUT!\libtcc_second.log" | "!FINDSTR!" "SAME_TCCSTATE_RUN SAME_TCCSTATE_SECOND N6_06A_SAME_RUNTIME N6_06A_FINALIZED TCC_RUN_EXECUTIONS"
+"!FINDSTR!" /c:"SAME_TCCSTATE_SECOND_TCC_RUN=UNSUPPORTED_FAIL_CLOSED" "!OUT!\libtcc_contract.log" >nul
+if errorlevel 1 (
+  echo N6_06A_SAME_TCCSTATE_CONTRACT=NOT_FAIL_CLOSED
+  set /a FAILED+=1
+  goto :eof
+)
+"!FINDSTR!" /c:"SAME_TCCSTATE_SECOND_TCC_RUN_CRASH=NO" "!OUT!\libtcc_contract.log" >nul
+if errorlevel 1 (
+  echo N6_06A_SAME_TCCSTATE_CONTRACT=CRASH_NOT_NO
+  set /a FAILED+=1
+  goto :eof
+)
+type "!OUT!\libtcc_contract.log" | "!FINDSTR!" "SAME_TCCSTATE_RUN N6_06A_SAME_RUNTIME N6_06A_FINALIZED TCC_RUN_EXECUTIONS"
 goto :eof

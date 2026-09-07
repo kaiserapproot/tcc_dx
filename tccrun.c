@@ -381,6 +381,13 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     char **envp = environ;
 #endif
 
+    // N6-06A: same TCCState + thread_local = one execution per runtime image.
+    // Reject before tcc_add_runmain mutates symtab on an already-relocated image.
+    if (s1->run_ptr && tcc_cpp_tls_runtime_needed(s1))
+        return tcc_error_noabort(
+            "tcc_run(): second execution on the same TCCState is unsupported "
+            "when the program uses C++ thread_local (N6 one-shot contract)");
+
     /* tcc -dt -run ... nothing to do if no main() */
     if ((s1->dflag & 16) && (addr_t)-1 == get_sym_addr(s1, "main", 0, 1))
         return 0;
