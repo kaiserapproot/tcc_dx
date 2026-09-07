@@ -1765,6 +1765,7 @@ ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)
 ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
 {
     CString cstr;
+    int memory_exec;
 
     if (s1->cpp_tls_runtime_injected)
         return;
@@ -1772,6 +1773,7 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         tcc_error_noabort("C++ thread_local TLS in DLL is unsupported");
         return;
     }
+    memory_exec = (s1->output_type == TCC_OUTPUT_MEMORY);
     cstr_new(&cstr);
     cstr_cat(&cstr,
         "#include <windows.h>\n"
@@ -1898,6 +1900,12 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         // inferred from \"first TCB creator\".
         "static DWORD tcc_cpp_tls_n6_main_thread_id;\n"
         "static volatile LONG tcc_cpp_tls_n6_main_state;\n"
+        // N6-06A: per tcc_run() execution (TCC_OUTPUT_MEMORY only).
+        // 0 IDLE, 1 RUNNING, 2 FINALIZING, 3 FINALIZED (terminal).
+        // run_enter() from FINALIZED is fail-closed; one shot per runtime image.
+        "static unsigned tcc_cpp_tls_n6_run_epoch;\n"
+        "static DWORD tcc_cpp_tls_n6_run_owner_tid;\n"
+        "static volatile LONG tcc_cpp_tls_n6_run_state;\n"
         "static void tcc_cpp_tls_n6_count(int which)\n"
         "{\n"
         "    long v = 1;\n"
@@ -1930,8 +1938,13 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    key = tcc_cpp_tls_get_key();\n"
         "    tcb = (tcc_cpp_tls_tcb *)TlsGetValue(key);\n"
         "    if (!tcb) {\n"
-        // N6-05 tombstone: after main finalize on the main thread, TLS slot
-        // is NULL and state is FINALIZED; never allocate a post-shutdown TCB.
+        // N6-05 / N6-06A tombstone: block post-finalize TCB on main or run owner.
+        "        if (tcc_cpp_tls_n6_run_owner_tid\n"
+        "            && GetCurrentThreadId() == tcc_cpp_tls_n6_run_owner_tid\n"
+        "            && tcc_cpp_tls_n6_run_state == 3) {\n"
+        "            tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_POST_FINALIZE_TCB);\n"
+        "            abort();\n"
+        "        }\n"
         "        if (tcc_cpp_tls_n6_main_thread_id\n"
         "            && GetCurrentThreadId() == tcc_cpp_tls_n6_main_thread_id\n"
         "            && tcc_cpp_tls_n6_main_state == 3) {\n"
@@ -2173,7 +2186,55 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "        return 0;\n"
         "    tcc_cpp_tls_thread_cleanup(tcb);\n"
         "    return 1;\n"
+        "}\n",
+        -1);
+    if (memory_exec) {
+        cstr_cat(&cstr,
+        // N6-06A: tcc_run() execution epoch (runmain owns exit(); no exit here).
+        "unsigned __cdecl __tcc_cpp_tls_n6_run_epoch(void)\n"
+        "{\n"
+        "    return tcc_cpp_tls_n6_run_epoch;\n"
         "}\n"
+        "int __cdecl __tcc_cpp_tls_n6_run_state(void)\n"
+        "{\n"
+        "    return (int)tcc_cpp_tls_n6_run_state;\n"
+        "}\n"
+        "void __cdecl __tcc_cpp_tls_n6_run_enter(void)\n"
+        "{\n"
+        "    if (tcc_cpp_tls_n6_run_state != 0)\n"
+        "        abort();\n"
+        "    tcc_cpp_tls_n6_run_epoch = 1;\n"
+        "    tcc_cpp_tls_n6_run_owner_tid = GetCurrentThreadId();\n"
+        "    tcc_cpp_tls_n6_run_state = 1;\n"
+        "}\n"
+        "static void tcc_cpp_tls_n6_run_finalize_once(void)\n"
+        "{\n"
+        "    tcc_cpp_tls_tcb *tcb;\n"
+        "    tcc_cpp_tls_key_t key;\n"
+        "    if (GetCurrentThreadId() != tcc_cpp_tls_n6_run_owner_tid)\n"
+        "        abort();\n"
+        "    if (tcc_cpp_tls_n6_run_state == 3)\n"
+        "        return;\n"
+        "    if (tcc_cpp_tls_n6_run_state == 2)\n"
+        "        abort();\n"
+        "    if (tcc_cpp_tls_n6_run_state != 1)\n"
+        "        abort();\n"
+        "    tcc_cpp_tls_n6_run_state = 2;\n"
+        "    if (tcc_cpp_tls_key != (tcc_cpp_tls_key_t)-1) {\n"
+        "        key = tcc_cpp_tls_key;\n"
+        "        tcb = (tcc_cpp_tls_tcb *)TlsGetValue(key);\n"
+        "        if (tcb)\n"
+        "            tcc_cpp_tls_thread_cleanup(tcb);\n"
+        "    }\n"
+        "    tcc_cpp_tls_n6_run_state = 3;\n"
+        "}\n"
+        "void __cdecl __tcc_cpp_tls_n6_run_finalize(void)\n"
+        "{\n"
+        "    tcc_cpp_tls_n6_run_finalize_once();\n"
+        "}\n",
+        -1);
+    } else {
+        cstr_cat(&cstr,
         // N6-05: capture main thread identity once before user main().
         "void __cdecl __tcc_cpp_tls_n6_main_enter(void)\n"
         "{\n"
@@ -2258,7 +2319,10 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "        }\n"
         "    }\n"
         "    tcc_cpp_n6_real_exit(code);\n"
-        "}\n"
+        "}\n",
+        -1);
+    }
+    cstr_cat(&cstr,
         // N6-02 contract (matches cpp_tls_addr_type in tccgen.c):
         // - first access on a thread allocates `size` zero-filled bytes and,
         //   when `ctor` is non-null, runs it exactly once on that thread;
@@ -2283,7 +2347,13 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    tcc_cpp_tls_tcb *tcb;\n"
         "    tcc_cpp_tls_entry *entries;\n"
         "    tcc_cpp_tls_dtor_entry *dtors;\n"
-        // N6-05 tombstone: block new TLS initialization on finalized main.
+        // N6-05 / N6-06A tombstone: block new TLS init on finalized main/run owner.
+        "    if (tcc_cpp_tls_n6_run_owner_tid\n"
+        "        && GetCurrentThreadId() == tcc_cpp_tls_n6_run_owner_tid\n"
+        "        && tcc_cpp_tls_n6_run_state == 3) {\n"
+        "        tcc_cpp_tls_n6_count(TCC_CPP_TLS_N6_POST_FINALIZE_OBJECT);\n"
+        "        abort();\n"
+        "    }\n"
         "    if (tcc_cpp_tls_n6_main_thread_id\n"
         "        && GetCurrentThreadId() == tcc_cpp_tls_n6_main_thread_id\n"
         "        && tcc_cpp_tls_n6_main_state == 3) {\n"
@@ -2359,7 +2429,8 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "    }\n"
         "    return storage;\n"
         "}\n",
-        0);
+        -1);
+    cstr_cat(&cstr, "", 0);
     tcc_compile_injected_c_no_debug(s1, cstr.data);
     cstr_free(&cstr);
     s1->cpp_tls_runtime_injected = 1;
