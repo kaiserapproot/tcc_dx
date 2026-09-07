@@ -223,6 +223,11 @@ echo === a9\manual\n6_06a_main_termination.bat ===
 call a9\manual\n6_06a_main_termination.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem === N6-08: final thread_local regression (N6-01..07 + stress + C/N5/G7) ===
+echo === a9\manual\n6_08_final_regression.bat ===
+call a9\manual\n6_08_final_regression.bat
+if errorlevel 1 set /a FAILED+=1
+
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
 rem Real-world sources that are NOT expected to compile yet - only the
