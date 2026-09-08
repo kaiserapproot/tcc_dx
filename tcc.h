@@ -826,6 +826,11 @@ struct TCCState {
        finalization gateway even when the TU uses no thread_local. */
     unsigned char cpp_n6_main_gateway_needed;
     unsigned char cpp_n6_main_runtime_injected;
+    /* P0 crash discrimination: set from TCC_CRASH_DIAG env (see tcc_new). */
+    unsigned char cpp_diag_disable_runtime_inject;
+    unsigned char cpp_diag_force_n6_runtime_inject;
+    unsigned char cpp_diag_force_tls_runtime_inject;
+    unsigned char cpp_diag_pe_trace;
 
     /* C language options */
     unsigned char char_is_unsigned;

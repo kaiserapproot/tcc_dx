@@ -921,6 +921,27 @@ LIBTCCAPI TCCState *tcc_new(void)
 #ifdef CONFIG_TCC_SWITCHES /* predefined options */
     tcc_set_options(s, CONFIG_TCC_SWITCHES);
 #endif
+    {
+        const char *diag = getenv("TCC_CRASH_DIAG");
+
+        if (diag) {
+            if (!strcmp(diag, "inject_off"))
+                s->cpp_diag_disable_runtime_inject = 1;
+            else if (!strcmp(diag, "inject_force_n6"))
+                s->cpp_diag_force_n6_runtime_inject = 1;
+            else if (!strcmp(diag, "inject_force_tls"))
+                s->cpp_diag_force_tls_runtime_inject = 1;
+            else if (!strcmp(diag, "trace"))
+                s->cpp_diag_pe_trace = 1;
+            else if (!strcmp(diag, "inject_force_n6_trace")) {
+                s->cpp_diag_force_n6_runtime_inject = 1;
+                s->cpp_diag_pe_trace = 1;
+            } else if (!strcmp(diag, "inject_force_tls_trace")) {
+                s->cpp_diag_force_tls_runtime_inject = 1;
+                s->cpp_diag_pe_trace = 1;
+            }
+        }
+    }
     return s;
 }
 
