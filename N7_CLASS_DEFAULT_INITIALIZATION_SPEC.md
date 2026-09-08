@@ -106,39 +106,61 @@ RUN_ALL_CRASHES=0
 N7_02_START=NO
 ```
 
-## N7-02-00 implicit default ctor capability (measurement)
+## N7-02-00 closure authority
 
-Gate: `dev/test/a9/manual/n7_02_00_measure.bat` (standalone; not in `run_all.bat`).
-
-Measured @ `d25cb3f` (post N7-01):
-
-| Probe | Classification |
-|-------|----------------|
-| Empty class | SUPPORTED |
-| Trivial member (`int x`) | SUPPORTED |
-| Implicit member propagation | FAIL_CLOSED |
-| Implicit base propagation | FAIL_CLOSED |
-| Base/member ctor-dtor order | FAIL_CLOSED (cannot reach runtime) |
-| Nested propagation | FAIL_CLOSED |
-| Multi-member | FAIL_CLOSED |
-| Array (M member, global `A a[4]`) | FAIL_CLOSED |
-| User outer `A() {}` + `M m` | SUPPORTED (member ctor runs) |
-| Implicit outer + `M m` | FAIL_CLOSED |
-| Storage: local/global/static/TLS/array | FAIL_CLOSED (member shape) |
+Gate: `dev/test/a9/manual/n7_02_00_measure.bat` (**standalone** — not in `run_all.bat`).
 
 ```text
+=== N7-02-00 FINAL ===
+
+BASE_COMMIT=d25cb3f
+N7_02_00_COMMIT=d099092
+N7_02_00_CLOSURE_COMMIT=<set at closure commit>
+N7_02_00_MERGE_COMMIT=5175462
+
+EMPTY_CLASS=SUPPORTED
+TRIVIAL_MEMBER=SUPPORTED
+
+IMPLICIT_DEFAULT_CTOR_MEMBER_PROPAGATION=FAIL_CLOSED
+IMPLICIT_DEFAULT_CTOR_BASE_PROPAGATION=FAIL_CLOSED
+BASE_MEMBER_CTOR_DTOR_ORDER=FAIL_CLOSED_RUNTIME_NOT_REACHED
+NESTED_PROPAGATION=FAIL_CLOSED
+MULTI_MEMBER_PROPAGATION=FAIL_CLOSED
+
+USER_OUTER_DEFAULT_CTOR_MEMBER_PROPAGATION=SUPPORTED
+IMPLICIT_OUTER_DEFAULT_CTOR_MEMBER_PROPAGATION=FAIL_CLOSED
+
+ARRAY_IMPLICIT_DEFAULT_CTOR_PROPAGATION=FAIL_CLOSED
+ARRAY_CURRENT_CLASSIFICATION=LIMITED
+
+N7_01_NEGATIVE_REGRESSION=PASS
+SILENT_ACCEPTANCE_COUNT=0
+SILENT_MISCOMPILE_COUNT=0
+
 ROOT_CAUSE=IMPLICIT_DEFAULT_CTOR_SYNTHESIS_OR_PROPAGATION
 BUG_SCOPE=IMPLICIT_OUTER_DEFAULT_CTOR_MEMBER_AND_BASE_PROPAGATION
-SILENT_MISCOMPILE_COUNT=0
+
+USER_DEFAULT_CTOR_CODEGEN_PATH=EXISTING_AUTHORITY
+IMPLICIT_DEFAULT_CTOR_SYNTHESIS=MISSING
+
 N7_02_IMPLEMENTATION_REQUIRED=YES
 N7_02_RECOMMENDED_SCOPE=IMPLICIT_DEFAULT_CTOR_CODEGEN_MEMBER_BASE_ORDER
-N7_02_00=PASS
-N7_02_00_COMMIT=d099092
-N7_02_00_MERGE_COMMIT=5175462
+N7_02_01_RECOMMENDED=NEXT_DESIGN_FREEZE_BEFORE_PRODUCTION
+
+PRODUCTION_CHANGE=NONE
+PUBLIC_API_CHANGE=NONE
+RUNTIME_CHANGE=NONE_IN_N7_02_00
+
+N7_02_00_MEASUREMENT_STANDALONE=YES
+RUN_ALL_INTEGRATION=NO
+
+N7_02_00=COMPLETE
+N7_02_00_MASTER_GATE=PASS
+N7_02_00_PUSH_TO_ORIGIN=YES
 N7_02_IMPLEMENTATION_START=NO
 ```
 
-No silent miscompile found: non-trivial member/base implicit default construction is **rejected at compile time** today (`cpp_validate_implicit_default_ctor`), not silently skipped.
+Measured summary: non-trivial member/base implicit default construction is **rejected at compile time** (`cpp_validate_implicit_default_ctor`), not silently skipped.
 
 ## POST-N6 linkage
 
