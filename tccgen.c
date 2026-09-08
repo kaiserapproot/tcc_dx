@@ -212,6 +212,7 @@ static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
 /* Virtual MI (Phase 2): forward decl - the multi-vptr init walkers run before
    the definition point of this base-subobject predicate. */
 static int cpp_is_base_field(Sym *f);
+static int cpp_is_class_data_member(Sym *f);
 static int cpp_class_requires_destruction(Sym *class_sym);
 static void cpp_emit_local_static_dtor_registration(Sym *wrapper_sym);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
@@ -655,6 +656,8 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
 // a ctor that is only declared has no global yet, and the global-side
 // fallback then binds whatever single extern happened to exist.
 static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
+static Sym *cpp_find_ctor_field(Sym *class_sym);
+static Sym *cpp_find_dtor_field(Sym *class_sym);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
 static void cpp_validate_decl_default_initialization(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
@@ -665,6 +668,113 @@ static void cpp_validate_explicit_dtor_members(Sym *class_sym);
 static int cpp_class_requires_destruction(Sym *class_sym);
 static void cpp_synthesize_implicit_special_members(Sym *class_sym);
 static int cpp_class_has_nontrivial_subobjects(Sym *class_sym);
+
+struct CppSyntheticSpecial {
+    Sym *class_sym;
+    Sym *ctor_field;
+    Sym *dtor_field;
+};
+
+typedef struct CppSyntheticSpecial CppSyntheticSpecial;
+
+static CppSyntheticSpecial **cpp_synthetic_specials;
+static int nb_cpp_synthetic_specials;
+
+static CppSyntheticSpecial *cpp_get_synthetic_special(Sym *class_sym)
+{
+    int i;
+
+    if (!class_sym)
+        return NULL;
+    for (i = 0; i < nb_cpp_synthetic_specials; i++) {
+        if (cpp_synthetic_specials[i]->class_sym == class_sym)
+            return cpp_synthetic_specials[i];
+    }
+    return NULL;
+}
+
+static CppSyntheticSpecial *cpp_get_or_create_synthetic_special(Sym *class_sym)
+{
+    CppSyntheticSpecial *sp;
+
+    sp = cpp_get_synthetic_special(class_sym);
+    if (sp)
+        return sp;
+    sp = tcc_malloc(sizeof *sp);
+    sp->class_sym = class_sym;
+    sp->ctor_field = NULL;
+    sp->dtor_field = NULL;
+    dynarray_add(&cpp_synthetic_specials, &nb_cpp_synthetic_specials, sp);
+    return sp;
+}
+
+static void cpp_reset_synthetic_specials(void)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_synthetic_specials; i++)
+        tcc_free(cpp_synthetic_specials[i]);
+    dynarray_reset(&cpp_synthetic_specials, &nb_cpp_synthetic_specials);
+}
+
+static void cpp_match_registry_func_fields(Sym *class_sym, int v1,
+    Sym **const_match, Sym **nonconst_match)
+{
+    CppSyntheticSpecial *sp;
+    Sym *f;
+    int i;
+    Sym *reg_fields[2];
+
+    sp = cpp_get_synthetic_special(class_sym);
+    if (!sp)
+        return;
+    reg_fields[0] = sp->ctor_field;
+    reg_fields[1] = sp->dtor_field;
+    for (i = 0; i < 2; i++) {
+        f = reg_fields[i];
+        if (!f || f->v != v1)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (cpp_field_is_const(f)) {
+            if (!*const_match)
+                *const_match = f;
+        } else {
+            if (!*nonconst_match)
+                *nonconst_match = f;
+        }
+    }
+}
+
+static Sym *cpp_find_registry_field(Sym *class_sym, int v1)
+{
+    CppSyntheticSpecial *sp;
+    Sym *f;
+    int i;
+    Sym *reg_fields[2];
+
+    sp = cpp_get_synthetic_special(class_sym);
+    if (!sp)
+        return NULL;
+    reg_fields[0] = sp->ctor_field;
+    reg_fields[1] = sp->dtor_field;
+    for (i = 0; i < 2; i++) {
+        f = reg_fields[i];
+        if (f && f->v == v1)
+            return f;
+    }
+    return NULL;
+}
+
+static void cpp_ensure_synthetic_odr(Sym *class_sym);
+static void cpp_ensure_synthetic_semantics(Sym *class_sym);
+static void cpp_materialize_synthetic_odr(Sym *class_sym);
+static void cpp_flush_pending_synthetic_odr(void);
+static void cpp_register_synthetic_inlines(Sym *class_sym);
+static int cpp_is_deferred_synthetic_special_field(Sym *f, Sym *class_sym);
+static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym);
+static int cpp_class_would_have_synthetic_ctor(Sym *class_sym);
+static int cpp_class_would_have_synthetic_dtor(Sym *class_sym);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -1474,11 +1584,15 @@ static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
  * Used by FEAT-4B to detect `Foo f(args);` ctor-call declarations. */
 static Sym *cpp_find_ctor_field(Sym *class_sym)
 {
+    CppSyntheticSpecial *sp;
     Sym *f;
     int class_name_tok;
 
     if (!class_sym)
         return NULL;
+    sp = cpp_get_synthetic_special(class_sym);
+    if (sp && sp->ctor_field)
+        return sp->ctor_field;
     class_name_tok = class_sym->v & ~SYM_STRUCT;
     for (f = class_sym->next; f; f = f->next) {
         if ((f->v & ~SYM_FIELD) != class_name_tok)
@@ -1516,29 +1630,60 @@ static int cpp_ctor_viable_with_zero_args(Sym *f)
 static int cpp_class_has_default_ctor(Sym *class_sym)
 {
     Sym *f;
-    int class_name_tok;
 
     if (!class_sym)
         return 0;
-    class_name_tok = class_sym->v & ~SYM_STRUCT;
-    for (f = class_sym->next; f; f = f->next) {
-        if ((f->v & ~SYM_FIELD) != class_name_tok)
-            continue;
-        if ((f->type.t & VT_BTYPE) != VT_FUNC)
-            continue;
-        if (cpp_ctor_viable_with_zero_args(f))
-            return 1;
-    }
-    return 0;
+    f = cpp_find_ctor_field(class_sym);
+    if (!f)
+        return 0;
+    return cpp_ctor_viable_with_zero_args(f);
+}
+
+static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym)
+{
+    if (!class_sym)
+        return 0;
+    return !cpp_find_ctor_field(class_sym)
+        && cpp_class_has_nontrivial_subobjects(class_sym)
+        && cpp_can_implicit_default_ctor_exist(class_sym, 0);
+}
+
+static int cpp_class_would_have_synthetic_ctor(Sym *class_sym)
+{
+    return cpp_class_has_implicit_default_ctor_viable(class_sym);
+}
+
+static int cpp_class_would_have_synthetic_dtor(Sym *class_sym)
+{
+    if (!class_sym)
+        return 0;
+    return !cpp_find_dtor_field(class_sym)
+        && cpp_class_has_nontrivial_subobjects(class_sym)
+        && cpp_class_requires_destruction(class_sym)
+        && cpp_can_implicit_dtor_exist(class_sym, 0);
+}
+
+static int cpp_in_user_source_file(void)
+{
+    /* Primary TU only: skip FEAT-4F/4G during #include expansion.
+     * current_filename is unset during source compile (libtcc.c), so
+     * strcmp against it always failed and silently skipped ctor calls. */
+    if (!file || !file->filename)
+        return 0;
+    return file->prev == NULL;
 }
 
 /* C++: scan class_sym's member chain for the destructor field. */
 static Sym *cpp_find_dtor_field(Sym *class_sym)
 {
+    CppSyntheticSpecial *sp;
     Sym *f;
 
     if (!class_sym)
         return NULL;
+    sp = cpp_get_synthetic_special(class_sym);
+    if (sp && sp->dtor_field)
+        return sp->dtor_field;
     for (f = class_sym->next; f; f = f->next) {
         if (!cpp_is_dtor_field(f))
             continue;
@@ -1581,6 +1726,11 @@ static void cpp_emit_local_dtor(Sym *obj_sym)
     if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
         return;
     class_sym = obj_sym->type.ref;
+    /* Trivial POD locals never need synthetic dtor materialization; calling
+     * ensure on every scope exit (e.g. feat6a Vec2) corrupted PE link state. */
+    if (!cpp_class_requires_destruction(class_sym))
+        return;
+    cpp_ensure_synthetic_odr(class_sym);
     dtor_field = cpp_find_dtor_field(class_sym);
     if (!dtor_field) {
         cpp_validate_implicit_dtor(class_sym, 0);
@@ -2303,6 +2453,10 @@ static Sym **cpp_synthetic_ctor_classes;
 static int nb_cpp_synthetic_ctor_classes;
 static Sym **cpp_synthetic_dtor_classes;
 static int nb_cpp_synthetic_dtor_classes;
+static Sym **cpp_synthetic_inline_registered;
+static int nb_cpp_synthetic_inline_registered;
+static Sym **cpp_pending_synthetic_odr;
+static int nb_cpp_pending_synthetic_odr;
 
 static void cpp_mark_synthetic_ctor_class(Sym *class_sym)
 {
@@ -2339,6 +2493,66 @@ static int cpp_class_has_synthetic_dtor(Sym *class_sym)
         if (cpp_synthetic_dtor_classes[i] == class_sym)
             return 1;
     }
+    return 0;
+}
+
+static int cpp_synthetic_inlines_registered(Sym *class_sym)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_synthetic_inline_registered; i++) {
+        if (cpp_synthetic_inline_registered[i] == class_sym)
+            return 1;
+    }
+    return 0;
+}
+
+static void cpp_mark_synthetic_inlines_registered(Sym *class_sym)
+{
+    if (!class_sym)
+        return;
+    dynarray_add(&cpp_synthetic_inline_registered,
+                 &nb_cpp_synthetic_inline_registered, class_sym);
+}
+
+static int cpp_pending_synthetic_odr_contains(Sym *class_sym)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_pending_synthetic_odr; i++) {
+        if (cpp_pending_synthetic_odr[i] == class_sym)
+            return 1;
+    }
+    return 0;
+}
+
+static void cpp_queue_synthetic_odr(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    if (cpp_synthetic_inlines_registered(class_sym)
+        || cpp_pending_synthetic_odr_contains(class_sym))
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f))
+            cpp_queue_synthetic_odr(f->parent_class);
+        else if (cpp_is_class_data_member(f) && f->type.ref)
+            cpp_queue_synthetic_odr(f->type.ref);
+    }
+    dynarray_add(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr,
+                 class_sym);
+}
+
+static int cpp_is_deferred_synthetic_special_field(Sym *f, Sym *class_sym)
+{
+    if (!f || (f->type.t & VT_BTYPE) != VT_FUNC || !f->inline_func_str)
+        return 0;
+    if (cpp_is_ctor_field(f) && cpp_class_has_synthetic_ctor(class_sym))
+        return 1;
+    if (cpp_is_dtor_field(f) && cpp_class_has_synthetic_dtor(class_sym))
+        return 1;
     return 0;
 }
 
@@ -2431,6 +2645,7 @@ static Sym *cpp_prepare_local_static_dtor(Sym *obj_sym)
     if (tcc_state->output_type == TCC_OUTPUT_DLL
         && cpp_class_requires_destruction(class_sym))
         tcc_error("function-local static destructor in DLL is unsupported");
+    cpp_ensure_synthetic_odr(class_sym);
     dtor_field = cpp_find_dtor_field(class_sym);
     if (!dtor_field) {
         if (cpp_class_requires_destruction(class_sym))
@@ -2661,6 +2876,8 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
         if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
             && cpp_class_requires_destruction(class_sym))
             tcc_error("global destructor runtime in DLL is unsupported");
+        if (class_sym)
+            cpp_ensure_synthetic_odr(class_sym);
         if (class_sym && !cpp_find_dtor_field(class_sym))
             cpp_validate_implicit_dtor(class_sym, 0);
         if (class_sym && cpp_find_dtor_field(class_sym)) {
@@ -5037,6 +5254,7 @@ static int cpp_class_has_nontrivial_subobjects(Sym *class_sym)
 // Never add a synthetic ctor when any user-declared ctor field exists.
 static void cpp_synthesize_implicit_special_members(Sym *class_sym)
 {
+    CppSyntheticSpecial *sp;
     CType func_type;
     TokenString *body;
     Sym *field;
@@ -5045,18 +5263,22 @@ static void cpp_synthesize_implicit_special_members(Sym *class_sym)
 
     if (!class_sym || !tcc_state->cpp)
         return;
+    sp = cpp_get_or_create_synthetic_special(class_sym);
     class_tok = class_sym->v & ~SYM_STRUCT;
     if (!cpp_find_ctor_field(class_sym)
+        && !cpp_class_has_synthetic_ctor(class_sym)
         && cpp_class_has_nontrivial_subobjects(class_sym)
         && cpp_can_implicit_default_ctor_exist(class_sym, 0)) {
         func_type = cpp_make_special_member_func_type();
         body = cpp_make_empty_member_body();
         field = cpp_class_sym_push(class_tok | SYM_FIELD, &func_type, 0, 0);
         field->inline_func_str = body;
-        cpp_append_class_member(class_sym, field);
+        field->parent_class = class_sym;
+        sp->ctor_field = field;
         cpp_mark_synthetic_ctor_class(class_sym);
     }
     if (!cpp_find_dtor_field(class_sym)
+        && !cpp_class_has_synthetic_dtor(class_sym)
         && cpp_class_has_nontrivial_subobjects(class_sym)
         && cpp_class_requires_destruction(class_sym)
         && cpp_can_implicit_dtor_exist(class_sym, 0)) {
@@ -5067,72 +5289,143 @@ static void cpp_synthesize_implicit_special_members(Sym *class_sym)
         body = cpp_make_empty_member_body();
         field = cpp_class_sym_push(dtor_fld | SYM_FIELD, &func_type, 0, 0);
         field->inline_func_str = body;
-        cpp_append_class_member(class_sym, field);
+        field->parent_class = class_sym;
+        sp->dtor_field = field;
         cpp_mark_synthetic_dtor_class(class_sym);
     }
+}
+
+static void cpp_register_one_member_inline(Sym *class_sym, Sym *f)
+{
+    AttributeDef ad;
+    CType type;
+    struct InlineFunc *fn;
+    Sym *sym;
+    TokenString *body;
+    int global_tok;
+
+    body = f->inline_func_str;
+    if (!body)
+        return;
+    f->inline_func_str = NULL;
+    cpp_name_unnamed_params(f);
+    memset(&ad, 0, sizeof ad);
+    type = f->type;
+    type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
+    if ((f->type.t & VT_STATIC) && type.ref)
+        type.ref->f.func_static_member = 1;
+    if (cpp_is_ctor_field(f)) {
+        global_tok = cpp_ctor_name_tok(f->v & ~SYM_FIELD);
+        if (!global_tok)
+            global_tok = f->v & ~SYM_FIELD;
+    } else if (cpp_is_dtor_field(f)) {
+        global_tok = cpp_dtor_name_tok(f->parent_class->v & ~SYM_STRUCT);
+        if (!global_tok)
+            global_tok = f->v & ~SYM_FIELD;
+    } else {
+        global_tok = f->v & ~SYM_FIELD;
+    }
+    cpp_pending_member_class = class_sym;
+    sym = external_sym(global_tok, &type, 0, &ad);
+    cpp_pending_member_class = NULL;
+    sym->parent_class = class_sym;
+    sym->type.t |= VT_INLINE;
+    if (f->cpp_mem_init_list)
+        sym->cpp_mem_init_list = f->cpp_mem_init_list;
+    cpp_set_func_mangle_label(sym, &type);
+    fn = tcc_malloc(sizeof *fn + strlen(file->filename));
+    strcpy(fn->filename, file->filename);
+    fn->sym = sym;
+    fn->func_str = body;
+    dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
+}
+
+static void cpp_register_synthetic_inlines(Sym *class_sym)
+{
+    CppSyntheticSpecial *sp;
+    Sym *f;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    if (cpp_synthetic_inlines_registered(class_sym))
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f))
+            cpp_register_synthetic_inlines(f->parent_class);
+        else if (cpp_is_class_data_member(f) && f->type.ref)
+            cpp_register_synthetic_inlines(f->type.ref);
+    }
+    cpp_mark_synthetic_inlines_registered(class_sym);
+    sp = cpp_get_synthetic_special(class_sym);
+    if (!sp)
+        return;
+    if (sp->ctor_field && sp->ctor_field->inline_func_str)
+        cpp_register_one_member_inline(class_sym, sp->ctor_field);
+    if (sp->dtor_field && sp->dtor_field->inline_func_str)
+        cpp_register_one_member_inline(class_sym, sp->dtor_field);
+}
+
+static void cpp_ensure_synthetic_semantics(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f))
+            cpp_ensure_synthetic_semantics(f->parent_class);
+        else if (cpp_is_class_data_member(f) && f->type.ref)
+            cpp_ensure_synthetic_semantics(f->type.ref);
+    }
+    cpp_synthesize_implicit_special_members(class_sym);
+}
+
+static void cpp_materialize_synthetic_odr(Sym *class_sym)
+{
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    cpp_register_synthetic_inlines(class_sym);
+}
+
+static void cpp_ensure_synthetic_odr(Sym *class_sym)
+{
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    cpp_ensure_synthetic_semantics(class_sym);
+    if (cpp_synthetic_inlines_registered(class_sym))
+        return;
+    if ((func_vt.t & VT_BTYPE) == VT_FUNC) {
+        cpp_queue_synthetic_odr(class_sym);
+        return;
+    }
+    cpp_register_synthetic_inlines(class_sym);
+}
+
+static void cpp_flush_pending_synthetic_odr(void)
+{
+    int i;
+
+    if (!tcc_state->cpp || nb_cpp_pending_synthetic_odr == 0)
+        return;
+    for (i = 0; i < nb_cpp_pending_synthetic_odr; i++)
+        cpp_materialize_synthetic_odr(cpp_pending_synthetic_odr[i]);
+    dynarray_reset(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
 }
 
 static void cpp_finish_member_inlines(Sym *class_sym)
 {
     Sym *f;
-    AttributeDef ad;
-    CType type;
-    struct InlineFunc *fn;
-    Sym *sym;
 
     if (!class_sym || !tcc_state->cpp)
         return;
     for (f = class_sym->next; f; f = f->next) {
-        TokenString *body;
-        int global_tok;
         if ((f->type.t & VT_BTYPE) != VT_FUNC)
             continue;
-        body = f->inline_func_str;
-        if (!body)
+        if (!f->inline_func_str)
             continue;
-        f->inline_func_str = NULL;
-        /* BUG-13: rename unnamed params before gen_function reaches them */
-        cpp_name_unnamed_params(f);
-        memset(&ad, 0, sizeof ad);
-        type = f->type;
-        type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
-        // BUG-33: VT_STORAGE above already strips VT_STATIC (it has to -
-        // it would mean internal linkage on the global), so the "C++ static
-        // member" fact has to travel separately or gen_function would give
-        // an inline `static` member an implicit `this`.
-        if ((f->type.t & VT_STATIC) && type.ref)
-            type.ref->f.func_static_member = 1;
-        /* ctor: use a mangled token name to dodge the class typedef.
-         * (See cpp_lookup_member_func for the matching lookup path.) */
-        if (cpp_is_ctor_field(f)) {
-            global_tok = cpp_ctor_name_tok(f->v & ~SYM_FIELD);
-            if (!global_tok)
-                global_tok = f->v & ~SYM_FIELD;  /* fallback */
-        } else if (cpp_is_dtor_field(f)) {
-            global_tok = cpp_dtor_name_tok(f->parent_class->v & ~SYM_STRUCT);
-            if (!global_tok)
-                global_tok = f->v & ~SYM_FIELD;  /* fallback */
-        } else {
-            global_tok = f->v & ~SYM_FIELD;
-        }
-        /* BUG-14: mark the class so external_sym keeps this member's global
-           distinct from a same-named method in another class (see
-           cpp_pending_member_class / cpp_build_func_mangle). */
-        cpp_pending_member_class = class_sym;
-        sym = external_sym(global_tok, &type, 0, &ad);
-        cpp_pending_member_class = NULL;
-        sym->parent_class = class_sym;
-        sym->type.t |= VT_INLINE;
-        /* Inline ctor: propagate the saved mem-initializer-list so
-         * gen_function can expand it when codegen runs. */
-        if (f->cpp_mem_init_list)
-            sym->cpp_mem_init_list = f->cpp_mem_init_list;
-        cpp_set_func_mangle_label(sym, &type);
-        fn = tcc_malloc(sizeof *fn + strlen(file->filename));
-        strcpy(fn->filename, file->filename);
-        fn->sym = sym;
-        fn->func_str = body;
-        dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
+        if (cpp_is_deferred_synthetic_special_field(f, class_sym))
+            continue;
+        cpp_register_one_member_inline(class_sym, f);
     }
 }
 
@@ -5476,6 +5769,8 @@ void pv(const char* lbl, int a, int b)
 /* vstack �ƌ^�̏������Btcc -E�i�v���v���Z�X�̂݁j�ł�������s���K�v������ */
 ST_FUNC void tccgen_init(TCCState* s1)
 {
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_INIT_ENTER");
     vtop = vstack - 1;
     memset(vtop, 0, sizeof * vtop);
 
@@ -5600,6 +5895,10 @@ ST_FUNC void tccgen_init(TCCState* s1)
     dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
     dynarray_reset(&cpp_synthetic_ctor_classes, &nb_cpp_synthetic_ctor_classes);
     dynarray_reset(&cpp_synthetic_dtor_classes, &nb_cpp_synthetic_dtor_classes);
+    dynarray_reset(&cpp_synthetic_inline_registered,
+                   &nb_cpp_synthetic_inline_registered);
+    dynarray_reset(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
+    cpp_reset_synthetic_specials();
     // N6-02: same stale-Sym protection for pending TLS ctor thunks.
     dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
     // N6-04: and for pending TLS dtor thunks.
@@ -5607,6 +5906,20 @@ ST_FUNC void tccgen_init(TCCState* s1)
     /* Virtual MI (Phase 2): drop thunks a failed/aborted TU left pending so
        they cannot be emitted against stale Syms in the next compilation. */
     dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_INIT_EXIT");
+}
+
+static void cpp_p0_trace_synthetic_state(TCCState *s1, const char *tag)
+{
+    if (!s1 || !s1->cpp_diag_pe_trace || !tag)
+        return;
+    fprintf(stderr,
+        "TRACE P0:%s synth_spec=%d pend_odr=%d inline_reg=%d synth_ctor=%d synth_dtor=%d nb_inline_fns=%d func_vt=%d vtop=%ld\n",
+        tag, nb_cpp_synthetic_specials, nb_cpp_pending_synthetic_odr,
+        nb_cpp_synthetic_inline_registered, nb_cpp_synthetic_ctor_classes,
+        nb_cpp_synthetic_dtor_classes, s1->nb_inline_fns,
+        func_vt.t, (long)(vtop - vstack));
 }
 
 ST_FUNC int tccgen_compile(TCCState* s1)
@@ -5621,6 +5934,13 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     nocode_wanted = DATA_ONLY_WANTED; /* �֐��O�ł̓R�[�h�𐶐����Ȃ� */
     debug_modes = (s1->do_debug ? 1 : 0) | s1->test_coverage << 1;
 
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_COMPILE_ENTER");
+    else {
+        tcc_p0_diag_trace(s1, "USER_TU_BEGIN");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_BEGIN");
+    }
+
     tcc_debug_start(s1);
     tcc_tcov_start(s1);
 #ifdef TCC_TARGET_ARM
@@ -5632,6 +5952,10 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
     next();
     decl(VT_CONST);
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_AFTER_DECL");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_DECL");
+    }
     /* Virtual MI (Phase 2): thunk code is deferred to this top-level point -
        emitting inside struct_decl could land mid-function for local classes. */
     cpp_finish_virtual_thunks(s1);
@@ -5642,7 +5966,21 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     cpp_emit_tls_ctor_thunks(s1);
     // N6-04: dtor thunks follow the same ordering constraint.
     cpp_emit_tls_dtor_thunks(s1);
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_BEFORE_SYNTHETIC_FLUSH");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_BEFORE_SYNTHETIC_FLUSH");
+    }
+    cpp_flush_pending_synthetic_odr();
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_AFTER_SYNTHETIC_FLUSH");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_SYNTHETIC_FLUSH");
+        tcc_p0_diag_trace(s1, "USER_TU_BEFORE_GEN_INLINE");
+    }
     gen_inline_functions(s1);
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_AFTER_GEN_INLINE");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_GEN_INLINE");
+    }
     cpp_finish_local_static_dtors(s1);
     // N6-02 REVIEW FIX-1: release the ctor/dtor-thunk holders only now, after
     // the inline bodies (the last TLS access sites of the TU) have been emitted.
@@ -5654,11 +5992,19 @@ ST_FUNC int tccgen_compile(TCCState* s1)
 #endif
     tcc_debug_end(s1);
     tcc_tcov_end(s1);
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_COMPILE_EXIT");
+    else {
+        tcc_p0_diag_trace(s1, "USER_TU_END");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_END");
+    }
     return 0;
 }
 
 ST_FUNC void tccgen_finish(TCCState* s1)
 {
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_FINISH_ENTER");
     tcc_debug_end(s1); /* �G���[�������ɔ����ă���������� */
     free_inline_functions(s1);
     sym_pop(&global_stack, NULL, 0);
@@ -5690,6 +6036,8 @@ ST_FUNC void tccgen_finish(TCCState* s1)
     local_label_stack = NULL;
     cur_text_section = NULL;
     sym_free_first = NULL;
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_FINISH_EXIT");
 }
 
 /* ------------------------------------------------------------------------- */
@@ -6562,9 +6910,9 @@ static void cpp_validate_tls_class(Sym *class_sym)
 {
     if (!class_sym)
         return;
-    if (cpp_class_has_synthetic_ctor(class_sym))
+    if (cpp_class_would_have_synthetic_ctor(class_sym))
         tcc_error("implicit default construction of non-trivial member is unsupported");
-    if (cpp_class_has_synthetic_dtor(class_sym))
+    if (cpp_class_would_have_synthetic_dtor(class_sym))
         tcc_error("thread_local object with implicit non-trivial destructor is unsupported in N6-04");
     if (cpp_class_requires_destruction(class_sym)) {
         if (!cpp_find_dtor_field(class_sym))
@@ -10070,6 +10418,7 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
             }
         }
     }
+    cpp_match_registry_func_fields(class_sym, v1, &const_match, &nonconst_match);
     ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
     if (ret)
         return ret;
@@ -10448,6 +10797,15 @@ static Sym* find_field(CType* type, int v, int* cumofs)
                 *cumofs += s->c;
                 return ret;
             }
+        }
+    }
+    {
+        Sym *reg;
+
+        reg = cpp_find_registry_field(type->ref, v1);
+        if (reg) {
+            *cumofs = reg->c;
+            return reg;
         }
     }
     if (!(v & SYM_FIELD))
@@ -11975,11 +12333,9 @@ do_decl:
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
             if (is_class) {
-                /* N7-02: inject implicit ctor/dtor bodies before the normal
-                 * inline replay so FEAT-4F/4G and dtor scope-exit reuse them. */
-                cpp_synthesize_implicit_special_members(s);
-                /* Convert in-class inline bodies into real global functions
-                 * (registered via inline_fns) so member calls can link. */
+                /* Synthetic special members materialize at ODR-use
+                 * (cpp_ensure_synthetic_odr / TU-end flush), not for SDK
+                 * classes parsed during #include. */
                 cpp_finish_member_inlines(s);
                 cpp_emit_vtable(s);
                 /* Virtual MI (Phase 2): runs after struct_layout so the base
@@ -17766,9 +18122,6 @@ static void gen_function(Sym* sym)
     }
 
     funcname = get_tok_str(sym->v, NULL);
-    if (tcc_state->cpp && !sym->parent_class && sym_scope(sym) == 0
-        && !strcmp(funcname, "main"))
-        tcc_state->cpp_n6_main_gateway_needed = 1;
     func_ind = ind;
     func_vt = sym->type.ref->type;
     func_var = sym->type.ref->f.func_type == FUNC_ELLIPSIS;
@@ -18282,10 +18635,13 @@ static int decl(int l)
                 && btype.ref
                 && !(btype.t & VT_CPP_TLS)
                 && tok >= TOK_UIDENT
-                && cpp_find_ctor_field(btype.ref)) {
+                && cpp_in_user_source_file()
+                && (cpp_find_ctor_field(btype.ref)
+                    || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
                 int saved_var_tok = tok;
                 int obj_r = VT_LVAL | VT_CONST;
                 Sym *obj_sym;
+
                 next();
                 if (tok == '(') {
                     next();
@@ -18317,7 +18673,9 @@ static int decl(int l)
                               excluding VT_STATIC: function-local statics need
                               once-only guarded construction, not this path.) */
                            && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
-                           && cpp_class_has_default_ctor(btype.ref)) {
+                           && (cpp_class_has_default_ctor(btype.ref)
+                               || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
+                    cpp_ensure_synthetic_odr(btype.ref);
                     decl_initializer_alloc(&type, &ad, obj_r,
                         0, saved_var_tok, 1);
                     obj_sym = sym_find(saved_var_tok);
@@ -18344,20 +18702,27 @@ static int decl(int l)
                 && (btype.t & VT_BTYPE) == VT_STRUCT
                 && btype.ref
                 && tok >= TOK_UIDENT
-                && cpp_find_ctor_field(btype.ref)) {
+                && cpp_in_user_source_file()
+                && (cpp_find_ctor_field(btype.ref)
+                    || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
                 int saved_var_tok = tok;
                 int is_static = (btype.t & VT_STATIC) != 0;
                 int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
+
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
                     if (tok != ')') {
                         /* `Foo f(args);` -> `f.Foo(args);` (local) */
-                        Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                        Sym *ctor_field;
                         Sym *guard_sym;
                         Sym *dtor_wrapper;
-                        int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                        int ctor_tok_v;
                         int guard_skip;
+
+                        cpp_ensure_synthetic_odr(btype.ref);
+                        ctor_field = cpp_find_ctor_field(btype.ref);
+                        ctor_tok_v = ctor_field->v & ~SYM_FIELD;
 
                         guard_sym = NULL;
                         dtor_wrapper = NULL;
@@ -18398,16 +18763,21 @@ static int decl(int l)
                     unget_tok(saved_var_tok);
                 } else if ((tok == ';' || tok == ',')
                            && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
-                           && cpp_class_has_default_ctor(btype.ref)) {
+                           && (cpp_class_has_default_ctor(btype.ref)
+                               || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
                     /* FEAT-4F: `Foo f;` with a user default ctor is
                        rewritten into `f.Foo()` (same unget trick as 4B;
                        the current ';' or ',' stays after the ')').  P2 wraps
                        a function-local static in its once-only guard. */
-                    Sym *ctor_field = cpp_find_ctor_field(btype.ref);
+                    Sym *ctor_field;
                     Sym *guard_sym;
                     Sym *dtor_wrapper;
-                    int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
+                    int ctor_tok_v;
                     int guard_skip;
+
+                    cpp_ensure_synthetic_odr(btype.ref);
+                    ctor_field = cpp_find_ctor_field(btype.ref);
+                    ctor_tok_v = ctor_field->v & ~SYM_FIELD;
 
                     guard_sym = NULL;
                     dtor_wrapper = NULL;

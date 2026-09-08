@@ -1,0 +1,18 @@
+TRACE P0:USER_TU_BEGIN
+TRACE P0:USER_TU_BEGIN synth_spec=0 pend_odr=0 inline_reg=0 synth_ctor=0 synth_dtor=0 nb_inline_fns=0 func_vt=0 vtop=-1
+TRACE P0:USER_TU_AFTER_DECL
+TRACE P0:USER_TU_AFTER_DECL synth_spec=1 pend_odr=0 inline_reg=1 synth_ctor=0 synth_dtor=0 nb_inline_fns=63 func_vt=0 vtop=-1
+TRACE P0:USER_TU_BEFORE_SYNTHETIC_FLUSH
+TRACE P0:USER_TU_BEFORE_SYNTHETIC_FLUSH synth_spec=1 pend_odr=0 inline_reg=1 synth_ctor=0 synth_dtor=0 nb_inline_fns=63 func_vt=0 vtop=-1
+TRACE P0:USER_TU_AFTER_SYNTHETIC_FLUSH
+TRACE P0:USER_TU_AFTER_SYNTHETIC_FLUSH synth_spec=1 pend_odr=0 inline_reg=1 synth_ctor=0 synth_dtor=0 nb_inline_fns=63 func_vt=0 vtop=-1
+TRACE P0:USER_TU_BEFORE_GEN_INLINE
+TRACE P0:USER_TU_AFTER_GEN_INLINE
+TRACE P0:USER_TU_AFTER_GEN_INLINE synth_spec=1 pend_odr=0 inline_reg=1 synth_ctor=0 synth_dtor=0 nb_inline_fns=63 func_vt=0 vtop=-1
+TRACE P0:USER_TU_END
+TRACE P0:USER_TU_END synth_spec=1 pend_odr=0 inline_reg=1 synth_ctor=0 synth_dtor=0 nb_inline_fns=63 func_vt=0 vtop=-1
+TRACE P0:PE_RUNTIME_BEGIN
+TRACE P0:PE_BEFORE_TLS_RUNTIME
+TRACE P0:TLS_BEFORE_BUILD
+TRACE P0:TLS_BEFORE_INJECT_COMPILE
+TRACE P0:INJ_BEFORE_COMPILE_STRING
