@@ -4,7 +4,6 @@ public:
     Foo(int x) : a(x) {}
 };
 int main() {
-    Foo f;
-    f.Foo(5);
+    Foo f(5);
     return f.a - 5;
 }
