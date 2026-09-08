@@ -64,7 +64,41 @@ Same `A(int)` only — measure separately:
 
 ## Gate
 
-`dev/test/a9/manual/n7_00_measure.bat` — records current behavior; exit 0 when measurement completes.
+| Gate | Role |
+|------|------|
+| `dev/test/a9/manual/n7_00_measure.bat` | N7-00 freeze measurement |
+| `dev/test/a9/manual/n7_01_default_ctor_fail_closed.bat` | N7-01 fail-closed authority (in `run_all.bat`) |
+
+## N7-01 closure authority
+
+```text
+=== N7-01 FINAL ===
+N7_00_COMMIT=bf5a2a3
+N7_01_IMPL_COMMIT=ba22114
+N7_01_CLOSURE_COMMIT=353ae38
+
+BUG_SCOPE=SHARED_DEFAULT_INITIALIZATION_CHECK
+NO_VIABLE_DEFAULT_CTOR_AUTHORITY=cpp_validate_decl_default_initialization
+DEFAULT_CTOR_VIABILITY_CHECK_STAGE=decl() fallback before decl_initializer_alloc()
+ZERO_ARGUMENT_CONSTRUCTION_IS_VIABLE=cpp_class_has_default_ctor (via cpp_ctor_viable_with_zero_args)
+
+LOCAL_AUTO_NO_DEFAULT_CTOR=FAIL_CLOSED
+ARRAY_NO_DEFAULT_CTOR=FAIL_CLOSED
+GLOBAL_NO_DEFAULT_CTOR=FAIL_CLOSED
+LOCAL_STATIC_NO_DEFAULT_CTOR=FAIL_CLOSED
+
+N7_00_SILENT_MISCOMPILE_COUNT=4
+N7_01_SILENT_MISCOMPILE_COUNT=0
+
+DEFAULT_ARGUMENT_CTOR=PASS
+OVERLOADED_WITH_DEFAULT_CTOR=PASS
+TRIVIAL_ARRAY_DEFAULT_INIT=PASS
+
+RUNTIME_CHANGE=NONE
+PUBLIC_API_CHANGE=NONE
+N7_01=PASS
+N7_02_START=NO
+```
 
 ## POST-N6 linkage
 
