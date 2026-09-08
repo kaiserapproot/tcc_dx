@@ -115,7 +115,7 @@ Gate: `dev/test/a9/manual/n7_02_00_measure.bat` (**standalone** — not in `run_
 
 BASE_COMMIT=d25cb3f
 N7_02_00_COMMIT=d099092
-N7_02_00_CLOSURE_COMMIT=<set at closure commit>
+N7_02_00_CLOSURE_COMMIT=f656ba2
 N7_02_00_MERGE_COMMIT=5175462
 
 EMPTY_CLASS=SUPPORTED
