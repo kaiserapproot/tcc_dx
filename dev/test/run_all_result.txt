@@ -1,0 +1,337 @@
+=== smoke\empty.c ===
+=== smoke\hello.c ===
+=== smoke\empty.cpp ===
+=== a2\bar.c ===
+=== a2\bool_ident.c ===
+=== a2\friend_ident.c ===
+=== a2\keyword_gate.c ===
+=== a2\repeated_ident.c ===
+=== a2\foo.cpp ===
+=== a2\keyword_lex.cpp ===
+=== a3\cplusplus.c ===
+=== a3\cplusplus.cpp ===
+=== a4\extern_c_block.cpp ===
+=== a5\class_inline_body.cpp ===
+=== a5\class_min.cpp ===
+=== a5\keyword_gate.cpp ===
+=== a6\extern_c_decl.cpp ===
+=== a6\overload.cpp ===
+=== a6\qualified.cpp ===
+=== a6\ref_param.cpp ===
+=== a8\ctor_init.cpp ===
+=== a8\ctor_init_inline.cpp ===
+=== a8\ctor_init_two.cpp ===
+=== a8\ctor_noarg.cpp ===
+=== a8\feat4b_basic.cpp ===
+=== a8\feat4b_multi_decl.cpp ===
+=== a8\feat4b_no_ctor.cpp ===
+=== a8\feat4b_two_args.cpp ===
+=== a8\feat4c_basic.cpp ===
+=== a8\feat4c_no_init.cpp ===
+=== a8\feat4c_two_args.cpp ===
+=== a8\feat4d_base_body.cpp ===
+=== a8\feat4d_base_init.cpp ===
+=== a8\feat4e_basic.cpp ===
+=== a8\feat4e_explicit.cpp ===
+=== a8\feat4e_nested.cpp ===
+=== a8\feat5a_basic.cpp ===
+=== a8\feat5a_call.cpp ===
+=== a8\feat5a_class_only.cpp ===
+=== a8\feat5a_global.cpp ===
+=== a8\feat5a_local.cpp ===
+=== a8\feat5a_override.cpp ===
+=== a8\feat5a_ptr.cpp ===
+=== a8\feat5b_dmp_access.cpp ===
+=== a8\feat5b_dmp_addr.cpp ===
+=== a8\feat5b_pmf_call.cpp ===
+=== a8\feat5b_pmf_inherit.cpp ===
+=== a8\inherit_method.cpp ===
+=== a8\inherit_single.cpp ===
+=== a8\inherit_sizeof.cpp ===
+=== a8\sm2.cpp ===
+=== a8\sm3.cpp ===
+=== a8\sm4.cpp ===
+=== a8\sm5.cpp ===
+=== a8\sm6.cpp ===
+a8/sm6.cpp:2: error: 'Counter' ・ｽﾍ宣言・ｽ・ｽ・ｽ・ｽﾄゑｿｽ・ｽﾜゑｿｽ・ｽ・ｽ
+  [known gap, non-gating] a8\sm6.cpp
+=== a8\static_member.cpp ===
+=== a8\t_assign.cpp ===
+a8/t_assign.cpp:1: warning: ・ｽ^・ｽﾍ奇ｿｽ・ｽ・ｽ・ｽ int ・ｽﾉなゑｿｽﾜゑｿｽ
+a8/t_assign.cpp:1: error: ';' が必要です（"Counter" が見つかりました）
+  [known gap, non-gating] a8\t_assign.cpp
+=== a8\t_assign2.cpp ===
+=== a8\t_assign3.cpp ===
+=== a8\t_assign4.cpp ===
+=== a8\t_bget.cpp ===
+=== a8\t_dget.cpp ===
+=== a8\t_expr.cpp ===
+=== a8\t_expr2.cpp ===
+=== a8\t_expr3.cpp ===
+=== a8\t_init.cpp ===
+=== a8\t_min.cpp ===
+=== a8\t_ret.cpp ===
+=== a8\t_s0.cpp ===
+=== a8\t_s1.cpp ===
+=== a8\t_s2.cpp ===
+=== a9\bug20_c_mode.c ===
+=== a9\g4_c_ident.c ===
+=== a9\gcast_c_decl.c ===
+=== a9\gop_c_deref.c ===
+=== a9\gscope_c_ternary.c ===
+=== a9\alias_scoped_decl.cpp ===
+=== a9\bug11_externc_class.cpp ===
+=== a9\bug12_big_struct_args.cpp ===
+=== a9\bug12_big_struct_op.cpp ===
+=== a9\bug13_p2_free_unnamed.cpp ===
+=== a9\bug13_unnamed_member.cpp ===
+=== a9\bug13_unnamed_operator.cpp ===
+=== a9\bug14_same_method_name.cpp ===
+=== a9\bug14_virtual_base_object.cpp ===
+=== a9\bug15_large_this.cpp ===
+=== a9\bug15_large_virtual_pmf.cpp ===
+=== a9\bug16_dtor_this_identity.cpp ===
+=== a9\bug16_global_large_ctor.cpp ===
+=== a9\bug20_global_ctor_arg.cpp ===
+=== a9\bug20_inner_typedef.cpp ===
+=== a9\bug20_scope_restore.cpp ===
+=== a9\bug20_shadow_param.cpp ===
+=== a9\bug21_member_vs_global.cpp ===
+=== a9\bug22_member_calls_member.cpp ===
+=== a9\bug23_this_in_arg.cpp ===
+=== a9\bug31_static_member_leak.cpp ===
+=== a9\bug32_default_overload.cpp ===
+=== a9\bug32_default_twice.cpp ===
+=== a9\bug33_static_inline.cpp ===
+=== a9\bug34_deep_override.cpp ===
+=== a9\bug35_selfref_return.cpp ===
+=== a9\bug36_nested_type_decl.cpp ===
+=== a9\bug46_nested_copy.cpp ===
+=== a9\bug46_primary_base_copy.cpp ===
+=== a9\bug49_derived_to_base.cpp ===
+=== a9\bug49_secondary_base_ref.cpp ===
+=== a9\bug7_const_inline.cpp ===
+=== a9\bug7_const_param.cpp ===
+=== a9\bug8_this_deref.cpp ===
+=== a9\bug9_a.cpp ===
+=== a9\bug9_b.cpp ===
+=== a9\bug9_c.cpp ===
+=== a9\const_member_init.cpp ===
+=== a9\copy_init_convert.cpp ===
+=== a9\copy_init_ctor.cpp ===
+=== a9\copy_init_memberwise.cpp ===
+=== a9\copy_init_pod.cpp ===
+=== a9\copy_init_sources.cpp ===
+=== a9\crt_header_compat.cpp ===
+=== a9\ctor4f_basic.cpp ===
+=== a9\ctor4f_dtor.cpp ===
+=== a9\ctor4f_multi.cpp ===
+=== a9\ctor4f_overload.cpp ===
+=== a9\ctor4f_skip.cpp ===
+=== a9\ctor_base_conv.cpp ===
+=== a9\ctor_ov_base.cpp ===
+=== a9\ctor_ov_default.cpp ===
+=== a9\ctor_ov_defn.cpp ===
+=== a9\ctor_ov_inline.cpp ===
+=== a9\extern_c_macro_keyword.cpp ===
+=== a9\feat4e_p2_basic.cpp ===
+=== a9\feat4e_p2_explicit.cpp ===
+=== a9\feat4e_p2_global.cpp ===
+=== a9\feat4g_args.cpp ===
+=== a9\feat4g_args6.cpp ===
+=== a9\feat4g_basic.cpp ===
+=== a9\feat4g_dtor.cpp ===
+=== a9\feat4g_multi.cpp ===
+=== a9\feat5c_args.cpp ===
+=== a9\feat5c_single.cpp ===
+=== a9\feat5c_virtual_pmf.cpp ===
+=== a9\feat6a_big_struct.cpp ===
+=== a9\feat6a_call.cpp ===
+=== a9\feat6a_ext2_assign.cpp ===
+=== a9\feat6a_ext2_chain.cpp ===
+=== a9\feat6a_ext2_full.cpp ===
+=== a9\feat6a_ext2_memcpy.cpp ===
+=== a9\feat6a_ext2_pa_free.cpp ===
+=== a9\feat6a_ext2_pa_member.cpp ===
+=== a9\feat6a_ext3_arity.cpp ===
+=== a9\feat6a_ext3_free.cpp ===
+=== a9\feat6a_ext3_full.cpp ===
+=== a9\feat6a_ext3_incdec.cpp ===
+=== a9\feat6a_ext3_neg.cpp ===
+=== a9\feat6a_ext3_not.cpp ===
+=== a9\feat6a_ext4_free.cpp ===
+=== a9\feat6a_ext4_full.cpp ===
+=== a9\feat6a_ext4_post_dec.cpp ===
+=== a9\feat6a_ext4_post_inc.cpp ===
+=== a9\feat6a_ext4_prepost.cpp ===
+=== a9\feat6a_ext5_eq.cpp ===
+=== a9\feat6a_ext5_free.cpp ===
+=== a9\feat6a_ext5_full.cpp ===
+=== a9\feat6a_ext5_rel.cpp ===
+=== a9\feat6a_ext6_bitwise.cpp ===
+=== a9\feat6a_ext6_compound.cpp ===
+=== a9\feat6a_ext6_stream.cpp ===
+=== a9\feat6a_ext_free_int.cpp ===
+=== a9\feat6a_ext_free_plus.cpp ===
+=== a9\feat6a_ext_full.cpp ===
+=== a9\feat6a_ext_sub_const.cpp ===
+=== a9\feat6a_ext_sub_free.cpp ===
+=== a9\feat6a_ext_sub_member.cpp ===
+=== a9\feat6a_int_method.cpp ===
+=== a9\feat6a_min.cpp ===
+=== a9\feat6a_op_plus.cpp ===
+=== a9\feat6a_ref_arg.cpp ===
+=== a9\feat6a_struct_free.cpp ===
+=== a9\feat6a_vec2.cpp ===
+=== a9\feat6a_vec2_binop.cpp ===
+=== a9\feat6a_vec2_copy.cpp ===
+=== a9\feat6a_vec2_discard.cpp ===
+=== a9\feat6a_vec2_dotx.cpp ===
+=== a9\feat6a_vec2_explicit.cpp ===
+=== a9\feat6a_vec2_int.cpp ===
+=== a9\feat6a_vec2_method.cpp ===
+=== a9\feat6a_vec2_nostore.cpp ===
+=== a9\feat6b_const_obj.cpp ===
+=== a9\feat6b_defn.cpp ===
+=== a9\feat6b_overload.cpp ===
+=== a9\feat6b_overload_rev.cpp ===
+=== a9\feat6b_p2_ok.cpp ===
+=== a9\feat6b_this.cpp ===
+=== a9\featbool_basic.cpp ===
+=== a9\featbool_operator.cpp ===
+=== a9\friend_class.cpp ===
+=== a9\func_cast_class.cpp ===
+=== a9\g3p1_typedef_basic.cpp ===
+=== a9\g3p1_typedef_chain.cpp ===
+=== a9\g3p1_typedef_nested.cpp ===
+=== a9\g3p2_base_beats_enclosing.cpp ===
+=== a9\g3p2_base_typedef.cpp ===
+=== a9\g3p2_method_typedef.cpp ===
+=== a9\g3p2_multibase_same.cpp ===
+=== a9\g3p2_shadow.cpp ===
+=== a9\g3p3_nested_class.cpp ===
+=== a9\g3p3_qualified_return.cpp ===
+=== a9\g3p3_qualified_type.cpp ===
+=== a9\g3p3_static_expr.cpp ===
+=== a9\g3p4_nested_ooc_op.cpp ===
+=== a9\g3p5_default_npos.cpp ===
+=== a9\g3p5_default_shadow.cpp ===
+=== a9\g4_new_array.cpp ===
+=== a9\g4_new_basic.cpp ===
+=== a9\g4_new_null_nested.cpp ===
+=== a9\g4_new_virtual.cpp ===
+=== a9\g5_pure_virtual.cpp ===
+=== a9\g6_mi_complete_delete.cpp ===
+=== a9\g6_null_nonvirtual.cpp ===
+=== a9\g6_virtual_dtor_basic.cpp ===
+=== a9\gcast_class_typedef.cpp ===
+=== a9\gcast_global_typedef.cpp ===
+=== a9\gconv_basic.cpp ===
+=== a9\gconv_copy_ctor_defaults.cpp ===
+=== a9\gop_arrow.cpp ===
+=== a9\gop_arrow_proxy.cpp ===
+=== a9\gop_cast_deref.cpp ===
+=== a9\gop_deref.cpp ===
+=== a9\gop_mixed_ptr.cpp ===
+=== a9\govl_forward_overload.cpp ===
+=== a9\govl_same_arity.cpp ===
+=== a9\govl_unqualified.cpp ===
+=== a9\gscope_expr.cpp ===
+=== a9\gscope_member.cpp ===
+=== a9\gscope_shadow.cpp ===
+=== a9\gscope_ternary.cpp ===
+=== a9\gscope_type.cpp ===
+=== a9\gscope_typedef.cpp ===
+=== a9\implicit_assign_noncopy_overload.cpp ===
+=== a9\implicit_assign_ok.cpp ===
+=== a9\local_class.cpp ===
+=== a9\local_static_copy_init.cpp ===
+=== a9\local_static_ctor.cpp ===
+=== a9\local_static_dtor.cpp ===
+=== a9\local_static_pointer.cpp ===
+=== a9\mi_basic.cpp ===
+=== a9\mi_ctor.cpp ===
+=== a9\mi_implicit_base_ctor.cpp ===
+=== a9\mi_implicit_base_dtor.cpp ===
+=== a9\mi_large_base_ctor.cpp ===
+=== a9\mi_null_upcast.cpp ===
+=== a9\mi_partial_base_ctor.cpp ===
+=== a9\mi_upcast.cpp ===
+=== a9\nested_member_call.cpp ===
+=== a9\new_implicit_copy.cpp ===
+=== a9\ooc_nested_class.cpp ===
+=== a9\overload_mixed_return.cpp ===
+=== a9\qual_base_call.cpp ===
+=== a9\return_multidim_array_trivial.cpp ===
+=== a9\return_reference_member.cpp ===
+=== a9\return_scope_dtor.cpp ===
+=== a9\return_value_dtor.cpp ===
+=== a9\sig_free_types.cpp ===
+=== a9\sig_member_types.cpp ===
+=== a9\sig_member_types_rev.cpp ===
+=== a9\si_implicit_base_ctor_dtor.cpp ===
+=== a9\static_member_unqualified_forward.cpp ===
+=== a9\struct_func_ptr.cpp ===
+=== a9\struct_member_compat.cpp ===
+=== a9\vmi_basic.cpp ===
+=== a9\vmi_ctor.cpp ===
+=== a9\vmi_global.cpp ===
+=== a9\vmi_mixed_first_nonpoly.cpp ===
+=== a9\vmi_no_override.cpp ===
+=== a9\vmi_second_write.cpp ===
+=== a9\vmi_si_poly_data.cpp ===
+=== a9\vmi_upcast_ref.cpp ===
+=== a7\member_call.cpp ===
+=== a7\default_arg.cpp ===
+=== a7\inline_member.cpp ===
+=== a7\typedef_class.cpp ===
+a9/bug22_member_calls_member.cpp:79: warning: ・ｽﾝ奇ｿｽ・ｽ・ｽ・ｽﾌなゑｿｽ・ｽ|・ｽC・ｽ・ｽ・ｽ^・ｽ^・ｽ・ｽ・ｽ・ｽﾌ托ｿｽ・ｽ・ｽﾅゑｿｽ
+  [CRASH] a9\bug22_member_calls_member.cpp exit=-1073740940
+a9/bug23_this_in_arg.cpp:71: warning: ・ｽﾝ奇ｿｽ・ｽ・ｽ・ｽﾌなゑｿｽ・ｽ|・ｽC・ｽ・ｽ・ｽ^・ｽ^・ｽ・ｽ・ｽ・ｽﾌ托ｿｽ・ｽ・ｽﾅゑｿｽ
+  [CRASH] a9\bug23_this_in_arg.cpp exit=-1073740940
+  [CRASH] a9\bug34_deep_override.cpp exit=-1073740940
+In file included from a9/crt_header_compat.cpp:3:
+In file included from e:/work/work_github/tpp/tcc_dx/dev/include/windows.h:66:
+e:/work/work_github/tpp/tcc_dx/dev/include/stdarg.h:52: warning: va_start redefined
+In file included from a9/crt_header_compat.cpp:3:
+In file included from e:/work/work_github/tpp/tcc_dx/dev/include/windows.h:66:
+e:/work/work_github/tpp/tcc_dx/dev/include/stdarg.h:53: warning: va_end redefined
+In file included from a9/crt_header_compat.cpp:3:
+In file included from e:/work/work_github/tpp/tcc_dx/dev/include/windows.h:66:
+e:/work/work_github/tpp/tcc_dx/dev/include/stdarg.h:54: warning: va_arg redefined
+In file included from a9/crt_header_compat.cpp:3:
+In file included from e:/work/work_github/tpp/tcc_dx/dev/include/windows.h:66:
+e:/work/work_github/tpp/tcc_dx/dev/include/stdarg.h:56: warning: va_copy redefined
+In file included from a9/crt_header_compat.cpp:3:
+In file included from e:/work/work_github/tpp/tcc_dx/dev/include/windows.h:66:
+e:/work/work_github/tpp/tcc_dx/dev/include/stdarg.h:58: warning: __va_copy redefined
+tcc: internal error: invalid memory access (this is a compiler bug, not an error in the source being compiled)
+tcc:   #00 00007FF64053A1D4
+tcc:   #01 00007FF98E049B4C
+tcc:   #02 00007FF98E022376
+tcc:   #03 00007FF98E07147E
+tcc:   #04 00007FF98DFF5BB6
+tcc:   #05 00007FF98DFF47B1
+tcc:   #06 00007FF98B7FF05B
+tcc:   #07 00007FF640533B4E
+tcc:   #08 00007FF64055322F
+tcc:   #09 00007FF640534664
+tcc:   #10 00007FF640546804
+tcc:   #11 00007FF640546B06
+tcc:   #12 00007FF640579D4E
+tcc:   #13 00007FF64057A1FE
+tcc:   #14 00007FF64053A7EC
+tcc:   #15 00007FF64058C620
+tcc:   #16 00007FF98D447374
+tcc:   #17 00007FF98E01CC91
+tcc:   module base 00007FF640530000
+  [CRASH] a9\crt_header_compat.cpp exit=1
+  [CRASH] a9\g3p1_typedef_chain.cpp exit=-1073740940
+  [CRASH] a9\g3p2_base_beats_enclosing.cpp exit=-1073740940
+  [CRASH] a9\g3p2_base_typedef.cpp exit=-1073740940
+  [CRASH] a9\g3p2_multibase_same.cpp exit=-1073740940
+  [CRASH] a9\g3p3_qualified_type.cpp exit=-1073740940
+  [CRASH] a9\g5_pure_virtual.cpp exit=-1073740940
+  [CRASH] a9\g6_mi_complete_delete.cpp exit=-1073740940
+  [CRASH] a9\g6_virtual_dtor_basic.cpp exit=-1073740940
+  [CRASH] a9\mi_basic.cpp exit=-1073740940
