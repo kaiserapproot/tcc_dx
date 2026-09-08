@@ -2054,6 +2054,7 @@ ST_FUNC int pe_output_file(TCCState *s1, const char *filename)
     tcc_add_bcheck(s1);
 #endif
     tcc_add_pragma_libs(s1);
+    tcc_p0_diag_trace(s1, "PE_RUNTIME_BEGIN");
     pe_add_runtime(s1, &pe);
     resolve_common_syms(s1);
     pe_set_options(s1, &pe);

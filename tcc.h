@@ -1390,6 +1390,7 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1);
 ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1);
 ST_FUNC int tcc_cpp_n6_main_gateway_needed(TCCState *s1);
 ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1);
+ST_FUNC void tcc_p0_diag_trace(TCCState *s1, const char *tag);
 ST_FUNC void tcc_add_pragma_libs(TCCState *s1);
 PUB_FUNC int tcc_add_library_err(TCCState *s, const char *f);
 PUB_FUNC void tcc_print_stats(TCCState *s, unsigned total_time);

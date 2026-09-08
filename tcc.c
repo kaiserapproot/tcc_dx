@@ -312,15 +312,38 @@ static LONG CALLBACK tcc_crash_net_veh(EXCEPTION_POINTERS *ep)
     if (!tcc_crash_net_armed)
         return EXCEPTION_CONTINUE_SEARCH;
     code = ep->ExceptionRecord->ExceptionCode;
-    if (code != EXCEPTION_STACK_OVERFLOW && code != EXCEPTION_ACCESS_VIOLATION)
+    if (getenv("TCC_CRASH_DIAG") && code == 0xC0000409) {
+        /* P0 diag: capture fail-fast / stack-cookie faults during discrimination. */
+    } else if (code != EXCEPTION_STACK_OVERFLOW && code != EXCEPTION_ACCESS_VIOLATION) {
         return EXCEPTION_CONTINUE_SEARCH;
+    }
     h = GetStdHandle(STD_ERROR_HANDLE);
-    pos = wsprintfA(msg,
-        "tcc: internal error: %s (this is a compiler bug, not an error in "
-        "the source being compiled)\n",
-        code == EXCEPTION_STACK_OVERFLOW
-            ? "stack overflow (runaway recursion)" : "invalid memory access");
-    WriteFile(h, msg, pos, &written, NULL);
+    {
+        void *fault_addr;
+        HMODULE fault_mod;
+        char mod_path[MAX_PATH];
+
+        fault_addr = ep->ExceptionRecord->ExceptionAddress;
+        fault_mod = NULL;
+        mod_path[0] = 0;
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                               | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               (LPCSTR)fault_addr, &fault_mod)
+            && fault_mod)
+            GetModuleFileNameA(fault_mod, mod_path, MAX_PATH);
+        pos = wsprintfA(msg,
+            "tcc: internal error: exception 0x%08X at %p module=%s (compiler bug)\n",
+            code, fault_addr, mod_path[0] ? mod_path : "?");
+        WriteFile(h, msg, pos, &written, NULL);
+    }
+    if (code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_ACCESS_VIOLATION) {
+        pos = wsprintfA(msg,
+            "tcc: internal error: %s (this is a compiler bug, not an error in "
+            "the source being compiled)\n",
+            code == EXCEPTION_STACK_OVERFLOW
+                ? "stack overflow (runaway recursion)" : "invalid memory access");
+        WriteFile(h, msg, pos, &written, NULL);
+    }
     // Raw return addresses: with the linker .map (base below) they resolve
     // to functions even without a debugger attached.
     nf = RtlCaptureStackBackTrace(0, 40, frames, NULL);
