@@ -134,28 +134,61 @@ Columns: **Parse / Codegen / Link / Runtime** = PASS | FAIL | PARTIAL | N/A
 
 | Rank | Candidate | A.SAFETY | B.FOUNDATIONAL | C.USER_VALUE | Notes |
 |------|-----------|----------|----------------|--------------|-------|
-| 1 | **Implicit default construction** (`P f;` fail-closed or codegen) | HIGH | HIGH | HIGH | Only confirmed silent miscompile in Post-N6-00 probes |
+| 1 | **Implicit default construction / no viable default ctor** (`P f;` when only `P(int)`) | HIGH | HIGH | HIGH | Only confirmed silent miscompile in Post-N6-00 probes; standard fix is COMPILE_FAIL not implicit default ctor synthesis |
 | 2 | **Implicit special-member completion** (align negative inventory with all decl forms) | HIGH | HIGH | MED | Many shapes already FAIL_CLOSED; gap is default-construction declaration |
 | 3 | **Overload conversion ranking / ambiguity** | MED | HIGH | MED | Two-level score; chain-first-wins; not ISO |
 | 4 | MI vtable edge cases (deep secondary, overloaded virtual) | MED | MED | LOW | Partial FAIL_CLOSED exists (`g6_deep_secondary`, `vmi_overloaded_virtual`) |
 | 5 | Exceptions / RTTI / templates | LOW (fail-closed today) | MED | HIGH | Large scope; not silent today |
 
-**RECOMMENDED_N7=IMPLICIT_DEFAULT_CONSTRUCTION_FAIL_CLOSED_OR_CODEGEN**
+**RECOMMENDED_N7=CLASS_DEFAULT_INITIALIZATION**
+
+N7 roadmap (spec only; `N7_START=NO` until N7-00 freeze):
+
+| Phase | Scope |
+|-------|--------|
+| N7-00 | Default-initialization capability / semantics freeze (production none) |
+| N7-01 | No-viable-default-constructor fail-closed (silent miscompile 1 → 0) |
+| N7-02 | Implicit default ctor codegen (trivial / base / member propagation) |
+| N7-03 | Array default-construction propagation |
+| N7-04 | Storage-class regression (local / global / static / TLS) |
+| N7-05 | Implicit-special-member interaction audit |
+| N7-06 | Negative / fail-closed qualification |
+| N7-07 | Full regression / closure |
 
 ---
 
 ## 6. Inventory counts (feature-area rollup)
 
+**Counting semantics (non-exclusive):**
+
+```text
+CAPABILITY_COUNTS_ARE_NON_EXCLUSIVE=YES
+COUNTING_UNIT=FEATURE_X_STAGE_OR_EXECUTION_MODE
+FEATURE_AREA_COUNT=32
+```
+
+`FEATURE_COUNT=32` is the number of **top-level feature areas** in section 3 (rows `#1`–`#32`).
+`SUPPORTED_COUNT`, `LIMITED_COUNT`, `FAIL_CLOSED_COUNT`, `UNSUPPORTED_COUNT`, and `UNKNOWN_COUNT` are **non-exclusive tags** applied across matrix rows, sub-rows (e.g. `#1b`, `#7b`, `#13b`), execution-mode cells, and stage columns. A single sub-row may contribute to more than one bucket (e.g. thread_local = SUPPORTED + FAIL_CLOSED for unsupported forms). **These counts do not sum to 32.**
+
 | Metric | Count | Notes |
 |--------|-------|-------|
-| FEATURE_COUNT | 32 | Top-level areas in section 3 |
-| SUPPORTED_COUNT | 18 | Primary class SUPPORTED or SUPPORTED/LIMITED with working core |
-| LIMITED_COUNT | 9 | Includes execution-mode and semantic subsets |
-| FAIL_CLOSED_COUNT | 28 | Includes sub-rows and N6 TLS unsupported forms |
-| UNSUPPORTED_COUNT | 14 | C++11+ and unimplemented ISO features |
-| UNKNOWN_COUNT | 6 | Mostly libtcc/DLL paths for otherwise-supported features |
-| SILENT_ACCEPTANCE_COUNT | 1 | SA-01 |
+| FEATURE_COUNT / FEATURE_AREA_COUNT | 32 | Top-level areas in section 3 (`#1`–`#32`) |
+| SUPPORTED_COUNT | 18 | Tag hits: primary class SUPPORTED or SUPPORTED/LIMITED with working core |
+| LIMITED_COUNT | 9 | Tag hits: execution-mode or semantic subsets |
+| FAIL_CLOSED_COUNT | 28 | Tag hits: sub-rows, N6 TLS unsupported forms, negative corpus |
+| UNSUPPORTED_COUNT | 14 | Tag hits: C++11+ and unimplemented ISO features |
+| UNKNOWN_COUNT | 6 | Tag hits: mostly libtcc/DLL paths for otherwise-supported features |
+| SILENT_ACCEPTANCE_COUNT | 1 | SA-01 only (inventory probe set) |
 | SILENT_MISCOMPILE_COUNT | 1 | SA-01 |
+
+Inventory gate integration:
+
+```text
+POST_N6_INVENTORY_STANDALONE=YES
+RUN_ALL_INTEGRATION=DEFERRED
+```
+
+Rationale: `post_n6_00_inventory.bat` currently **documents** SA-01 as PASS; adding it to permanent `run_all` would freeze “1 silent miscompile exists” as normal. Integrate after N7-01 inverts SA-01 to compile-fail.
 
 ---
 
@@ -173,12 +206,19 @@ Columns: **Parse / Codegen / Link / Runtime** = PASS | FAIL | PARTIAL | N/A
 
 ---
 
-## 8. POST-N6-00 closure authority (target)
+## 8. POST-N6-00 closure authority
 
 ```text
-=== POST-N6-00 C++ CAPABILITY INVENTORY ===
+=== POST-N6-00 FINAL ===
 BASE_COMMIT=3747073
+POST_N6_00_COMMIT=065e26d
+POST_N6_00_MERGE_COMMIT=7dfe16e
+POST_N6_00_CLOSURE_COMMIT=<set at closure commit>
+
 FEATURE_COUNT=32
+FEATURE_AREA_COUNT=32
+CAPABILITY_COUNTS_ARE_NON_EXCLUSIVE=YES
+COUNTING_UNIT=FEATURE_X_STAGE_OR_EXECUTION_MODE
 SUPPORTED_COUNT=18
 LIMITED_COUNT=9
 FAIL_CLOSED_COUNT=28
@@ -188,17 +228,20 @@ SILENT_ACCEPTANCE_COUNT=1
 SILENT_MISCOMPILE_COUNT=1
 HIGH_RISK_FEATURES=LOCAL_AUTO_NO_DEFAULT_CTOR
 FOUNDATIONAL_GAPS=IMPLICIT_SPECIAL_MEMBERS,OVERLOAD_RANKING,MI_VTABLE_EDGES
-N7_CANDIDATE_1=IMPLICIT_DEFAULT_CONSTRUCTION
-N7_CANDIDATE_1_REASON=SAFETY:local_P_f_without_default_ctor_compiles_uninitialized
+N7_CANDIDATE_1=CLASS_DEFAULT_INITIALIZATION
+N7_CANDIDATE_1_REASON=SAFETY:no_viable_default_ctor_must_compile_fail_not_uninitialized_object
 N7_CANDIDATE_2=IMPLICIT_SPECIAL_MEMBER_COMPLETION
-N7_CANDIDATE_2_REASON=SAFETY+FOUNDATIONAL:negative_gates_cover_many_forms_but_local_auto_gap_remains
+N7_CANDIDATE_2_REASON=SAFETY+FOUNDATIONAL:member_and_base_no_default_ctor_propagation
 N7_CANDIDATE_3=OVERLOAD_CONVERSION_RANKING
 N7_CANDIDATE_3_REASON=FOUNDATIONAL:two_level_scoring_and_chain_first_wins_not_ISO
-RECOMMENDED_N7=IMPLICIT_DEFAULT_CONSTRUCTION_FAIL_CLOSED_OR_CODEGEN
+RECOMMENDED_N7=CLASS_DEFAULT_INITIALIZATION
+POST_N6_INVENTORY_STANDALONE=YES
+RUN_ALL_INTEGRATION=DEFERRED
 PRODUCTION_CHANGE=NONE
 PUBLIC_API_CHANGE=NONE
-POST_N6_00=PASS
+POST_N6_00_INVENTORY_GATE=PASS
+POST_N6_00=COMPLETE
 N7_START=NO
 ```
 
-Gate: `dev/test/a9/manual/post_n6_00_inventory.bat` must exit 0.
+Gate: `dev/test/a9/manual/post_n6_00_inventory.bat` must exit 0 (standalone; not in `run_all.bat`).
