@@ -106,6 +106,38 @@ RUN_ALL_CRASHES=0
 N7_02_START=NO
 ```
 
+## N7-02-00 implicit default ctor capability (measurement)
+
+Gate: `dev/test/a9/manual/n7_02_00_measure.bat` (standalone; not in `run_all.bat`).
+
+Measured @ `d25cb3f` (post N7-01):
+
+| Probe | Classification |
+|-------|----------------|
+| Empty class | SUPPORTED |
+| Trivial member (`int x`) | SUPPORTED |
+| Implicit member propagation | FAIL_CLOSED |
+| Implicit base propagation | FAIL_CLOSED |
+| Base/member ctor-dtor order | FAIL_CLOSED (cannot reach runtime) |
+| Nested propagation | FAIL_CLOSED |
+| Multi-member | FAIL_CLOSED |
+| Array (M member, global `A a[4]`) | FAIL_CLOSED |
+| User outer `A() {}` + `M m` | SUPPORTED (member ctor runs) |
+| Implicit outer + `M m` | FAIL_CLOSED |
+| Storage: local/global/static/TLS/array | FAIL_CLOSED (member shape) |
+
+```text
+ROOT_CAUSE=IMPLICIT_DEFAULT_CTOR_SYNTHESIS_OR_PROPAGATION
+BUG_SCOPE=IMPLICIT_OUTER_DEFAULT_CTOR_MEMBER_AND_BASE_PROPAGATION
+SILENT_MISCOMPILE_COUNT=0
+N7_02_IMPLEMENTATION_REQUIRED=YES
+N7_02_RECOMMENDED_SCOPE=IMPLICIT_DEFAULT_CTOR_CODEGEN_MEMBER_BASE_ORDER
+N7_02_00=PASS
+N7_02_IMPLEMENTATION_START=NO
+```
+
+No silent miscompile found: non-trivial member/base implicit default construction is **rejected at compile time** today (`cpp_validate_implicit_default_ctor`), not silently skipped.
+
 ## POST-N6 linkage
 
 ```text
