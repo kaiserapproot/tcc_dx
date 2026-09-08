@@ -859,6 +859,12 @@ LIBTCCAPI int tcc_compile_string(TCCState *s, const char *str)
     return tcc_compile(s, s->filetype, str, -1);
 }
 
+ST_FUNC void tcc_p0_diag_trace(TCCState *s1, const char *tag)
+{
+    if (s1 && s1->cpp_diag_pe_trace && tag)
+        fprintf(stderr, "TRACE P0:%s\n", tag);
+}
+
 /* define a preprocessor symbol. value can be NULL, sym can be "sym=val" */
 LIBTCCAPI void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 {

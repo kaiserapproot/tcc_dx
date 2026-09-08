@@ -20,6 +20,8 @@ call :run_case A simple inject_off dev\test\a9\manual\p0_disc_simple.cpp
 call :run_case B synthetic inject_off dev\test\a9\manual\p0_header_defined_class.cpp
 call :run_case C simple inject_force_n6 dev\test\a9\manual\p0_disc_simple.cpp
 call :run_case D synthetic inject_force_n6 dev\test\a9\manual\p0_header_defined_class.cpp
+call :run_case E simple inject_force_tls dev\test\a9\manual\p0_disc_simple.cpp
+call :run_case F synthetic inject_force_tls dev\test\a9\manual\p0_header_defined_class.cpp
 
 echo === DISCRIMINATION SUMMARY ===
 exit /b 0
