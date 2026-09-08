@@ -658,8 +658,13 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
 static void cpp_validate_decl_default_initialization(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
+static int cpp_can_implicit_default_ctor_exist(Sym *class_sym, int relation);
+static int cpp_can_implicit_dtor_exist(Sym *class_sym, int relation);
 static void cpp_validate_explicit_ctor_members(Sym *class_sym);
 static void cpp_validate_explicit_dtor_members(Sym *class_sym);
+static int cpp_class_requires_destruction(Sym *class_sym);
+static void cpp_synthesize_implicit_special_members(Sym *class_sym);
+static int cpp_class_has_nontrivial_subobjects(Sym *class_sym);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -2291,6 +2296,51 @@ typedef struct CppLocalStaticDtorEntry {
 
 static CppLocalStaticDtorEntry **cpp_local_static_dtors;
 static int nb_cpp_local_static_dtors;
+
+// N7-02: classes that received compiler-synthesized special members (TLS stays
+// fail-closed until N7 TLS expansion explicitly reopens the path).
+static Sym **cpp_synthetic_ctor_classes;
+static int nb_cpp_synthetic_ctor_classes;
+static Sym **cpp_synthetic_dtor_classes;
+static int nb_cpp_synthetic_dtor_classes;
+
+static void cpp_mark_synthetic_ctor_class(Sym *class_sym)
+{
+    if (!class_sym)
+        return;
+    dynarray_add(&cpp_synthetic_ctor_classes, &nb_cpp_synthetic_ctor_classes,
+                 class_sym);
+}
+
+static void cpp_mark_synthetic_dtor_class(Sym *class_sym)
+{
+    if (!class_sym)
+        return;
+    dynarray_add(&cpp_synthetic_dtor_classes, &nb_cpp_synthetic_dtor_classes,
+                 class_sym);
+}
+
+static int cpp_class_has_synthetic_ctor(Sym *class_sym)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_synthetic_ctor_classes; i++) {
+        if (cpp_synthetic_ctor_classes[i] == class_sym)
+            return 1;
+    }
+    return 0;
+}
+
+static int cpp_class_has_synthetic_dtor(Sym *class_sym)
+{
+    int i;
+
+    for (i = 0; i < nb_cpp_synthetic_dtor_classes; i++) {
+        if (cpp_synthetic_dtor_classes[i] == class_sym)
+            return 1;
+    }
+    return 0;
+}
 
 // N6-02: one entry per `thread_local Class obj;` whose class has a
 // constructor.  The wrapper is a `void (void *obj)` thunk emitted at TU end
@@ -4589,6 +4639,41 @@ static void cpp_emit_implicit_member_ctors(Sym *class_sym,
    constructor.  The current subset does not materialize every implicit
    constructor body, but it must still reject an object whose base/member
    could not be default-constructed instead of silently leaving it raw. */
+static int cpp_can_implicit_default_ctor_exist(Sym *class_sym, int relation)
+{
+    Sym *ctor_field;
+    Sym *f;
+
+    if (!class_sym)
+        return 1;
+    CPP_WALKER_DEPTH_GUARD("cpp_can_implicit_default_ctor_exist");
+    ctor_field = cpp_find_ctor_field(class_sym);
+    if (ctor_field) {
+        if (cpp_class_has_default_ctor(class_sym))
+            return 1;
+        if (relation == 0)
+            return 1;
+        return 0;
+    }
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            if (!cpp_can_implicit_default_ctor_exist(f->parent_class, 2))
+                return 0;
+            continue;
+        }
+        if ((f->type.t & VT_REFERENCE)
+            && !(f->type.t & (VT_STATIC | VT_EXTERN)))
+            return 0;
+        if (cpp_is_class_data_member_array(f))
+            return 0;
+        if (cpp_is_class_data_member(f)) {
+            if (!cpp_can_implicit_default_ctor_exist(f->type.ref, 1))
+                return 0;
+        }
+    }
+    return 1;
+}
+
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
 {
     Sym *ctor_field;
@@ -4600,10 +4685,8 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
     ctor_field = cpp_find_ctor_field(class_sym);
     if (ctor_field) {
         if (cpp_class_has_default_ctor(class_sym)) {
-            if (relation == 2)
-                tcc_error("implicit default construction of non-trivial base is unsupported");
-            if (relation == 1)
-                tcc_error("implicit default construction of non-trivial member is unsupported");
+            // N7-02: a subobject with a viable zero-arg ctor is constructed
+            // by the outer synthetic/user ctor path (cpp_emit_implicit_*).
             return;
         }
         /* A direct user constructor without a zero-argument overload is
@@ -4663,6 +4746,33 @@ static void cpp_validate_decl_default_initialization(CType *pt)
    The current subset only materializes a user-declared destructor body, so
    accepting an outer class with an unmaterialized member/base destructor
    would silently skip cleanup and release raw storage instead. */
+static int cpp_can_implicit_dtor_exist(Sym *class_sym, int relation)
+{
+    Sym *dtor_field;
+    Sym *f;
+
+    if (!class_sym)
+        return 1;
+    CPP_WALKER_DEPTH_GUARD("cpp_can_implicit_dtor_exist");
+    dtor_field = cpp_find_dtor_field(class_sym);
+    if (dtor_field)
+        return 1;
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f)) {
+            if (!cpp_can_implicit_dtor_exist(f->parent_class, 2))
+                return 0;
+            continue;
+        }
+        if (cpp_is_class_data_member_array(f))
+            return 0;
+        if (cpp_is_class_data_member(f)) {
+            if (!cpp_can_implicit_dtor_exist(f->type.ref, 1))
+                return 0;
+        }
+    }
+    return 1;
+}
+
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation)
 {
     Sym *dtor_field;
@@ -4673,10 +4783,8 @@ static void cpp_validate_implicit_dtor(Sym *class_sym, int relation)
     CPP_WALKER_DEPTH_GUARD("cpp_validate_implicit_dtor");
     dtor_field = cpp_find_dtor_field(class_sym);
     if (dtor_field) {
-        if (relation == 2)
-            tcc_error("implicit destruction of non-trivial base is unsupported");
-        if (relation == 1)
-            tcc_error("implicit destruction of non-trivial member is unsupported");
+        // N7-02: a subobject with a user destructor is destroyed by the
+        // outer synthetic/user dtor epilog (cpp_emit_*_dtor_calls).
         return;
     }
     for (f = class_sym->next; f; f = f->next) {
@@ -4863,6 +4971,104 @@ static void cpp_name_unnamed_params(Sym *func_field)
     for (pa = func_field->type.ref->next; pa; pa = pa->next) {
         if ((pa->v & ~SYM_FIELD) == 0)
             pa->v = (anon_sym++) | SYM_FIELD;
+    }
+}
+
+static TokenString *cpp_make_empty_member_body(void)
+{
+    TokenString *body;
+
+    body = tok_str_alloc();
+    tok_str_add(body, '{');
+    tok_str_add(body, '}');
+    tok_str_add(body, TOK_EOF);
+    return body;
+}
+
+static void cpp_append_class_member(Sym *class_sym, Sym *field)
+{
+    Sym *f;
+
+    if (!class_sym || !field)
+        return;
+    field->next = NULL;
+    field->parent_class = class_sym;
+    if (!class_sym->next) {
+        class_sym->next = field;
+        return;
+    }
+    for (f = class_sym->next; f->next; f = f->next)
+        ;
+    f->next = field;
+}
+
+static CType cpp_make_special_member_func_type(void)
+{
+    CType func_type;
+    CType void_type;
+
+    void_type.t = VT_VOID;
+    void_type.ref = NULL;
+    func_type.t = VT_FUNC;
+    func_type.ref = sym_push(SYM_FIELD, &void_type, 0, 0);
+    func_type.ref->f.func_call = FUNC_CDECL;
+    func_type.ref->f.func_type = FUNC_NEW;
+    return func_type;
+}
+
+// N7-02: only synthesize when a base or class-type member needs propagation.
+static int cpp_class_has_nontrivial_subobjects(Sym *class_sym)
+{
+    Sym *f;
+
+    if (!class_sym)
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (cpp_is_base_field(f))
+            return 1;
+        if (cpp_is_class_data_member(f) && f->type.ref)
+            return 1;
+    }
+    return 0;
+}
+
+// N7-02: materialize implicit default ctor/dtor as empty in-class bodies so
+// the existing cpp_finish_member_inlines / gen_function / FEAT-4F paths run.
+// Never add a synthetic ctor when any user-declared ctor field exists.
+static void cpp_synthesize_implicit_special_members(Sym *class_sym)
+{
+    CType func_type;
+    TokenString *body;
+    Sym *field;
+    int class_tok;
+    int dtor_fld;
+
+    if (!class_sym || !tcc_state->cpp)
+        return;
+    class_tok = class_sym->v & ~SYM_STRUCT;
+    if (!cpp_find_ctor_field(class_sym)
+        && cpp_class_has_nontrivial_subobjects(class_sym)
+        && cpp_can_implicit_default_ctor_exist(class_sym, 0)) {
+        func_type = cpp_make_special_member_func_type();
+        body = cpp_make_empty_member_body();
+        field = cpp_class_sym_push(class_tok | SYM_FIELD, &func_type, 0, 0);
+        field->inline_func_str = body;
+        cpp_append_class_member(class_sym, field);
+        cpp_mark_synthetic_ctor_class(class_sym);
+    }
+    if (!cpp_find_dtor_field(class_sym)
+        && cpp_class_has_nontrivial_subobjects(class_sym)
+        && cpp_class_requires_destruction(class_sym)
+        && cpp_can_implicit_dtor_exist(class_sym, 0)) {
+        dtor_fld = cpp_dtor_field_tok(class_tok);
+        if (!dtor_fld)
+            tcc_error("internal dtor field name failed");
+        func_type = cpp_make_special_member_func_type();
+        body = cpp_make_empty_member_body();
+        field = cpp_class_sym_push(dtor_fld | SYM_FIELD, &func_type, 0, 0);
+        field->inline_func_str = body;
+        cpp_append_class_member(class_sym, field);
+        cpp_mark_synthetic_dtor_class(class_sym);
     }
 }
 
@@ -5392,6 +5598,8 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_cur_func_class = NULL;
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
+    dynarray_reset(&cpp_synthetic_ctor_classes, &nb_cpp_synthetic_ctor_classes);
+    dynarray_reset(&cpp_synthetic_dtor_classes, &nb_cpp_synthetic_dtor_classes);
     // N6-02: same stale-Sym protection for pending TLS ctor thunks.
     dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
     // N6-04: and for pending TLS dtor thunks.
@@ -6354,6 +6562,10 @@ static void cpp_validate_tls_class(Sym *class_sym)
 {
     if (!class_sym)
         return;
+    if (cpp_class_has_synthetic_ctor(class_sym))
+        tcc_error("implicit default construction of non-trivial member is unsupported");
+    if (cpp_class_has_synthetic_dtor(class_sym))
+        tcc_error("thread_local object with implicit non-trivial destructor is unsupported in N6-04");
     if (cpp_class_requires_destruction(class_sym)) {
         if (!cpp_find_dtor_field(class_sym))
             tcc_error("thread_local object with implicit non-trivial destructor is unsupported in N6-04");
@@ -11763,6 +11975,9 @@ do_decl:
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
             if (is_class) {
+                /* N7-02: inject implicit ctor/dtor bodies before the normal
+                 * inline replay so FEAT-4F/4G and dtor scope-exit reuse them. */
+                cpp_synthesize_implicit_special_members(s);
                 /* Convert in-class inline bodies into real global functions
                  * (registered via inline_fns) so member calls can link. */
                 cpp_finish_member_inlines(s);
