@@ -859,6 +859,12 @@ LIBTCCAPI int tcc_compile_string(TCCState *s, const char *str)
     return tcc_compile(s, s->filetype, str, -1);
 }
 
+ST_FUNC void tcc_p0_diag_trace(TCCState *s1, const char *tag)
+{
+    if (s1 && s1->cpp_diag_pe_trace && tag)
+        fprintf(stderr, "TRACE P0:%s\n", tag);
+}
+
 /* define a preprocessor symbol. value can be NULL, sym can be "sym=val" */
 LIBTCCAPI void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 {
@@ -921,6 +927,27 @@ LIBTCCAPI TCCState *tcc_new(void)
 #ifdef CONFIG_TCC_SWITCHES /* predefined options */
     tcc_set_options(s, CONFIG_TCC_SWITCHES);
 #endif
+    {
+        const char *diag = getenv("TCC_CRASH_DIAG");
+
+        if (diag) {
+            if (!strcmp(diag, "inject_off"))
+                s->cpp_diag_disable_runtime_inject = 1;
+            else if (!strcmp(diag, "inject_force_n6"))
+                s->cpp_diag_force_n6_runtime_inject = 1;
+            else if (!strcmp(diag, "inject_force_tls"))
+                s->cpp_diag_force_tls_runtime_inject = 1;
+            else if (!strcmp(diag, "trace"))
+                s->cpp_diag_pe_trace = 1;
+            else if (!strcmp(diag, "inject_force_n6_trace")) {
+                s->cpp_diag_force_n6_runtime_inject = 1;
+                s->cpp_diag_pe_trace = 1;
+            } else if (!strcmp(diag, "inject_force_tls_trace")) {
+                s->cpp_diag_force_tls_runtime_inject = 1;
+                s->cpp_diag_pe_trace = 1;
+            }
+        }
+    }
     return s;
 }
 

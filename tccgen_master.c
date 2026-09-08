@@ -3,31 +3,31 @@
  *
  *  Copyright (c) 2001-2004 Fabrice Bellard
  *
- * ���̃��C�u�����̓t���[�\�t�g�E�F�A�ł��B�ĔЕz�����/�܂���
- * �C���́AFree Software Foundation �ɂ���Č��J���ꂽ GNU Lesser
- * General Public License �̏����i�o�[�W����2 �܂��́i�I���ɂ��j����ȍ~�j
- * �ɏ]���čs�����Ƃ��ł��܂��B
+ * ??????C?u??????t???[?\?t?g?E?F?A????B???z?????/?????
+ * ?C????AFree Software Foundation ????????J???? GNU Lesser
+ * General Public License ??????i?o?[?W????2 ?????i?I??????j?????~?j
+ * ??]????s??????????????B
  *
- * ���̃��C�u�����͗L�p�ł��邱�Ƃ�ړI�Ƃ��Ĕz�z����܂����A
- * ���i�������̖ړI�ւ̓K�������܂ޖ����I�܂��َ͖��I�ȕۏ؂͂���܂���B
- * �ڍׂ� GNU Lesser General Public License ���Q�Ƃ��Ă��������B
+ * ??????C?u??????L?p?????????I?????z?z?????????A
+ * ???i?????????I???K?????????????I????????I????????????B
+ * ???? GNU Lesser General Public License ???Q?????????????B
  *
- * �{���C�u�����ƂƂ��� GNU Lesser General Public License �̎ʂ���
- * �z�z����Ă���͂��ł��B�z�z����Ă��Ȃ��ꍇ�́AFree Software
+ * ?{???C?u?????????? GNU Lesser General Public License ??????
+ * ?z?z??????????????B?z?z?????????????AFree Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- * �܂ł��₢���킹���������B
+ * ???????????????????B
  */
 
 #define USING_GLOBALS
 #include "tcc.h"
 
  /********************************************************/
- /* �O���[�o���ϐ� */
+ /* ?O???[?o????? */
 
- /* loc : ���[�J���ϐ��̃C���f�b�N�X
-     ind : �o�̓R�[�h�̃C���f�b�N�X
-     rsym: �߂�l�p�V���{��
-     anon_sym: �����V���{���̃C���f�b�N�X
+ /* loc : ???[?J???????C???f?b?N?X
+     ind : ?o??R?[?h??C???f?b?N?X
+     rsym: ???l?p?V???{??
+     anon_sym: ?????V???{????C???f?b?N?X
  */
 ST_DATA int rsym, anon_sym, ind, loc;
 
@@ -49,11 +49,11 @@ ST_DATA SValue* vtop;
 static SValue _vstack[1 + VSTACK_SIZE];
 #define vstack (_vstack + 1)
 
-ST_DATA int nocode_wanted; /* �R�[�h������}������t���O */
-#define NODATA_WANTED (nocode_wanted > 0) /* �ÓI�f�[�^�o�͂��s�v�ł��邱�Ƃ��Ӗ����� */
-#define DATA_ONLY_WANTED 0x80000000 /* �֐��O����ѐÓI�������q��ON�ɂȂ� */
+ST_DATA int nocode_wanted; /* ?R?[?h??????}??????t???O */
+#define NODATA_WANTED (nocode_wanted > 0) /* ??I?f?[?^?o????s?v??????????????? */
+#define DATA_ONLY_WANTED 0x80000000 /* ????O??????I???????q??ON???? */
 
-/* if (0) �̂悤�Ȗ������W�����v�̌�̓R�[�h�o�͂��s��Ȃ� */
+/* if (0) ???????????W?????v????R?[?h?o????s???? */
 #define CODE_OFF_BIT 0x20000000
 #define CODE_OFF() if(!nocode_wanted)(nocode_wanted |= CODE_OFF_BIT)
 #define CODE_ON() (nocode_wanted &= ~CODE_OFF_BIT)
@@ -61,7 +61,7 @@ ST_DATA int nocode_wanted; /* �R�[�h������}������t
 #define NOEVAL_MASK 0x0000FFFF
 #define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
 
-/* sizeof()/typeof() ������͂��Ă���Ԃ̓R�[�h�o�͂��s��Ȃ��inocode_wanted++/-- ���g�p�j */
+/* sizeof()/typeof() ???????????????R?[?h?o????s?????inocode_wanted++/-- ???g?p?j */
 #define NOEVAL_MASK 0x0000FFFF
 #define NOEVAL_WANTED (nocode_wanted & NOEVAL_MASK)
 
@@ -69,14 +69,14 @@ ST_DATA int nocode_wanted; /* �R�[�h������}������t
 #define CONST_WANTED_MASK 0x0FFF0000
 #define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
 
-/* �萔������͂��Ă���Ԃ̓R�[�h�o�͂��s��Ȃ� */
+/* ?????????????????R?[?h?o????s???? */
 #define CONST_WANTED_BIT  0x00010000
 #define CONST_WANTED_MASK 0x0FFF0000
 #define CONST_WANTED  (nocode_wanted & CONST_WANTED_MASK)
 
-ST_DATA int global_expr;  /* �������e�������O���[�o���Ɋ��蓖�Ă�K�v������ꍇ�ɐ^�i�������q��͎��Ɏg�p�j */
-ST_DATA CType func_vt; /* ���݂̊֐��̖߂�l�^�ireturn ���߂Ŏg�p�j */
-ST_DATA int func_var; /* ���݂̊֐����ϒ��������ǂ����ireturn ���߂Ŏg�p�j */
+ST_DATA int global_expr;  /* ???????e???????O???[?o??????????K?v?????????^?i???????q??????g?p?j */
+ST_DATA CType func_vt; /* ???????????l?^?ireturn ?????g?p?j */
+ST_DATA int func_var; /* ?????????????????????????ireturn ?????g?p?j */
 ST_DATA int func_vc;
 ST_DATA int func_ind;
 ST_DATA const char* funcname;
@@ -98,8 +98,8 @@ static struct switch_t {
     struct case_t {
         int64_t v1, v2;
         int ind, line;
-    } **p; int n; /* case �͈͂̃��X�g */
-    int def_sym; /* �f�t�H���g�̃V���{�� */
+    } **p; int n; /* case ??????X?g */
+    int def_sym; /* ?f?t?H???g??V???{?? */
     int nocode_wanted;
     int* bsym;
     struct scope* scope;
@@ -107,12 +107,12 @@ static struct switch_t {
     Sym* break_dtor_bottom;
     struct switch_t* prev;
     SValue sv;
-} *cur_switch; /* ���݂� switch �\���� */
+} *cur_switch; /* ????? switch ?\???? */
 
 #define MAX_TEMP_LOCAL_VARIABLE_NUMBER 8
-/* ���݂̊֐��ł̃X�^�b�N��̈ꎞ���[�J���ϐ��̈ꗗ */
+/* ??????????X?^?b?N???????[?J???????? */
 static struct temp_local_variable {
-    int location; // �X�^�b�N��̃I�t�Z�b�g�BSValue.c.i
+    int location; // ?X?^?b?N???I?t?Z?b?g?BSValue.c.i
     short size;
     short align;
 } arr_temp_local_vars[MAX_TEMP_LOCAL_VARIABLE_NUMBER];
@@ -212,7 +212,6 @@ static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
 /* Virtual MI (Phase 2): forward decl - the multi-vptr init walkers run before
    the definition point of this base-subobject predicate. */
 static int cpp_is_base_field(Sym *f);
-static int cpp_is_class_data_member(Sym *f);
 static int cpp_class_requires_destruction(Sym *class_sym);
 static void cpp_emit_local_static_dtor_registration(Sym *wrapper_sym);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
@@ -656,8 +655,6 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
 // a ctor that is only declared has no global yet, and the global-side
 // fallback then binds whatever single extern happened to exist.
 static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
-static Sym *cpp_find_ctor_field(Sym *class_sym);
-static Sym *cpp_find_dtor_field(Sym *class_sym);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
 static void cpp_validate_decl_default_initialization(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
@@ -668,113 +665,6 @@ static void cpp_validate_explicit_dtor_members(Sym *class_sym);
 static int cpp_class_requires_destruction(Sym *class_sym);
 static void cpp_synthesize_implicit_special_members(Sym *class_sym);
 static int cpp_class_has_nontrivial_subobjects(Sym *class_sym);
-
-struct CppSyntheticSpecial {
-    Sym *class_sym;
-    Sym *ctor_field;
-    Sym *dtor_field;
-};
-
-typedef struct CppSyntheticSpecial CppSyntheticSpecial;
-
-static CppSyntheticSpecial **cpp_synthetic_specials;
-static int nb_cpp_synthetic_specials;
-
-static CppSyntheticSpecial *cpp_get_synthetic_special(Sym *class_sym)
-{
-    int i;
-
-    if (!class_sym)
-        return NULL;
-    for (i = 0; i < nb_cpp_synthetic_specials; i++) {
-        if (cpp_synthetic_specials[i]->class_sym == class_sym)
-            return cpp_synthetic_specials[i];
-    }
-    return NULL;
-}
-
-static CppSyntheticSpecial *cpp_get_or_create_synthetic_special(Sym *class_sym)
-{
-    CppSyntheticSpecial *sp;
-
-    sp = cpp_get_synthetic_special(class_sym);
-    if (sp)
-        return sp;
-    sp = tcc_malloc(sizeof *sp);
-    sp->class_sym = class_sym;
-    sp->ctor_field = NULL;
-    sp->dtor_field = NULL;
-    dynarray_add(&cpp_synthetic_specials, &nb_cpp_synthetic_specials, sp);
-    return sp;
-}
-
-static void cpp_reset_synthetic_specials(void)
-{
-    int i;
-
-    for (i = 0; i < nb_cpp_synthetic_specials; i++)
-        tcc_free(cpp_synthetic_specials[i]);
-    dynarray_reset(&cpp_synthetic_specials, &nb_cpp_synthetic_specials);
-}
-
-static void cpp_match_registry_func_fields(Sym *class_sym, int v1,
-    Sym **const_match, Sym **nonconst_match)
-{
-    CppSyntheticSpecial *sp;
-    Sym *f;
-    int i;
-    Sym *reg_fields[2];
-
-    sp = cpp_get_synthetic_special(class_sym);
-    if (!sp)
-        return;
-    reg_fields[0] = sp->ctor_field;
-    reg_fields[1] = sp->dtor_field;
-    for (i = 0; i < 2; i++) {
-        f = reg_fields[i];
-        if (!f || f->v != v1)
-            continue;
-        if ((f->type.t & VT_BTYPE) != VT_FUNC)
-            continue;
-        if (cpp_field_is_const(f)) {
-            if (!*const_match)
-                *const_match = f;
-        } else {
-            if (!*nonconst_match)
-                *nonconst_match = f;
-        }
-    }
-}
-
-static Sym *cpp_find_registry_field(Sym *class_sym, int v1)
-{
-    CppSyntheticSpecial *sp;
-    Sym *f;
-    int i;
-    Sym *reg_fields[2];
-
-    sp = cpp_get_synthetic_special(class_sym);
-    if (!sp)
-        return NULL;
-    reg_fields[0] = sp->ctor_field;
-    reg_fields[1] = sp->dtor_field;
-    for (i = 0; i < 2; i++) {
-        f = reg_fields[i];
-        if (f && f->v == v1)
-            return f;
-    }
-    return NULL;
-}
-
-static void cpp_ensure_synthetic_odr(Sym *class_sym);
-static void cpp_ensure_synthetic_semantics(Sym *class_sym);
-static void cpp_materialize_synthetic_odr(Sym *class_sym);
-static void cpp_flush_pending_synthetic_odr(void);
-static void cpp_register_synthetic_inlines(Sym *class_sym);
-static int cpp_is_deferred_synthetic_special_field(Sym *f, Sym *class_sym);
-static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym);
-static int cpp_class_would_have_synthetic_ctor(Sym *class_sym);
-static int cpp_class_would_have_synthetic_dtor(Sym *class_sym);
 
 // G1 (leading ::): consume a global-scope qualifier "::" at the current
 // token position.  "::" arrives as two ':' tokens, so a lone ':' must be
@@ -950,7 +840,7 @@ static int cpp_unget_scoped_expr(void)
     }
     next();
     /* Need a SECOND ':' to form `::`.  A single ':' here is a label
-     * (e.g., `foo:` goto target), not a scope qualifier — fall back
+     * (e.g., `foo:` goto target), not a scope qualifier ? fall back
      * to the regular decl/statement path. */
     if (tok != ':') {
         unget_tok(':');
@@ -1074,7 +964,7 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
  * the typedef ("redefinition of incompatible type") or hide it from
  * later `Foo f;` declarations.  Instead we generate a distinct token
  * `__cpp_ctor_<Class>` for the global Sym.  Lookups (`f.Foo()`) go
- * through cpp_lookup_member_func, which translates Foo→__cpp_ctor_Foo. */
+ * through cpp_lookup_member_func, which translates Foo?__cpp_ctor_Foo. */
 static int cpp_ctor_name_tok(int class_tok)
 {
     char buf[256];
@@ -1584,15 +1474,11 @@ static void cpp_emit_mptr_pmf_invoke(SValue *obj, SValue *pm)
  * Used by FEAT-4B to detect `Foo f(args);` ctor-call declarations. */
 static Sym *cpp_find_ctor_field(Sym *class_sym)
 {
-    CppSyntheticSpecial *sp;
     Sym *f;
     int class_name_tok;
 
     if (!class_sym)
         return NULL;
-    sp = cpp_get_synthetic_special(class_sym);
-    if (sp && sp->ctor_field)
-        return sp->ctor_field;
     class_name_tok = class_sym->v & ~SYM_STRUCT;
     for (f = class_sym->next; f; f = f->next) {
         if ((f->v & ~SYM_FIELD) != class_name_tok)
@@ -1630,60 +1516,29 @@ static int cpp_ctor_viable_with_zero_args(Sym *f)
 static int cpp_class_has_default_ctor(Sym *class_sym)
 {
     Sym *f;
+    int class_name_tok;
 
     if (!class_sym)
         return 0;
-    f = cpp_find_ctor_field(class_sym);
-    if (!f)
-        return 0;
-    return cpp_ctor_viable_with_zero_args(f);
-}
-
-static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym)
-{
-    if (!class_sym)
-        return 0;
-    return !cpp_find_ctor_field(class_sym)
-        && cpp_class_has_nontrivial_subobjects(class_sym)
-        && cpp_can_implicit_default_ctor_exist(class_sym, 0);
-}
-
-static int cpp_class_would_have_synthetic_ctor(Sym *class_sym)
-{
-    return cpp_class_has_implicit_default_ctor_viable(class_sym);
-}
-
-static int cpp_class_would_have_synthetic_dtor(Sym *class_sym)
-{
-    if (!class_sym)
-        return 0;
-    return !cpp_find_dtor_field(class_sym)
-        && cpp_class_has_nontrivial_subobjects(class_sym)
-        && cpp_class_requires_destruction(class_sym)
-        && cpp_can_implicit_dtor_exist(class_sym, 0);
-}
-
-static int cpp_in_user_source_file(void)
-{
-    /* Primary TU only: skip FEAT-4F/4G during #include expansion.
-     * current_filename is unset during source compile (libtcc.c), so
-     * strcmp against it always failed and silently skipped ctor calls. */
-    if (!file || !file->filename)
-        return 0;
-    return file->prev == NULL;
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (cpp_ctor_viable_with_zero_args(f))
+            return 1;
+    }
+    return 0;
 }
 
 /* C++: scan class_sym's member chain for the destructor field. */
 static Sym *cpp_find_dtor_field(Sym *class_sym)
 {
-    CppSyntheticSpecial *sp;
     Sym *f;
 
     if (!class_sym)
         return NULL;
-    sp = cpp_get_synthetic_special(class_sym);
-    if (sp && sp->dtor_field)
-        return sp->dtor_field;
     for (f = class_sym->next; f; f = f->next) {
         if (!cpp_is_dtor_field(f))
             continue;
@@ -1726,11 +1581,6 @@ static void cpp_emit_local_dtor(Sym *obj_sym)
     if ((obj_sym->r & VT_VALMASK) != VT_LOCAL)
         return;
     class_sym = obj_sym->type.ref;
-    /* Trivial POD locals never need synthetic dtor materialization; calling
-     * ensure on every scope exit (e.g. feat6a Vec2) corrupted PE link state. */
-    if (!cpp_class_requires_destruction(class_sym))
-        return;
-    cpp_ensure_synthetic_odr(class_sym);
     dtor_field = cpp_find_dtor_field(class_sym);
     if (!dtor_field) {
         cpp_validate_implicit_dtor(class_sym, 0);
@@ -2453,10 +2303,6 @@ static Sym **cpp_synthetic_ctor_classes;
 static int nb_cpp_synthetic_ctor_classes;
 static Sym **cpp_synthetic_dtor_classes;
 static int nb_cpp_synthetic_dtor_classes;
-static Sym **cpp_synthetic_inline_registered;
-static int nb_cpp_synthetic_inline_registered;
-static Sym **cpp_pending_synthetic_odr;
-static int nb_cpp_pending_synthetic_odr;
 
 static void cpp_mark_synthetic_ctor_class(Sym *class_sym)
 {
@@ -2493,66 +2339,6 @@ static int cpp_class_has_synthetic_dtor(Sym *class_sym)
         if (cpp_synthetic_dtor_classes[i] == class_sym)
             return 1;
     }
-    return 0;
-}
-
-static int cpp_synthetic_inlines_registered(Sym *class_sym)
-{
-    int i;
-
-    for (i = 0; i < nb_cpp_synthetic_inline_registered; i++) {
-        if (cpp_synthetic_inline_registered[i] == class_sym)
-            return 1;
-    }
-    return 0;
-}
-
-static void cpp_mark_synthetic_inlines_registered(Sym *class_sym)
-{
-    if (!class_sym)
-        return;
-    dynarray_add(&cpp_synthetic_inline_registered,
-                 &nb_cpp_synthetic_inline_registered, class_sym);
-}
-
-static int cpp_pending_synthetic_odr_contains(Sym *class_sym)
-{
-    int i;
-
-    for (i = 0; i < nb_cpp_pending_synthetic_odr; i++) {
-        if (cpp_pending_synthetic_odr[i] == class_sym)
-            return 1;
-    }
-    return 0;
-}
-
-static void cpp_queue_synthetic_odr(Sym *class_sym)
-{
-    Sym *f;
-
-    if (!class_sym || !tcc_state->cpp)
-        return;
-    if (cpp_synthetic_inlines_registered(class_sym)
-        || cpp_pending_synthetic_odr_contains(class_sym))
-        return;
-    for (f = class_sym->next; f; f = f->next) {
-        if (cpp_is_base_field(f))
-            cpp_queue_synthetic_odr(f->parent_class);
-        else if (cpp_is_class_data_member(f) && f->type.ref)
-            cpp_queue_synthetic_odr(f->type.ref);
-    }
-    dynarray_add(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr,
-                 class_sym);
-}
-
-static int cpp_is_deferred_synthetic_special_field(Sym *f, Sym *class_sym)
-{
-    if (!f || (f->type.t & VT_BTYPE) != VT_FUNC || !f->inline_func_str)
-        return 0;
-    if (cpp_is_ctor_field(f) && cpp_class_has_synthetic_ctor(class_sym))
-        return 1;
-    if (cpp_is_dtor_field(f) && cpp_class_has_synthetic_dtor(class_sym))
-        return 1;
     return 0;
 }
 
@@ -2645,7 +2431,6 @@ static Sym *cpp_prepare_local_static_dtor(Sym *obj_sym)
     if (tcc_state->output_type == TCC_OUTPUT_DLL
         && cpp_class_requires_destruction(class_sym))
         tcc_error("function-local static destructor in DLL is unsupported");
-    cpp_ensure_synthetic_odr(class_sym);
     dtor_field = cpp_find_dtor_field(class_sym);
     if (!dtor_field) {
         if (cpp_class_requires_destruction(class_sym))
@@ -2876,8 +2661,6 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
         if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
             && cpp_class_requires_destruction(class_sym))
             tcc_error("global destructor runtime in DLL is unsupported");
-        if (class_sym)
-            cpp_ensure_synthetic_odr(class_sym);
         if (class_sym && !cpp_find_dtor_field(class_sym))
             cpp_validate_implicit_dtor(class_sym, 0);
         if (class_sym && cpp_find_dtor_field(class_sym)) {
@@ -5254,7 +5037,6 @@ static int cpp_class_has_nontrivial_subobjects(Sym *class_sym)
 // Never add a synthetic ctor when any user-declared ctor field exists.
 static void cpp_synthesize_implicit_special_members(Sym *class_sym)
 {
-    CppSyntheticSpecial *sp;
     CType func_type;
     TokenString *body;
     Sym *field;
@@ -5263,22 +5045,18 @@ static void cpp_synthesize_implicit_special_members(Sym *class_sym)
 
     if (!class_sym || !tcc_state->cpp)
         return;
-    sp = cpp_get_or_create_synthetic_special(class_sym);
     class_tok = class_sym->v & ~SYM_STRUCT;
     if (!cpp_find_ctor_field(class_sym)
-        && !cpp_class_has_synthetic_ctor(class_sym)
         && cpp_class_has_nontrivial_subobjects(class_sym)
         && cpp_can_implicit_default_ctor_exist(class_sym, 0)) {
         func_type = cpp_make_special_member_func_type();
         body = cpp_make_empty_member_body();
         field = cpp_class_sym_push(class_tok | SYM_FIELD, &func_type, 0, 0);
         field->inline_func_str = body;
-        field->parent_class = class_sym;
-        sp->ctor_field = field;
+        cpp_append_class_member(class_sym, field);
         cpp_mark_synthetic_ctor_class(class_sym);
     }
     if (!cpp_find_dtor_field(class_sym)
-        && !cpp_class_has_synthetic_dtor(class_sym)
         && cpp_class_has_nontrivial_subobjects(class_sym)
         && cpp_class_requires_destruction(class_sym)
         && cpp_can_implicit_dtor_exist(class_sym, 0)) {
@@ -5289,143 +5067,72 @@ static void cpp_synthesize_implicit_special_members(Sym *class_sym)
         body = cpp_make_empty_member_body();
         field = cpp_class_sym_push(dtor_fld | SYM_FIELD, &func_type, 0, 0);
         field->inline_func_str = body;
-        field->parent_class = class_sym;
-        sp->dtor_field = field;
+        cpp_append_class_member(class_sym, field);
         cpp_mark_synthetic_dtor_class(class_sym);
     }
-}
-
-static void cpp_register_one_member_inline(Sym *class_sym, Sym *f)
-{
-    AttributeDef ad;
-    CType type;
-    struct InlineFunc *fn;
-    Sym *sym;
-    TokenString *body;
-    int global_tok;
-
-    body = f->inline_func_str;
-    if (!body)
-        return;
-    f->inline_func_str = NULL;
-    cpp_name_unnamed_params(f);
-    memset(&ad, 0, sizeof ad);
-    type = f->type;
-    type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
-    if ((f->type.t & VT_STATIC) && type.ref)
-        type.ref->f.func_static_member = 1;
-    if (cpp_is_ctor_field(f)) {
-        global_tok = cpp_ctor_name_tok(f->v & ~SYM_FIELD);
-        if (!global_tok)
-            global_tok = f->v & ~SYM_FIELD;
-    } else if (cpp_is_dtor_field(f)) {
-        global_tok = cpp_dtor_name_tok(f->parent_class->v & ~SYM_STRUCT);
-        if (!global_tok)
-            global_tok = f->v & ~SYM_FIELD;
-    } else {
-        global_tok = f->v & ~SYM_FIELD;
-    }
-    cpp_pending_member_class = class_sym;
-    sym = external_sym(global_tok, &type, 0, &ad);
-    cpp_pending_member_class = NULL;
-    sym->parent_class = class_sym;
-    sym->type.t |= VT_INLINE;
-    if (f->cpp_mem_init_list)
-        sym->cpp_mem_init_list = f->cpp_mem_init_list;
-    cpp_set_func_mangle_label(sym, &type);
-    fn = tcc_malloc(sizeof *fn + strlen(file->filename));
-    strcpy(fn->filename, file->filename);
-    fn->sym = sym;
-    fn->func_str = body;
-    dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
-}
-
-static void cpp_register_synthetic_inlines(Sym *class_sym)
-{
-    CppSyntheticSpecial *sp;
-    Sym *f;
-
-    if (!class_sym || !tcc_state->cpp)
-        return;
-    if (cpp_synthetic_inlines_registered(class_sym))
-        return;
-    for (f = class_sym->next; f; f = f->next) {
-        if (cpp_is_base_field(f))
-            cpp_register_synthetic_inlines(f->parent_class);
-        else if (cpp_is_class_data_member(f) && f->type.ref)
-            cpp_register_synthetic_inlines(f->type.ref);
-    }
-    cpp_mark_synthetic_inlines_registered(class_sym);
-    sp = cpp_get_synthetic_special(class_sym);
-    if (!sp)
-        return;
-    if (sp->ctor_field && sp->ctor_field->inline_func_str)
-        cpp_register_one_member_inline(class_sym, sp->ctor_field);
-    if (sp->dtor_field && sp->dtor_field->inline_func_str)
-        cpp_register_one_member_inline(class_sym, sp->dtor_field);
-}
-
-static void cpp_ensure_synthetic_semantics(Sym *class_sym)
-{
-    Sym *f;
-
-    if (!class_sym || !tcc_state->cpp)
-        return;
-    for (f = class_sym->next; f; f = f->next) {
-        if (cpp_is_base_field(f))
-            cpp_ensure_synthetic_semantics(f->parent_class);
-        else if (cpp_is_class_data_member(f) && f->type.ref)
-            cpp_ensure_synthetic_semantics(f->type.ref);
-    }
-    cpp_synthesize_implicit_special_members(class_sym);
-}
-
-static void cpp_materialize_synthetic_odr(Sym *class_sym)
-{
-    if (!class_sym || !tcc_state->cpp)
-        return;
-    cpp_register_synthetic_inlines(class_sym);
-}
-
-static void cpp_ensure_synthetic_odr(Sym *class_sym)
-{
-    if (!class_sym || !tcc_state->cpp)
-        return;
-    cpp_ensure_synthetic_semantics(class_sym);
-    if (cpp_synthetic_inlines_registered(class_sym))
-        return;
-    if ((func_vt.t & VT_BTYPE) == VT_FUNC) {
-        cpp_queue_synthetic_odr(class_sym);
-        return;
-    }
-    cpp_register_synthetic_inlines(class_sym);
-}
-
-static void cpp_flush_pending_synthetic_odr(void)
-{
-    int i;
-
-    if (!tcc_state->cpp || nb_cpp_pending_synthetic_odr == 0)
-        return;
-    for (i = 0; i < nb_cpp_pending_synthetic_odr; i++)
-        cpp_materialize_synthetic_odr(cpp_pending_synthetic_odr[i]);
-    dynarray_reset(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
 }
 
 static void cpp_finish_member_inlines(Sym *class_sym)
 {
     Sym *f;
+    AttributeDef ad;
+    CType type;
+    struct InlineFunc *fn;
+    Sym *sym;
 
     if (!class_sym || !tcc_state->cpp)
         return;
     for (f = class_sym->next; f; f = f->next) {
+        TokenString *body;
+        int global_tok;
         if ((f->type.t & VT_BTYPE) != VT_FUNC)
             continue;
-        if (!f->inline_func_str)
+        body = f->inline_func_str;
+        if (!body)
             continue;
-        if (cpp_is_deferred_synthetic_special_field(f, class_sym))
-            continue;
-        cpp_register_one_member_inline(class_sym, f);
+        f->inline_func_str = NULL;
+        /* BUG-13: rename unnamed params before gen_function reaches them */
+        cpp_name_unnamed_params(f);
+        memset(&ad, 0, sizeof ad);
+        type = f->type;
+        type.t = (type.t & ~VT_STORAGE) | VT_EXTERN;
+        // BUG-33: VT_STORAGE above already strips VT_STATIC (it has to -
+        // it would mean internal linkage on the global), so the "C++ static
+        // member" fact has to travel separately or gen_function would give
+        // an inline `static` member an implicit `this`.
+        if ((f->type.t & VT_STATIC) && type.ref)
+            type.ref->f.func_static_member = 1;
+        /* ctor: use a mangled token name to dodge the class typedef.
+         * (See cpp_lookup_member_func for the matching lookup path.) */
+        if (cpp_is_ctor_field(f)) {
+            global_tok = cpp_ctor_name_tok(f->v & ~SYM_FIELD);
+            if (!global_tok)
+                global_tok = f->v & ~SYM_FIELD;  /* fallback */
+        } else if (cpp_is_dtor_field(f)) {
+            global_tok = cpp_dtor_name_tok(f->parent_class->v & ~SYM_STRUCT);
+            if (!global_tok)
+                global_tok = f->v & ~SYM_FIELD;  /* fallback */
+        } else {
+            global_tok = f->v & ~SYM_FIELD;
+        }
+        /* BUG-14: mark the class so external_sym keeps this member's global
+           distinct from a same-named method in another class (see
+           cpp_pending_member_class / cpp_build_func_mangle). */
+        cpp_pending_member_class = class_sym;
+        sym = external_sym(global_tok, &type, 0, &ad);
+        cpp_pending_member_class = NULL;
+        sym->parent_class = class_sym;
+        sym->type.t |= VT_INLINE;
+        /* Inline ctor: propagate the saved mem-initializer-list so
+         * gen_function can expand it when codegen runs. */
+        if (f->cpp_mem_init_list)
+            sym->cpp_mem_init_list = f->cpp_mem_init_list;
+        cpp_set_func_mangle_label(sym, &type);
+        fn = tcc_malloc(sizeof *fn + strlen(file->filename));
+        strcpy(fn->filename, file->filename);
+        fn->sym = sym;
+        fn->func_str = body;
+        dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
     }
 }
 
@@ -5570,9 +5277,9 @@ static void end_switch(void);
 static void do_Static_assert(void);
 
 /* ------------------------------------------------------------------------- */
-/* �����I�ȃR�[�h�}�� */
+/* ?????I??R?[?h?}?? */
 
-/* ���������x���Ŏg�p����Ă����ꍇ�� 'nocode_wanted' ���N���A���� */
+/* ?????????x????g?p???????????? 'nocode_wanted' ???N???A???? */
 ST_FUNC void gsym(int t)
 {
     if (t) {
@@ -5581,7 +5288,7 @@ ST_FUNC void gsym(int t)
     }
 }
 
-/* ���݂̃v���O�����J�E���^�����x���ł���ꍇ�� 'nocode_wanted' ���N���A���� */
+/* ?????v???O?????J?E???^?????x?????????? 'nocode_wanted' ???N???A???? */
 static int gind()
 {
     int t = ind;
@@ -5591,14 +5298,14 @@ static int gind()
     return t;
 }
 
-/* �������i����j�W�����v�̌�� 'nocode_wanted' ��ݒ肷�� */
+/* ???????i????j?W?????v???? 'nocode_wanted' ?????? */
 static void gjmp_addr_acs(int t)
 {
     gjmp_addr(t);
     CODE_OFF();
 }
 
-/* �������i�O���j�W�����v�̌�� 'nocode_wanted' ��ݒ肷�� */
+/* ???????i?O???j?W?????v???? 'nocode_wanted' ?????? */
 static int gjmp_acs(int t)
 {
     t = gjmp(t);
@@ -5606,7 +5313,7 @@ static int gjmp_acs(int t)
     return t;
 }
 
-/* �����̓t�@�C���̍Ō�� #undef ����܂� */
+/* ??????t?@?C??????? #undef ?????? */
 #define gjmp_addr gjmp_addr_acs
 #define gjmp gjmp_acs
 /* ------------------------------------------------------------------------- */
@@ -5638,7 +5345,7 @@ static int btype_size(int bt)
         bt == VT_PTR ? PTR_SIZE : 0;
 }
 
-/* �^�ɉ������֐��߂背�W�X�^��Ԃ� */
+/* ?^??????????????W?X?^???? */
 static int R_RET(int t)
 {
     if (!is_float(t))
@@ -5653,7 +5360,7 @@ static int R_RET(int t)
     return REG_FRET;
 }
 
-/* 2�Ԗڂ̊֐��߂背�W�X�^��Ԃ��i���݂���ꍇ�j */
+/* 2??????????W?X?^?????i?????????j */
 static int R2_RET(int t)
 {
     t &= VT_BTYPE;
@@ -5671,25 +5378,25 @@ static int R2_RET(int t)
 #endif
     return VT_CONST;
 }
-/* 2���[�h�^���ǂ�����Ԃ� */
+/* 2???[?h?^??????????? */
 #define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
 
-/* 2���[�h�^���ǂ����𔻒肷�� */
+/* 2???[?h?^????????????? */
 #define USING_TWO_WORDS(t) (R2_RET(t) != VT_CONST)
 
-/* �֐��߂背�W�X�^���X�^�b�N�l�ɐݒ肷�� */
+/* ???????W?X?^???X?^?b?N?l?????? */
 static void PUT_R_RET(SValue* sv, int t)
 {
     sv->r = R_RET(t), sv->r2 = R2_RET(t);
 }
 
-/* �^t�ɑ΂���֐��߂背�W�X�^�̃��W�X�^�N���X��Ԃ� */
+/* ?^t????????????W?X?^????W?X?^?N???X???? */
 static int RC_RET(int t)
 {
     return reg_classes[R_RET(t)] & ~(RC_FLOAT | RC_INT);
 }
 
-/* �^t�ɑ΂����ʓI�ȃ��W�X�^�N���X��Ԃ� */
+/* ?^t????????I????W?X?^?N???X???? */
 static int RC_TYPE(int t)
 {
     if (!is_float(t))
@@ -5706,7 +5413,7 @@ static int RC_TYPE(int t)
     return RC_FLOAT;
 }
 
-/* t��rc�ɑΉ�����2�Ԗڂ̃��W�X�^�N���X��Ԃ� */
+/* t??rc????????2??????W?X?^?N???X???? */
 static int RC2_TYPE(int t, int rc)
 {
     if (!USING_TWO_WORDS(t))
@@ -5724,8 +5431,8 @@ static int RC2_TYPE(int t, int rc)
     return RC_INT;
 }
 
-/* ��W���̐��w���C�u�����ł̖�������邽�ߓƎ��� 'finite' �֐����g�p */
-/* XXX: �G���f�B�A���ˑ� */
+/* ??W??????w???C?u????????????????????? 'finite' ??????g?p */
+/* XXX: ?G???f?B?A????? */
 ST_FUNC int ieee_finite(double d)
 {
     int p[4];
@@ -5733,7 +5440,7 @@ ST_FUNC int ieee_finite(double d)
     return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
 }
 
-/* Intel������ long double ���l�C�e�B�u�ɏ�������ݒ� */
+/* Intel?????? long double ???l?C?e?B?u??????????? */
 #if (defined __i386__ || defined __x86_64__) \
     && (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64)
 # define TCC_IS_NATIVE_387
@@ -5748,11 +5455,11 @@ ST_FUNC void test_lvalue(void)
 ST_FUNC void check_vstack(void)
 {
     if (vtop != vstack - 1)
-        tcc_error("�����R���p�C���G���[: vstack �̃��[�N (%d)",
+        tcc_error("?????R???p?C???G???[: vstack ????[?N (%d)",
             (int)(vtop - vstack + 1));
 }
 
-/* vstack �̃f�o�b�O�⏕ */
+/* vstack ??f?o?b?O?? */
 #if 0
 void pv(const char* lbl, int a, int b)
 {
@@ -5766,15 +5473,13 @@ void pv(const char* lbl, int a, int b)
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* vstack �ƌ^�̏������Btcc -E�i�v���v���Z�X�̂݁j�ł�������s���K�v������ */
+/* vstack ??^????????Btcc -E?i?v???v???Z?X???j?????????s???K?v?????? */
 ST_FUNC void tccgen_init(TCCState* s1)
 {
-    if (file && file->filename && !strcmp(file->filename, "<string>"))
-        tcc_p0_diag_trace(s1, "INJ_TCCGEN_INIT_ENTER");
     vtop = vstack - 1;
     memset(vtop, 0, sizeof * vtop);
 
-    /* �悭�g����^���` */
+    /* ???g????^???` */
     int_type.t = VT_INT;
 
     char_type.t = VT_BYTE;
@@ -5895,10 +5600,6 @@ ST_FUNC void tccgen_init(TCCState* s1)
     dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
     dynarray_reset(&cpp_synthetic_ctor_classes, &nb_cpp_synthetic_ctor_classes);
     dynarray_reset(&cpp_synthetic_dtor_classes, &nb_cpp_synthetic_dtor_classes);
-    dynarray_reset(&cpp_synthetic_inline_registered,
-                   &nb_cpp_synthetic_inline_registered);
-    dynarray_reset(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
-    cpp_reset_synthetic_specials();
     // N6-02: same stale-Sym protection for pending TLS ctor thunks.
     dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
     // N6-04: and for pending TLS dtor thunks.
@@ -5906,20 +5607,6 @@ ST_FUNC void tccgen_init(TCCState* s1)
     /* Virtual MI (Phase 2): drop thunks a failed/aborted TU left pending so
        they cannot be emitted against stale Syms in the next compilation. */
     dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
-    if (file && file->filename && !strcmp(file->filename, "<string>"))
-        tcc_p0_diag_trace(s1, "INJ_TCCGEN_INIT_EXIT");
-}
-
-static void cpp_p0_trace_synthetic_state(TCCState *s1, const char *tag)
-{
-    if (!s1 || !s1->cpp_diag_pe_trace || !tag)
-        return;
-    fprintf(stderr,
-        "TRACE P0:%s synth_spec=%d pend_odr=%d inline_reg=%d synth_ctor=%d synth_dtor=%d nb_inline_fns=%d func_vt=%d vtop=%ld\n",
-        tag, nb_cpp_synthetic_specials, nb_cpp_pending_synthetic_odr,
-        nb_cpp_synthetic_inline_registered, nb_cpp_synthetic_ctor_classes,
-        nb_cpp_synthetic_dtor_classes, s1->nb_inline_fns,
-        func_vt.t, (long)(vtop - vstack));
 }
 
 ST_FUNC int tccgen_compile(TCCState* s1)
@@ -5931,15 +5618,8 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     funcname = "";
     func_ind = -1;
     anon_sym = SYM_FIRST_ANOM;
-    nocode_wanted = DATA_ONLY_WANTED; /* �֐��O�ł̓R�[�h�𐶐����Ȃ� */
+    nocode_wanted = DATA_ONLY_WANTED; /* ????O???R?[?h????????? */
     debug_modes = (s1->do_debug ? 1 : 0) | s1->test_coverage << 1;
-
-    if (file && file->filename && !strcmp(file->filename, "<string>"))
-        tcc_p0_diag_trace(s1, "INJ_TCCGEN_COMPILE_ENTER");
-    else {
-        tcc_p0_diag_trace(s1, "USER_TU_BEGIN");
-        cpp_p0_trace_synthetic_state(s1, "USER_TU_BEGIN");
-    }
 
     tcc_debug_start(s1);
     tcc_tcov_start(s1);
@@ -5952,10 +5632,6 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
     next();
     decl(VT_CONST);
-    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
-        tcc_p0_diag_trace(s1, "USER_TU_AFTER_DECL");
-        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_DECL");
-    }
     /* Virtual MI (Phase 2): thunk code is deferred to this top-level point -
        emitting inside struct_decl could land mid-function for local classes. */
     cpp_finish_virtual_thunks(s1);
@@ -5966,52 +5642,30 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     cpp_emit_tls_ctor_thunks(s1);
     // N6-04: dtor thunks follow the same ordering constraint.
     cpp_emit_tls_dtor_thunks(s1);
-    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
-        tcc_p0_diag_trace(s1, "USER_TU_BEFORE_SYNTHETIC_FLUSH");
-        cpp_p0_trace_synthetic_state(s1, "USER_TU_BEFORE_SYNTHETIC_FLUSH");
-    }
-    cpp_flush_pending_synthetic_odr();
-    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
-        tcc_p0_diag_trace(s1, "USER_TU_AFTER_SYNTHETIC_FLUSH");
-        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_SYNTHETIC_FLUSH");
-        tcc_p0_diag_trace(s1, "USER_TU_BEFORE_GEN_INLINE");
-    }
     gen_inline_functions(s1);
-    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
-        tcc_p0_diag_trace(s1, "USER_TU_AFTER_GEN_INLINE");
-        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_GEN_INLINE");
-    }
     cpp_finish_local_static_dtors(s1);
     // N6-02 REVIEW FIX-1: release the ctor/dtor-thunk holders only now, after
     // the inline bodies (the last TLS access sites of the TU) have been emitted.
     cpp_release_tls_ctor_entries(s1);
     check_vstack();
-    /* �|��P�ʂ̏��̏I��� */
+    /* ?|??P??????I??? */
 #if TCC_EH_FRAME
     tcc_eh_frame_end(s1);
 #endif
     tcc_debug_end(s1);
     tcc_tcov_end(s1);
-    if (file && file->filename && !strcmp(file->filename, "<string>"))
-        tcc_p0_diag_trace(s1, "INJ_TCCGEN_COMPILE_EXIT");
-    else {
-        tcc_p0_diag_trace(s1, "USER_TU_END");
-        cpp_p0_trace_synthetic_state(s1, "USER_TU_END");
-    }
     return 0;
 }
 
 ST_FUNC void tccgen_finish(TCCState* s1)
 {
-    if (file && file->filename && !strcmp(file->filename, "<string>"))
-        tcc_p0_diag_trace(s1, "INJ_TCCGEN_FINISH_ENTER");
-    tcc_debug_end(s1); /* �G���[�������ɔ����ă���������� */
+    tcc_debug_end(s1); /* ?G???[??????????????????????? */
     free_inline_functions(s1);
     sym_pop(&global_stack, NULL, 0);
     sym_pop(&local_stack, NULL, 0);
-    /* �v���v���Z�b�T�̃}�N������� */
+    /* ?v???v???Z?b?T??}?N??????? */
     free_defines(NULL);
-    /* sym_pools ����� */
+    /* sym_pools ????? */
     dynarray_reset(&sym_pools, &nb_sym_pools);
     cstr_free(&initstr);
     dynarray_reset(&stk_data, &nb_stk_data);
@@ -6036,8 +5690,6 @@ ST_FUNC void tccgen_finish(TCCState* s1)
     local_label_stack = NULL;
     cur_text_section = NULL;
     sym_free_first = NULL;
-    if (file && file->filename && !strcmp(file->filename, "<string>"))
-        tcc_p0_diag_trace(s1, "INJ_TCCGEN_FINISH_EXIT");
 }
 
 /* ------------------------------------------------------------------------- */
@@ -6048,7 +5700,7 @@ ST_FUNC ElfSym* elfsym(Sym* s)
     return &((ElfSym*)symtab_section->data)[s->c];
 }
 
-/* ELF �V���{���ɃX�g���[�W������K�p */
+/* ELF ?V???{????X?g???[?W??????K?p */
 ST_FUNC void update_storage(Sym* sym)
 {
     ElfSym* esym;
@@ -6092,7 +5744,7 @@ ST_FUNC void update_storage(Sym* sym)
 }
 
 /* ------------------------------------------------------------------------- */
-/* sym->c ���X�V���A'section' �Z�N�V�������̊O���V���{���i�l value�j���w���悤�ɂ��� */
+/* sym->c ???X?V???A'section' ?Z?N?V????????O???V???{???i?l value?j???w????????? */
 
 ST_FUNC void put_extern_sym2(Sym* sym, int sh_num,
     addr_t value, unsigned long size,
@@ -6172,7 +5824,7 @@ ST_FUNC void put_extern_sym(Sym* sym, Section* s, addr_t value, unsigned long si
     put_extern_sym2(sym, s ? s->sh_num : SHN_UNDEF, value, size, 1);
 }
 
-/* �Z�N�V���� s �̃V���{�� sym �ɐV�����Ĕz�u�G���g����ǉ� */
+/* ?Z?N?V???? s ??V???{?? sym ??V??????z?u?G???g?????? */
 ST_FUNC void greloca(Section* s, Sym* sym, unsigned long offset, int type,
     addr_t addend)
 {
@@ -6187,7 +5839,7 @@ ST_FUNC void greloca(Section* s, Sym* sym, unsigned long offset, int type,
         c = sym->c;
     }
 
-    /* ����� ELF �Ĕz�u����ǉ��ł��� */
+    /* ????? ELF ??z?u??????????? */
     put_elf_reloca(symtab_section, s, offset, type, c, addend);
 }
 
@@ -6199,7 +5851,7 @@ ST_FUNC void greloc(Section* s, Sym* sym, unsigned long offset, int type)
 #endif
 
 /* ------------------------------------------------------------------------- */
-/* �V���{���A���P�[�^ */
+/* ?V???{???A???P?[?^ */
 static Sym* __sym_malloc(void)
 {
     Sym* sym_pool, * sym, * last_sym;
@@ -6244,7 +5896,7 @@ ST_INLN void sym_free(Sym* sym)
 #endif
 }
 
-/* �n�b�V�����g�킸�Ƀv�b�V�� */
+/* ?n?b?V?????g????v?b?V?? */
 ST_FUNC Sym* sym_push2(Sym** ps, int v, int t, int c)
 {
     Sym* s;
@@ -6264,7 +5916,7 @@ ST_FUNC Sym* sym_push2(Sym** ps, int v, int t, int c)
     return s;
 }
 
-/* �V���{�����������Ή�����\���̂�Ԃ��B's' �̓V���{���X�^�b�N�̃g�b�v */
+/* ?V???{?????????????????\????????B's' ??V???{???X?^?b?N??g?b?v */
 ST_FUNC Sym* sym_find2(Sym* s, int v)
 {
     while (s) {
@@ -6275,7 +5927,7 @@ ST_FUNC Sym* sym_find2(Sym* s, int v)
     return NULL;
 }
 
-/* �\���̂̌��� */
+/* ?\???????? */
 ST_INLN Sym* struct_find(int v)
 {
     v -= TOK_IDENT;
@@ -6284,7 +5936,7 @@ ST_INLN Sym* struct_find(int v)
     return table_ident[v]->sym_struct;
 }
 
-/* ���ʎq������ */
+/* ????q?????? */
 ST_INLN Sym* sym_find(int v)
 {
     v -= TOK_IDENT;
@@ -6354,7 +6006,7 @@ static Sym* cpp_global_lookup_type_name(int v, int* kind)
     return NULL;
 }
 
-/* �w�肳�ꂽ�V���{�����V���{���X�^�b�N�Ƀv�b�V�� */
+/* ?w?????V???{?????V???{???X?^?b?N??v?b?V?? */
 ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
 {
     Sym* s, ** ps;
@@ -6367,10 +6019,10 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
     s = sym_push2(ps, v, type->t, c);
     s->type.ref = type->ref;
     s->r = r;
-    /* �t�B�[���h�⓽���V���{���͋L�^���Ȃ� */
+    /* ?t?B?[???h?????V???{????L?^????? */
     /* XXX: simplify */
     if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-        /* �g�[�N���z��ɃV���{�����L�^ */
+        /* ?g?[?N???z???V???{?????L?^ */
         ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
         if (v & SYM_STRUCT)
             ps = &ts->sym_struct;
@@ -6385,7 +6037,7 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
                     tcc_error("redefinition of '%s'",
                         get_tok_str(v & ~SYM_STRUCT, NULL));
             } else
-                tcc_error("�Ē�`: '%s'",
+                tcc_error("???`: '%s'",
                 get_tok_str(v & ~SYM_STRUCT, NULL));
         }
     }
@@ -6399,7 +6051,7 @@ ST_FUNC Sym* sym_push(int v, CType* type, int r, int c)
 // local-stack pop had already freed them ("field not found: m_ptr",
 // TestRunner.cpp:255's SIMPLE_AUTO_PTR local class).  Route those syms
 // to the global stack when the class is local.  Deliberate trade-off,
-// documented in tpp仕様.md: the tag NAME stays visible at file scope
+// documented in tpp??.md: the tag NAME stays visible at file scope
 // after the function returns (C++ would end its scope), so two
 // functions cannot define different local classes under one name.
 // sym_scope is left 0 (file scope) on purpose - the BUG-37 walk then
@@ -6432,7 +6084,7 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c)
     return s;
 }
 
-/* �O���[�o�����ʎq���v�b�V�� */
+/* ?O???[?o??????q???v?b?V?? */
 ST_FUNC Sym* global_identifier_push(int v, int t, int c)
 {
     Sym* s, ** ps;
@@ -6441,9 +6093,9 @@ ST_FUNC Sym* global_identifier_push(int v, int t, int c)
     /* don't record anonymous symbol */
     if (v < SYM_FIRST_ANOM) {
         ps = &table_ident[v - TOK_IDENT]->sym_identifier;
-        /* �g�b�v�̃��[�J�����ʎq��ύX���A�|�b�v���ꂽ�Ƃ���
-           sym_identifier �� 's' ���w���悤�ɂ���G���̏����̓C�����C�� asm ����
-           �Ăяo���ꂽ�Ƃ��ɔ������� */
+        /* ?g?b?v????[?J??????q???X???A?|?b?v?????????
+           sym_identifier ?? 's' ???w?????????G?????????C?????C?? asm ????
+           ???o???????????????? */
         while (*ps != NULL && (*ps)->sym_scope)
             ps = &(*ps)->prev_tok;
         s->prev_tok = *ps;
@@ -6452,8 +6104,8 @@ ST_FUNC Sym* global_identifier_push(int v, int t, int c)
     return s;
 }
 
-/* �g�b�v�� 'b' �ɓ��B����܂ŃV���{�����|�b�v����BKEEP ����[���̏ꍇ��
-    ���ۂɂ̓��X�g�����菜�����A�g�[�N���z�񂩂�̂ݍ폜���� */
+/* ?g?b?v?? 'b' ????B??????V???{?????|?b?v????BKEEP ????[???????
+    ????????X?g???????????A?g?[?N???z??????????? */
 ST_FUNC void sym_pop(Sym** ptop, Sym* b, int keep)
 {
     Sym* s, * ss, ** ps;
@@ -6482,7 +6134,7 @@ ST_FUNC void sym_pop(Sym** ptop, Sym* b, int keep)
         *ptop = b;
 }
 
-/* ���x���̌��� */
+/* ???x??????? */
 ST_FUNC Sym* label_find(int v)
 {
     v -= TOK_IDENT;
@@ -6508,18 +6160,18 @@ ST_FUNC Sym* label_push(Sym** ptop, int v, int flags)
     return s;
 }
 
-/* �Ō�̗v�f�ɒB����܂Ń��x�����|�b�v����B����`�̃��x�����Ȃ����m�F����B
-    '&&label' ���g���Ă���΃V���{�����`���� */
+/* ????v?f??B????????x?????|?b?v????B????`????x??????????m?F????B
+    '&&label' ???g????????V???{?????`???? */
 ST_FUNC void label_pop(Sym** ptop, Sym* slast, int keep)
 {
     Sym* s, * s1;
     for (s = *ptop; s != slast; s = s1) {
         s1 = s->prev;
         if (s->r == LABEL_DECLARED) {
-            tcc_warning_c(warn_all)("���x�� '%s' �͐錾����Ă��܂����g�p����Ă��܂���", get_tok_str(s->v, NULL));
+            tcc_warning_c(warn_all)("???x?? '%s' ???????????????g?p???????????", get_tok_str(s->v, NULL));
         }
         else if (s->r == LABEL_FORWARD) {
-            tcc_error("���x�� '%s' ���g�p����Ă��܂�����`����Ă��܂���",
+            tcc_error("???x?? '%s' ???g?p?????????????`???????????",
                 get_tok_str(s->v, NULL));
         }
         else {
@@ -6544,18 +6196,18 @@ ST_FUNC void label_pop(Sym** ptop, Sym* slast, int keep)
 /* ------------------------------------------------------------------------- */
 static void vcheck_cmp(void)
 {
-    /* ���̖��߂����������ꍇ�ɂ� CPU �t���O���c���Ă����Ȃ��B�܂�
-       VT_JMP ���X�^�b�N�̐擪�ȊO�Ɏc���ƃR�[�h�����킪���G�ɂȂ邽�ߔ�����B
+    /* ????????????????????? CPU ?t???O???c???????????B???
+       VT_JMP ???X?^?b?N?????O??c????R?[?h?????????G???????????B
 
-       nocode_wanted �̂Ƃ��͂�����s���Ă͂����Ȃ��Bvtop ��
-       !nocode_wanted �̗̈悩�痈��ꍇ������i88_codeopt.c ���Q�Ɓj�A
-       ���ۂɃR�[�h�𐶐��������W�X�^�ɕϊ�����ƁA�l�����ۂɎg�p�����\����������ƂȂ�B
-       nocode_wanted ���Ńv�b�V�����ꂽ�S�Ă̒l�͍ŏI�I�Ƀ|�b�v����,
-       �R�[�h�}�~���������ꂽ�Ƃ��� VT_CMP/VT_JMP �̒l�� vtop �ɖ߂�B */
+       nocode_wanted ???????????s????????????Bvtop ??
+       !nocode_wanted ???????????????i88_codeopt.c ???Q??j?A
+       ?????R?[?h???????????W?X?^?????????A?l???????g?p??????\?????????????B
+       nocode_wanted ????v?b?V???????S???l???I?I??|?b?v????,
+       ?R?[?h?}?~??????????????? VT_CMP/VT_JMP ??l?? vtop ????B */
 
-       /* �������ACODE_OFF/ON() �ɂ�鎩���}�~�����̏ꍇ�́A���̂܂ܓ����W���Ȃ������ǂ��B
-          nocode_wanted ���łǂ̂悤�ɋ@�\����̂��Hgv() �����[�h/VT_JMP �ɂ����� gsym() ��
-          ���ۂɃN���A���邽�߂ł���i�W�F�l���[�^�̃o�b�N�G���h�Q�Ɓj�B */
+       /* ???????ACODE_OFF/ON() ???????}?~?????????A??????????W?????????????B
+          nocode_wanted ?????????@?\???????Hgv() ?????[?h/VT_JMP ??????? gsym() ??
+          ?????N???A??????????i?W?F?l???[?^??o?b?N?G???h?Q??j?B */
 
     if (vtop->r == VT_CMP && 0 == (nocode_wanted & ~CODE_OFF_BIT))
         gv(RC_INT);
@@ -6564,7 +6216,7 @@ static void vcheck_cmp(void)
 static void vsetc(CType* type, int r, CValue* vc)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("�������s�� (vstack)");
+        tcc_error("???????s?? (vstack)");
     vcheck_cmp();
     vtop++;
     vtop->type = *type;
@@ -6584,33 +6236,33 @@ ST_FUNC void vswap(void)
     vtop[-1] = tmp;
 }
 
-/* �X�^�b�N�l���|�b�v */
+/* ?X?^?b?N?l???|?b?v */
 ST_FUNC void vpop(void)
 {
     int v;
     v = vtop->r & VT_VALMASK;
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-    /* x86 �ł� FPU �X�^�b�N���|�b�v����K�v������ */
+    /* x86 ??? FPU ?X?^?b?N???|?b?v????K?v?????? */
     if (v == TREG_ST0) {
         o(0xd8dd); /* fstp %st(0) */
     }
     else
 #endif
         if (v == VT_CMP) {
-            /* && �� || �̃e�X�g�����̏ꍇ�A�������W�����v�𐶐����� */
+            /* && ?? || ??e?X?g????????A???????W?????v???????? */
             gsym(vtop->jtrue);
             gsym(vtop->jfalse);
         }
     vtop--;
 }
 
-/* �^ 'type' �̒萔�i�_�~�[�l�j���v�b�V�� */
+/* ?^ 'type' ????i?_?~?[?l?j???v?b?V?? */
 static void vpush(CType* type)
 {
     vset(type, VT_CONST, 0);
 }
 
-/* �C�ӂ� 64bit �萔���v�b�V�� */
+/* ?C??? 64bit ?????v?b?V?? */
 static void vpush64(int ty, unsigned long long v)
 {
     CValue cval;
@@ -6621,19 +6273,19 @@ static void vpush64(int ty, unsigned long long v)
     vsetc(&ctype, VT_CONST, &cval);
 }
 
-/* �����萔���v�b�V�� */
+/* ?????????v?b?V?? */
 ST_FUNC void vpushi(int v)
 {
     vpush64(VT_INT, v);
 }
 
-/* �|�C���^�T�C�Y�̒萔���v�b�V�� */
+/* ?|?C???^?T?C?Y??????v?b?V?? */
 static void vpushs(addr_t v)
 {
     vpush64(VT_SIZE_T, v);
 }
 
-/* long long �^�̒萔���v�b�V�� */
+/* long long ?^??????v?b?V?? */
 static inline void vpushll(long long v)
 {
     vpush64(VT_LLONG, v);
@@ -6657,7 +6309,7 @@ static void vseti(int r, int v)
 ST_FUNC void vpushv(SValue* v)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
-        tcc_error("�������s�� (vstack)");
+        tcc_error("???????s?? (vstack)");
     vtop++;
     *vtop = *v;
 }
@@ -6667,7 +6319,7 @@ static void vdup(void)
     vpushv(vtop);
 }
 
-/* �X�^�b�N�̈ʒu n-1 �̗v�f���g�b�v�։�] */
+/* ?X?^?b?N???u n-1 ??v?f???g?b?v???] */
 ST_FUNC void vrotb(int n)
 {
     SValue tmp;
@@ -6679,7 +6331,7 @@ ST_FUNC void vrotb(int n)
     vtop[0] = tmp;
 }
 
-/* �X�^�b�N�̃g�b�v�v�f���ʒu n-1 �ɉ�] */
+/* ?X?^?b?N??g?b?v?v?f????u n-1 ???] */
 ST_FUNC void vrott(int n)
 {
     SValue tmp;
@@ -6691,7 +6343,7 @@ ST_FUNC void vrott(int n)
     vtop[-n] = tmp;
 }
 
-/* �X�^�b�N�̐擪 n �v�f�̏����𔽓] */
+/* ?X?^?b?N??? n ?v?f????????] */
 ST_FUNC void vrev(int n)
 {
     int i;
@@ -6702,9 +6354,9 @@ ST_FUNC void vrev(int n)
 }
 
 /* ------------------------------------------------------------------------- */
-/* vtop->r = VT_CMP �͔�r��e�X�g�ɂ�� CPU �t���O���ݒ肳��Ă��邱�Ƃ��Ӗ����� */
+/* vtop->r = VT_CMP ???r??e?X?g???? CPU ?t???O????????????????????? */
 
-/* �W�F�l���[�^����Ă΂�A�֌W���Z�̌��ʂ�ݒ肷�� */
+/* ?W?F?l???[?^???????A??W???Z?????????? */
 ST_FUNC void vset_VT_CMP(int op)
 {
     vtop->r = VT_CMP;
@@ -6713,27 +6365,27 @@ ST_FUNC void vset_VT_CMP(int op)
     vtop->jtrue = 0;
 }
 
-/* �W�F�l���[�^�� VT_CMP �����W�X�^�փ��[�h������O�Ɉ�x�Ă΂�� */
+/* ?W?F?l???[?^?? VT_CMP ?????W?X?^????[?h??????O???x????? */
 static void vset_VT_JMP(void)
 {
     int op = vtop->cmp_op;
 
     if (vtop->jtrue || vtop->jfalse) {
         int origt = vtop->type.t;
-        /* 'mov $0,%R' �܂��� 'mov $1,%R' �փW�����v����K�v������ */
+        /* 'mov $0,%R' ????? 'mov $1,%R' ??W?????v????K?v?????? */
         int inv = op & (op < 2); /* small optimization */
         vseti(VT_JMP + inv, gvtst(inv, 0));
         vtop->type.t |= origt & (VT_UNSIGNED | VT_DEFSIGN);
     }
     else {
-        /* ����ȊO�̏ꍇ�̓t���O�i0/1�j�����W�X�^�ɕϊ����� */
+        /* ?????O?????t???O?i0/1?j?????W?X?^???????? */
         vtop->c.i = op;
         if (op < 2) /* doesn't seem to happen */
             vtop->r = VT_CONST;
     }
 }
 
-/* CPU �t���O��ݒ肷��i�܂��W�����v�͍s��Ȃ��j */
+/* CPU ?t???O??????i????W?????v??s?????j */
 static void gvtst_set(int inv, int t)
 {
     int* p;
@@ -6749,9 +6401,9 @@ static void gvtst_set(int inv, int t)
     *p = gjmp_append(*p, t);
 }
 
-/* �l�e�X�g�̐���
+/* ?l?e?X?g?????
  *
- * �C�ӂ̒l�ɑ΂���e�X�g�𐶐�����i�W�����v�A��r�A�������܂ށj */
+ * ?C???l??????e?X?g????????i?W?????v?A??r?A?????????j */
 static int gvtst(int inv, int t)
 {
     int op, x, u;
@@ -6774,7 +6426,7 @@ static int gvtst(int inv, int t)
     return t;
 }
 
-/* �[��/��[���̃e�X�g�𐶐� */
+/* ?[??/??[????e?X?g???? */
 static void gen_test_zero(int op)
 {
     if (vtop->r == VT_CMP) {
@@ -6793,7 +6445,7 @@ static void gen_test_zero(int op)
 }
 
 /* ------------------------------------------------------------------------- */
-/* �w��^�̃V���{���l���v�b�V�� */
+/* ?w??^??V???{???l???v?b?V?? */
 ST_FUNC void vpushsym(CType* type, Sym* sym)
 {
     CValue cval;
@@ -6802,7 +6454,7 @@ ST_FUNC void vpushsym(CType* type, Sym* sym)
     vtop->sym = sym;
 }
 
-/* �Z�N�V�������w���ÓI�V���{����Ԃ� */
+/* ?Z?N?V???????w????I?V???{?????? */
 ST_FUNC Sym* get_sym_ref(CType* type, Section* sec, unsigned long offset, unsigned long size)
 {
     int v;
@@ -6815,13 +6467,13 @@ ST_FUNC Sym* get_sym_ref(CType* type, Section* sec, unsigned long offset, unsign
     return sym;
 }
 
-/* �_�~�[�V���{����ǉ����ăZ�N�V�����ւ̎Q�Ƃ��v�b�V�� */
+/* ?_?~?[?V???{??????????Z?N?V???????Q????v?b?V?? */
 static void vpush_ref(CType* type, Section* sec, unsigned long offset, unsigned long size)
 {
     vpushsym(type, get_sym_ref(type, sec, offset, size));
 }
 
-/* �^ 'u' �̃V���{�� 'v' �ւ̐V�����O���Q�Ƃ��` */
+/* ?^ 'u' ??V???{?? 'v' ???V?????O???Q????` */
 ST_FUNC Sym* external_global_sym(int v, CType* type)
 {
     Sym* s;
@@ -6840,15 +6492,15 @@ ST_FUNC Sym* external_global_sym(int v, CType* type)
     return s;
 }
 
-/* asm ���x���Ɏ����^�w��̂Ȃ��O���Q�Ƃ��쐬����B
-    ����ɂ��V���{���� C ����g���Ă��^�̏Փ˂�������� */
+/* asm ???x????????^?w??????O???Q?????????B
+    ???????V???{???? C ????g??????^???????????? */
 ST_FUNC Sym* external_helper_sym(int v)
 {
     CType ct = { VT_ASM_FUNC, NULL };
     return external_global_sym(v, &ct);
 }
 
-/* �w���p�֐��i��: memmove�j�ւ̎Q�Ƃ��v�b�V�� */
+/* ?w???p????i??: memmove?j???Q????v?b?V?? */
 ST_FUNC void vpush_helper_func(int v)
 {
     vpushsym(&func_old_type, external_helper_sym(v));
@@ -6910,9 +6562,9 @@ static void cpp_validate_tls_class(Sym *class_sym)
 {
     if (!class_sym)
         return;
-    if (cpp_class_would_have_synthetic_ctor(class_sym))
+    if (cpp_class_has_synthetic_ctor(class_sym))
         tcc_error("implicit default construction of non-trivial member is unsupported");
-    if (cpp_class_would_have_synthetic_dtor(class_sym))
+    if (cpp_class_has_synthetic_dtor(class_sym))
         tcc_error("thread_local object with implicit non-trivial destructor is unsupported in N6-04");
     if (cpp_class_requires_destruction(class_sym)) {
         if (!cpp_find_dtor_field(class_sym))
@@ -7034,7 +6686,7 @@ static void cpp_push_tls_lvalue(Sym *sym)
     tcc_state->cpp_tls_runtime_needed = 1;
 }
 
-/* �V���{���������}�[�W���� */
+/* ?V???{?????????}?[?W???? */
 static void merge_symattr(struct SymAttr* sa, struct SymAttr* sa1)
 {
     if (sa1->aligned && !sa->aligned)
@@ -7054,7 +6706,7 @@ static void merge_symattr(struct SymAttr* sa, struct SymAttr* sa1)
     sa->dllimport |= sa1->dllimport;
 }
 
-/* �֐��������}�[�W���� */
+/* ??????????}?[?W???? */
 static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
 {
     if (fa1->func_call && !fa->func_call)
@@ -7079,7 +6731,7 @@ static void merge_funcattr(struct FuncAttr* fa, struct FuncAttr* fa1)
         fa->func_pure = 1;
 }
 
-/* �������}�[�W���� */
+/* ???????}?[?W???? */
 static void merge_attr(AttributeDef* ad, AttributeDef* ad1)
 {
     merge_symattr(&ad->a, &ad1->a);
@@ -7095,12 +6747,12 @@ static void merge_attr(AttributeDef* ad, AttributeDef* ad1)
         ad->attr_mode = ad1->attr_mode;
 }
 
-/* �^�����̈ꕔ���}�[�W���� */
+/* ?^??????????}?[?W???? */
 static void patch_type(Sym* sym, CType* type)
 {
     if (!(type->t & VT_EXTERN) || IS_ENUM_VAL(sym->type.t)) {
         if (!(sym->type.t & VT_EXTERN))
-            tcc_error("�Ē�`: '%s'", get_tok_str(sym->v, NULL));
+            tcc_error("???`: '%s'", get_tok_str(sym->v, NULL));
         sym->type.t &= ~VT_EXTERN;
     }
 
@@ -7113,7 +6765,7 @@ static void patch_type(Sym* sym, CType* type)
     }
 
     if (!is_compatible_types(&sym->type, type)) {
-        tcc_error("�Ē�`�̌^���݊���������܂���: '%s'",
+        tcc_error("???`??^?????????????????: '%s'",
             get_tok_str(sym->v, NULL));
 
     }
@@ -7125,7 +6777,7 @@ static void patch_type(Sym* sym, CType* type)
                implement gnu-inline mode again it silences a warning for
                mingw caused by our workarounds.  */
             && !((type->t | sym->type.t) & VT_INLINE))
-            tcc_warning("�Ē�`: '%s' �� static �w��͖�������܂�",
+            tcc_warning("???`: '%s' ?? static ?w????????????",
                 get_tok_str(sym->v, NULL));
 
         /* set 'inline' if both agree or if one has static */
@@ -7158,12 +6810,12 @@ static void patch_type(Sym* sym, CType* type)
             sym->type.ref->c = type->ref->c;
         }
         if ((type->t ^ sym->type.t) & VT_STATIC)
-            tcc_warning("�Ē�`: '%s' �̃X�g���[�W�w�肪�s��v�ł�",
+            tcc_warning("???`: '%s' ??X?g???[?W?w???s??v???",
                 get_tok_str(sym->v, NULL));
     }
 }
 
-/* �X�g���[�W�����̈ꕔ���}�[�W���� */
+/* ?X?g???[?W??????????}?[?W???? */
 static void patch_storage(Sym* sym, AttributeDef* ad, CType* type)
 {
     if (type)
@@ -7171,7 +6823,7 @@ static void patch_storage(Sym* sym, AttributeDef* ad, CType* type)
 
 #ifdef TCC_TARGET_PE
     if (sym->a.dllimport != ad->a.dllimport)
-        tcc_error("�Ē�` '%s' �� DLL �����P�[�W���݊���������܂���",
+        tcc_error("???` '%s' ?? DLL ?????P?[?W?????????????????",
             get_tok_str(sym->v, NULL));
 #endif
     merge_symattr(&sym->a, &ad->a);
@@ -7180,7 +6832,7 @@ static void patch_storage(Sym* sym, AttributeDef* ad, CType* type)
     update_storage(sym);
 }
 
-/* sym ��ʂ̃X�^�b�N�փR�s�[ */
+/* sym ????X?^?b?N??R?s?[ */
 static Sym* sym_copy(Sym* s0, Sym** ps)
 {
     Sym* s;
@@ -7193,7 +6845,7 @@ static Sym* sym_copy(Sym* s0, Sym** ps)
     return s;
 }
 
-/* VT_FUNC �� VT_PTR �̂��߂� s->type.ref ���X�^�b�N 'ps' �ɃR�s�[ */
+/* VT_FUNC ?? VT_PTR ?????? s->type.ref ???X?^?b?N 'ps' ??R?s?[ */
 // BUG-35: `is_proto` marks the FIRST element of a function type's ref
 // chain - the prototype sym.  Its `type` is the function's RETURN type,
 // and the union that `sym_scope` lives in holds `struct FuncAttr` there,
@@ -7242,13 +6894,13 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
 {
     Sym* s;
 
-    /* �O���[�o���V���{����T�� */
+    /* ?O???[?o???V???{????T?? */
     s = sym_find(v);
     while (s && s->sym_scope)
         s = s->prev_tok;
 
     if (!s) {
-        /* ��s�Q�Ƃ��v�b�V������ */
+        /* ??s?Q????v?b?V?????? */
         s = global_identifier_push(v, type->t, 0);
         s->r |= r;
         s->a = ad->a;
@@ -7289,13 +6941,13 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
             patch_storage(s, ad, type);
         }
     }
-    /* ���[�J���X�^�b�N�ɕϐ�������΃v�b�V������ */
+    /* ???[?J???X?^?b?N???????????v?b?V?????? */
     if (local_stack && (s->type.t & VT_BTYPE) != VT_FUNC)
         s = sym_copy(s, &local_stack);
     return s;
 }
 
-/* (vtop - n) �̃X�^�b�N�G���g���܂ł̃��W�X�^��ۑ� */
+/* (vtop - n) ??X?^?b?N?G???g????????W?X?^???? */
 
 ST_FUNC void save_regs(int n)
 {
@@ -7304,14 +6956,14 @@ ST_FUNC void save_regs(int n)
         save_reg(p->r);
 }
 
-/* ���W�X�^ r ���������X�^�b�N�ɕۑ����A�󂫂Ƃ��ă}�[�N���� */
+/* ???W?X?^ r ?????????X?^?b?N???????A???????}?[?N???? */
 ST_FUNC void save_reg(int r)
 {
     save_reg_upstack(r, 0);
 }
 
-/* ���W�X�^ r ���������X�^�b�N�ɕۑ����A(vtop - n) �܂łɌ��������ꍇ��
-    �X�^�b�N��ɕۑ�����Ă��邱�Ƃ������ċ󂫂Ƃ��ă}�[�N���� */
+/* ???W?X?^ r ?????????X?^?b?N???????A(vtop - n) ????????????????
+    ?X?^?b?N????????????????????????????}?[?N???? */
 ST_FUNC void save_reg_upstack(int r, int n)
 {
     int l, size, align, bt, r2;
@@ -7324,7 +6976,7 @@ ST_FUNC void save_reg_upstack(int r, int n)
     l = r2 = 0;
     for (p = vstack, p1 = vtop - n; p <= p1; p++) {
         if ((p->r & VT_VALMASK) == r || p->r2 == r) {
-            /* �܂��ۑ�����Ă��Ȃ��ꍇ�͒l���X�^�b�N�ɕۑ�����K�v������ */
+            /* ???????????????????l???X?^?b?N????????K?v?????? */
             if (!l) {
                 bt = p->type.t & VT_BTYPE;
                 if (bt == VT_VOID)
@@ -7338,18 +6990,18 @@ ST_FUNC void save_reg_upstack(int r, int n)
                 sv.c.i = l;
                 store(p->r & VT_VALMASK, &sv);
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64)
-                /* x86 �ŗL: �ۑ�����Ă���ꍇ�� FP ���W�X�^ ST0 ���|�b�v����K�v������ */
+                /* x86 ??L: ?????????????? FP ???W?X?^ ST0 ???|?b?v????K?v?????? */
                 if (r == TREG_ST0) {
                     o(0xd8dd); /* fstp %st(0) */
                 }
 #endif
-                /* long long �̓���P�[�X */
+                /* long long ?????P?[?X */
                 if (p->r2 < VT_CONST && USING_TWO_WORDS(bt)) {
                     sv.c.i += PTR_SIZE;
                     store(p->r2, &sv);
                 }
             }
-            /* ���̃X�^�b�N�G���g�����X�^�b�N��ɕۑ����ꂽ���Ƃ����� */
+            /* ????X?^?b?N?G???g?????X?^?b?N?????????????????? */
             if (p->r & VT_LVAL) {
                 /* also clear the bounded flag because the
                    relocation address of the function was stored in
@@ -7368,8 +7020,8 @@ ST_FUNC void save_reg_upstack(int r, int n)
 }
 
 #ifdef TCC_TARGET_ARM
-/* �X�^�b�N��ōő�1�����Q�Ƃ���Ă��Ȃ��N���X 'rc2' �̃��W�X�^��T���B
- * ������Ȃ���� get_reg(rc) ���Ă� */
+/* ?X?^?b?N?????1??????Q???????????N???X 'rc2' ????W?X?^??T???B
+ * ???????????? get_reg(rc) ????? */
 ST_FUNC int get_reg_ex(int rc, int rc2)
 {
     int r;
@@ -7392,13 +7044,13 @@ ST_FUNC int get_reg_ex(int rc, int rc2)
 }
 #endif
 
-/* �N���X 'rc' �̋󂫃��W�X�^��T���B�������1�ۑ����Ċm�ۂ��� */
+/* ?N???X 'rc' ??????W?X?^??T???B???????1????????m????? */
 ST_FUNC int get_reg(int rc)
 {
     int r;
     SValue* p;
 
-    /* �󂫃��W�X�^��T�� */
+    /* ?????W?X?^??T?? */
     for (r = 0; r < NB_REGS; r++) {
         if (reg_classes[r] & rc) {
             if (nocode_wanted)
@@ -7413,9 +7065,9 @@ ST_FUNC int get_reg(int rc)
     notfound:;
     }
 
-    /* �󂫃��W�X�^���Ȃ�: �X�^�b�N��̍ŏ��̂��̂��������
-       �igen_opi() �Ŏg���郌�W�X�^�����ڂ��Ȃ��悤�A���i�{�g���j����
-       �J�n���邱�Ƃ����ɏd�v�j */
+    /* ?????W?X?^?????: ?X?^?b?N??????????????????
+       ?igen_opi() ??g?????W?X?^?????????????A???i?{?g???j????
+       ?J?n???????????d?v?j */
     for (p = vstack; p <= vtop; p++) {
         /* look at second register (if long long) */
         r = p->r2;
@@ -7432,8 +7084,8 @@ ST_FUNC int get_reg(int rc)
     return -1;
 }
 
-/* �T�C�Y�ƃA���C���ɍ����ꎞ���[�J���ϐ���T���i�X�^�b�N��̃I�t�Z�b�g��Ԃ��j�B
-    ������Ȃ���ΐV�����ꎞ�ϐ���ǉ����� */
+/* ?T?C?Y??A???C????????????[?J???????T???i?X?^?b?N???I?t?Z?b?g?????j?B
+    ????????????V????????????????? */
 static int get_temp_local_var(int size, int align, int* r2)
 {
     int i;
@@ -7474,7 +7126,7 @@ static int get_temp_local_var(int size, int align, int* r2)
     return loc;
 }
 
-/* ���W�X�^ 's'�i�^ t�j�� 'r' �Ɉړ����A�K�v�Ȃ�� r �̈ȑO�̒l���������֏����o�� */
+/* ???W?X?^ 's'?i?^ t?j?? 'r' ???????A?K?v???? r ???O??l??????????????o?? */
 static void move_reg(int r, int s, int t)
 {
     SValue sv;
@@ -7489,17 +7141,17 @@ static void move_reg(int r, int s, int t)
     }
 }
 
-/* vtop �̃A�h���X�𓾂� (vtop �� lvalue �ł���K�v������) */
+/* vtop ??A?h???X???? (vtop ?? lvalue ?????K?v??????) */
 ST_FUNC void gaddrof(void)
 {
     vtop->r &= ~VT_LVAL;
-    /* �g���b�L�[: �ۑ����ꂽ lvalue �̏ꍇ�͍Ă� lvalue �ɖ߂��� */
+    /* ?g???b?L?[: ??????? lvalue ??????? lvalue ?????? */
     if ((vtop->r & VT_VALMASK) == VT_LLOCAL)
         vtop->r = (vtop->r & ~VT_VALMASK) | VT_LOCAL | VT_LVAL;
 }
 
 #ifdef CONFIG_TCC_BCHECK
-/* ���E�t���|�C���^�̉��Z�R�[�h�𐶐� */
+/* ???E?t???|?C???^????Z?R?[?h???? */
 static void gen_bounded_ptr_add(void)
 {
     int save = (vtop[-1].r & VT_VALMASK) == VT_LOCAL;
@@ -7512,15 +7164,15 @@ static void gen_bounded_ptr_add(void)
     gfunc_call(2);
     vtop -= save;
     vpushi(0);
-    /* �߂�|�C���^�� REG_IRET �ɓ��� */
+    /* ???|?C???^?? REG_IRET ????? */
     vtop->r = REG_IRET | VT_BOUNDED;
     if (nocode_wanted)
         return;
-    /* ���E�`�F�b�N�֐��Ăяo���n�_�̍Ĕz�u�I�t�Z�b�g */
+    /* ???E?`?F?b?N??????o???n?_???z?u?I?t?Z?b?g */
     vtop->c.i = (cur_text_section->reloc->data_offset - sizeof(ElfW_Rel));
 }
 
-/* vtop �̃|�C���^���Z���C�����ă|�C���^�Q�Ƃ��e�X�g���� */
+/* vtop ??|?C???^???Z???C??????|?C???^?Q????e?X?g???? */
 static void gen_bounded_ptr_deref(void)
 {
     addr_t func;
@@ -7540,29 +7192,29 @@ static void gen_bounded_ptr_deref(void)
     case 12: func = TOK___bound_ptr_indir12; break;
     case 16: func = TOK___bound_ptr_indir16; break;
     default:
-        /* �\���̃����o�A�N�Z�X�Ŕ������邱�Ƃ����� */
+        /* ?\????????o?A?N?Z?X???????????????? */
         return;
     }
     sym = external_helper_sym(func);
     if (!sym->c)
         put_extern_sym(sym, NULL, 0, 0);
-    /* �Ĕz�u���C�� */
-    /* XXX: ���ǂ��������������H */
+    /* ??z?u???C?? */
+    /* XXX: ???????????????????H */
     rel = (ElfW_Rel*)(cur_text_section->reloc->data + vtop->c.i);
     rel->r_info = ELFW(R_INFO)(sym->c, ELFW(R_TYPE)(rel->r_info));
 }
 
-/* lvalue �̋��E�`�F�b�N�R�[�h�𐶐� */
+/* lvalue ????E?`?F?b?N?R?[?h???? */
 static void gbound(void)
 {
     CType type1;
 
     vtop->r &= ~VT_MUSTBOUND;
-    /* lvalue �̏ꍇ�A�Q�Ɖ����i�f���t�@�����X�j����O�Ƀ`�F�b�N�R�[�h���g�� */
+    /* lvalue ????A?Q??????i?f???t?@?????X?j????O??`?F?b?N?R?[?h???g?? */
     if (vtop->r & VT_LVAL) {
-        /* VT_BOUNDED �łȂ��l�Ȃ�A���E�t���l���쐬���� */
+        /* VT_BOUNDED ?????l???A???E?t???l???????? */
         if (!(vtop->r & VT_BOUNDED)) {
-            /* �|�C���^�𓾂邽�߂Ɍ^�� int �ɐݒ肷��K�v������̂ŁA���̌^��ۑ����� */
+            /* ?|?C???^???????^?? int ??????K?v????????A????^???????? */
             type1 = vtop->type;
             vtop->type.t = VT_PTR;
             gaddrof();
@@ -7571,12 +7223,12 @@ static void gbound(void)
             vtop->r |= VT_LVAL;
             vtop->type = type1;
         }
-        /* �����ăf���t�@�����X�̃`�F�b�N���s�� */
+        /* ??????f???t?@?????X??`?F?b?N???s?? */
         gen_bounded_ptr_deref();
     }
 }
 
-/* �֐����������W�X�^�Ƀ��[�h���n�߂�O�� __bound_ptr_add ���ĂԕK�v������ */
+/* ????????????W?X?^????[?h???n???O?? __bound_ptr_add ?????K?v?????? */
 ST_FUNC void gbound_args(int nb_args)
 {
     int i, v;
@@ -7609,23 +7261,23 @@ ST_FUNC void gbound_args(int nb_args)
             func_bound_add_epilog = 1;
 #endif
 #if TARGETOS_NetBSD
-        if (v == TOK_longjmp) /* __longjmp14 �ւ̖��O�ύX�����ɖ߂� */
+        if (v == TOK_longjmp) /* __longjmp14 ?????O??X???????? */
             sv->sym->asm_label = TOK___bound_longjmp;
 #endif
     }
 }
 
-/* S ���� E �܂ł̃��[�J���V���{���ɑ΂��ċ��E����ǉ�����i->prev ��H��j */
+/* S ???? E ??????[?J???V???{??????????E??????????i->prev ??H??j */
 static void add_local_bounds(Sym* s, Sym* e)
 {
     for (; s != e; s = s->prev) {
         if (!s->v || (s->r & VT_VALMASK) != VT_LOCAL)
             continue;
-        /* �z��E�\���́E���p�̂͏�ɃA�h���X����邽�ߒǉ����� */
+        /* ?z??E?\????E???p?????A?h???X????????????? */
         if ((s->type.t & VT_ARRAY)
             || (s->type.t & VT_BTYPE) == VT_STRUCT
             || s->a.addrtaken) {
-            /* ���[�J���̋��E����ǉ� */
+            /* ???[?J??????E?????? */
             int align, size = type_size(&s->type, &align);
             addr_t* bounds_ptr = section_ptr_add(lbounds_section,
                 2 * sizeof(addr_t));
@@ -7636,7 +7288,7 @@ static void add_local_bounds(Sym* s, Sym* e)
 }
 #endif
 
-/* sym_pop �̃��b�p�[�B�K�v�ɉ����ă��[�J���̋��E�����o�^���� */
+/* sym_pop ????b?p?[?B?K?v?????????[?J??????E?????o?^???? */
 static void pop_local_syms(Sym* b, int keep)
 {
 #ifdef CONFIG_TCC_BCHECK
@@ -7648,12 +7300,12 @@ static void pop_local_syms(Sym* b, int keep)
     sym_pop(&local_stack, b, keep);
 }
 
-/* lvalue �|�C���^�̃I�t�Z�b�g�𑝂₷�i�|�C���^���C���N�������g�j */
+/* lvalue ?|?C???^??I?t?Z?b?g?????i?|?C???^???C???N???????g?j */
 static void incr_offset(int offset)
 {
     int t = vtop->type.t;
-    gaddrof(); /* VT_LVAL ����菜�� */
-    vtop->type.t = VT_PTRDIFF_T; /* �X�J���[�^�ɐݒ� */
+    gaddrof(); /* VT_LVAL ??????? */
+    vtop->type.t = VT_PTRDIFF_T; /* ?X?J???[?^???? */
     vpushs(offset);
     gen_op('+');
     vtop->r |= VT_LVAL;
@@ -7666,7 +7318,7 @@ static void incr_bf_adr(int o)
     incr_offset(o);
 }
 
-/* �p�b�N���ꂽ�A�܂��͐��񂳂�Ă��Ȃ��r�b�g�t�B�[���h�̂��߂̃o�C�g�P�ʃ��[�h���[�h */
+/* ?p?b?N?????A????????????????r?b?g?t?B?[???h??????o?C?g?P????[?h???[?h */
 static void load_packed_bf(CType* type, int bit_pos, int bit_size)
 {
     int n, o, bits;
@@ -7699,7 +7351,7 @@ static void load_packed_bf(CType* type, int bit_pos, int bit_size)
     }
 }
 
-/* �p�b�N���ꂽ�A�܂��͐��񂳂�Ă��Ȃ��r�b�g�t�B�[���h�̂��߂̃o�C�g�P�ʃX�g�A���[�h */
+/* ?p?b?N?????A????????????????r?b?g?t?B?[???h??????o?C?g?P??X?g?A???[?h */
 static void store_packed_bf(int bit_pos, int bit_size)
 {
     int bits, n, o, m, c;
@@ -7747,20 +7399,20 @@ static int adjust_bf(SValue* sv, int bit_pos, int bit_size)
     return t;
 }
 
-/* vtop ���N���X 'rc' �ɑ����郌�W�X�^�Ɋi�[����Blvalue �͒l�ɕϊ������B
-   �\���̂̂悤�Ƀ��W�X�^�l�ɕϊ��ł��Ȃ��ꍇ�͎g���Ȃ��B */
+/* vtop ???N???X 'rc' ????????W?X?^??i?[????Blvalue ??l?????????B
+   ?\??????????W?X?^?l??????????????g??????B */
 ST_FUNC int gv(int rc)
 {
     int r, r2, r_ok, r2_ok, rc2, bt;
     int bit_pos, bit_size, size, align;
 
-    /* ����: get_reg �� vstack[] ��ύX����\�������� */
+    /* ????: get_reg ?? vstack[] ???X?????\???????? */
     if (vtop->type.t & VT_BITFIELD) {
         CType type;
 
         bit_pos = BIT_POS(vtop->type.t);
         bit_size = BIT_SIZE(vtop->type.t);
-        /* ���[�v������邽�߃r�b�g�t�B�[���h������菜�� */
+        /* ???[?v?????????r?b?g?t?B?[???h????????? */
         vtop->type.t &= ~VT_STRUCT_MASK;
 
         type.ref = NULL;
@@ -7780,13 +7432,13 @@ ST_FUNC int gv(int rc)
         }
         else {
             int bits = (type.t & VT_BTYPE) == VT_LLONG ? 64 : 32;
-            /* �㑱�̉��Z�ŕ�����`�d�����邽�߂� int �ɃL���X�g���� */
+            /* ??????Z???????`?d????????? int ??L???X?g???? */
             gen_cast(&type);
-            /* �V�t�g�𐶐� */
+            /* ?V?t?g???? */
             vpushi(bits - (bit_pos + bit_size));
             gen_op(TOK_SHL);
             vpushi(bits - bit_size);
-            /* ����: ���������̏ꍇ�� SHR �֕ϊ������ */
+            /* ????: ????????????? SHR ????????? */
             gen_op(TOK_SAR);
         }
         r = gv(rc);
@@ -7794,7 +7446,7 @@ ST_FUNC int gv(int rc)
     else {
         if (is_float(vtop->type.t) &&
             (vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-            /* CPU �͒ʏ핂�������_�萔�𒼐ڈ����Ȃ����߁A�f�[�^�Z�O�����g�Ɋi�[���� */
+            /* CPU ???????????_????????????????A?f?[?^?Z?O?????g??i?[???? */
             init_params p = { rodata_section };
             unsigned long offset;
             size = type_size(&vtop->type, &align);
@@ -7814,16 +7466,16 @@ ST_FUNC int gv(int rc)
         bt = vtop->type.t & VT_BTYPE;
 
 #ifdef TCC_TARGET_RISCV64
-        /* XXX: �傫�ȃn�b�N */
+        /* XXX: ????n?b?N */
         if (bt == VT_LDOUBLE && rc == RC_FLOAT)
             rc = RC_INT;
 #endif
         rc2 = RC2_TYPE(bt, rc);
 
-        /* �ă��[�h���K�v�ȏꍇ:
-           - �萔
-           - lvalue�i�|�C���^���Q�Ɖ�������K�v������j
-           - ���łɃ��W�X�^�ɂ��邪�K�؂ȃN���X�łȂ� */
+        /* ????[?h???K?v???:
+           - ??
+           - lvalue?i?|?C???^???Q?????????K?v??????j
+           - ???????W?X?^??????K???N???X???? */
         r = vtop->r & VT_VALMASK;
         r_ok = !(vtop->r & VT_LVAL) && (r < VT_CONST) && (reg_classes[r] & rc);
         r2_ok = !rc2 || ((vtop->r2 < VT_CONST) && (reg_classes[vtop->r2] & rc2));
@@ -7831,7 +7483,7 @@ ST_FUNC int gv(int rc)
         if (!r_ok || !r2_ok) {
 
             if (!r_ok) {
-                if (1 /* �P�[�X�ɂ���Ă� 'mov (r),r' ���\ */
+                if (1 /* ?P?[?X??????? 'mov (r),r' ????\ */
                     && r < VT_CONST
                     && (reg_classes[r] & rc)
                     && !rc2
@@ -7845,42 +7497,42 @@ ST_FUNC int gv(int rc)
                 int load_type = (bt == VT_QFLOAT) ? VT_DOUBLE : VT_PTRDIFF_T;
                 int original_type = vtop->type.t;
 
-                /* 2 ���W�X�^�^�̃��[�h: �ꎞ�I�� 2 ���[�h�Ɋg������ */
+                /* 2 ???W?X?^?^????[?h: ???I?? 2 ???[?h??g?????? */
                 if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-                    /* �萔�����[�h */
+                    /* ???????[?h */
                     unsigned long long ll = vtop->c.i;
-                    vtop->c.i = ll; /* �ŏ��̃��[�h */
+                    vtop->c.i = ll; /* ???????[?h */
                     load(r, vtop);
-                    vtop->r = r; /* ���W�X�^�l��ۑ� */
-                    vpushi(ll >> 32); /* 2 �Ԗڂ̃��[�h */
+                    vtop->r = r; /* ???W?X?^?l???? */
+                    vpushi(ll >> 32); /* 2 ??????[?h */
                 }
                 else if (vtop->r & VT_LVAL) {
-                    /* long long �|�C���^�������ŕύX�������Ȃ����߁A
-                       ���̃C���X�^���X���X�^�b�N�֑ޔ����� */
+                    /* long long ?|?C???^?????????X?????????????A
+                       ????C???X?^???X???X?^?b?N???????? */
                     save_reg_upstack(vtop->r, 1);
-                    /* ���������烍�[�h */
+                    /* ???????????[?h */
                     vtop->type.t = load_type;
                     load(r, vtop);
                     vdup();
-                    vtop[-1].r = r; /* ���W�X�^�l��ۑ� */
-                    /* 2 �Ԗڂ̃��[�h�𓾂邽�߂Ƀ|�C���^�𑝂₷ */
+                    vtop[-1].r = r; /* ???W?X?^?l???? */
+                    /* 2 ??????[?h???????|?C???^???? */
                     incr_offset(PTR_SIZE);
                 }
                 else {
-                    /* ���W�X�^�Ԃ̈ړ� */
+                    /* ???W?X?^????? */
                     if (!r_ok)
                         load(r, vtop);
                     if (r2_ok && vtop->r2 < VT_CONST)
                         goto done;
                     vdup();
-                    vtop[-1].r = r; /* ���W�X�^�l��ۑ� */
+                    vtop[-1].r = r; /* ???W?X?^?l???? */
                     vtop->r = vtop[-1].r2;
                 }
-                /* 2 �Ԗڂ̃��W�X�^���m�ہBget_reg() ���܂� SValue �� r2 ���J�����悤�Ƃ���_�Ɉˑ����� */
+                /* 2 ??????W?X?^???m??Bget_reg() ????? SValue ?? r2 ???J???????????_???????? */
                 r2 = get_reg(rc2);
                 load(r2, vtop);
                 vpop();
-                /* 2 �Ԗڂ̃��W�X�^���������� */
+                /* 2 ??????W?X?^?????????? */
                 vtop->r2 = r2;
             done:
                 vtop->type.t = original_type;
@@ -7888,13 +7540,13 @@ ST_FUNC int gv(int rc)
             else {
                 if (vtop->r == VT_CMP)
                     vset_VT_JMP();
-                /* 1 ���W�X�^�^�̃��[�h */
+                /* 1 ???W?X?^?^????[?h */
                 load(r, vtop);
             }
         }
         vtop->r = r;
 #ifdef TCC_TARGET_C67
-        /* double �̓��W�X�^�y�A���g�p */
+        /* double ????W?X?^?y?A???g?p */
         if (bt == VT_DOUBLE)
             vtop->r2 = r + 1;
 #endif
@@ -7902,17 +7554,17 @@ ST_FUNC int gv(int rc)
     return r;
 }
 
-/* vtop[-1] �� vtop[0] �����ꂼ�� rc1 �� rc2 �̃N���X�Ő������� */
+/* vtop[-1] ?? vtop[0] ???????? rc1 ?? rc2 ??N???X????????? */
 ST_FUNC void gv2(int rc1, int rc2)
 {
-    /* �ėp�I�ȃ��W�X�^���ɐ�������B������ VT_JMP �� VT_CMP �̒l��
-       �����[�h�G���[������邽�ߏ�ɐ�ɐ�������K�v������ */
+    /* ??p?I????W?X?^???????????B?????? VT_JMP ?? VT_CMP ??l??
+       ?????[?h?G???[????????????????????K?v?????? */
     if (vtop->r != VT_CMP && rc1 <= rc2) {
         vswap();
         gv(rc1);
         vswap();
         gv(rc2);
-        /* �ŏ��̃��W�X�^�ɑ΂��čă��[�h���K�v�����e�X�g */
+        /* ???????W?X?^?????????[?h???K?v?????e?X?g */
         if ((vtop[-1].r & VT_VALMASK) >= VT_CONST) {
             vswap();
             gv(rc1);
@@ -7924,7 +7576,7 @@ ST_FUNC void gv2(int rc1, int rc2)
         vswap();
         gv(rc1);
         vswap();
-        /* �ŏ��̃��W�X�^�ɑ΂��čă��[�h���K�v�����e�X�g */
+        /* ???????W?X?^?????????[?h???K?v?????e?X?g */
         if ((vtop[0].r & VT_VALMASK) >= VT_CONST) {
             gv(rc2);
         }
@@ -7932,7 +7584,7 @@ ST_FUNC void gv2(int rc1, int rc2)
 }
 
 #if PTR_SIZE == 4
-/* �X�^�b�N��� 64bit �l�� 2 �� int �ɓW�J���� */
+/* ?X?^?b?N??? 64bit ?l?? 2 ??? int ??W?J???? */
 ST_FUNC void lexpand(void)
 {
     int u, v;
@@ -7957,7 +7609,7 @@ ST_FUNC void lexpand(void)
 #endif
 
 #if PTR_SIZE == 4
-/* 2 �� int ���� long long ���\�z���� */
+/* 2 ??? int ???? long long ???\?z???? */
 static void lbuild(int t)
 {
     gv2(RC_INT, RC_INT);
@@ -7967,7 +7619,7 @@ static void lbuild(int t)
 }
 #endif
 
-/* �X�^�b�N�G���g�������W�X�^�ɕϊ����A���̒l��ʂ̃��W�X�^�ɕ������� */
+/* ?X?^?b?N?G???g???????W?X?^???????A????l??????W?X?^????????? */
 static void gv_dup(void)
 {
     int t, rc, r;
@@ -7995,7 +7647,7 @@ static void gv_dup(void)
         return;
     }
 #endif
-    /* �l�𕡐� */
+    /* ?l???? */
     rc = RC_TYPE(t);
     gv(rc);
     r = get_reg(rc);
@@ -8005,7 +7657,7 @@ static void gv_dup(void)
 }
 
 #if PTR_SIZE == 4
-/* CPU ��ˑ��́i���������jlong long ���Z�𐶐����� */
+/* CPU ??????i?????????jlong long ???Z???????? */
 static void gen_opl(int op)
 {
     int t, a, b, op1, c, i;
@@ -8033,7 +7685,7 @@ static void gen_opl(int op)
         reg_lret = TREG_R3;
 #endif
     gen_func:
-        /* �ėp�� long long �֐����Ăяo�� */
+        /* ??p?? long long ????????o?? */
         vpush_helper_func(func);
         vrott(3);
         gfunc_call(2);
@@ -8085,7 +7737,7 @@ static void gen_opl(int op)
             gen_op('+');
         }
         else if (op == '+' || op == '-') {
-            /* XXX: �L�����[�Ȃ��̕��@���ǉ�����iMIPS �� alpha �p�j */
+            /* XXX: ?L?????[???????@?????????iMIPS ?? alpha ?p?j */
             if (op == '+')
                 op1 = TOK_ADDC1;
             else
@@ -8118,8 +7770,8 @@ static void gen_opl(int op)
             vrotb(3);
             /* stack: L H shift */
             c = (int)vtop->c.i;
-            /* �萔�̏ꍇ: ���P�� */
-            /* ����: ���ׂẴR�����g�� SHL �p�B���̑��̓��[�h�����ւ��邱�Ƃŏ�������� */
+            /* ?????: ???P?? */
+            /* ????: ??????R?????g?? SHL ?p?B?????????[?h???????????????????? */
             vpop();
             if (op != TOK_SHL)
                 vswap();
@@ -8166,7 +7818,7 @@ static void gen_opl(int op)
             lbuild(t);
         }
         else {
-            /* XXX: x86 �p�̍����ȃt�H�[���o�b�N��p�ӂ��ׂ����H */
+            /* XXX: x86 ?p???????t?H?[???o?b?N??p?????????H */
             switch (op) {
             case TOK_SAR:
                 func = TOK___ashrdi3;
@@ -8181,7 +7833,7 @@ static void gen_opl(int op)
         }
         break;
     default:
-        /* ��r���Z */
+        /* ??r???Z */
         t = vtop->type.t;
         vswap();
         lexpand();
@@ -8193,13 +7845,13 @@ static void gen_opl(int op)
         vtop[-2] = tmp;
         /* stack: L1 L2 H1 H2 */
         if (!cur_switch || cur_switch->bsym) {
-            /* ����ňقȂ郌�W�X�^���ۑ������̂������B
-               switch �� case ��r�ł͕s�v */
+            /* ?????????W?X?^?????????????????B
+               switch ?? case ??r???s?v */
             save_regs(4);
         }
-        /* ��ʃ��[�h���r */
+        /* ?????[?h???r */
         op1 = op;
-        /* �l���������ꍇ�A���ʃ��[�h���r����K�v������B�W�����v�����]���邽�߁A�e�X�g�����]���� */
+        /* ?l???????????A??????[?h???r????K?v??????B?W?????v?????]??????A?e?X?g?????]???? */
         if (op1 == TOK_LT)
             op1 = TOK_LE;
         else if (op1 == TOK_GT)
@@ -8217,13 +7869,13 @@ static void gen_opl(int op)
         else {
             a = gvtst(1, 0);
             if (op != TOK_EQ) {
-                /* �������Ȃ��e�X�g�𐶐� */
+                /* ??????????e?X?g???? */
                 vpushi(0);
                 vset_VT_CMP(TOK_NE);
                 b = gvtst(0, 0);
             }
         }
-        /* ���ʃ��[�h�̔�r�B��ɕ����Ȃ� */
+        /* ??????[?h???r?B????????? */
         op1 = op;
         if (op1 == TOK_LT)
             op1 = TOK_ULT;
@@ -8245,7 +7897,7 @@ static void gen_opl(int op)
 }
 #endif
 
-/* �l�𐳋K�� */
+/* ?l???K?? */
 static uint64_t value64(uint64_t l1, int t)
 {
     if ((t & VT_BTYPE) == VT_LLONG
@@ -8268,7 +7920,7 @@ static int gen_opic_lt(uint64_t a, uint64_t b)
     return (a ^ (uint64_t)1 << 63) < (b ^ (uint64_t)1 << 63);
 }
 
-/* �����萔�̍œK���Ɗe��@�B��ˑ��̍œK�������� */
+/* ?????????K????e??@?B???????K???????? */
 static void gen_opic(int op)
 {
     SValue* v1 = vtop - 1;
@@ -8296,10 +7948,10 @@ static void gen_opic(int op)
         case '%':
         case TOK_UDIV:
         case TOK_UMOD:
-            /* 0 �ŏ��Z����ꍇ�́A�����I�ȏ��Z�𐶐����� */
+            /* 0 ????Z???????A?????I????Z???????? */
             if (l2 == 0) {
                 if (CONST_WANTED && !NOEVAL_WANTED)
-                    tcc_error("�萔���ł̃[���ɂ�鏜�Z");
+                    tcc_error("???????[???????Z");
                 goto general_case;
             }
             switch (op) {
@@ -8346,14 +7998,14 @@ static void gen_opic(int op)
         if (c1 && ((l1 == 0 &&
             (op == TOK_SHL || op == TOK_SHR || op == TOK_SAR)) ||
             (l1 == -1 && op == TOK_SAR))) {
-            /* (0 << x), (0 >> x) ����� (-1 >> x) ��萔�Ƃ��Ĉ��� */
+            /* (0 << x), (0 >> x) ????? (-1 >> x) ??????????? */
             vpop();
         }
         else if (c2 && ((l2 == 0 && (op == '&' || op == '*')) ||
             (op == '|' &&
                 (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))) ||
             (l2 == 1 && (op == '%' || op == TOK_UMOD)))) {
-            /* (x & 0), (x * 0), (x | -1) ����� (x % 1) ��萔�Ƃ��Ĉ��� */
+            /* (x & 0), (x * 0), (x | -1) ????? (x % 1) ??????????? */
             if (l2 == 1)
                 vtop->c.i = 0;
             vswap();
@@ -8367,11 +8019,11 @@ static void gen_opic(int op)
                 l2 == 0) ||
             (op == '&' &&
                 (l2 == -1 || (l2 == 0xFFFFFFFF && t2 != VT_LLONG))))) {
-            /* x*1, x-0, x&-1 �̂悤�� NOP ���Z���������� */
+            /* x*1, x-0, x&-1 ????? NOP ???Z?????????? */
             vtop--;
         }
         else if (c2 && (op == '*' || op == TOK_PDIV || op == TOK_UDIV || op == TOK_UMOD)) {
-            /* ��Z�⏜�Z�̑���ɃV�t�g���g���邩���� */
+            /* ??Z???Z??????V?t?g???g???????? */
             if (l2 > 0 && (l2 & (l2 - 1)) == 0) {
                 int n = -1;
                 if (op == TOK_UMOD) {
@@ -8396,11 +8048,11 @@ static void gen_opic(int op)
         else if (c2 && (op == '+' || op == '-') &&
             (r = vtop[-1].r & (VT_VALMASK | VT_LVAL | VT_SYM),
                 r == (VT_CONST | VT_SYM) || r == VT_LOCAL)) {
-            /* �V���{�� + �萔 �̃P�[�X */
+            /* ?V???{?? + ?? ??P?[?X */
             if (op == '-')
                 l2 = -l2;
             l2 += vtop[-1].c.i;
-            /* �o�b�N�G���h�̓V���{���ɑ΂��� +-1<<31 �𒴂�����Z����Ɉ�����Ƃ͌���Ȃ��B���������l�͍��Ȃ� */
+            /* ?o?b?N?G???h??V???{???????? +-1<<31 ????????Z??????????????????B?????????l?????? */
             if ((int)l2 != l2)
                 goto general_case;
             vtop--;
@@ -8453,13 +8105,13 @@ void gen_negf(int op)
 }
 #endif
 
-/* �萔�`���𔺂����������_���Z�𐶐����� */
+/* ???`???????????????_???Z???????? */
 static void gen_opif(int op)
 {
     int c1, c2, i, bt;
     SValue* v1, * v2;
 #if defined _MSC_VER && defined __x86_64__
-    /* f1:-0.0, f2:0.0 �̏ꍇ�� f1 -= f2 �̈����œK��������� */
+    /* f1:-0.0, f2:0.0 ????? f1 -= f2 ???????K????????? */
     volatile
 #endif
         long double f1, f2;
@@ -8486,7 +8138,7 @@ static void gen_opif(int op)
             f1 = v1->c.ld;
             f2 = v2->c.ld;
         }
-        /* ����: �萔�`���͗L���Ȑ��iNaN �△����łȂ��j�ɑ΂��Ă̂ݍs���iANSI �K�i�j */
+        /* ????: ???`????L??????iNaN ??????????j????????s???iANSI ?K?i?j */
         if (!(ieee_finite(f1) || !ieee_finite(f2)) && !CONST_WANTED)
             goto general_case;
         switch (op) {
@@ -8496,11 +8148,11 @@ static void gen_opif(int op)
         case '/':
             if (f2 == 0.0) {
                 union { float f; unsigned u; } x1, x2, y;
-                /* �������q���łȂ��ꍇ�͎��s���ɕ��������_��O�𔭐�������K�v������\�������邽�߁A
-                   �����łȂ���Β萔��ݍ��݂��s�� */
+                /* ???????q????????????s????????????_??O??????????K?v???????\??????????A
+                   ????????????????????s?? */
                 if (!CONST_WANTED)
                     goto general_case;
-                /* x87 ��ł� 0.0/0.0 �̎��s�����ʂ� -nan �ƂȂ�i���̃R���p�C���ł����l�j */
+                /* x87 ???? 0.0/0.0 ????s??????? -nan ????i????R???p?C????????l?j */
                 x1.f = f1, x2.f = f2;
                 if (f1 == 0.0)
                     y.u = 0x7fc00000; /* nan */
@@ -8563,9 +8215,9 @@ static void gen_opif(int op)
     }
 }
 
-/* �^���o�͂���B'varstr' �� NULL �łȂ��ꍇ�͕ϐ������^�ɕ\������ */
-/* XXX: ���p�� (union) */
-/* XXX: �z�񂨂�ъ֐��|�C���^�̕\����ǉ����� */
+/* ?^???o?????B'varstr' ?? NULL ???????????????^??\?????? */
+/* XXX: ???p?? (union) */
+/* XXX: ?z????????|?C???^??\?????????? */
 static void type_to_str(char* buf, int buf_size,
     CType* type, const char* varstr)
 {
@@ -8736,7 +8388,7 @@ static inline int is_null_pointer(SValue* p)
             );
 }
 
-/* �֐��^���r����BOLD�i�Â��j�֐��͔C�ӂ̐V�����֐��Ƀ}�b�`���� */
+/* ????^???r????BOLD?i????j?????C???V?????????}?b?`???? */
 static int is_compatible_func(CType* type1, CType* type2)
 {
     Sym* s1, * s2;
@@ -8765,7 +8417,7 @@ static int is_compatible_func(CType* type1, CType* type2)
     }
 }
 
-/* type1 �� type2 �������Ȃ�^��Ԃ��Bunqualified ���^�Ȃ�A�^�̏C���q�͖��������B */
+/* type1 ?? type2 ?????????^?????Bunqualified ???^???A?^??C???q??????????B */
 static int compare_types(CType* type1, CType* type2, int unqualified)
 {
     CPP_WALKER_DEPTH_GUARD("compare_types");
@@ -8832,15 +8484,15 @@ static int compare_types(CType* type1, CType* type2, int unqualified)
 #define CMP_OP 'C'
 #define SHIFT_OP 'S'
 
-/* OP1 �� OP2 �����Z OP �� "����" �ł��邩���`�F�b�N����B�����^�� DEST �Ɋi�[�����i�|�C���^�̉����Z�������j�B */
+/* OP1 ?? OP2 ?????Z OP ?? "????" ????????`?F?b?N????B?????^?? DEST ??i?[?????i?|?C???^??????Z???????j?B */
     /* for shifts, 'combine' only left operand */
-    /* �V�t�g�̏ꍇ�A'combine' �͍��I�y�����h�݂̂����� */
+    /* ?V?t?g????A'combine' ????I?y?????h???????? */
     /* strip qualifiers before comparing */
-    /* ��r�O�ɏC���q����菜�� */
+    /* ??r?O??C???q??????? */
     /* Default Vs explicit signedness only matters for char */
-    /* �f�t�H���g�Ɩ����I�ȕ����w��̈Ⴂ�� char �̏ꍇ�ɂ̂ݖ��ƂȂ� */
+    /* ?f?t?H???g??????I??????w?????? char ???????????? */
     /* XXX: bitfields ? */
-    /* XXX: �r�b�g�t�B�[���h ? */
+    /* XXX: ?r?b?g?t?B?[???h ? */
 static int combine_types(CType* dest, SValue* op1, SValue* op2, int op)
 {
     CType* type1, * type2, type;
@@ -8877,8 +8529,8 @@ static int combine_types(CType* dest, SValue* op1, SValue* op2, int op)
                with a warning */
             if ((op == '?' || op == CMP_OP)
                 && (is_integer_btype(bt1) || is_integer_btype(bt2)))
-                tcc_warning("�|�C���^/�����̕s��v: %s",
-                    op == '?' ? "�������Z�q" : "��r");
+                tcc_warning("?|?C???^/??????s??v: %s",
+                    op == '?' ? "???????Z?q" : "??r");
             else if (op != '-' || !is_integer_btype(bt2))
                 ret = 0;
             type = *(bt1 == VT_PTR ? type1 : type2);
@@ -9009,7 +8661,7 @@ redo:
     }
     else if (!combine_types(&combtype, vtop - 1, vtop, op_class)) {
     op_err:
-        tcc_error("�񍀉��Z�̃I�y�����h�^���s���ł�");
+        tcc_error("?????Z??I?y?????h?^???s?????");
     }
     else if (bt1 == VT_PTR || bt2 == VT_PTR) {
         /* at least one operand is a pointer */
@@ -9041,7 +8693,7 @@ redo:
             }
 #if PTR_SIZE == 4
             if (bt2 == VT_LLONG)
-                /* XXX: �����Ő؂�̂Ă�Bgen_opl �� ptr + long long �������Ȃ����� */
+                /* XXX: ???????????Bgen_opl ?? ptr + long long ????????????? */
                 gen_cast_s(VT_INT);
 #endif
             type1 = vtop[-1].type;
@@ -9049,7 +8701,7 @@ redo:
             gen_op('*');
 #ifdef CONFIG_TCC_BCHECK
             if (tcc_state->do_bounds_check && !CONST_WANTED) {
-                /* ���E�����t���|�C���^�̏ꍇ�A���E���e�X�g���邽�߂̓��ʂȃR�[�h�𐶐����� */
+                /* ???E?????t???|?C???^????A???E???e?X?g???????????R?[?h???????? */
                 if (op == '-') {
                     vpushi(0);
                     vswap();
@@ -9076,10 +8728,10 @@ redo:
         }
     std_op:
         t = t2 = combtype.t;
-        /* �V�t�g�� long long �̓���P�[�X: �V�t�g�͐����̂܂܂ɂ��� */
+        /* ?V?t?g?? long long ?????P?[?X: ?V?t?g????????????? */
         if (op_class == SHIFT_OP)
             t2 = VT_INT;
-        /* XXX: ����A�ꕔ�̕����Ȃ����Z�͖����I�Ȃ̂ŁA�����ŕϊ����� */
+        /* XXX: ????A?????????????Z??????I????A???????????? */
         if (t & VT_UNSIGNED) {
             if (op == TOK_SAR)
                 op = TOK_SHR;
@@ -9105,7 +8757,7 @@ redo:
         else
             gen_opic(op);
         if (op_class == CMP_OP) {
-            /* �֌W���Z�q: ���ʂ� int */
+            /* ??W???Z?q: ????? int */
             vtop->type.t = VT_INT;
         }
         else {
@@ -9330,7 +8982,7 @@ static void gen_cast(CType* type)
         gv(RC_INT);
 
     if (IS_ENUM(type->t) && type->ref->c < 0)
-        tcc_error("�s���S�^�ւ̃L���X�g");
+        tcc_error("?s???S?^???L???X?g");
 
     dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
     sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
@@ -9465,7 +9117,7 @@ again:
         if (ds == ss && ds >= 4)
             goto done;
         if (dbt_bt == VT_PTR || sbt_bt == VT_PTR) {
-            tcc_warning("�|�C���^�Ɛ����̃T�C�Y���قȂ�Ԃ̃L���X�g�ł�");
+            tcc_warning("?|?C???^???????T?C?Y????????L???X?g???");
             if (sbt_bt == VT_PTR) {
                 /* put integer type to allow logical operations below */
                 vtop->type.t = (PTR_SIZE == 8 ? VT_LLONG : VT_INT);
@@ -9639,7 +9291,7 @@ static void vpush_type_size(CType* type, int* a)
     else {
         int size = type_size(type, a);
         if (size < 0)
-            tcc_error("�s���Ȍ^�T�C�Y�ł�");
+            tcc_error("?s????^?T?C?Y???");
         vpushs(size);
     }
 }
@@ -9676,7 +9328,7 @@ static int is_compatible_unqualified_types(CType* type1, CType* type2)
 
 static void cast_error(CType* st, CType* dt)
 {
-    type_incompatibility_error(st, dt, "'%s' �� '%s' �ɕϊ��ł��܂���");
+    type_incompatibility_error(st, dt, "'%s' ?? '%s' ????????????");
 }
 
 /* verify type compatibility to store vtop in 'dt' type */
@@ -9695,12 +9347,12 @@ static void verify_assign_cast(CType* dt)
            gen_assign_cast on every call. */
         if (tcc_state->cpp && !(dt->t & VT_REFERENCE))
             tcc_error("assignment of read-only location");
-        tcc_warning("�ǂݎ���p�̏ꏊ�ւ̑���ł�");
+        tcc_warning("??????p???????????");
     }
     switch (dbt) {
     case VT_VOID:
         if (sbt != dbt)
-            tcc_error("void �^�ւ̑��");
+            tcc_error("void ?^?????");
         break;
     case VT_PTR:
         /* special cases for pointers */
@@ -9713,7 +9365,7 @@ static void verify_assign_cast(CType* dt)
             break;
         /* accept implicit pointer to integer cast with warning */
         if (is_integer_btype(sbt)) {
-            tcc_warning("�L���X�g�Ȃ��Ő�������|�C���^������܂�");
+            tcc_warning("?L???X?g????????????|?C???^????????");
             break;
         }
         if (sbt == VT_PTR)
@@ -9754,7 +9406,7 @@ static void verify_assign_cast(CType* dt)
                    and signed int targets.  */
             }
             else {
-                tcc_warning("�݊����̂Ȃ��|�C���^�^����̑���ł�");
+                tcc_warning("??????????|?C???^?^??????????");
                 break;
             }
         }
@@ -9766,7 +9418,7 @@ static void verify_assign_cast(CType* dt)
     case VT_INT:
     case VT_LLONG:
         if (sbt == VT_PTR || sbt == VT_FUNC) {
-            tcc_warning("�L���X�g�Ȃ��Ń|�C���^���琮��������܂�");
+            tcc_warning("?L???X?g?????|?C???^??????????????");
         }
         else if (sbt == VT_STRUCT) {
             goto case_VT_STRUCT;
@@ -10075,7 +9727,7 @@ redo:
                 s = external_global_sym(tok, &func_old_type);
             }
             else if ((s->type.t & VT_BTYPE) != VT_FUNC)
-                tcc_error("'%s' �͊֐��Ƃ��Đ錾����Ă��܂���", get_tok_str(tok, &tokc));
+                tcc_error("'%s' ?????????????????????", get_tok_str(tok, &tokc));
             ad->cleanup_func = s;
             next();
             skip(')');
@@ -10130,7 +9782,7 @@ redo:
                 next();
                 n = expr_const();
                 if (n <= 0 || (n & (n - 1)) != 0)
-                    tcc_error("�A���C�������g�͐���2�̙p�łȂ���΂Ȃ�܂���");
+                    tcc_error("?A???C???????g?????2??p?????????????");
                 skip(')');
             }
             else {
@@ -10138,7 +9790,7 @@ redo:
             }
             ad->a.aligned = exact_log2p1(n);
             if (n != 1 << (ad->a.aligned - 1))
-                tcc_error("�A���C�������g %d �͎������傫�����܂�", n);
+                tcc_error("?A???C???????g %d ????????????????", n);
             break;
         case TOK_PACKED1:
         case TOK_PACKED2:
@@ -10212,7 +9864,7 @@ redo:
                 ad->attr_mode = VT_INT + 1;
                 break;
             default:
-                tcc_warning("__mode__(%s) �̓T�|�[�g����Ă��܂���\n", get_tok_str(tok, NULL));
+                tcc_warning("__mode__(%s) ??T?|?[?g???????????\n", get_tok_str(tok, NULL));
                 break;
             }
             next();
@@ -10228,7 +9880,7 @@ redo:
             ad->a.dllimport = 1;
             break;
         default:
-            tcc_warning_c(warn_unsupported)("���� '%s' �͖�������܂�", get_tok_str(t, NULL));
+            tcc_warning_c(warn_unsupported)("???? '%s' ???????????", get_tok_str(t, NULL));
             /* skip parameters */
             if (tok == '(') {
                 int parenthesis = 0;
@@ -10418,7 +10070,6 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
             }
         }
     }
-    cpp_match_registry_func_fields(class_sym, v1, &const_match, &nonconst_match);
     ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
     if (ret)
         return ret;
@@ -10781,7 +10432,7 @@ static Sym* find_field(CType* type, int v, int* cumofs)
         if (v < TOK_UIDENT)
             expect("field name");
         if (s->c < 0)
-            tcc_error("�s���S�^ '%s' �̎Q�Ɖ���",
+            tcc_error("?s???S?^ '%s' ??Q?????",
                 get_tok_str(s->v & ~SYM_STRUCT, 0));
     }
     while ((s = s->next) != NULL) {
@@ -10799,17 +10450,8 @@ static Sym* find_field(CType* type, int v, int* cumofs)
             }
         }
     }
-    {
-        Sym *reg;
-
-        reg = cpp_find_registry_field(type->ref, v1);
-        if (reg) {
-            *cumofs = reg->c;
-            return reg;
-        }
-    }
     if (!(v & SYM_FIELD))
-        tcc_error("�t�B�[���h��������܂���: %s", get_tok_str(v, NULL));
+        tcc_error("?t?B?[???h?????????????: %s", get_tok_str(v, NULL));
     return s;
 }
 
@@ -10991,7 +10633,7 @@ static void cpp_finish_member_call(Sym *s, SValue *user_args, int nb_user_args)
            arg1/RDX (gfunc_prolog inserts sret ahead of the list).
            Inserting `this` at position 0 here pushed sret to arg1
            instead, swapping this<->sret for any >8-byte struct return
-           (feat6a_big_struct, 問題と原因.md 12d/BUG-12). */
+           (feat6a_big_struct, ?????.md 12d/BUG-12). */
         int has_sret = (s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0;
         int insert_at = has_sret ? 1 : 0;
         int nmove = na - insert_at;
@@ -11522,7 +11164,7 @@ static void check_fields(CType* type, int check)
         if (v < SYM_FIRST_ANOM) {
             TokenSym* ts = table_ident[v - TOK_IDENT];
             if (check && (ts->tok & SYM_FIELD))
-                tcc_error("�����o '%s' ���d�����Ă��܂�", get_tok_str(v, NULL));
+                tcc_error("?????o '%s' ???d??????????", get_tok_str(v, NULL));
             ts->tok ^= SYM_FIELD;
         }
         else if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
@@ -12185,7 +11827,7 @@ do_decl:
                             if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
                                 flexible = 1;
                             else
-                                tcc_error("�t�B�[���h '%s' �͕s���S�^�ł�",
+                                tcc_error("?t?B?[???h '%s' ??s???S?^???",
                                     get_tok_str(v, NULL));
                         }
                         /* Stage 1: member function prototypes allowed in class only; struct in Stage 2+ */
@@ -12193,7 +11835,7 @@ do_decl:
                             ((type1.t & VT_BTYPE) == VT_VOID
                                 && !is_ctor_decl && !is_dtor_decl) ||
                             ((type1.t & VT_STORAGE) && !(is_class && (type1.t & VT_STATIC))))
-                            tcc_error("'%s' �ɑ΂��閳���Ȍ^",
+                            tcc_error("'%s' ??????????^",
                                 get_tok_str(v, NULL));
                         // G5: pure virtual `virtual R f() = 0;`.  Only the
                         // literal 0 is a pure-specifier; anything else after
@@ -12214,10 +11856,10 @@ do_decl:
                         bit_size = expr_const();
                         /* XXX: handle v = 0 case for messages */
                         if (bit_size < 0)
-                            tcc_error("�r�b�g�t�B�[���h '%s' �̕������ł�",
+                            tcc_error("?r?b?g?t?B?[???h '%s' ??????????",
                                 get_tok_str(v, NULL));
                         if (v && bit_size == 0)
-                            tcc_error("�r�b�g�t�B�[���h '%s' �̕���0�ł�",
+                            tcc_error("?r?b?g?t?B?[???h '%s' ?????0???",
                                 get_tok_str(v, NULL));
                         parse_attribute(&ad1);
                     }
@@ -12229,10 +11871,10 @@ do_decl:
                             bt != VT_SHORT &&
                             bt != VT_BOOL &&
                             bt != VT_LLONG)
-                            tcc_error("�r�b�g�t�B�[���h�̓X�J���[�^�łȂ���΂Ȃ�܂���");
+                            tcc_error("?r?b?g?t?B?[???h??X?J???[?^?????????????");
                         bsize = size * 8;
                         if (bit_size > bsize) {
-                            tcc_error("'%s' �̕����^�̋��e�͈͂𒴂��Ă��܂�",
+                            tcc_error("'%s' ??????^????e????????????",
                                 get_tok_str(v, NULL));
                         }
                         else if (bit_size == bsize
@@ -12241,7 +11883,7 @@ do_decl:
                             ;
                         }
                         else if (bit_size == 64) {
-                            tcc_error("�r�b�g�t�B�[���h��64�͖������ł�");
+                            tcc_error("?r?b?g?t?B?[???h??64??????????");
                         }
                         else {
                             type1.t = (type1.t & ~VT_STRUCT_MASK)
@@ -12299,7 +11941,7 @@ do_decl:
             skip('}');
             parse_attribute(&ad);
             if (ad.cleanup_func) {
-                tcc_warning("���� '__cleanup__' �͌^�ɑ΂��Ė�������܂�");
+                tcc_warning("???? '__cleanup__' ??^???????????????");
             }
             check_fields(type, 1);
             check_fields(type, 0);
@@ -12333,9 +11975,11 @@ do_decl:
             if (debug_modes)
                 tcc_debug_fix_anon(tcc_state, type);
             if (is_class) {
-                /* Synthetic special members materialize at ODR-use
-                 * (cpp_ensure_synthetic_odr / TU-end flush), not for SDK
-                 * classes parsed during #include. */
+                /* N7-02: inject implicit ctor/dtor bodies before the normal
+                 * inline replay so FEAT-4F/4G and dtor scope-exit reuse them. */
+                cpp_synthesize_implicit_special_members(s);
+                /* Convert in-class inline bodies into real global functions
+                 * (registered via inline_fns) so member calls can link. */
                 cpp_finish_member_inlines(s);
                 cpp_emit_vtable(s);
                 /* Virtual MI (Phase 2): runs after struct_layout so the base
@@ -12398,7 +12042,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
         basic_type1:
             if (u == VT_SHORT || u == VT_LONG) {
                 if (st != -1 || (bt != -1 && bt != VT_INT))
-                    tmbt: tcc_error("��{�^���������܂�");
+                    tmbt: tcc_error("??{?^???????????");
                 st = u;
             }
             else {
@@ -12436,7 +12080,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             else {
                 n = expr_const();
                 if (n < 0 || (n & (n - 1)) != 0)
-                    tcc_error("�A���C�������g�͐���2�̙p�łȂ���΂Ȃ�܂���");
+                    tcc_error("?A???C???????g?????2??p?????????????");
             }
             skip(')');
             ad->a.aligned = exact_log2p1(n);
@@ -12461,7 +12105,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             u = VT_BOOL;
             goto basic_type;
         case TOK_COMPLEX:
-            tcc_error("_Complex �͂܂��T�|�[�g����Ă��܂���");
+            tcc_error("_Complex ?????T?|?[?g???????????");
         case TOK_FLOAT:
             u = VT_FLOAT;
             goto basic_type;
@@ -12528,7 +12172,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
         case TOK_SIGNED2:
         case TOK_SIGNED3:
             if ((t & (VT_DEFSIGN | VT_UNSIGNED)) == (VT_DEFSIGN | VT_UNSIGNED))
-                tcc_error("�����t���Ɩ������̏C���q�����݂��Ă��܂�");
+                tcc_error("?????t???????????C???q?????????????");
             t |= VT_DEFSIGN;
             next();
             typespec_found = 1;
@@ -12542,7 +12186,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
             break;
         case TOK_UNSIGNED:
             if ((t & (VT_DEFSIGN | VT_UNSIGNED)) == VT_DEFSIGN)
-                tcc_error("�����t���Ɩ������̏C���q�����݂��Ă��܂�");
+                tcc_error("?????t???????????C???q?????????????");
             t |= VT_DEFSIGN | VT_UNSIGNED;
             next();
             typespec_found = 1;
@@ -12575,7 +12219,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 tcc_error("%s thread_local is unsupported in N6-02 (namespace-scope thread_local only)",
                           ((g | t) & VT_STATIC) ? "static" : "extern");
             if (t & (VT_EXTERN | VT_STATIC | VT_TYPEDEF | VT_CPP_TLS) & ~g)
-                tcc_error("�X�g���[�W�N���X�������w�肳��Ă��܂�");
+                tcc_error("?X?g???[?W?N???X???????w?????????");
             t |= g;
             next();
             break;
@@ -12616,7 +12260,7 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
                 sym_to_attr(ad, type1.ref);
             goto basic_type2;
         case TOK_THREAD_LOCAL:
-            tcc_error("_Thread_local �͎�������Ă��܂���");
+            tcc_error("_Thread_local ????????????????");
         case ':':
             // G1 (leading ::): a type head "::Name".  Resolve against the
             // global binding only; when the global side has no type there,
@@ -12884,7 +12528,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
                         break;
                     type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT | TYPE_PARAM);
                     if ((pt.t & VT_BTYPE) == VT_VOID)
-                        tcc_error("�p�����[�^�� void �Ƃ��Đ錾����Ă��܂�");
+                        tcc_error("?p?????[?^?? void ???????????????");
                     if (n == 0)
                         n = SYM_FIELD;
                 }
@@ -12915,7 +12559,7 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
                     break;
                 }
                 if (l == FUNC_NEW && !parse_btype(&pt, &ad1, 0))
-                    tcc_error("�����Ȍ^");
+                    tcc_error("??????^");
             }
         }
         else
@@ -13011,11 +12655,11 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
             if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST) {
                 n = vtop->c.i;
                 if (n < 0)
-                    tcc_error("�����Ȕz��T�C�Y");
+                    tcc_error("??????z??T?C?Y");
             }
             else {
                 if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-                    tcc_error("�ϒ��z��̃T�C�Y�͐����łȂ���΂Ȃ�܂���");
+                    tcc_error("?????z???T?C?Y??????????????????");
                 n = 0;
                 t1 = VT_VLA;
             }
@@ -13025,17 +12669,17 @@ static int post_type(CType* type, AttributeDef* ad, int storage, int td)
         post_type(type, ad, storage, (td & ~(TYPE_DIRECT | TYPE_ABSTRACT)) | TYPE_NEST);
 
         if ((type->t & VT_BTYPE) == VT_FUNC)
-            tcc_error("�֐��̔z��̐錾�͖����ł�");
+            tcc_error("?????z????????????");
         if ((type->t & VT_BTYPE) == VT_VOID
             || type_size(type, &align) < 0)
-            tcc_error("�s���S�^�v�f�̔z��錾�͖����ł�");
+            tcc_error("?s???S?^?v?f??z???????????");
 
         t1 |= type->t & VT_VLA;
 
         if (t1 & VT_VLA) {
             if (n < 0) {
                 if (td & TYPE_NEST)
-                    tcc_error("�ϒ��z��̓����T�C�Y�͖����I�Ɏw�肷��K�v������܂�");
+                    tcc_error("?????z???????T?C?Y??????I??w????K?v????????");
             }
             else {
                 loc -= type_size(&int_type, &align);
@@ -13237,7 +12881,7 @@ static void gfunc_param_typed(Sym* func, Sym* arg)
         }
     }
     else if (arg == NULL) {
-        tcc_error("�֐��ւ̈������������܂�");
+        tcc_error("????????????????????");
     }
     else {
         type = arg->type;
@@ -13406,7 +13050,7 @@ static void parse_atomic(int atok)
         case 'p':
             if ((vtop->type.t & VT_BTYPE) != VT_PTR
                 || type_size(pointed_type(&vtop->type), &align) != size)
-                tcc_error("���� %d �̃|�C���^�̃^�[�Q�b�g�^����v���܂���", arg + 1);
+                tcc_error("???? %d ??|?C???^??^?[?Q?b?g?^????v???????", arg + 1);
             gen_assign_cast(atom_ptr);
             break;
         case 'v':
@@ -13977,10 +13621,10 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
                 gaddrof();
                 mk_pointer(&vtop->type);
                 src_slot = cpp_spill_ptr_to_temp(&vtop->type);
-                // dest を先に積むと [dest, src] の順で既に vstore が
-                // 求める並びになる。旧コードの末尾 vswap() を残すと
-                // [src, dest] へ反転し、逆アドレスへ書き込んで即クラッシュ
-                // する不具合を実測したため、ここでは vswap() を入れない。
+                // dest ?????? [dest, src] ????? vstore ?
+                // ???????????????? vswap() ????
+                // [src, dest] ??????????????????????
+                // ????????????????? vswap() ??????
                 vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
                 indir();                // dest object lvalue
                 vset(ptype, VT_LOCAL | VT_LVAL, src_slot);
@@ -14043,10 +13687,10 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
             gaddrof();
             mk_pointer(&vtop->type);
             src_slot = cpp_spill_ptr_to_temp(&vtop->type);
-            // dest を先に積むと [dest, src] の順で既に vstore が求める
-            // 並びになる。末尾に vswap() を残すと [src, dest] へ反転し、
-            // 逆アドレスへ書き込んで即クラッシュする不具合を実測したため
-            // ここでは入れない（上のヒープ ctor-less 分岐と同じ理由）。
+            // dest ?????? [dest, src] ????? vstore ????
+            // ????????? vswap() ???? [src, dest] ?????
+            // ?????????????????????????????
+            // ?????????????? ctor-less ?????????
             vset(ptype, VT_LOCAL | VT_LVAL, ptr_slot);
             indir();                // dest object lvalue
             vset(ptype, VT_LOCAL | VT_LVAL, src_slot);
@@ -14446,7 +14090,7 @@ tok_next:
             if (CONST_WANTED && !NOEVAL_WANTED)
                 expect("constant");
             if (0 == local_scope)
-                tcc_error("�֐��O�ł� statement expression �͋�����Ă��܂���");
+                tcc_error("????O??? statement expression ???????????????");
             /* save all registers */
             save_regs(0);
             /* statement expression : we do not accept break/continue
@@ -14553,7 +14197,7 @@ tok_next:
         next();
         unary();
         if ((vtop->type.t & VT_BTYPE) == VT_PTR)
-            tcc_error("�P�� + �ɑ΂��ă|�C���^�͋��e����܂���");
+            tcc_error("?P?? + ??????|?C???^????e????????");
         /* In order to force cast, we add zero, except for floating point
        where we really need an noop (otherwise -0.0 will be transformed
        into +0.0).  */
@@ -14651,7 +14295,7 @@ tok_next:
         skip('(');
         level = expr_const();
         if (level < 0)
-            tcc_error("%s �͐��̐����̂ݎ󂯕t���܂�", get_tok_str(tok1, 0));
+            tcc_error("%s ?????????????t?????", get_tok_str(tok1, 0));
         skip(')');
         type.t = VT_VOID;
         mk_pointer(&type);
@@ -14688,7 +14332,7 @@ tok_next:
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start �̓��[�J���ϐ���K�v�Ƃ��܂�");
+            tcc_error("__builtin_va_start ????[?J???????K?v??????");
         gen_va_start();
         vstore();
         break;
@@ -14701,7 +14345,7 @@ tok_next:
         if (r == VT_LLOCAL)
             r = VT_LOCAL;
         if (r != VT_LOCAL)
-            tcc_error("__builtin_va_start �̓��[�J���ϐ���K�v�Ƃ��܂�");
+            tcc_error("__builtin_va_start ????[?J???????K?v??????");
         vtop->r = r;
         vtop->type = char_pointer_type;
         vtop->c.i += 8;
@@ -14833,7 +14477,7 @@ tok_next:
             skip(',');
             if (tok == TOK_DEFAULT) {
                 if (has_default)
-                    tcc_error("'default' ���������܂�");
+                    tcc_error("'default' ???????????");
                 has_default = 1;
                 if (!has_match)
                     learn = 1;
@@ -14848,7 +14492,7 @@ tok_next:
                 type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
                 if (compare_types(&controlling_type, &cur_type, 0)) {
                     if (has_match) {
-                        tcc_error("�^��2���v���܂���");
+                        tcc_error("?^??2???v???????");
                     }
                     has_match = 1;
                     learn = 1;
@@ -14869,7 +14513,7 @@ tok_next:
         if (!str) {
             char buf[60];
             type_to_str(buf, sizeof buf, &controlling_type, NULL);
-            tcc_error("�^ '%s' �͂ǂ̊֘A�t���ɂ���v���܂���", buf);
+            tcc_error("?^ '%s' ?????A?t???????v???????", buf);
         }
         begin_macro(str, 1);
         next();
@@ -14921,7 +14565,7 @@ tok_next:
     default:
     tok_identifier:
         if (tok < TOK_UIDENT)
-            tcc_error("'%s' �̑O�Ɏ����K�v�ł�", get_tok_str(tok, &tokc));
+            tcc_error("'%s' ??O??????K?v???", get_tok_str(tok, &tokc));
         t = tok;
         next();
         s = sym_find(t);
@@ -15054,7 +14698,7 @@ tok_next:
         if (!s || IS_ASM_SYM(s)) {
             const char* name = get_tok_str(t, NULL);
             if (tok != '(')
-                tcc_error("'%s' �͐錾����Ă��܂���", name);
+                tcc_error("'%s' ??????????????", name);
             /* for simple function calls, we tolerate undeclared
                external reference to int() function */
             tcc_warning_c(warn_implicit_function_declaration)(
@@ -15597,7 +15241,7 @@ post_ops:
                        gen_function/gfunc_prolog).  Inserting `this` at
                        position 0 unconditionally swapped this<->sret for
                        any method returning a struct too big for registers
-                       (feat6a_big_struct, 問題と原因.md 12d/BUG-12). */
+                       (feat6a_big_struct, ?????.md 12d/BUG-12). */
                     int has_sret = (s->type.t & VT_BTYPE) == VT_STRUCT && ret_nregs == 0;
                     int insert_at = has_sret ? 1 : 0;
                     int nmove;
@@ -16155,7 +15799,7 @@ ST_FUNC int expr_const(void)
     int64_t wc = expr_const64();
     c = wc;
     if (c != wc && (unsigned)c != wc)
-        tcc_error("�萔��32�r�b�g�𒴂��Ă��܂�");
+        tcc_error("????32?r?b?g??????????");
     return c;
 }
 
@@ -16247,7 +15891,7 @@ static void check_func_return(void)
         gfunc_return(&func_vt);
     }
     else {
-        tcc_warning("�֐����l��Ԃ��Ȃ��\��������܂�: '%s'", funcname);
+        tcc_warning("??????l?????????\??????????: '%s'", funcname);
     }
 }
 
@@ -16278,7 +15922,7 @@ static void case_sort(struct switch_t* sw)
         if (case_cmp(p[0]->v2, p[1]->v1) >= 0) {
             int l1 = p[0]->line, l2 = p[1]->line;
             /* using special format "%i:..." to show specific line */
-            tcc_error("%i:case �̒l���d�����Ă��܂�", l1 > l2 ? l1 : l2);
+            tcc_error("%i:case ??l???d??????????", l1 > l2 ? l1 : l2);
         }
         else if (p[0]->v2 + 1 == p[1]->v1 && p[0]->ind == p[1]->ind) {
             /* treat "case 1: case 2: case 3:" like "case 1 ... 3: */
@@ -16662,12 +16306,12 @@ again:
             }
             else {
                 if (vtop->type.t != VT_VOID)
-                    tcc_warning("void �^�̊֐����l��Ԃ��Ă��܂�");
+                    tcc_warning("void ?^???????l??????????");
                 vtop--;
             }
         }
         else if (b) {
-            tcc_warning("�l�̂Ȃ� 'return' �ł�");
+            tcc_warning("?l???? 'return' ???");
             b = 0;
         }
         if (tcc_state->cpp) {
@@ -16702,7 +16346,7 @@ again:
     else if (t == TOK_BREAK) {
         /* compute jump */
         if (!cur_scope->bsym)
-            tcc_error("break �͂����ł͎g�p�ł��܂���");
+            tcc_error("break ????????g?p????????");
         if (cur_switch && cur_scope->bsym == cur_switch->bsym) {
             if (cur_switch->break_dtor_bottom)
                 cpp_call_scope_dtors(cur_switch->break_dtor_bottom);
@@ -16720,7 +16364,7 @@ again:
     else if (t == TOK_CONTINUE) {
         /* compute jump */
         if (!cur_scope->csym)
-            tcc_error("continue �͂����ł͎g�p�ł��܂���");
+            tcc_error("continue ????????g?p????????");
         if (loop_scope)
             cpp_call_scope_dtors(loop_scope->continue_dtor_bottom);
         leave_scope(loop_scope);
@@ -16807,7 +16451,7 @@ again:
         cpp_flush_condition_temps();
         sw->cpp_local_state_id = cpp_local_state_id;
         if (!is_integer_btype(vtop->type.t & VT_BTYPE))
-            tcc_error("switch �̒l�������ł͂���܂���");
+            tcc_error("switch ??l????????????????");
         sw->sv = *vtop--; /* save switch value */
         a = 0;
         b = gjmp(0); /* jump to first case */
@@ -16848,7 +16492,7 @@ again:
             next();
             cr->v2 = value64(expr_const64(), t);
             if (case_cmp(cr->v2, cr->v1) < 0)
-                tcc_warning("��� case �͈͂ł�");
+                tcc_warning("??? case ?????");
         }
         /* case and default are unreachable from a switch under nocode_wanted */
         if (!cur_switch->nocode_wanted)
@@ -16864,7 +16508,7 @@ again:
         if (tcc_state->cpp)
             cpp_validate_switch_entry(cur_switch->cpp_local_state_id);
         if (cur_switch->def_sym)
-            tcc_error("'default' ���������܂�");
+            tcc_error("'default' ???????????");
         cur_switch->def_sym = cur_switch->nocode_wanted ? -1 : gind();
         skip(':');
         goto block_after_label;
@@ -16940,7 +16584,7 @@ again:
             s = label_find(t);
             if (s) {
                 if (s->r == LABEL_DEFINED)
-                    tcc_error("���x�� '%s' ���d�����Ă��܂�", get_tok_str(s->v, NULL));
+                    tcc_error("???x?? '%s' ???d??????????", get_tok_str(s->v, NULL));
                 s->r = LABEL_DEFINED;
             }
             else {
@@ -16983,7 +16627,7 @@ again:
             }
             else {
                 /* we accept this, but it is a mistake */
-                tcc_warning_c(warn_all)("�������̖����ł̃��x���̎g�p�͔񐄏��ł�");
+                tcc_warning_c(warn_all)("????????????????x????g?p????????");
             }
         }
         else {
@@ -17032,7 +16676,7 @@ static void skip_or_save_block(TokenString** str)
             break;
         if (tok == TOK_EOF) {
             if (str || level > 0)
-                tcc_error("�t�@�C���̏I�[�ɗ\���������B���܂���");
+                tcc_error("?t?@?C????I?[??\?????????B???????");
             else
                 break;
         }
@@ -17074,7 +16718,7 @@ static void parse_init_elem(int expr_type)
             || ((vtop->r & VT_SYM) && vtop->sym->a.dllimport)
 #endif
             )
-            tcc_error("�������q�̗v�f���萔�ł͂���܂���");
+            tcc_error("???????q??v?f??????????????");
         break;
     case EXPR_ANY:
         expr_eq();
@@ -17146,7 +16790,7 @@ static void decl_design_flex(init_params* p, Sym* ref, int index)
             ref->c = index + 1;
     }
     else if (ref->c < 0)
-        tcc_error("���̕����ł͉ϒ��z��̃T�C�Y��0�ł�");
+        tcc_error("??????????????z???T?C?Y??0???");
 }
 
 /* t is the array or struct type. c is the array or struct
@@ -17190,7 +16834,7 @@ static int decl_designator(init_params* p, CType* type, unsigned long c,
             s = type->ref;
             decl_design_flex(p, s, index_last);
             if (index < 0 || index_last >= s->c || index_last < index)
-                tcc_error("�Y�����z��͈̔͂𒴂��Ă��邩�A�͈͂���ł�");
+                tcc_error("?Y?????z??????????????A????????");
             if (cur_field)
                 (*cur_field)->c = index_last;
             type = pointed_type(type);
@@ -17227,7 +16871,7 @@ static int decl_designator(init_params* p, CType* type, unsigned long c,
             s = type->ref;
             decl_design_flex(p, s, index);
             if (index >= s->c)
-                tcc_error("�������q�̐����������܂�");
+                tcc_error("???????q??????????????");
             type = pointed_type(type);
             elem_size = type_size(type, &align);
             c += index * elem_size;
@@ -17239,7 +16883,7 @@ static int decl_designator(init_params* p, CType* type, unsigned long c,
                 is_integer_btype(f->type.t & VT_BTYPE))
                 *cur_field = f = f->next;
             if (!f)
-                tcc_error("�������q�̐����������܂�");
+                tcc_error("???????q??????????????");
             type = &f->type;
             c += f->c;
         }
@@ -17315,7 +16959,7 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
                 || (type->t & VT_BITFIELD))
             && !((vtop->r & VT_CONST) && vtop->sym->v >= SYM_FIRST_ANOM)
             )
-            tcc_error("�������q�̗v�f�̓��[�h���Ɍv�Z�ł��܂���");
+            tcc_error("???????q??v?f????[?h????v?Z????????");
 
         if (NODATA_WANTED) {
             vtop--;
@@ -17434,7 +17078,7 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
                             ; /* nothing to do for 0.0 */
 #ifndef TCC_CROSS_TEST
                         else
-                            tcc_error("long double �萔���N���X�R���p�C���ł��܂���");
+                            tcc_error("long double ?????N???X?R???p?C??????????");
 #endif
                     break;
 
@@ -17573,7 +17217,7 @@ static void decl_initializer(init_params* p, CType* type, unsigned long c, int f
             len = 0;
             cstr_reset(&initstr);
             if (size1 != (tok == TOK_STR ? 1 : sizeof(nwchar_t)))
-                tcc_error("�����񃊃e�����̌����������ł��܂���");
+                tcc_error("???????e???????????????????????");
             while (tok == TOK_STR || tok == TOK_LSTR) {
                 if (initstr.size)
                     initstr.size -= size1;
@@ -17600,7 +17244,7 @@ static void decl_initializer(init_params* p, CType* type, unsigned long c, int f
                 if (len < nb)
                     nb = len;
                 if (len > nb)
-                    tcc_warning("�z��̏����������񂪒������܂�");
+                    tcc_warning("?z???????????????????????");
                 /* in order to go faster for common case (char
                    string in global variable, we handle it
                    specifically */
@@ -17785,7 +17429,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
         // error out except for top-level incomplete arrays
         // (arrays of incomplete types are handled in array parsing)
         if (!(type->t & VT_ARRAY))
-            tcc_error("�s���S�^�̏������ł�");
+            tcc_error("?s???S?^??????????");
 
         /* If the base type itself was an array type of unspecified size
            (like in 'typedef int arr[]; arr x = {1};') then we will
@@ -17811,7 +17455,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
     if (size < 0) {
         /* If unknown size, do a dry-run 1st pass */
         if (!has_init)
-            tcc_error("�^�̃T�C�Y���s���ł�");
+            tcc_error("?^??T?C?Y???s?????");
         if (has_init == 2) {
             /* only get strings */
             init_str = tok_str_alloc();
@@ -17836,7 +17480,7 @@ static void decl_initializer_alloc(CType* type, AttributeDef* ad, int r,
         /* if still unknown size, error */
         size = type_size(type, &align);
         if (size < 0)
-            tcc_error("�^�̃T�C�Y���s���ł�");
+            tcc_error("?^??T?C?Y???s?????");
 
         /* If there's a flex member and it was used in the initializer
            adjust size.  */
@@ -18122,6 +17766,9 @@ static void gen_function(Sym* sym)
     }
 
     funcname = get_tok_str(sym->v, NULL);
+    if (tcc_state->cpp && !sym->parent_class && sym_scope(sym) == 0
+        && !strcmp(funcname, "main"))
+        tcc_state->cpp_n6_main_gateway_needed = 1;
     func_ind = ind;
     func_vt = sym->type.ref->type;
     func_var = sym->type.ref->f.func_type == FUNC_ELLIPSIS;
@@ -18609,7 +18256,7 @@ static int decl(int l)
             if ((btype.t & VT_BTYPE) == VT_STRUCT) {
                 v = btype.ref->v;
                 if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) >= SYM_FIRST_ANOM)
-                    tcc_warning("�C���X�^���X���`���Ȃ����� struct/union �ł�");
+                    tcc_warning("?C???X?^???X???`????????? struct/union ???");
                 next();
                 continue;
             }
@@ -18635,13 +18282,10 @@ static int decl(int l)
                 && btype.ref
                 && !(btype.t & VT_CPP_TLS)
                 && tok >= TOK_UIDENT
-                && cpp_in_user_source_file()
-                && (cpp_find_ctor_field(btype.ref)
-                    || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
+                && cpp_find_ctor_field(btype.ref)) {
                 int saved_var_tok = tok;
                 int obj_r = VT_LVAL | VT_CONST;
                 Sym *obj_sym;
-
                 next();
                 if (tok == '(') {
                     next();
@@ -18673,9 +18317,7 @@ static int decl(int l)
                               excluding VT_STATIC: function-local statics need
                               once-only guarded construction, not this path.) */
                            && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
-                           && (cpp_class_has_default_ctor(btype.ref)
-                               || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
-                    cpp_ensure_synthetic_odr(btype.ref);
+                           && cpp_class_has_default_ctor(btype.ref)) {
                     decl_initializer_alloc(&type, &ad, obj_r,
                         0, saved_var_tok, 1);
                     obj_sym = sym_find(saved_var_tok);
@@ -18702,27 +18344,20 @@ static int decl(int l)
                 && (btype.t & VT_BTYPE) == VT_STRUCT
                 && btype.ref
                 && tok >= TOK_UIDENT
-                && cpp_in_user_source_file()
-                && (cpp_find_ctor_field(btype.ref)
-                    || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
+                && cpp_find_ctor_field(btype.ref)) {
                 int saved_var_tok = tok;
                 int is_static = (btype.t & VT_STATIC) != 0;
                 int obj_r = VT_LVAL | (is_static ? VT_CONST : VT_LOCAL);
-
                 next();
                 if (tok == '(') {
                     next(); /* peek first token inside the parens */
                     if (tok != ')') {
                         /* `Foo f(args);` -> `f.Foo(args);` (local) */
-                        Sym *ctor_field;
+                        Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                         Sym *guard_sym;
                         Sym *dtor_wrapper;
-                        int ctor_tok_v;
+                        int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
                         int guard_skip;
-
-                        cpp_ensure_synthetic_odr(btype.ref);
-                        ctor_field = cpp_find_ctor_field(btype.ref);
-                        ctor_tok_v = ctor_field->v & ~SYM_FIELD;
 
                         guard_sym = NULL;
                         dtor_wrapper = NULL;
@@ -18763,21 +18398,16 @@ static int decl(int l)
                     unget_tok(saved_var_tok);
                 } else if ((tok == ';' || tok == ',')
                            && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
-                           && (cpp_class_has_default_ctor(btype.ref)
-                               || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
+                           && cpp_class_has_default_ctor(btype.ref)) {
                     /* FEAT-4F: `Foo f;` with a user default ctor is
                        rewritten into `f.Foo()` (same unget trick as 4B;
                        the current ';' or ',' stays after the ')').  P2 wraps
                        a function-local static in its once-only guard. */
-                    Sym *ctor_field;
+                    Sym *ctor_field = cpp_find_ctor_field(btype.ref);
                     Sym *guard_sym;
                     Sym *dtor_wrapper;
-                    int ctor_tok_v;
+                    int ctor_tok_v = ctor_field->v & ~SYM_FIELD;
                     int guard_skip;
-
-                    cpp_ensure_synthetic_odr(btype.ref);
-                    ctor_field = cpp_find_ctor_field(btype.ref);
-                    ctor_tok_v = ctor_field->v & ~SYM_FIELD;
 
                     guard_sym = NULL;
                     dtor_wrapper = NULL;
@@ -18911,7 +18541,7 @@ static int decl(int l)
 #endif
             if ((type.t & VT_BTYPE) == VT_FUNC) {
                 if ((type.t & VT_STATIC) && (l != VT_CONST))
-                    tcc_error("�t�@�C���X�R�[�v�O�̊֐��� static �ɂł��܂���");
+                    tcc_error("?t?@?C???X?R?[?v?O?????? static ?????????");
                 /* if old style function prototype, we accept a
                    declaration list */
                 sym = type.ref;
@@ -18933,7 +18563,7 @@ static int decl(int l)
 
             }
             else if (oldint) {
-                tcc_warning("�^�͊���� int �ɂȂ�܂�");
+                tcc_warning("?^?????? int ??????");
             }
 
             if (gnu_ext && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
@@ -18951,7 +18581,7 @@ static int decl(int l)
 #ifdef TCC_TARGET_PE
             if (ad.a.dllimport || ad.a.dllexport) {
                 if (type.t & VT_STATIC)
-                    tcc_error("static �w��� DLL �����P�[�W�͕��p�ł��܂���");
+                    tcc_error("static ?w??? DLL ?????P?[?W????p????????");
                 if (type.t & VT_TYPEDEF) {
                     tcc_warning("'%s' attribute ignored for typedef",
                         ad.a.dllimport ? (ad.a.dllimport = 0, "dllimport") :
@@ -18973,7 +18603,7 @@ static int decl(int l)
                 int sym_tok;
 
                 if (l != VT_CONST)
-                    tcc_error("���[�J���֐����g�p�ł��܂���");
+                    tcc_error("???[?J????????g?p????????");
                 if ((type.t & VT_BTYPE) != VT_FUNC)
                     expect("function definition");
 
@@ -19060,14 +18690,14 @@ static int decl(int l)
                     for (sym = func_vt.ref->next; sym; sym = sym->next)
                         if ((sym->v & ~SYM_FIELD) == v)
                             goto found;
-                    tcc_error("�p�����[�^ '%s' �̐錾�ł����A���̂悤�ȃp�����[�^�͂���܂���",
+                    tcc_error("?p?????[?^ '%s' ?????????A???????p?????[?^?????????",
                         get_tok_str(v, NULL));
                 found:
                     if (type.t & VT_STORAGE) /* 'register' is okay */
-                        tcc_error("'%s' �ɃX�g���[�W�N���X���w�肳��Ă��܂�",
+                        tcc_error("'%s' ??X?g???[?W?N???X???w?????????",
                             get_tok_str(v, NULL));
                     if (sym->type.t != VT_VOID)
-                        tcc_error("�p�����[�^ '%s' �̍Ē�`�ł�",
+                        tcc_error("?p?????[?^ '%s' ????`???",
                             get_tok_str(v, NULL));
                     convert_parameter_type(&type);
                     sym->type = type;
@@ -19079,7 +18709,7 @@ static int decl(int l)
                     if (sym && sym->sym_scope == local_scope) {
                         if (!is_compatible_types(&sym->type, &type)
                             || !(sym->type.t & VT_TYPEDEF))
-                            tcc_error("'%s' �̍Ē�`�͌݊���������܂���",
+                            tcc_error("'%s' ????`????????????????",
                                 get_tok_str(v, NULL));
                         sym->type = type;
                     }
@@ -19096,7 +18726,7 @@ static int decl(int l)
                 }
                 else if ((type.t & VT_BTYPE) == VT_VOID
                     && !(type.t & VT_EXTERN)) {
-                    tcc_error("void �^�̃I�u�W�F�N�g��錾���邱�Ƃ͂ł��܂���");
+                    tcc_error("void ?^??I?u?W?F?N?g?????????????????");
                 }
                 else {
                     r = 0;
@@ -19160,7 +18790,7 @@ static int decl(int l)
                         }
                     }
                     if (has_init && (type.t & VT_VLA))
-                        tcc_error("�ϒ��z��͏������ł��܂���");
+                        tcc_error("?????z????????????????");
                     if (tcc_state->cpp
                         && (l == VT_LOCAL || l == VT_CONST)
                         && (type.t & VT_BTYPE) == VT_STRUCT
@@ -19250,7 +18880,7 @@ static int decl(int l)
                            the aliases until the end of the compile unit.  */
                         esym = elfsym(sym_find(ad.alias_target));
                         if (!esym)
-                            tcc_error("��s���� __alias__ �����̓T�|�[�g����Ă��܂���");
+                            tcc_error("??s???? __alias__ ??????T?|?[?g???????????");
                         put_extern_sym2(sym_find(v), esym->st_shndx,
                             esym->st_value, esym->st_size, 1);
                     }

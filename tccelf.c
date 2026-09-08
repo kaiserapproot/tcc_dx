@@ -1588,12 +1588,16 @@ static void tcc_compile_injected_c_no_debug(TCCState *s, const char *str)
     int saved_lex_c = s->lex_c;
     int saved_extern_c = s->extern_c;
 
+    if (s->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:INJ_BEFORE_COMPILE_STRING\n");
     s->do_debug = 0;
     s->test_coverage = 0;
     s->cpp = 0;
     s->lex_c = 1;
     s->extern_c = 0;
     tcc_compile_string(s, str);
+    if (s->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:INJ_AFTER_COMPILE_STRING\n");
     s->cpp = saved_cpp;
     s->lex_c = saved_lex_c;
     s->extern_c = saved_extern_c;
@@ -1655,12 +1659,29 @@ ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1)
     return 0;
 }
 
-static int tcc_cpp_n6_main_enter_sym_present(TCCState *s1)
+static int tcc_cpp_n6_main_sym_present(TCCState *s1)
 {
-    if (find_elf_sym(s1->symtab, "__tcc_cpp_tls_n6_main_enter")
-        || find_elf_sym(s1->symtab, "___tcc_cpp_tls_n6_main_enter")
-        || find_elf_sym(s1->symtab, "_tcc_cpp_tls_n6_main_enter"))
-        return 1;
+    static const char * const names[] = {
+        "__tcc_cpp_tls_n6_main_enter",
+        "___tcc_cpp_tls_n6_main_enter",
+        "_tcc_cpp_tls_n6_main_enter",
+        "__tcc_cpp_tls_n6_main_state",
+        "___tcc_cpp_tls_n6_main_state",
+        "_tcc_cpp_tls_n6_main_state",
+        "__tcc_cpp_tls_n6_main_finalize",
+        "___tcc_cpp_tls_n6_main_finalize",
+        "_tcc_cpp_tls_n6_main_finalize",
+        "__tcc_cpp_tls_n6_main_thread_id",
+        "___tcc_cpp_tls_n6_main_thread_id",
+        "_tcc_cpp_tls_n6_main_thread_id",
+        NULL
+    };
+    int i;
+
+    for (i = 0; names[i]; i++) {
+        if (find_elf_sym(s1->symtab, names[i]))
+            return 1;
+    }
     return 0;
 }
 
@@ -1668,7 +1689,7 @@ ST_FUNC int tcc_cpp_n6_main_gateway_needed(TCCState *s1)
 {
     if (s1->cpp_n6_main_gateway_needed)
         return 1;
-    return tcc_cpp_n6_main_enter_sym_present(s1);
+    return tcc_cpp_n6_main_sym_present(s1);
 }
 
 ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)
@@ -1679,6 +1700,8 @@ ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)
         return;
     if (TCC_OUTPUT_DLL == s1->output_type)
         return;
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:N6_BEFORE_BUILD\n");
     cstr_new(&cstr);
     cstr_cat(&cstr,
         "#include <windows.h>\n"
@@ -1757,7 +1780,11 @@ ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)
         "    tcc_cpp_n6_real_exit(code);\n"
         "}\n",
         0);
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:N6_BEFORE_INJECT_COMPILE\n");
     tcc_compile_injected_c_no_debug(s1, cstr.data);
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:N6_AFTER_INJECT_COMPILE\n");
     cstr_free(&cstr);
     s1->cpp_n6_main_runtime_injected = 1;
 }
@@ -1774,6 +1801,8 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         return;
     }
     memory_exec = (s1->output_type == TCC_OUTPUT_MEMORY);
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:TLS_BEFORE_BUILD\n");
     cstr_new(&cstr);
     cstr_cat(&cstr,
         "#include <windows.h>\n"
@@ -2625,7 +2654,11 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
         "}\n",
         -1);
     cstr_cat(&cstr, "", 0);
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:TLS_BEFORE_INJECT_COMPILE\n");
     tcc_compile_injected_c_no_debug(s1, cstr.data);
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:TLS_AFTER_INJECT_COMPILE\n");
     cstr_free(&cstr);
     s1->cpp_tls_runtime_injected = 1;
     s1->cpp_n6_main_runtime_injected = 1;
