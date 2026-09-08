@@ -656,6 +656,7 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
 // fallback then binds whatever single extern happened to exist.
 static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
+static void cpp_validate_decl_default_initialization(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
 static void cpp_validate_explicit_ctor_members(Sym *class_sym);
 static void cpp_validate_explicit_dtor_members(Sym *class_sym);
@@ -4631,6 +4632,30 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
             tcc_error("implicit default construction of class member array is unsupported");
         if (cpp_is_class_data_member(f))
             cpp_validate_implicit_default_ctor(f->type.ref, 1);
+    }
+}
+
+// N7-01: one shared gate for default-initialization at a declaration site.
+// FEAT-4F/4G only run when cpp_class_has_default_ctor() is already true;
+// the fallback path into decl_initializer_alloc() used to skip this check
+// whenever the class had any user-declared constructor, which left local
+// auto / global / local-static / array objects silently unconstructed.
+static void cpp_validate_decl_default_initialization(CType *pt)
+{
+    CType elem;
+    Sym *class_sym;
+
+    elem = *pt;
+    while ((elem.t & VT_ARRAY) && elem.ref)
+        elem = *pointed_type(&elem);
+    if ((elem.t & VT_BTYPE) != VT_STRUCT || !elem.ref)
+        return;
+    class_sym = elem.ref;
+    if (cpp_find_ctor_field(class_sym)) {
+        if (!cpp_class_has_default_ctor(class_sym))
+            tcc_error("class has no default constructor");
+    } else {
+        cpp_validate_implicit_default_ctor(class_sym, 0);
     }
 }
 
@@ -18566,11 +18591,8 @@ static int decl(int l)
                         cpp_validate_explicit_dtor_members(type.ref);
                     if (tcc_state->cpp && !has_init
                         && (l == VT_LOCAL || l == VT_CONST)
-                        && (type.t & VT_BTYPE) == VT_STRUCT
-                        && type.ref
-                        && !cpp_find_ctor_field(type.ref)
-                        && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
-                        cpp_validate_implicit_default_ctor(type.ref, 0);
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF)))
+                        cpp_validate_decl_default_initialization(&type);
                     if (tcc_state->cpp
                         && (l == VT_LOCAL || l == VT_CONST)
                         && (type.t & VT_BTYPE) == VT_STRUCT
