@@ -5,7 +5,6 @@ public:
     Foo(int x, int y) : a(x), b(y) {}
 };
 int main() {
-    Foo f;
-    f.Foo(3, 4);
+    Foo f(3, 4);
     return f.a + f.b - 7;
 }

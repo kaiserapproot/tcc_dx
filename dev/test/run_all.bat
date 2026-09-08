@@ -228,6 +228,11 @@ echo === a9\manual\n6_08_final_regression.bat ===
 call a9\manual\n6_08_final_regression.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem === N7-01: no viable default constructor fail-closed regression ===
+echo === a9\manual\n7_01_default_ctor_fail_closed.bat ===
+call a9\manual\n7_01_default_ctor_fail_closed.bat
+if errorlevel 1 set /a FAILED+=1
+
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
 rem Real-world sources that are NOT expected to compile yet - only the
