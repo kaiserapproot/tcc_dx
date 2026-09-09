@@ -1655,12 +1655,25 @@ ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1)
     return 0;
 }
 
-static int tcc_cpp_n6_main_enter_sym_present(TCCState *s1)
+static int tcc_cpp_n6_main_sym_present(TCCState *s1)
 {
-    if (find_elf_sym(s1->symtab, "__tcc_cpp_tls_n6_main_enter")
-        || find_elf_sym(s1->symtab, "___tcc_cpp_tls_n6_main_enter")
-        || find_elf_sym(s1->symtab, "_tcc_cpp_tls_n6_main_enter"))
-        return 1;
+    static const char * const names[] = {
+        "__tcc_cpp_tls_n6_main_enter",
+        "___tcc_cpp_tls_n6_main_enter",
+        "_tcc_cpp_tls_n6_main_enter",
+        "__tcc_cpp_tls_n6_main_state",
+        "___tcc_cpp_tls_n6_main_state",
+        "_tcc_cpp_tls_n6_main_state",
+        "__tcc_cpp_tls_n6_main_finalize",
+        "___tcc_cpp_tls_n6_main_finalize",
+        NULL
+    };
+    int i;
+
+    for (i = 0; names[i]; i++) {
+        if (find_elf_sym(s1->symtab, names[i]))
+            return 1;
+    }
     return 0;
 }
 
@@ -1668,7 +1681,7 @@ ST_FUNC int tcc_cpp_n6_main_gateway_needed(TCCState *s1)
 {
     if (s1->cpp_n6_main_gateway_needed)
         return 1;
-    return tcc_cpp_n6_main_enter_sym_present(s1);
+    return tcc_cpp_n6_main_sym_present(s1);
 }
 
 ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)

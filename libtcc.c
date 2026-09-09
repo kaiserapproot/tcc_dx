@@ -536,6 +536,14 @@ ST_FUNC void dynarray_reset(void *pp, int *n)
     *(void**)pp = NULL;
 }
 
+// BUG-50: drop container only; elements may be sym-pool Sym* (not tcc_malloc).
+ST_FUNC void dynarray_clear(void *pp, int *n)
+{
+    tcc_free(*(void**)pp);
+    *(void**)pp = NULL;
+    *n = 0;
+}
+
 static void dynarray_split(char ***argv, int *argc, const char *p, int sep)
 {
     int qot, c;

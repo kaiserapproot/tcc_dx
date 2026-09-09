@@ -41,6 +41,7 @@ TCC (Tiny C Compiler) を **MSVC / Windows x64** でビルドし、段階的に 
 - tcc.c の **VEH クラッシュ網（`tcc_crash_net_veh`）を外さない**。stack overflow / AV を診断つき exit 1 に変換し、WER によるプロセスロック二次被害を防いでいる。`-run` 前後の arm/disarm も維持する。
 - **新しい再帰 walker を書くときは深さ上限を入れる**（C3 実装後は `CPP_RECURSION_GUARD` を必ず使用）。C++ の型グラフはメンバ関数のシグネチャ経由で**循環する**（BUG-35）。
 - **`Sym` の共用体メンバ（`sym_scope` / `f` / `jnext` 等）を読む前に Sym の種別を確認する**。特に「関数型 ref チェーンの先頭 = プロトタイプ Sym の共用体は FuncAttr」。
+- **`dynarray_reset` / `dynarray_clear` の所有権契約を守る**（C5 / BUG-50）。`dynarray_reset` = コンテナ + 各要素を `tcc_free`。`dynarray_clear` = コンテナのみ。`Sym*` レジストリは sym プール借用のため **clear のみ**（registry 側で free 禁止）。C++ dynarray を追加・変更したコミットは **`-run` 回帰を 1 本** 必ず回す（`-o` のみでは 2 回目 `tccgen_init` が漏れる）。詳細は [クラッシュ防止プラン.md](クラッシュ防止プラン.md) §7。
 
 ## 必須ルール — 規律・コミット
 
