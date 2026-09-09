@@ -2804,6 +2804,99 @@ static int tcc_cpp_start_sym_present(TCCState *s1)
     return 0;
 }
 
+static void tcc_diag_g1_apply_injections(CString *cstr)
+{
+    char *p;
+
+    if (!tcc_diag_g1_enabled())
+        return;
+    if (getenv("TCC_DIAG_G1_INJECT_COMPILE_FAIL") != NULL) {
+        cstr_reset(cstr);
+        cstr_cat(cstr, "int __tcc_g1_inject_compile_fail = ;\n", 0);
+        return;
+    }
+    if (getenv("TCC_DIAG_G1_INJECT_SYMBOL_ABSENT") != NULL) {
+        p = strstr(cstr->data, "void _tcc_cpp_start");
+        if (p) {
+            cstr->size = (int)(p - cstr->data) + 1;
+            cstr->data[cstr->size - 1] = '\0';
+        }
+    }
+}
+
+static int tcc_cpp_try_commit_startup_done(TCCState *s1, int compile_ret)
+{
+    s1->cpp_init_startup_in_progress = 0;
+    if (compile_ret < 0)
+        return 0;
+    if (!tcc_cpp_start_sym_present(s1))
+        return 0;
+    s1->cpp_init_startup_done = 1;
+    return 1;
+}
+
+static void tcc_cpp_fail_required_startup(TCCState *s1)
+{
+    s1->cpp_init_startup_in_progress = 0;
+    s1->cpp_init_startup_done = 0;
+    tcc_error_noabort("required C++ startup generation failed");
+}
+
+static int tcc_cpp_compile_init_startup_cstr(TCCState *s1, CString *cstr,
+    int diag_combined)
+{
+    int compile_ret;
+    int nb_before;
+    int nb_after;
+
+    tcc_diag_g1_apply_injections(cstr);
+    if (diag_combined && tcc_diag_g1_profile(s1)) {
+        tcc_diag_g1_emit_startsym(s1, "03_BEFORE_COMBINED_COMPILE");
+        tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_ENTER", "YES");
+        tcc_diag_g1_save_combined_source(cstr);
+        nb_before = s1->nb_errors;
+        tcc_diag_g1_emit_int("G1_COMBINED_ERRORS_BEFORE", nb_before);
+        tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_BEFORE_COMPILE",
+            s1->cpp_init_startup_done);
+        tcc_diag_g1_emit_int("DONE_BEFORE_COMPILE", s1->cpp_init_startup_done);
+    }
+    compile_ret = tcc_compile_injected_c_no_debug_ret(s1, cstr->data);
+    if (diag_combined && tcc_diag_g1_profile(s1)) {
+        nb_after = s1->nb_errors;
+        tcc_diag_g1_emit_int("G1_COMBINED_COMPILE_RET", compile_ret);
+        tcc_diag_g1_emit_int("G1_COMBINED_ERRORS_AFTER", nb_after);
+        tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_AFTER_COMPILE",
+            s1->cpp_init_startup_done);
+        if (compile_ret < 0)
+            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "COMPILE_FAILED");
+        else if (tcc_cpp_start_sym_present(s1))
+            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "OK_SYMBOL_PRESENT");
+        else
+            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "EMISSION_FAILURE");
+        tcc_diag_g1_emit_startsym(s1, "04_AFTER_COMBINED_COMPILE");
+    } else if (tcc_diag_g1_enabled()) {
+        tcc_diag_g1_emit_int("COMPILE_RET", compile_ret);
+        tcc_diag_g1_emit_kv("STARTSYM_AFTER_COMPILE",
+            tcc_cpp_start_sym_present(s1) ? "DEFINED" : "ABSENT");
+    }
+    if (!tcc_cpp_try_commit_startup_done(s1, compile_ret)) {
+        if (tcc_diag_g1_enabled()) {
+            tcc_diag_g1_emit_int("INJECTED_COMPILE_RET", compile_ret);
+            tcc_diag_g1_emit_kv("INJECTED_STARTSYM",
+                tcc_cpp_start_sym_present(s1) ? "DEFINED" : "ABSENT");
+            tcc_diag_g1_emit_int("INJECTED_CPP_INIT_STARTUP_DONE",
+                s1->cpp_init_startup_done);
+            tcc_diag_g1_emit_kv("INJECT_COMPILE_FAILURE",
+                compile_ret < 0 ? "YES" : "NO");
+        }
+        tcc_cpp_fail_required_startup(s1);
+        return 0;
+    }
+    if (tcc_diag_g1_enabled())
+        tcc_diag_g1_emit_int("DONE_AFTER_SUCCESS", s1->cpp_init_startup_done);
+    return 1;
+}
+
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
 {
     CString cstr;
@@ -2824,8 +2917,12 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         return;
     if (s1->cpp_init_startup_done)
         return;
+    if (s1->cpp_init_startup_in_progress)
+        return;
 
     tcc_diag_g1_emit_startsym(s1, "02_BEFORE_INIT_STARTUP");
+    if (tcc_diag_g1_enabled())
+        tcc_diag_g1_emit_int("DONE_BEFORE_GENERATION", s1->cpp_init_startup_done);
 
     use_n6_wrapper = tcc_cpp_tls_runtime_needed(s1) || s1->cpp_tls_runtime_injected
         || s1->cpp_n6_main_runtime_injected
@@ -2833,7 +2930,7 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
 
     /* FEAT-4G baseline startup: global init without N6 wrapper (no TLS). */
     if (need_n5 && !use_n6_wrapper) {
-        s1->cpp_init_startup_done = 1;
+        s1->cpp_init_startup_in_progress = 1;
         tcc_add_cpp_runtime(s1);
         cstr_new(&cstr);
         cstr_cat(&cstr,
@@ -2889,11 +2986,15 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "    exit(ret);\n"
         "}\n",
         0);
-        tcc_compile_injected_c_no_debug(s1, cstr.data);
+        if (!tcc_cpp_compile_init_startup_cstr(s1, &cstr, 0)) {
+            cstr_free(&cstr);
+            return;
+        }
         cstr_free(&cstr);
         return;
     }
 
+    s1->cpp_init_startup_in_progress = 1;
     if (need_n5)
         tcc_add_cpp_runtime(s1);
     if (use_n6_wrapper && !need_n5 && !s1->cpp_n6_main_runtime_injected
@@ -3001,44 +3102,18 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         cstr_cat(&cstr, "}\n", -1);
         cstr_ccat(&cstr, '\0');
     }
-    if (tcc_diag_g1_profile(s1) && need_n5 && use_n6_wrapper) {
-        int nb_before;
-        int nb_after;
-        int compile_ret;
-
-        tcc_diag_g1_emit_startsym(s1, "03_BEFORE_COMBINED_COMPILE");
-        tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_ENTER", "YES");
-        tcc_diag_g1_save_combined_source(&cstr);
-        nb_before = s1->nb_errors;
-        tcc_diag_g1_emit_int("G1_COMBINED_ERRORS_BEFORE", nb_before);
-        tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_BEFORE_COMPILE",
-            s1->cpp_init_startup_done);
-        s1->cpp_init_startup_done = 1;
-        compile_ret = tcc_compile_injected_c_no_debug_ret(s1, cstr.data);
-        nb_after = s1->nb_errors;
-        tcc_diag_g1_emit_int("G1_COMBINED_COMPILE_RET", compile_ret);
-        tcc_diag_g1_emit_int("G1_COMBINED_ERRORS_AFTER", nb_after);
-        tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_AFTER_COMPILE",
-            s1->cpp_init_startup_done);
-        if (compile_ret < 0)
-            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "COMPILE_FAILED");
-        else if (tcc_cpp_start_sym_present(s1))
-            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "OK_SYMBOL_PRESENT");
-        else
-            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "EMISSION_FAILURE");
-        tcc_diag_g1_emit_startsym(s1, "04_AFTER_COMBINED_COMPILE");
-        tcc_diag_g1_emit_startsym(s1, "05_BEFORE_N6_TAIL");
-        if (use_n6_wrapper && need_n5 && !s1->cpp_n6_main_runtime_injected
-            && !s1->cpp_tls_runtime_injected)
-            tcc_add_cpp_n6_main_runtime(s1);
-        tcc_diag_g1_emit_startsym(s1, "06_AFTER_N6_TAIL");
-    } else {
-        s1->cpp_init_startup_done = 1;
-        tcc_compile_injected_c_no_debug(s1, cstr.data);
-        if (use_n6_wrapper && need_n5 && !s1->cpp_n6_main_runtime_injected
-            && !s1->cpp_tls_runtime_injected)
-            tcc_add_cpp_n6_main_runtime(s1);
+    if (!tcc_cpp_compile_init_startup_cstr(s1, &cstr,
+            need_n5 && use_n6_wrapper)) {
+        cstr_free(&cstr);
+        return;
     }
+    if (tcc_diag_g1_profile(s1) && need_n5 && use_n6_wrapper)
+        tcc_diag_g1_emit_startsym(s1, "05_BEFORE_N6_TAIL");
+    if (use_n6_wrapper && need_n5 && !s1->cpp_n6_main_runtime_injected
+        && !s1->cpp_tls_runtime_injected)
+        tcc_add_cpp_n6_main_runtime(s1);
+    if (tcc_diag_g1_profile(s1) && need_n5 && use_n6_wrapper)
+        tcc_diag_g1_emit_startsym(s1, "06_AFTER_N6_TAIL");
     cstr_free(&cstr);
 }
 

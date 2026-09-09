@@ -1909,10 +1909,14 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
                 || tcc_cpp_n6_main_gateway_needed(s1))
             && strcmp(start_symbol, "__start") == 0) {
             tcc_add_cpp_init_startup(s1);
+            tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_AT_PE_SELECTION",
+                s1->cpp_init_startup_done);
+            tcc_diag_g1_emit_startsym(s1, "STARTSYM_AT_PE_SELECTION");
             if (s1->cpp_init_startup_done) {
-                tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_AT_PE_SELECTION",
-                    s1->cpp_init_startup_done);
                 start_symbol = "__tcc_cpp_start";
+            } else {
+                tcc_diag_g1_emit_kv("PE_SELECTED_MISSING_CPP_START", "NO");
+                tcc_error_noabort("required C++ startup generation failed");
             }
         }
 
