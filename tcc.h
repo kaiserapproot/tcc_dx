@@ -1324,6 +1324,7 @@ PUB_FUNC void _tcc_warning(const char *fmt, ...) PRINTF_LIKE(1,2);
 /* other utilities */
 ST_FUNC void dynarray_add(void *ptab, int *nb_ptr, void *data);
 ST_FUNC void dynarray_reset(void *pp, int *n);
+ST_FUNC void dynarray_clear(void *pp, int *n);
 ST_INLN void cstr_ccat(CString *cstr, int ch);
 ST_FUNC void cstr_cat(CString *cstr, const char *str, int len);
 ST_FUNC void cstr_wccat(CString *cstr, int ch);
