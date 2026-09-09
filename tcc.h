@@ -744,6 +744,7 @@ typedef struct AttributeDef {
 typedef struct InlineFunc {
     TokenString *func_str;
     Sym *sym;
+    unsigned char user_feat4b_body; /* 1=user inline eligible for FEAT-4B replay */
     char filename[1];
 } InlineFunc;
 
