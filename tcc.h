@@ -813,7 +813,12 @@ struct TCCState {
     unsigned char cpp_forced;
     unsigned char extern_c;
     unsigned char lex_c;
+    /* FEAT-4G/N6-05-01C: 1 only after injected startup compile succeeded
+       and _tcc_cpp_start is defined.  PE entry selection reads this flag. */
     unsigned char cpp_init_startup_done;
+    /* Guards tcc_add_cpp_init_startup reentry during compile; not a success
+       signal (see cpp_init_startup_done). */
+    unsigned char cpp_init_startup_in_progress;
     /* FEAT-4G: set once cpp_finish_global_dyns emitted ctor/dtor thunks.
        s1->cpp itself is save/restored per TU by tcc_compile, so it is
        already 0 again at link time and cannot gate the PE startup. */
