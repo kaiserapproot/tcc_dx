@@ -714,7 +714,7 @@ static void cpp_reset_synthetic_specials(void)
 
     for (i = 0; i < nb_cpp_synthetic_specials; i++)
         tcc_free(cpp_synthetic_specials[i]);
-    dynarray_reset(&cpp_synthetic_specials, &nb_cpp_synthetic_specials);
+    dynarray_clear(&cpp_synthetic_specials, &nb_cpp_synthetic_specials);
 }
 
 static void cpp_match_registry_func_fields(Sym *class_sym, int v1,
@@ -5409,7 +5409,7 @@ static void cpp_flush_pending_synthetic_odr(void)
         return;
     for (i = 0; i < nb_cpp_pending_synthetic_odr; i++)
         cpp_materialize_synthetic_odr(cpp_pending_synthetic_odr[i]);
-    dynarray_reset(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
+    dynarray_clear(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
 }
 
 static void cpp_finish_member_inlines(Sym *class_sym)
@@ -5891,11 +5891,12 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_cur_func_class = NULL;
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     dynarray_reset(&cpp_local_static_dtors, &nb_cpp_local_static_dtors);
-    dynarray_reset(&cpp_synthetic_ctor_classes, &nb_cpp_synthetic_ctor_classes);
-    dynarray_reset(&cpp_synthetic_dtor_classes, &nb_cpp_synthetic_dtor_classes);
-    dynarray_reset(&cpp_synthetic_inline_registered,
+    // BUG-50: Sym* registries borrow sym-pool pointers; never dynarray_reset.
+    dynarray_clear(&cpp_synthetic_ctor_classes, &nb_cpp_synthetic_ctor_classes);
+    dynarray_clear(&cpp_synthetic_dtor_classes, &nb_cpp_synthetic_dtor_classes);
+    dynarray_clear(&cpp_synthetic_inline_registered,
                    &nb_cpp_synthetic_inline_registered);
-    dynarray_reset(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
+    dynarray_clear(&cpp_pending_synthetic_odr, &nb_cpp_pending_synthetic_odr);
     cpp_reset_synthetic_specials();
     // N6-02: same stale-Sym protection for pending TLS ctor thunks.
     dynarray_reset(&cpp_tls_ctors, &nb_cpp_tls_ctors);
