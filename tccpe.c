@@ -1868,6 +1868,7 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
             return;
         }
     }
+    tcc_diag_g1_emit_startsym(s1, "00_BEFORE_TLS_RUNTIME");
     if (tcc_cpp_tls_runtime_needed(s1))
         tcc_add_cpp_tls_runtime(s1);
     else if (tcc_cpp_n6_main_gateway_needed(s1)
@@ -1908,8 +1909,11 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
                 || tcc_cpp_n6_main_gateway_needed(s1))
             && strcmp(start_symbol, "__start") == 0) {
             tcc_add_cpp_init_startup(s1);
-            if (s1->cpp_init_startup_done)
+            if (s1->cpp_init_startup_done) {
+                tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_AT_PE_SELECTION",
+                    s1->cpp_init_startup_done);
                 start_symbol = "__tcc_cpp_start";
+            }
         }
 
         if (TCC_OUTPUT_MEMORY == s1->output_type && !s1->nostdlib)
@@ -1943,6 +1947,7 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
 #ifdef TCC_IS_NATIVE
     if (TCC_OUTPUT_MEMORY != s1->output_type || s1->run_main)
 #endif
+    tcc_diag_g1_emit_startsym(s1, "07_PE_BEFORE_SET_GLOBAL_SYM");
     set_global_sym(s1, start_symbol, NULL, 0);
 
     if (0 == s1->nostdlib) {
@@ -2041,6 +2046,7 @@ ST_FUNC int pe_output_file(TCCState *s1, const char *filename)
         relocate_syms(s1, s1->symtab, 0);
         s1->pe_imagebase = pe.imagebase;
         relocate_sections(s1);
+        tcc_diag_g1_emit_startsym(s1, "08_PE_BEFORE_GET_SYM_ADDR");
         pe.start_addr = (DWORD)
             (get_sym_addr(s1, pe.start_symbol, 1, 1) - pe.imagebase);
         // N6-03: the injected TLS runtime (tccelf.c) defines

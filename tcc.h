@@ -1379,6 +1379,10 @@ ST_FUNC void tcc_add_bcheck(TCCState *s1);
 ST_FUNC void tcc_add_btstub(TCCState *s1);
 #endif
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1);
+ST_FUNC int tcc_diag_g1_profile(TCCState *s1);
+ST_FUNC void tcc_diag_g1_emit_startsym(TCCState *s1, const char *tag);
+ST_FUNC void tcc_diag_g1_emit_kv(const char *key, const char *value);
+ST_FUNC void tcc_diag_g1_emit_int(const char *key, int value);
 ST_FUNC void tcc_add_cpp_runtime(TCCState *s1);
 ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1);
 ST_FUNC int tcc_cpp_global_init_needed(TCCState *s1);
