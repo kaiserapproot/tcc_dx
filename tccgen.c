@@ -806,6 +806,11 @@ static int cpp_global_scope_expr;
 // member lookups stay off (non-static members in default args are
 // ill-formed in C++ anyway).
 static int cpp_default_arg_replay;
+// G7-01-FIX: set during gen_inline_functions replay of a user inline body
+// (not compiler-synthesized ctor/dtor).  Restores FEAT-4B local direct-init
+// rewrite inside deferred inline emission without reopening the 6c49dc0
+// include-expansion gate guarded by cpp_in_user_source_file().
+static int cpp_user_inline_feat4b_replay;
 // G4 (new/delete): `void *malloc(...)` / `void free(...)` and the plain
 // void / void* types they need.  Initialized in tccgen_init.
 static CType cpp_malloc_type, cpp_free_type, cpp_voidp_type, cpp_void_type;
@@ -1671,6 +1676,14 @@ static int cpp_in_user_source_file(void)
     if (!file || !file->filename)
         return 0;
     return file->prev == NULL;
+}
+
+static int cpp_allow_local_class_direct_init(void)
+{
+    /* FEAT-4B only: primary TU or deferred replay of a user inline body
+       registered with user_feat4b_body (see gen_inline_functions).  FEAT-4F
+       keeps cpp_in_user_source_file() alone - not widened here. */
+    return cpp_in_user_source_file() || cpp_user_inline_feat4b_replay;
 }
 
 /* C++: scan class_sym's member chain for the destructor field. */
@@ -5295,7 +5308,8 @@ static void cpp_synthesize_implicit_special_members(Sym *class_sym)
     }
 }
 
-static void cpp_register_one_member_inline(Sym *class_sym, Sym *f)
+static void cpp_register_one_member_inline(Sym *class_sym, Sym *f,
+                                           int user_feat4b_body)
 {
     AttributeDef ad;
     CType type;
@@ -5333,10 +5347,11 @@ static void cpp_register_one_member_inline(Sym *class_sym, Sym *f)
     if (f->cpp_mem_init_list)
         sym->cpp_mem_init_list = f->cpp_mem_init_list;
     cpp_set_func_mangle_label(sym, &type);
-    fn = tcc_malloc(sizeof *fn + strlen(file->filename));
+    fn = tcc_mallocz(sizeof *fn + strlen(file->filename));
     strcpy(fn->filename, file->filename);
     fn->sym = sym;
     fn->func_str = body;
+    fn->user_feat4b_body = user_feat4b_body;
     dynarray_add(&tcc_state->inline_fns, &tcc_state->nb_inline_fns, fn);
 }
 
@@ -5360,9 +5375,9 @@ static void cpp_register_synthetic_inlines(Sym *class_sym)
     if (!sp)
         return;
     if (sp->ctor_field && sp->ctor_field->inline_func_str)
-        cpp_register_one_member_inline(class_sym, sp->ctor_field);
+        cpp_register_one_member_inline(class_sym, sp->ctor_field, 0);
     if (sp->dtor_field && sp->dtor_field->inline_func_str)
-        cpp_register_one_member_inline(class_sym, sp->dtor_field);
+        cpp_register_one_member_inline(class_sym, sp->dtor_field, 0);
 }
 
 static void cpp_ensure_synthetic_semantics(Sym *class_sym)
@@ -5425,7 +5440,7 @@ static void cpp_finish_member_inlines(Sym *class_sym)
             continue;
         if (cpp_is_deferred_synthetic_special_field(f, class_sym))
             continue;
-        cpp_register_one_member_inline(class_sym, f);
+        cpp_register_one_member_inline(class_sym, f, 1);
     }
 }
 
@@ -5885,6 +5900,7 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_qualified_class = NULL;
     cpp_cur_class = NULL;
     cpp_default_arg_replay = 0;
+    cpp_user_inline_feat4b_replay = 0;
     decl_once_flag = 0;
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
@@ -18363,12 +18379,16 @@ static void gen_inline_functions(TCCState* s)
             if (sym && (sym->c || !(sym->type.t & VT_INLINE))) {
                 /* the function was used or forced (and then not internal):
                    generate its code and convert it to a normal function */
+                int saved_feat4b_replay;
                 fn->sym = NULL;
                 tccpp_putfile(fn->filename);
                 begin_macro(fn->func_str, 1);
                 next();
                 cur_text_section = text_section;
+                saved_feat4b_replay = cpp_user_inline_feat4b_replay;
+                cpp_user_inline_feat4b_replay = fn->user_feat4b_body;
                 gen_function(sym);
+                cpp_user_inline_feat4b_replay = saved_feat4b_replay;
                 end_macro();
 
                 inline_generated = 1;
@@ -18656,7 +18676,7 @@ static int decl(int l)
                 && (btype.t & VT_BTYPE) == VT_STRUCT
                 && btype.ref
                 && tok >= TOK_UIDENT
-                && cpp_in_user_source_file()
+                && cpp_allow_local_class_direct_init()
                 && (cpp_find_ctor_field(btype.ref)
                     || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
                 int saved_var_tok = tok;
@@ -18990,9 +19010,10 @@ static int decl(int l)
                    the compilation unit only if they are used */
                 if (sym->type.t & VT_INLINE) {
                     struct InlineFunc* fn;
-                    fn = tcc_malloc(sizeof * fn + strlen(file->filename));
+                    fn = tcc_mallocz(sizeof * fn + strlen(file->filename));
                     strcpy(fn->filename, file->filename);
                     fn->sym = sym;
+                    fn->user_feat4b_body = 1;
                     dynarray_add(&tcc_state->inline_fns,
                         &tcc_state->nb_inline_fns, fn);
                     skip_or_save_block(&fn->func_str);
