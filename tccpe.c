@@ -1853,6 +1853,24 @@ ST_FUNC void pe_add_unwind_data(unsigned start, unsigned end, unsigned stack)
 #define PE_STDSYM(n,s) "_" n s
 #endif
 
+static int pe_cpp_tls_runtime_wanted(TCCState *s1)
+{
+    if (s1->cpp_diag_disable_runtime_inject)
+        return 0;
+    if (s1->cpp_diag_force_tls_runtime_inject)
+        return 1;
+    return tcc_cpp_tls_runtime_needed(s1);
+}
+
+static int pe_cpp_n6_runtime_wanted(TCCState *s1)
+{
+    if (s1->cpp_diag_disable_runtime_inject)
+        return 0;
+    if (s1->cpp_diag_force_n6_runtime_inject)
+        return 1;
+    return tcc_cpp_n6_main_gateway_needed(s1) && !tcc_cpp_global_init_needed(s1);
+}
+
 static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
 {
     const char *start_symbol;
@@ -1868,11 +1886,18 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
             return;
         }
     }
-    if (tcc_cpp_tls_runtime_needed(s1))
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:PE_BEFORE_TLS_RUNTIME\n");
+    if (pe_cpp_tls_runtime_wanted(s1))
         tcc_add_cpp_tls_runtime(s1);
-    else if (tcc_cpp_n6_main_gateway_needed(s1)
-             && !tcc_cpp_global_init_needed(s1))
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:PE_AFTER_TLS_RUNTIME\n");
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:PE_BEFORE_N6_RUNTIME\n");
+    if (!pe_cpp_tls_runtime_wanted(s1) && pe_cpp_n6_runtime_wanted(s1))
         tcc_add_cpp_n6_main_runtime(s1);
+    if (s1->cpp_diag_pe_trace)
+        fprintf(stderr, "TRACE P0:PE_AFTER_N6_RUNTIME\n");
     if (TCC_OUTPUT_DLL == s1->output_type) {
         pe_type = PE_DLL;
         start_symbol = PE_STDSYM("__dllstart","@12");
@@ -2029,6 +2054,7 @@ ST_FUNC int pe_output_file(TCCState *s1, const char *filename)
     tcc_add_bcheck(s1);
 #endif
     tcc_add_pragma_libs(s1);
+    tcc_p0_diag_trace(s1, "PE_RUNTIME_BEGIN");
     pe_add_runtime(s1, &pe);
     resolve_common_syms(s1);
     pe_set_options(s1, &pe);

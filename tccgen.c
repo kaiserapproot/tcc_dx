@@ -5769,6 +5769,8 @@ void pv(const char* lbl, int a, int b)
 /* vstack �ƌ^�̏������Btcc -E�i�v���v���Z�X�̂݁j�ł�������s���K�v������ */
 ST_FUNC void tccgen_init(TCCState* s1)
 {
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_INIT_ENTER");
     vtop = vstack - 1;
     memset(vtop, 0, sizeof * vtop);
 
@@ -5905,6 +5907,20 @@ ST_FUNC void tccgen_init(TCCState* s1)
     /* Virtual MI (Phase 2): drop thunks a failed/aborted TU left pending so
        they cannot be emitted against stale Syms in the next compilation. */
     dynarray_reset(&cpp_vthunks, &nb_cpp_vthunks);
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_INIT_EXIT");
+}
+
+static void cpp_p0_trace_synthetic_state(TCCState *s1, const char *tag)
+{
+    if (!s1 || !s1->cpp_diag_pe_trace || !tag)
+        return;
+    fprintf(stderr,
+        "TRACE P0:%s synth_spec=%d pend_odr=%d inline_reg=%d synth_ctor=%d synth_dtor=%d nb_inline_fns=%d func_vt=%d vtop=%ld\n",
+        tag, nb_cpp_synthetic_specials, nb_cpp_pending_synthetic_odr,
+        nb_cpp_synthetic_inline_registered, nb_cpp_synthetic_ctor_classes,
+        nb_cpp_synthetic_dtor_classes, s1->nb_inline_fns,
+        func_vt.t, (long)(vtop - vstack));
 }
 
 ST_FUNC int tccgen_compile(TCCState* s1)
@@ -5919,6 +5935,13 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     nocode_wanted = DATA_ONLY_WANTED; /* �֐��O�ł̓R�[�h�𐶐����Ȃ� */
     debug_modes = (s1->do_debug ? 1 : 0) | s1->test_coverage << 1;
 
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_COMPILE_ENTER");
+    else {
+        tcc_p0_diag_trace(s1, "USER_TU_BEGIN");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_BEGIN");
+    }
+
     tcc_debug_start(s1);
     tcc_tcov_start(s1);
 #ifdef TCC_TARGET_ARM
@@ -5930,6 +5953,10 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     parse_flags = PARSE_FLAG_PREPROCESS | PARSE_FLAG_TOK_NUM | PARSE_FLAG_TOK_STR;
     next();
     decl(VT_CONST);
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_AFTER_DECL");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_DECL");
+    }
     /* Virtual MI (Phase 2): thunk code is deferred to this top-level point -
        emitting inside struct_decl could land mid-function for local classes. */
     cpp_finish_virtual_thunks(s1);
@@ -5940,8 +5967,21 @@ ST_FUNC int tccgen_compile(TCCState* s1)
     cpp_emit_tls_ctor_thunks(s1);
     // N6-04: dtor thunks follow the same ordering constraint.
     cpp_emit_tls_dtor_thunks(s1);
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_BEFORE_SYNTHETIC_FLUSH");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_BEFORE_SYNTHETIC_FLUSH");
+    }
     cpp_flush_pending_synthetic_odr();
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_AFTER_SYNTHETIC_FLUSH");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_SYNTHETIC_FLUSH");
+        tcc_p0_diag_trace(s1, "USER_TU_BEFORE_GEN_INLINE");
+    }
     gen_inline_functions(s1);
+    if (!file || !file->filename || strcmp(file->filename, "<string>") != 0) {
+        tcc_p0_diag_trace(s1, "USER_TU_AFTER_GEN_INLINE");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_AFTER_GEN_INLINE");
+    }
     cpp_finish_local_static_dtors(s1);
     // N6-02 REVIEW FIX-1: release the ctor/dtor-thunk holders only now, after
     // the inline bodies (the last TLS access sites of the TU) have been emitted.
@@ -5953,11 +5993,19 @@ ST_FUNC int tccgen_compile(TCCState* s1)
 #endif
     tcc_debug_end(s1);
     tcc_tcov_end(s1);
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_COMPILE_EXIT");
+    else {
+        tcc_p0_diag_trace(s1, "USER_TU_END");
+        cpp_p0_trace_synthetic_state(s1, "USER_TU_END");
+    }
     return 0;
 }
 
 ST_FUNC void tccgen_finish(TCCState* s1)
 {
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_FINISH_ENTER");
     tcc_debug_end(s1); /* �G���[�������ɔ����ă���������� */
     free_inline_functions(s1);
     sym_pop(&global_stack, NULL, 0);
@@ -5989,6 +6037,8 @@ ST_FUNC void tccgen_finish(TCCState* s1)
     local_label_stack = NULL;
     cur_text_section = NULL;
     sym_free_first = NULL;
+    if (file && file->filename && !strcmp(file->filename, "<string>"))
+        tcc_p0_diag_trace(s1, "INJ_TCCGEN_FINISH_EXIT");
 }
 
 /* ------------------------------------------------------------------------- */
