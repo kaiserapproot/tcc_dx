@@ -2903,6 +2903,9 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
     int need_n5;
     int need_n6;
     int use_n6_wrapper;
+    int gateway_needed;
+    int need_global_exit_gateway;
+    int use_n6_startup_gateway;
 
     /* cpp_global_ctors: s1->cpp is per-TU and already restored to 0
        when the linker calls this (see tcc_compile). */
@@ -2927,9 +2930,17 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
     use_n6_wrapper = tcc_cpp_tls_runtime_needed(s1) || s1->cpp_tls_runtime_injected
         || s1->cpp_n6_main_runtime_injected
         || (tcc_cpp_n6_main_gateway_needed(s1) && !need_n5);
+    gateway_needed = tcc_cpp_n6_main_gateway_needed(s1);
+    need_global_exit_gateway = need_n5 && gateway_needed && !use_n6_wrapper;
+    use_n6_startup_gateway = use_n6_wrapper || need_global_exit_gateway;
+    if (tcc_diag_g1_enabled()) {
+        tcc_diag_g1_emit_int("G0_GATEWAY_NEEDED", gateway_needed);
+        tcc_diag_g1_emit_int("G0_USE_N6_WRAPPER", use_n6_wrapper);
+        tcc_diag_g1_emit_int("G0_USE_N6_STARTUP_GATEWAY", use_n6_startup_gateway);
+    }
 
-    /* FEAT-4G baseline startup: global init without N6 wrapper (no TLS). */
-    if (need_n5 && !use_n6_wrapper) {
+    /* FEAT-4G baseline startup: global init without process-exit gateway. */
+    if (need_n5 && !use_n6_wrapper && !gateway_needed) {
         s1->cpp_init_startup_in_progress = 1;
         tcc_add_cpp_runtime(s1);
         cstr_new(&cstr);
@@ -2997,9 +3008,17 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
     s1->cpp_init_startup_in_progress = 1;
     if (need_n5)
         tcc_add_cpp_runtime(s1);
+    if (need_global_exit_gateway && !s1->cpp_n6_main_runtime_injected)
+        tcc_add_cpp_n6_main_runtime(s1);
     if (use_n6_wrapper && !need_n5 && !s1->cpp_n6_main_runtime_injected
         && !s1->cpp_tls_runtime_injected)
         tcc_add_cpp_n6_main_runtime(s1);
+    if (tcc_diag_g1_enabled()) {
+        tcc_diag_g1_emit_int("G0_N6_MAIN_RUNTIME_INJECTED",
+            s1->cpp_n6_main_runtime_injected);
+        tcc_diag_g1_emit_int("G0_TLS_RUNTIME_INJECTED",
+            s1->cpp_tls_runtime_injected);
+    }
 
     cstr_new(&cstr);
     if (use_n6_wrapper && !need_n5) {
@@ -3064,7 +3083,7 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "    return atexit(fn);\n"
         "}\n"
             , -1);
-        if (use_n6_wrapper) {
+        if (use_n6_startup_gateway) {
             cstr_cat(&cstr,
         "void __cdecl __tcc_cpp_tls_n6_main_enter(void);\n"
         "void __cdecl __tcc_cpp_tls_n6_main_finalize(void);\n"
@@ -3084,16 +3103,16 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "    si.newmode = 0;\n"
         "    __getmainargs(&argc,&argv,&env,0,&si);\n"
         , -1);
-        if (use_n6_wrapper)
+        if (use_n6_startup_gateway)
             cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_enter();\n", -1);
         cstr_cat(&cstr,
         "    atexit(tcc_cpp_run_fini_once);\n"
         "    tcc_cpp_run_init();\n"
         "    ret = main(argc,argv,env);\n"
         , -1);
-        if (use_n6_wrapper)
+        if (use_n6_startup_gateway)
             cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_finalize();\n", -1);
-        if (use_n6_wrapper)
+        if (use_n6_startup_gateway)
             cstr_cat(&cstr, "    __tcc_cpp_n6_process_exit(ret);\n", -1);
         else {
             cstr_cat(&cstr, "    tcc_cpp_run_fini_once();\n", -1);
