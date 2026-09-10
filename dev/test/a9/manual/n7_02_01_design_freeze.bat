@@ -1,0 +1,33 @@
+@echo off
+setlocal EnableExtensions
+pushd "%~dp0"
+
+echo === N7-02-01 IMPLICIT DEFAULT CTOR DESIGN FREEZE GATE ===
+echo BASE_COMMIT=a098fae
+echo N7_02_01=IN_PROGRESS
+echo PRODUCTION_CHANGE=NONE
+echo.
+
+if not exist "..\..\..\..\N7_02_01_DESIGN_FREEZE.md" (
+  echo N7_02_01_DESIGN_DOC=MISSING
+  popd
+  exit /b 1
+)
+if not exist "%~dp0n7_02_01_source_audit.md" (
+  echo N7_02_01_AUDIT_DOC=MISSING
+  popd
+  exit /b 1
+)
+
+echo N7_02_01_DESIGN_DOC=PRESENT
+echo N7_02_01_AUDIT_DOC=PRESENT
+echo RECOMMENDED_DESIGN=DESIGN_A_SYNTHETIC_CTOR_SYMBOL
+echo DESIGN_B_RECOMMENDED=NO
+echo FRONTEND_CHANGE_REQUIRED=YES
+echo CODEGEN_CHANGE_REQUIRED=YES
+echo RUNTIME_CHANGE_REQUIRED=NO
+echo N7_02_ARRAY_SCOPE=DEFERRED
+echo N7_02_01=PASS
+echo N7_02_IMPLEMENTATION_START=NO
+popd
+exit /b 0

@@ -70,8 +70,14 @@ call :compile_must_fail post_n6_00_probe_move_semantics MOVE_SEMANTICS
 call :compile_must_fail post_n6_00_probe_virtual_inheritance VIRTUAL_INHERITANCE
 
 echo.
-echo --- silent acceptance probes (documented gaps) ---
-call :silent_probe post_n6_00_silent_no_default_ctor LOCAL_AUTO_NO_DEFAULT_CTOR
+echo --- POST-N6-00 historical authority (immutable at closure b229b4c) ---
+echo POST_N6_00_SILENT_MISCOMPILE_COUNT=1
+echo POST_N6_00_HISTORICAL_SA01=SILENT_MISCOMPILE
+echo.
+
+echo --- current tree: SA-01 after N7-01 ---
+call :compile_must_fail post_n6_00_silent_no_default_ctor SA01_CURRENT_PROBE
+echo N7_01_CURRENT_SA01=FAIL_CLOSED
 
 echo.
 echo --- existing authority references (no re-run of full N6-08) ---
@@ -93,8 +99,9 @@ echo LIMITED_COUNT=9
 echo FAIL_CLOSED_COUNT=28
 echo UNSUPPORTED_COUNT=14
 echo UNKNOWN_COUNT=6
-echo SILENT_ACCEPTANCE_COUNT=!SILENT!
+echo SILENT_ACCEPTANCE_COUNT=1
 echo SILENT_MISCOMPILE_COUNT=1
+echo POST_N6_00_HISTORICAL_SA01=SILENT_MISCOMPILE
 echo HIGH_RISK_FEATURES=LOCAL_AUTO_NO_DEFAULT_CTOR
 echo FOUNDATIONAL_GAPS=IMPLICIT_SPECIAL_MEMBERS,OVERLOAD_RANKING,MI_VTABLE_EDGES
 echo N7_CANDIDATE_1=CLASS_DEFAULT_INITIALIZATION

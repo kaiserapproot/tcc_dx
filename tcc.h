@@ -744,6 +744,7 @@ typedef struct AttributeDef {
 typedef struct InlineFunc {
     TokenString *func_str;
     Sym *sym;
+    unsigned char user_feat4b_body; /* 1=user inline eligible for FEAT-4B replay */
     char filename[1];
 } InlineFunc;
 
@@ -813,7 +814,12 @@ struct TCCState {
     unsigned char cpp_forced;
     unsigned char extern_c;
     unsigned char lex_c;
+    /* FEAT-4G/N6-05-01C: 1 only after injected startup compile succeeded
+       and _tcc_cpp_start is defined.  PE entry selection reads this flag. */
     unsigned char cpp_init_startup_done;
+    /* Guards tcc_add_cpp_init_startup reentry during compile; not a success
+       signal (see cpp_init_startup_done). */
+    unsigned char cpp_init_startup_in_progress;
     /* FEAT-4G: set once cpp_finish_global_dyns emitted ctor/dtor thunks.
        s1->cpp itself is save/restored per TU by tcc_compile, so it is
        already 0 again at link time and cannot gate the PE startup. */
@@ -1324,6 +1330,7 @@ PUB_FUNC void _tcc_warning(const char *fmt, ...) PRINTF_LIKE(1,2);
 /* other utilities */
 ST_FUNC void dynarray_add(void *ptab, int *nb_ptr, void *data);
 ST_FUNC void dynarray_reset(void *pp, int *n);
+ST_FUNC void dynarray_clear(void *pp, int *n);
 ST_INLN void cstr_ccat(CString *cstr, int ch);
 ST_FUNC void cstr_cat(CString *cstr, const char *str, int len);
 ST_FUNC void cstr_wccat(CString *cstr, int ch);
@@ -1378,6 +1385,10 @@ ST_FUNC void tcc_add_bcheck(TCCState *s1);
 ST_FUNC void tcc_add_btstub(TCCState *s1);
 #endif
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1);
+ST_FUNC int tcc_diag_g1_profile(TCCState *s1);
+ST_FUNC void tcc_diag_g1_emit_startsym(TCCState *s1, const char *tag);
+ST_FUNC void tcc_diag_g1_emit_kv(const char *key, const char *value);
+ST_FUNC void tcc_diag_g1_emit_int(const char *key, int value);
 ST_FUNC void tcc_add_cpp_runtime(TCCState *s1);
 ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1);
 ST_FUNC int tcc_cpp_global_init_needed(TCCState *s1);
