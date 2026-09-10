@@ -19,10 +19,12 @@
 Root cause: first arity-matching overload by declaration order; no argument
 type scoring on implicit member binop.
 
-## TCC fix scope (commit A)
+## TCC fix scope
 
 - `cpp_try_member_binop`: use `cpp_score_member_overloads` (same scoring as
   member call resolution).
+- `cpp_class_has_default_ctor`: walk all ctor overloads (supplementary vec4
+  declaration-order issue).
 
 ## Authority repro
 

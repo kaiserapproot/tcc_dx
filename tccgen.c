@@ -1634,14 +1634,30 @@ static int cpp_ctor_viable_with_zero_args(Sym *f)
 
 static int cpp_class_has_default_ctor(Sym *class_sym)
 {
+    CppSyntheticSpecial *sp;
     Sym *f;
+    int class_name_tok;
 
     if (!class_sym)
         return 0;
-    f = cpp_find_ctor_field(class_sym);
-    if (!f)
-        return 0;
-    return cpp_ctor_viable_with_zero_args(f);
+    // Walk every ctor overload on the field chain.  cpp_find_ctor_field
+    // returns only the first declaration, so vec4(vec3&)/vec4(const
+    // vec4&)/vec4(float...) declared before vec4() made `vec4 a;` fail
+    // with "class has no default constructor" even though a zero-arg
+    // overload exists (amateras vec_quat.h / MMD C bodies as C++).
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (cpp_ctor_viable_with_zero_args(f))
+            return 1;
+    }
+    sp = cpp_get_synthetic_special(class_sym);
+    if (sp && sp->ctor_field)
+        return cpp_ctor_viable_with_zero_args(sp->ctor_field);
+    return 0;
 }
 
 static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym)
