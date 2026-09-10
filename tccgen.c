@@ -2495,6 +2495,57 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent);
 
 // N7-CROSS-01B: gen_function replay target for global copy-init startup.
 static CppGlobalDynEntry *cpp_global_copy_init_emit_ent;
+static int cpp_global_copy_init_reg_count;
+
+static int cpp_is_synthetic_source_file(const char *fn)
+{
+    /* tccpp_putfile(":global_copy_init:") prepends the real directory, so
+     * match the pseudo-name anywhere in the path (N7-CROSS-01C reentry guard). */
+    if (!fn)
+        return 0;
+    return strstr(fn, ":global_copy_init:") != NULL
+        || strstr(fn, ":inline:") != NULL;
+}
+
+static int cpp_global_copy_init_decl_allowed(void)
+{
+    if (!file || !file->filename)
+        return 0;
+    /* Startup replay must not register a second dynamic-init declaration. */
+    if (cpp_global_copy_init_emit_ent)
+        return 0;
+    if (cpp_is_synthetic_source_file(file->filename))
+        return 0;
+    /* Real primary TU and real #include files; FEAT-4F/4G stay primary-only. */
+    return 1;
+}
+
+static void cpp_diag_global_copy_init_gate(int has_init, int scope_is_const,
+                                           int type_is_struct, int tok_after_eq,
+                                           int allowed, int intercepted)
+{
+    const char *diag;
+
+    diag = getenv("TCC_N7_CROSS_01C_DIAG");
+    if (!diag || diag[0] != '1')
+        return;
+    fprintf(stderr,
+        "N7_01C_DIAG FILE_NAME=%s FILE_PREV_PRESENT=%d FILE_PREV_NAME=%s "
+        "CPP_IN_USER_SOURCE_FILE=%d HAS_INIT=%d SCOPE=%s TYPE_IS_STRUCT=%d "
+        "TOK_AFTER_EQUAL=%d GLOBAL_COPY_INIT_DECL_ALLOWED=%d "
+        "GLOBAL_COPY_INIT_INTERCEPTED=%d REG_COUNT=%d\n",
+        file && file->filename ? file->filename : "",
+        file && file->prev ? 1 : 0,
+        file && file->prev && file->prev->filename ? file->prev->filename : "",
+        cpp_in_user_source_file(),
+        has_init,
+        scope_is_const ? "VT_CONST" : "other",
+        type_is_struct,
+        tok_after_eq,
+        allowed,
+        intercepted,
+        cpp_global_copy_init_reg_count);
+}
 
 typedef struct CppGlobalEmitSaved {
     Section *saved_text_sec;
@@ -3012,6 +3063,7 @@ static void cpp_register_global_copy_init(Sym *obj_sym, TokenString *init_expr)
     ent->is_dtor = 0;
     ent->is_copy_init = 1;
     ent->wrapper_sym = NULL;
+    cpp_global_copy_init_reg_count++;
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
         && cpp_class_requires_destruction(class_sym))
@@ -6046,6 +6098,7 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_default_arg_replay = 0;
     cpp_user_inline_feat4b_replay = 0;
     cpp_global_copy_init_emit_ent = NULL;
+    cpp_global_copy_init_reg_count = 0;
     decl_once_flag = 0;
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
@@ -19445,27 +19498,40 @@ static int decl(int l)
                             && l == VT_CONST
                             && (type.t & VT_BTYPE) == VT_STRUCT
                             && type.ref
-                            && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_CPP_TLS))
-                            && cpp_in_user_source_file()) {
-                            next();
-                            global_init_eq_consumed = 1;
-                            if (tok != '{') {
-                                cpp_ensure_synthetic_odr(type.ref);
-                                skip_or_save_block(&init_toks);
-                                // Writable storage only; semantic const stays on sym.
-                                alloc_type = type;
-                                alloc_type.t &= ~VT_CONSTANT;
-                                decl_initializer_alloc(&alloc_type, &ad, r | VT_LVAL,
-                                    0, v, 1);
-                                obj_sym = sym_find(v);
-                                if (!obj_sym)
-                                    tcc_error("internal error: global copy-init object lost");
-                                if (type.t & VT_CONSTANT)
-                                    obj_sym->type.t |= VT_CONSTANT;
-                                cpp_register_global_copy_init(obj_sym, init_toks);
-                                global_copy_init_done = 1;
-                                has_init = 0;
+                            && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_CPP_TLS))) {
+                            int copy_init_allowed;
+                            int tok_after_eq;
+                            int intercepted;
+
+                            copy_init_allowed = cpp_global_copy_init_decl_allowed();
+                            tok_after_eq = 0;
+                            intercepted = 0;
+                            if (copy_init_allowed) {
+                                next();
+                                global_init_eq_consumed = 1;
+                                tok_after_eq = tok;
+                                if (tok != '{') {
+                                    cpp_ensure_synthetic_odr(type.ref);
+                                    skip_or_save_block(&init_toks);
+                                    // Writable storage only; semantic const stays on sym.
+                                    alloc_type = type;
+                                    alloc_type.t &= ~VT_CONSTANT;
+                                    decl_initializer_alloc(&alloc_type, &ad, r | VT_LVAL,
+                                        0, v, 1);
+                                    obj_sym = sym_find(v);
+                                    if (!obj_sym)
+                                        tcc_error("internal error: global copy-init object lost");
+                                    if (type.t & VT_CONSTANT)
+                                        obj_sym->type.t |= VT_CONSTANT;
+                                    cpp_register_global_copy_init(obj_sym, init_toks);
+                                    global_copy_init_done = 1;
+                                    intercepted = 1;
+                                    has_init = 0;
+                                }
                             }
+                            cpp_diag_global_copy_init_gate(has_init || global_init_eq_consumed,
+                                l == VT_CONST, 1, tok_after_eq,
+                                copy_init_allowed, intercepted);
                         }
                         if (has_init && !global_init_eq_consumed)
                             next();
