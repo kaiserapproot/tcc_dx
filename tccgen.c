@@ -194,6 +194,7 @@ static void vpush64(int ty, unsigned long long v);
 static void vpush(CType* type);
 static int gvtst(int inv, int t);
 static void gen_inline_functions(TCCState* s);
+static void gen_function(Sym *sym);
 static void free_inline_functions(TCCState* s);
 static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
@@ -256,6 +257,7 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type);
    which lives with the other member-call helpers. */
 static void cpp_spill_member_this(void);
 static int cpp_spill_ptr_to_temp(CType *ptype);
+static void cpp_emit_local_copy_init(Sym *obj_sym, Sym *class_sym);
 static int cpp_emit_copied_class_subobject(Sym *class_sym, CType *dst_ptype,
                                            int dst_ptr_slot, int src_ptr_slot,
                                            int dst_base_ofs, int src_base_ofs);
@@ -2484,8 +2486,14 @@ typedef struct CppGlobalDynEntry {
     Sym *obj_sym;
     TokenString *ctor_args; /* NULL for default ctor or dtor entry */
     int is_dtor;
+    int is_copy_init; /* N7-CROSS-01B: saved init expr tokens */
     Sym *wrapper_sym;
 } CppGlobalDynEntry;
+
+static void cpp_emit_global_copy_init_thunk(CppGlobalDynEntry *ent);
+
+// N7-CROSS-01B: gen_function replay target for global copy-init startup.
+static CppGlobalDynEntry *cpp_global_copy_init_emit_ent;
 
 static CppGlobalDynEntry **cpp_global_dyns;
 static int nb_cpp_global_dyns;
@@ -2921,6 +2929,7 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     ent->obj_sym = obj_sym;
     ent->ctor_args = ctor_args;
     ent->is_dtor = is_dtor;
+    ent->is_copy_init = 0;
     ent->wrapper_sym = NULL;
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
@@ -2936,9 +2945,44 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
             ent->obj_sym = obj_sym;
             ent->ctor_args = NULL;
             ent->is_dtor = 1;
+            ent->is_copy_init = 0;
             ent->wrapper_sym = NULL;
             dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
         }
+    }
+}
+
+static void cpp_register_global_copy_init(Sym *obj_sym, TokenString *init_expr)
+{
+    CppGlobalDynEntry *ent;
+    Sym *class_sym;
+
+    if (!obj_sym || !init_expr || !tcc_state->cpp)
+        return;
+    class_sym = cpp_type_class_sym(&obj_sym->type, NULL);
+    if (!class_sym)
+        return;
+    ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+    ent->obj_sym = obj_sym;
+    ent->ctor_args = init_expr;
+    ent->is_dtor = 0;
+    ent->is_copy_init = 1;
+    ent->wrapper_sym = NULL;
+    dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
+    if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
+        && cpp_class_requires_destruction(class_sym))
+        tcc_error("global destructor runtime in DLL is unsupported");
+    cpp_ensure_synthetic_odr(class_sym);
+    if (!cpp_find_dtor_field(class_sym))
+        cpp_validate_implicit_dtor(class_sym, 0);
+    if (cpp_find_dtor_field(class_sym)) {
+        ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+        ent->obj_sym = obj_sym;
+        ent->ctor_args = NULL;
+        ent->is_dtor = 1;
+        ent->is_copy_init = 0;
+        ent->wrapper_sym = NULL;
+        dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     }
 }
 
@@ -3393,8 +3437,16 @@ static void cpp_finish_global_dyns(TCCState *s1)
             cpp_global_dyns[i]->wrapper_sym =
                 cpp_new_static_function_sym(&cpp_local_static_dtor_type);
     }
-    for (i = 0; i < nb_cpp_global_dyns; i++)
-        cpp_emit_global_dyn_thunk(cpp_global_dyns[i]);
+    for (i = 0; i < nb_cpp_global_dyns; i++) {
+        cur_text_section = text_section;
+        if (!cpp_global_dyns[i]->is_copy_init)
+            cpp_emit_global_dyn_thunk(cpp_global_dyns[i]);
+    }
+    for (i = 0; i < nb_cpp_global_dyns; i++) {
+        cur_text_section = text_section;
+        if (cpp_global_dyns[i]->is_copy_init)
+            cpp_emit_global_copy_init_thunk(cpp_global_dyns[i]);
+    }
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     /* survives the per-TU save/restore of s1->cpp; gates the PE startup
        injection at link time (tccpe.c). */
@@ -5952,6 +6004,7 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_cur_class = NULL;
     cpp_default_arg_replay = 0;
     cpp_user_inline_feat4b_replay = 0;
+    cpp_global_copy_init_emit_ent = NULL;
     decl_once_flag = 0;
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
@@ -13983,6 +14036,79 @@ static void cpp_emit_local_copy_init(Sym *obj_sym, Sym *class_sym)
     cpp_reconstruct_copied_class_members(class_sym, &ptype, dst_slot,
                                          src_slot, 0, 0);
 }
+
+static void cpp_emit_global_copy_init_body(CppGlobalDynEntry *ent)
+{
+    Sym *obj_sym;
+    Sym *class_sym;
+    TokenString *init_toks;
+    int flat_count;
+
+    if (!ent || !ent->obj_sym || !ent->ctor_args)
+        return;
+    obj_sym = ent->obj_sym;
+    init_toks = ent->ctor_args;
+    class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
+    if (!class_sym || flat_count != 1)
+        tcc_error("global copy-init of class array is not supported");
+    // const globals were allocated as VT_CONSTANT; startup init must write.
+    obj_sym->type.t &= ~VT_CONSTANT;
+    begin_macro(init_toks, 1);
+    next();
+    expr_eq();
+    if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+        && vtop->type.ref == class_sym) {
+        cpp_emit_local_copy_init(obj_sym, class_sym);
+    } else if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+               && vtop->type.ref
+               && cpp_base_subobject_offset(vtop->type.ref, class_sym) >= 0) {
+        tcc_error("slicing copy-initialization is unsupported; use direct-initialization");
+    } else {
+        cpp_push_declared_object(obj_sym);
+        vswap();
+        gen_assign_cast(&obj_sym->type);
+        vstore();
+        vpop();
+    }
+    end_macro();
+    check_vstack();
+}
+
+static void cpp_emit_global_copy_init_thunk(CppGlobalDynEntry *ent)
+{
+    CType void_type;
+    CType func_type;
+    Sym *proto;
+    Sym *wrapper;
+    TokenString *body;
+
+    if (!ent || !ent->obj_sym || !ent->ctor_args)
+        return;
+
+    void_type.t = VT_VOID;
+    func_type.t = VT_FUNC;
+    proto = sym_push(SYM_FIELD, &void_type, 0, 0);
+    proto->f.func_call = FUNC_CDECL;
+    proto->f.func_type = FUNC_NEW;
+    func_type.ref = proto;
+    wrapper = cpp_new_static_function_sym(&func_type);
+    ent->wrapper_sym = wrapper;
+
+    // FEAT-4G minimal thunks cannot host copy-init (stack scratch + sret).
+    // Emit a real void startup function via gen_function instead.
+    body = cpp_make_empty_member_body();
+    cpp_global_copy_init_emit_ent = ent;
+    tccpp_putfile(":global_copy_init:");
+    cur_text_section = text_section;
+    begin_macro(body, 1);
+    next();
+    gen_function(wrapper);
+    end_macro();
+    if (cpp_global_copy_init_emit_ent)
+        tcc_error("internal error: global copy-init startup body not emitted");
+    add_array(tcc_state, ".init_array", wrapper->c);
+}
+
 // Emit __cpp_ctor_C(p, args) for the object whose address sits in
 // ptr_slot.  Argument handling mirrors cpp_emit_base_ctor_call: parse
 // first, resolve the overload from the raw types, then convert.
@@ -18251,27 +18377,32 @@ static void gen_function(Sym* sym)
     rsym = 0;
     func_vla_arg(sym);
 
-    /* MI: construct every base subobject the mem-initializer list does NOT
-     * name (including the case of a ctor with no list at all).  Emitted
-     * BEFORE the list runs because C++ guarantees bases are fully
-     * constructed first, so a member initializer may legally read a base
-     * member.  MI Phase 1 only handled explicitly listed bases. */
-    if (tcc_state->cpp && cpp_this_sym && sym->parent_class
-        && cpp_is_ctor_global(sym)) {
-        cpp_emit_implicit_base_ctors(sym->parent_class, sym->cpp_mem_init_list);
-        // G7: class-type data members the list does not name are
-        // default-constructed too (C++ semantics; TestResult's
-        // SimpleList members crashed the first driver run otherwise).
-        cpp_emit_implicit_member_ctors(sym->parent_class,
-                                       sym->cpp_mem_init_list);
-    }
+    if (cpp_global_copy_init_emit_ent
+        && sym == cpp_global_copy_init_emit_ent->wrapper_sym) {
+        cpp_emit_global_copy_init_body(cpp_global_copy_init_emit_ent);
+        cpp_global_copy_init_emit_ent = NULL;
+    } else {
+        /* MI: construct every base subobject the mem-initializer list does NOT
+         * name (including the case of a ctor with no list at all).  Emitted
+         * BEFORE the list runs because C++ guarantees bases are fully
+         * constructed first, so a member initializer may legally read a base
+         * member.  MI Phase 1 only handled explicitly listed bases. */
+        if (tcc_state->cpp && cpp_this_sym && sym->parent_class
+            && cpp_is_ctor_global(sym)) {
+            cpp_emit_implicit_base_ctors(sym->parent_class, sym->cpp_mem_init_list);
+            // G7: class-type data members the list does not name are
+            // default-constructed too (C++ semantics; TestResult's
+            // SimpleList members crashed the first driver run otherwise).
+            cpp_emit_implicit_member_ctors(sym->parent_class,
+                                           sym->cpp_mem_init_list);
+        }
 
-    /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
-     * the ctor sym into `this->a = x; this->b = y;` instructions before the
-     * body runs.  Base-class initializers call __cpp_ctor_Base on the
-     * embedded base subobject (FEAT-4D). */
-    if (tcc_state->cpp && sym->cpp_mem_init_list
-        && cpp_this_sym && sym->parent_class) {
+        /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
+         * the ctor sym into `this->a = x; this->b = y;` instructions before the
+         * body runs.  Base-class initializers call __cpp_ctor_Base on the
+         * embedded base subobject (FEAT-4D). */
+        if (tcc_state->cpp && sym->cpp_mem_init_list
+            && cpp_this_sym && sym->parent_class) {
         TokenString *init_copy = tok_str_dup_for_default(sym->cpp_mem_init_list);
         if (init_copy) {
             Sym *class_sym = sym->parent_class;
@@ -18363,9 +18494,10 @@ static void gen_function(Sym* sym)
              * keep block()'s entry contract. */
             unget_tok('{');
         }
-    }
+        }
 
-    block(0);
+        block(0);
+    }
     cpp_flush_class_temps(-1);
     gsym(rsym);
 
@@ -19248,16 +19380,51 @@ static int decl(int l)
                         }
                     }
                     else {
+                        int global_copy_init_done;
+                        int global_init_eq_consumed;
+                        TokenString *init_toks;
+                        Sym *obj_sym;
+
+                        global_copy_init_done = 0;
+                        global_init_eq_consumed = 0;
+                        init_toks = NULL;
+                        obj_sym = NULL;
                         if (l == VT_CONST || (type.t & VT_STATIC))
                             r |= VT_CONST;
                         else
                             r |= VT_LOCAL;
-                        if (has_init)
+                        if (has_init
+                            && tcc_state->cpp
+                            && l == VT_CONST
+                            && (type.t & VT_BTYPE) == VT_STRUCT
+                            && type.ref
+                            && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_CPP_TLS))
+                            && cpp_in_user_source_file()) {
                             next();
-                        else if (l == VT_CONST)
+                            global_init_eq_consumed = 1;
+                            if (tok != '{') {
+                                cpp_ensure_synthetic_odr(type.ref);
+                                skip_or_save_block(&init_toks);
+                                // Runtime copy-init writes the object at startup;
+                                // rodata would AV (measured: const dq -> .rdata).
+                                type.t &= ~VT_CONSTANT;
+                                decl_initializer_alloc(&type, &ad, r | VT_LVAL,
+                                    0, v, 1);
+                                obj_sym = sym_find(v);
+                                if (!obj_sym)
+                                    tcc_error("internal error: global copy-init object lost");
+                                cpp_register_global_copy_init(obj_sym, init_toks);
+                                global_copy_init_done = 1;
+                                has_init = 0;
+                            }
+                        }
+                        if (has_init && !global_init_eq_consumed)
+                            next();
+                        else if (l == VT_CONST && !global_copy_init_done)
                             /* uninitialized global variables may be overridden */
                             type.t |= VT_EXTERN;
-                        decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
+                        if (!global_copy_init_done)
+                            decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
                         // N7-02-03: `A g[N];` parses `[N]` in type_decl after the
                         // FEAT-4G scalar gate, so register startup ctor thunks here.
                         if (tcc_state->cpp

@@ -1,0 +1,38 @@
+---
+description: Prevent WER crashes from unverified 01B/global-init generated exe
+alwaysApply: true
+---
+
+# Generated exe crash gate (N7 / FEAT-4G startup)
+
+## Scope split
+
+| Target | Protection |
+|--------|------------|
+| `dev\tcc.exe` | C1 VEH in `tcc.c` — compiler AV -> diagnostic exit 1 |
+| Generated `*.exe` | **No VEH** — bad `.init_array` startup -> WER before main |
+
+Compile success / link success **does not** mean startup is safe.
+
+## Binary roles
+
+- `dev\tcc.exe` — last-known-good only (never overwrite with 01B WIP).
+- `dev\tcc_wip.exe` — 01B experiments only.
+- Never treat `%TEMP%\tcc_n7_*` exe as authority; do not re-run crashed exe.
+
+## Mandatory workflow
+
+1. **compile-only** — `n7_cross_01b_compile_only.bat` with `TCC_EXE=..\..\..\tcc_wip.exe` and `N7_01B_COMPILE_GATE=POST`. **No run.**
+2. **Static check** (optional) — `dumpbin /SECTION:.text /DISASM` on fresh exe; init thunk must store to **`.bss` / writable `.data`**, not `.rdata`.
+3. **Single run** — one fresh compile, one run, only after (1) is green and user or plan allows.
+4. **Full run gate** — `n7_cross_01b_measure.bat` only after single-run passes.
+
+## Forbidden
+
+- Running `n7_cross_01b_measure.bat` or any `:run` bat while 01B WIP is unverified.
+- Using compile-only PASS as permission to batch-run exe.
+- Re-running a WER-crash exe for "one more try".
+
+## Known runtime failure pattern (01B)
+
+Global `const T g = expr()` copy-init: if storage lands in **rodata**, startup copy-init **AV**. Fix: allocate writable storage at decl time (`type.t &= ~VT_CONSTANT` before `decl_initializer_alloc` for dynamic copy-init).
