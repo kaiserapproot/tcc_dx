@@ -1653,6 +1653,28 @@ static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym)
         && cpp_can_implicit_default_ctor_exist(class_sym, 0);
 }
 
+// N7-02-03: peel array wrappers to the underlying class and count flat
+// elements.  Returns NULL when the type is not a class object declaration.
+static Sym *cpp_type_class_sym(CType *type, int *flat_count)
+{
+    CType elem;
+    int n;
+
+    elem = *type;
+    n = 1;
+    while (elem.t & VT_ARRAY) {
+        if (!elem.ref || elem.ref->c < 0)
+            return NULL;
+        n *= elem.ref->c;
+        elem = *pointed_type(&elem);
+    }
+    if ((elem.t & VT_BTYPE) != VT_STRUCT || !elem.ref)
+        return NULL;
+    if (flat_count)
+        *flat_count = n;
+    return elem.ref;
+}
+
 static int cpp_class_would_have_synthetic_ctor(Sym *class_sym)
 {
     return cpp_class_has_implicit_default_ctor_viable(class_sym);
@@ -2873,7 +2895,8 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
 
     if (!obj_sym || !tcc_state->cpp)
         return;
-    if ((obj_sym->type.t & VT_BTYPE) != VT_STRUCT)
+    class_sym = cpp_type_class_sym(&obj_sym->type, NULL);
+    if (!class_sym)
         return;
     /* dynarray_add stores the pointer as-is (no struct copy), so each
        entry must be heap-allocated; a stack address here dangles and
@@ -2885,7 +2908,6 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     ent->wrapper_sym = NULL;
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
-        class_sym = obj_sym->type.ref;
         if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
             && cpp_class_requires_destruction(class_sym))
             tcc_error("global destructor runtime in DLL is unsupported");
@@ -2973,24 +2995,37 @@ static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
 
 static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
 {
-    SValue obj_addr;
+    Sym *class_sym;
+    CType elem_type;
+    int flat_count;
+    int elem_size;
+    int elem_align;
+    int i;
+    int nb_args;
 
-    if (!cpp_find_ctor_field(obj_sym->type.ref))
+    class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
+    if (!class_sym || !cpp_find_ctor_field(class_sym) || flat_count <= 0)
         return 0;
-    // addend 0: obj_sym->c is the ELF symbol index for globals, not a
-    // section offset; passing it skewed the object address by c bytes.
-    // Forming the address is pure vstack bookkeeping (VT_CONST|VT_SYM),
-    // so doing it before the argument expressions emits no code.
-    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
-    vtop->sym = obj_sym;
-    gaddrof();
-    // BUG-16: gaddrof keeps the struct type, so gfunc_call would pass the
-    // global by value - for objects larger than 8 bytes Win64 stages a copy
-    // and the ctor initializes that copy, leaving the real global zeroed.
-    mk_pointer(&vtop->type);
-    obj_addr = *vtop;
-    vpop();
-    return cpp_emit_ctor_call_at(obj_sym->type.ref, &obj_addr, arg_toks);
+    elem_type = obj_sym->type;
+    while (elem_type.t & VT_ARRAY)
+        elem_type = *pointed_type(&elem_type);
+    elem_size = type_size(&elem_type, &elem_align);
+    nb_args = 0;
+    for (i = 0; i < flat_count; i++) {
+        // addend 0: obj_sym->c is the ELF symbol index for globals, not a
+        // section offset; passing it skewed the object address by c bytes.
+        vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+        vtop->sym = obj_sym;
+        gaddrof();
+        mk_pointer(&vtop->type);
+        if (i != 0) {
+            vpushi((addr_t)(i * elem_size));
+            gen_op('+');
+        }
+        nb_args = cpp_emit_ctor_call_at(class_sym, vtop, arg_toks);
+        vpop();
+    }
+    return nb_args;
 }
 
 static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
@@ -18438,6 +18473,7 @@ static int decl(int l)
     CType type, btype;
     CType static_elem_type;
     Sym* sym;
+    Sym *global_class_sym;
     AttributeDef ad, adbase;
     ElfSym* esym;
 
@@ -18603,15 +18639,15 @@ static int decl(int l)
             // (.init_array) construction path - its object lives in
             // per-thread runtime storage and is constructed lazily by the
             // TLS resolver, so it falls through to the VT_CPP_TLS branch.
+            global_class_sym = cpp_type_class_sym(&btype, NULL);
             if (tcc_state->cpp
                 && l == VT_CONST
-                && (btype.t & VT_BTYPE) == VT_STRUCT
-                && btype.ref
+                && global_class_sym
                 && !(btype.t & VT_CPP_TLS)
                 && tok >= TOK_UIDENT
                 && cpp_in_user_source_file()
-                && (cpp_find_ctor_field(btype.ref)
-                    || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
+                && (cpp_find_ctor_field(global_class_sym)
+                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
                 int saved_var_tok = tok;
                 int obj_r = VT_LVAL | VT_CONST;
                 Sym *obj_sym;
@@ -18647,9 +18683,9 @@ static int decl(int l)
                               excluding VT_STATIC: function-local statics need
                               once-only guarded construction, not this path.) */
                            && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
-                           && (cpp_class_has_default_ctor(btype.ref)
-                               || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
-                    cpp_ensure_synthetic_odr(btype.ref);
+                           && (cpp_class_has_default_ctor(global_class_sym)
+                               || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
+                    cpp_ensure_synthetic_odr(global_class_sym);
                     decl_initializer_alloc(&type, &ad, obj_r,
                         0, saved_var_tok, 1);
                     obj_sym = sym_find(saved_var_tok);
@@ -19189,6 +19225,28 @@ static int decl(int l)
                             /* uninitialized global variables may be overridden */
                             type.t |= VT_EXTERN;
                         decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
+                        // N7-02-03: `A g[N];` parses `[N]` in type_decl after the
+                        // FEAT-4G scalar gate, so register startup ctor thunks here.
+                        if (tcc_state->cpp
+                            && l == VT_CONST
+                            && !has_init
+                            && (type.t & VT_ARRAY)
+                            && !(type.t & (VT_TYPEDEF | VT_CPP_TLS))
+                            && cpp_in_user_source_file()) {
+                            global_class_sym = cpp_type_class_sym(&type, NULL);
+                            if (global_class_sym
+                                && (cpp_find_ctor_field(global_class_sym)
+                                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))
+                                && (cpp_class_has_default_ctor(global_class_sym)
+                                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
+                                Sym *obj_sym;
+
+                                cpp_ensure_synthetic_odr(global_class_sym);
+                                obj_sym = sym_find(v);
+                                if (obj_sym)
+                                    cpp_register_global_dyn(obj_sym, NULL, 0);
+                            }
+                        }
                         if (tcc_state->cpp
                             && l == VT_LOCAL
                             && (type.t & VT_STATIC)
