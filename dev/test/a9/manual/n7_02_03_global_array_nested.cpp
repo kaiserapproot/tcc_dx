@@ -5,11 +5,11 @@ struct M {
 
 int M::count;
 
-struct A {
+struct B {
     M m;
 };
 
-A global_a[4];
+B global_b[4];
 
 int main(void)
 {
