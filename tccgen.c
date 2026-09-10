@@ -11488,13 +11488,30 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
 }
 static int cpp_try_member_binop(int op_tok)
 {
-    Sym *field, *s;
+    Sym *field, *s, *best;
     SValue rhs;
-    int cumofs;
+    int cumofs, v, want_const, best_score;
 
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
-    field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs, 1);
+    v = cpp_operator_field_tok(op_tok);
+    if (!v)
+        return 0;
+    // Score operator overloads against the RHS on vtop (nb_args == 1).
+    // cpp_find_operator_member only keeps the first arity match, so
+    // operator*(T&) declared before operator*(float) would always
+    // win and then fail converting a scalar RHS (vec_quat.h vec3).
+    best = NULL;
+    best_score = -1;
+    want_const = (vtop[-1].type.t & VT_CONSTANT) ? 1 : 0;
+    cpp_score_member_overloads(vtop[-1].type.ref, v | SYM_FIELD, 1,
+                               want_const, &best, &best_score);
+    if (!best && !want_const)
+        cpp_score_member_overloads(vtop[-1].type.ref, v | SYM_FIELD, 1,
+                                   1, &best, &best_score);
+    field = best;
+    if (!field)
+        field = cpp_find_operator_member(&vtop[-1].type, v, &cumofs, 1);
     if (op_tok == '=' && field && field->parent_class != vtop[-1].type.ref)
         return 0;
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
