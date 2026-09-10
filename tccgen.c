@@ -2491,9 +2491,48 @@ typedef struct CppGlobalDynEntry {
 } CppGlobalDynEntry;
 
 static void cpp_emit_global_copy_init_thunk(CppGlobalDynEntry *ent);
+static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent);
 
 // N7-CROSS-01B: gen_function replay target for global copy-init startup.
 static CppGlobalDynEntry *cpp_global_copy_init_emit_ent;
+
+typedef struct CppGlobalEmitSaved {
+    Section *saved_text_sec;
+    int loc;
+    int ind;
+} CppGlobalEmitSaved;
+
+static void cpp_save_global_emit_state(CppGlobalEmitSaved *sav)
+{
+    sav->saved_text_sec = cur_text_section;
+    sav->loc = loc;
+    sav->ind = ind;
+}
+
+static void cpp_restore_global_emit_state(CppGlobalEmitSaved *sav)
+{
+    (void)sav;
+    cur_text_section = text_section;
+    if (cpp_global_copy_init_emit_ent)
+        tcc_error("internal error: global copy-init emit target not cleared");
+    loc = 0;
+    // gen_function ends with DATA_ONLY_WANTED; minimal thunks after it need codegen on.
+    nocode_wanted = 0;
+    check_vstack();
+}
+
+static void cpp_emit_global_dyn_entry(CppGlobalDynEntry *ent)
+{
+    if (!ent)
+        return;
+    if (ent->is_dtor) {
+        cpp_emit_global_dyn_thunk(ent);
+    } else if (ent->is_copy_init) {
+        cpp_emit_global_copy_init_thunk(ent);
+    } else {
+        cpp_emit_global_dyn_thunk(ent);
+    }
+}
 
 static CppGlobalDynEntry **cpp_global_dyns;
 static int nb_cpp_global_dyns;
@@ -2962,6 +3001,11 @@ static void cpp_register_global_copy_init(Sym *obj_sym, TokenString *init_expr)
     class_sym = cpp_type_class_sym(&obj_sym->type, NULL);
     if (!class_sym)
         return;
+    // INIT_TOKEN_OWNER=CppGlobalDynEntry.ctor_args (heap TokenString).
+    // INIT_TOKEN_ALLOC_SITE=skip_or_save_block() in decl() copy-init gate.
+    // INIT_TOKEN_CONSUME_SITE=begin_macro(init_toks,1) in copy-init body emit.
+    // INIT_TOKEN_FREE_SITE=end_macro() (alloc=1 -> tok_str_free once).
+    // INIT_TOKEN_FREE_COUNT=1; never tok_str_free ent->ctor_args elsewhere.
     ent = tcc_malloc(sizeof(CppGlobalDynEntry));
     ent->obj_sym = obj_sym;
     ent->ctor_args = init_expr;
@@ -3426,6 +3470,7 @@ static void cpp_finish_global_dyns(TCCState *s1)
 {
     int i;
     int saved_nocode;
+    CppGlobalEmitSaved emit_saved;
 
     if (!s1->cpp || nb_cpp_global_dyns == 0)
         return;
@@ -3438,14 +3483,10 @@ static void cpp_finish_global_dyns(TCCState *s1)
                 cpp_new_static_function_sym(&cpp_local_static_dtor_type);
     }
     for (i = 0; i < nb_cpp_global_dyns; i++) {
+        cpp_save_global_emit_state(&emit_saved);
         cur_text_section = text_section;
-        if (!cpp_global_dyns[i]->is_copy_init)
-            cpp_emit_global_dyn_thunk(cpp_global_dyns[i]);
-    }
-    for (i = 0; i < nb_cpp_global_dyns; i++) {
-        cur_text_section = text_section;
-        if (cpp_global_dyns[i]->is_copy_init)
-            cpp_emit_global_copy_init_thunk(cpp_global_dyns[i]);
+        cpp_emit_global_dyn_entry(cpp_global_dyns[i]);
+        cpp_restore_global_emit_state(&emit_saved);
     }
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     /* survives the per-TU save/restore of s1->cpp; gates the PE startup
@@ -14048,10 +14089,13 @@ static void cpp_emit_global_copy_init_body(CppGlobalDynEntry *ent)
         return;
     obj_sym = ent->obj_sym;
     init_toks = ent->ctor_args;
+    int saved_t;
+
     class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
     if (!class_sym || flat_count != 1)
         tcc_error("global copy-init of class array is not supported");
-    // const globals were allocated as VT_CONSTANT; startup init must write.
+    saved_t = obj_sym->type.t;
+    // One-time dynamic init in startup only; restore semantic const after.
     obj_sym->type.t &= ~VT_CONSTANT;
     begin_macro(init_toks, 1);
     next();
@@ -14071,6 +14115,7 @@ static void cpp_emit_global_copy_init_body(CppGlobalDynEntry *ent)
         vpop();
     }
     end_macro();
+    obj_sym->type.t = saved_t;
     check_vstack();
 }
 
@@ -19384,11 +19429,13 @@ static int decl(int l)
                         int global_init_eq_consumed;
                         TokenString *init_toks;
                         Sym *obj_sym;
+                        CType alloc_type;
 
                         global_copy_init_done = 0;
                         global_init_eq_consumed = 0;
                         init_toks = NULL;
                         obj_sym = NULL;
+                        alloc_type.t = 0;
                         if (l == VT_CONST || (type.t & VT_STATIC))
                             r |= VT_CONST;
                         else
@@ -19405,14 +19452,16 @@ static int decl(int l)
                             if (tok != '{') {
                                 cpp_ensure_synthetic_odr(type.ref);
                                 skip_or_save_block(&init_toks);
-                                // Runtime copy-init writes the object at startup;
-                                // rodata would AV (measured: const dq -> .rdata).
-                                type.t &= ~VT_CONSTANT;
-                                decl_initializer_alloc(&type, &ad, r | VT_LVAL,
+                                // Writable storage only; semantic const stays on sym.
+                                alloc_type = type;
+                                alloc_type.t &= ~VT_CONSTANT;
+                                decl_initializer_alloc(&alloc_type, &ad, r | VT_LVAL,
                                     0, v, 1);
                                 obj_sym = sym_find(v);
                                 if (!obj_sym)
                                     tcc_error("internal error: global copy-init object lost");
+                                if (type.t & VT_CONSTANT)
+                                    obj_sym->type.t |= VT_CONSTANT;
                                 cpp_register_global_copy_init(obj_sym, init_toks);
                                 global_copy_init_done = 1;
                                 has_init = 0;
