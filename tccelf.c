@@ -1580,26 +1580,173 @@ static void tcc_compile_string_no_debug(TCCState *s, const char *str)
 }
 
 /* compile injected startup as C even when the TU is C++ */
-static void tcc_compile_injected_c_no_debug(TCCState *s, const char *str)
+static int tcc_compile_injected_c_no_debug_ret(TCCState *s, const char *str)
 {
     int save_do_debug = s->do_debug;
     int save_test_coverage = s->test_coverage;
     int saved_cpp = s->cpp;
     int saved_lex_c = s->lex_c;
     int saved_extern_c = s->extern_c;
+    int ret;
 
     s->do_debug = 0;
     s->test_coverage = 0;
     s->cpp = 0;
     s->lex_c = 1;
     s->extern_c = 0;
-    tcc_compile_string(s, str);
+    ret = tcc_compile_string(s, str);
     s->cpp = saved_cpp;
     s->lex_c = saved_lex_c;
     s->extern_c = saved_extern_c;
     s->do_debug = save_do_debug;
     s->test_coverage = save_test_coverage;
+    return ret;
 }
+
+static void tcc_compile_injected_c_no_debug(TCCState *s, const char *str)
+{
+    tcc_compile_injected_c_no_debug_ret(s, str);
+}
+
+#ifdef TCC_TARGET_PE
+static int tcc_diag_g1_enabled(void)
+{
+    static int cached = -1;
+    if (cached < 0)
+        cached = getenv("TCC_DIAG_G1") != NULL;
+    return cached;
+}
+
+ST_FUNC int tcc_diag_g1_profile(TCCState *s1)
+{
+    if (!tcc_diag_g1_enabled())
+        return 0;
+    if (TCC_OUTPUT_DLL == s1->output_type)
+        return 0;
+    return tcc_cpp_global_init_needed(s1)
+        && (tcc_cpp_tls_runtime_needed(s1) || s1->cpp_tls_runtime_injected);
+}
+
+ST_FUNC void tcc_diag_g1_emit_kv(const char *key, const char *value)
+{
+    if (!tcc_diag_g1_enabled())
+        return;
+    fprintf(stderr, "%s=%s\n", key, value);
+}
+
+ST_FUNC void tcc_diag_g1_emit_int(const char *key, int value)
+{
+    if (!tcc_diag_g1_enabled())
+        return;
+    fprintf(stderr, "%s=%d\n", key, value);
+}
+
+ST_FUNC void tcc_diag_g1_emit_startsym(TCCState *s1, const char *tag)
+{
+    int sym_index;
+    const char *state;
+    static const char * const names[] = {
+        "_tcc_cpp_start",
+        "__tcc_cpp_start",
+        "___tcc_cpp_start",
+        NULL
+    };
+    int i;
+
+    if (!tcc_diag_g1_profile(s1))
+        return;
+    state = "ABSENT";
+    for (i = 0; names[i]; i++) {
+        sym_index = find_elf_sym(s1->symtab, names[i]);
+        if (sym_index) {
+            ElfW(Sym) *sym = &((ElfW(Sym) *)s1->symtab->data)[sym_index];
+            if (sym->st_shndx == SHN_UNDEF)
+                state = "UNDEFINED_REF";
+            else
+                state = "DEFINED";
+            break;
+        }
+    }
+    fprintf(stderr, "G1_STARTSYM_%s=%s\n", tag, state);
+}
+
+static unsigned tcc_diag_g1_hash_str(const char *s)
+{
+    unsigned h = 5381;
+    const unsigned char *p;
+
+    for (p = (const unsigned char *)s; *p; ++p)
+        h = ((h << 5) + h) + *p;
+    return h;
+}
+
+static void tcc_diag_g1_save_combined_source(CString *cstr)
+{
+    static const char * const paths[] = {
+        "dev/test/a9/manual/disc_out/n6_05_global_tls_combined_runtime.c",
+        "test/a9/manual/disc_out/n6_05_global_tls_combined_runtime.c",
+        NULL
+    };
+    FILE *f;
+    int i;
+    int embedded;
+    int content_end;
+    size_t n;
+
+    if (!cstr || !cstr->data || cstr->size == 0)
+        return;
+    content_end = cstr->size;
+    if (cstr->data[cstr->size - 1] == '\0')
+        content_end = cstr->size - 1;
+    embedded = 0;
+    for (i = 0; i < content_end; i++) {
+        if (cstr->data[i] == '\0')
+            embedded++;
+    }
+    tcc_diag_g1_emit_int("GENERATED_SOURCE_EMBEDDED_NUL_COUNT", embedded);
+    tcc_diag_g1_emit_kv("GENERATED_SOURCE_HAS_N6_EXTERN",
+        strstr(cstr->data, "__tcc_cpp_tls_n6_main_enter") ? "YES" : "NO");
+    tcc_diag_g1_emit_kv("GENERATED_SOURCE_HAS_MAIN",
+        strstr(cstr->data, "int main(int,char**,char**)") ? "YES" : "NO");
+    tcc_diag_g1_emit_kv("GENERATED_SOURCE_HAS_TCC_CPP_START_DEF",
+        strstr(cstr->data, "void _tcc_cpp_start(void)") ? "YES" : "NO");
+    n = (size_t)cstr->size;
+    tcc_diag_g1_emit_int("GENERATED_SOURCE_SIZE", (int)n);
+    tcc_diag_g1_emit_int("GENERATED_SOURCE_HASH", (int)tcc_diag_g1_hash_str(cstr->data));
+    for (i = 0; paths[i]; i++) {
+        f = fopen(paths[i], "wb");
+        if (f) {
+            fwrite(cstr->data, 1, n, f);
+            fclose(f);
+            return;
+        }
+    }
+}
+#else
+ST_FUNC int tcc_diag_g1_profile(TCCState *s1)
+{
+    (void)s1;
+    return 0;
+}
+
+ST_FUNC void tcc_diag_g1_emit_kv(const char *key, const char *value)
+{
+    (void)key;
+    (void)value;
+}
+
+ST_FUNC void tcc_diag_g1_emit_int(const char *key, int value)
+{
+    (void)key;
+    (void)value;
+}
+
+ST_FUNC void tcc_diag_g1_emit_startsym(TCCState *s1, const char *tag)
+{
+    (void)s1;
+    (void)tag;
+}
+#endif
 
 ST_FUNC int tcc_cpp_runtime_needed(TCCState *s1)
 {
@@ -1655,12 +1802,25 @@ ST_FUNC int tcc_cpp_tls_runtime_needed(TCCState *s1)
     return 0;
 }
 
-static int tcc_cpp_n6_main_enter_sym_present(TCCState *s1)
+static int tcc_cpp_n6_main_sym_present(TCCState *s1)
 {
-    if (find_elf_sym(s1->symtab, "__tcc_cpp_tls_n6_main_enter")
-        || find_elf_sym(s1->symtab, "___tcc_cpp_tls_n6_main_enter")
-        || find_elf_sym(s1->symtab, "_tcc_cpp_tls_n6_main_enter"))
-        return 1;
+    static const char * const names[] = {
+        "__tcc_cpp_tls_n6_main_enter",
+        "___tcc_cpp_tls_n6_main_enter",
+        "_tcc_cpp_tls_n6_main_enter",
+        "__tcc_cpp_tls_n6_main_state",
+        "___tcc_cpp_tls_n6_main_state",
+        "_tcc_cpp_tls_n6_main_state",
+        "__tcc_cpp_tls_n6_main_finalize",
+        "___tcc_cpp_tls_n6_main_finalize",
+        NULL
+    };
+    int i;
+
+    for (i = 0; names[i]; i++) {
+        if (find_elf_sym(s1->symtab, names[i]))
+            return 1;
+    }
     return 0;
 }
 
@@ -1668,7 +1828,7 @@ ST_FUNC int tcc_cpp_n6_main_gateway_needed(TCCState *s1)
 {
     if (s1->cpp_n6_main_gateway_needed)
         return 1;
-    return tcc_cpp_n6_main_enter_sym_present(s1);
+    return tcc_cpp_n6_main_sym_present(s1);
 }
 
 ST_FUNC void tcc_add_cpp_n6_main_runtime(TCCState *s1)
@@ -2629,6 +2789,7 @@ ST_FUNC void tcc_add_cpp_tls_runtime(TCCState *s1)
     cstr_free(&cstr);
     s1->cpp_tls_runtime_injected = 1;
     s1->cpp_n6_main_runtime_injected = 1;
+    tcc_diag_g1_emit_startsym(s1, "01_AFTER_TLS_RUNTIME");
 }
 
 /* FEAT-4G: PE console EXE entry that walks .init_array / .fini_array
@@ -2643,12 +2804,108 @@ static int tcc_cpp_start_sym_present(TCCState *s1)
     return 0;
 }
 
+static void tcc_diag_g1_apply_injections(CString *cstr)
+{
+    char *p;
+
+    if (!tcc_diag_g1_enabled())
+        return;
+    if (getenv("TCC_DIAG_G1_INJECT_COMPILE_FAIL") != NULL) {
+        cstr_reset(cstr);
+        cstr_cat(cstr, "int __tcc_g1_inject_compile_fail = ;\n", 0);
+        return;
+    }
+    if (getenv("TCC_DIAG_G1_INJECT_SYMBOL_ABSENT") != NULL) {
+        p = strstr(cstr->data, "void _tcc_cpp_start");
+        if (p) {
+            cstr->size = (int)(p - cstr->data) + 1;
+            cstr->data[cstr->size - 1] = '\0';
+        }
+    }
+}
+
+static int tcc_cpp_try_commit_startup_done(TCCState *s1, int compile_ret)
+{
+    s1->cpp_init_startup_in_progress = 0;
+    if (compile_ret < 0)
+        return 0;
+    if (!tcc_cpp_start_sym_present(s1))
+        return 0;
+    s1->cpp_init_startup_done = 1;
+    return 1;
+}
+
+static void tcc_cpp_fail_required_startup(TCCState *s1)
+{
+    s1->cpp_init_startup_in_progress = 0;
+    s1->cpp_init_startup_done = 0;
+    tcc_error_noabort("required C++ startup generation failed");
+}
+
+static int tcc_cpp_compile_init_startup_cstr(TCCState *s1, CString *cstr,
+    int diag_combined)
+{
+    int compile_ret;
+    int nb_before;
+    int nb_after;
+
+    tcc_diag_g1_apply_injections(cstr);
+    if (diag_combined && tcc_diag_g1_profile(s1)) {
+        tcc_diag_g1_emit_startsym(s1, "03_BEFORE_COMBINED_COMPILE");
+        tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_ENTER", "YES");
+        tcc_diag_g1_save_combined_source(cstr);
+        nb_before = s1->nb_errors;
+        tcc_diag_g1_emit_int("G1_COMBINED_ERRORS_BEFORE", nb_before);
+        tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_BEFORE_COMPILE",
+            s1->cpp_init_startup_done);
+        tcc_diag_g1_emit_int("DONE_BEFORE_COMPILE", s1->cpp_init_startup_done);
+    }
+    compile_ret = tcc_compile_injected_c_no_debug_ret(s1, cstr->data);
+    if (diag_combined && tcc_diag_g1_profile(s1)) {
+        nb_after = s1->nb_errors;
+        tcc_diag_g1_emit_int("G1_COMBINED_COMPILE_RET", compile_ret);
+        tcc_diag_g1_emit_int("G1_COMBINED_ERRORS_AFTER", nb_after);
+        tcc_diag_g1_emit_int("CPP_INIT_STARTUP_DONE_AFTER_COMPILE",
+            s1->cpp_init_startup_done);
+        if (compile_ret < 0)
+            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "COMPILE_FAILED");
+        else if (tcc_cpp_start_sym_present(s1))
+            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "OK_SYMBOL_PRESENT");
+        else
+            tcc_diag_g1_emit_kv("G1_COMBINED_COMPILE_EXIT", "EMISSION_FAILURE");
+        tcc_diag_g1_emit_startsym(s1, "04_AFTER_COMBINED_COMPILE");
+    } else if (tcc_diag_g1_enabled()) {
+        tcc_diag_g1_emit_int("COMPILE_RET", compile_ret);
+        tcc_diag_g1_emit_kv("STARTSYM_AFTER_COMPILE",
+            tcc_cpp_start_sym_present(s1) ? "DEFINED" : "ABSENT");
+    }
+    if (!tcc_cpp_try_commit_startup_done(s1, compile_ret)) {
+        if (tcc_diag_g1_enabled()) {
+            tcc_diag_g1_emit_int("INJECTED_COMPILE_RET", compile_ret);
+            tcc_diag_g1_emit_kv("INJECTED_STARTSYM",
+                tcc_cpp_start_sym_present(s1) ? "DEFINED" : "ABSENT");
+            tcc_diag_g1_emit_int("INJECTED_CPP_INIT_STARTUP_DONE",
+                s1->cpp_init_startup_done);
+            tcc_diag_g1_emit_kv("INJECT_COMPILE_FAILURE",
+                compile_ret < 0 ? "YES" : "NO");
+        }
+        tcc_cpp_fail_required_startup(s1);
+        return 0;
+    }
+    if (tcc_diag_g1_enabled())
+        tcc_diag_g1_emit_int("DONE_AFTER_SUCCESS", s1->cpp_init_startup_done);
+    return 1;
+}
+
 ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
 {
     CString cstr;
     int need_n5;
     int need_n6;
     int use_n6_wrapper;
+    int gateway_needed;
+    int need_global_exit_gateway;
+    int use_n6_startup_gateway;
 
     /* cpp_global_ctors: s1->cpp is per-TU and already restored to 0
        when the linker calls this (see tcc_compile). */
@@ -2663,14 +2920,28 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         return;
     if (s1->cpp_init_startup_done)
         return;
+    if (s1->cpp_init_startup_in_progress)
+        return;
+
+    tcc_diag_g1_emit_startsym(s1, "02_BEFORE_INIT_STARTUP");
+    if (tcc_diag_g1_enabled())
+        tcc_diag_g1_emit_int("DONE_BEFORE_GENERATION", s1->cpp_init_startup_done);
 
     use_n6_wrapper = tcc_cpp_tls_runtime_needed(s1) || s1->cpp_tls_runtime_injected
         || s1->cpp_n6_main_runtime_injected
         || (tcc_cpp_n6_main_gateway_needed(s1) && !need_n5);
+    gateway_needed = tcc_cpp_n6_main_gateway_needed(s1);
+    need_global_exit_gateway = need_n5 && gateway_needed && !use_n6_wrapper;
+    use_n6_startup_gateway = use_n6_wrapper || need_global_exit_gateway;
+    if (tcc_diag_g1_enabled()) {
+        tcc_diag_g1_emit_int("G0_GATEWAY_NEEDED", gateway_needed);
+        tcc_diag_g1_emit_int("G0_USE_N6_WRAPPER", use_n6_wrapper);
+        tcc_diag_g1_emit_int("G0_USE_N6_STARTUP_GATEWAY", use_n6_startup_gateway);
+    }
 
-    /* FEAT-4G baseline startup: global init without N6 wrapper (no TLS). */
-    if (need_n5 && !use_n6_wrapper) {
-        s1->cpp_init_startup_done = 1;
+    /* FEAT-4G baseline startup: global init without process-exit gateway. */
+    if (need_n5 && !use_n6_wrapper && !gateway_needed) {
+        s1->cpp_init_startup_in_progress = 1;
         tcc_add_cpp_runtime(s1);
         cstr_new(&cstr);
         cstr_cat(&cstr,
@@ -2726,16 +2997,28 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "    exit(ret);\n"
         "}\n",
         0);
-        tcc_compile_injected_c_no_debug(s1, cstr.data);
+        if (!tcc_cpp_compile_init_startup_cstr(s1, &cstr, 0)) {
+            cstr_free(&cstr);
+            return;
+        }
         cstr_free(&cstr);
         return;
     }
 
+    s1->cpp_init_startup_in_progress = 1;
     if (need_n5)
         tcc_add_cpp_runtime(s1);
+    if (need_global_exit_gateway && !s1->cpp_n6_main_runtime_injected)
+        tcc_add_cpp_n6_main_runtime(s1);
     if (use_n6_wrapper && !need_n5 && !s1->cpp_n6_main_runtime_injected
         && !s1->cpp_tls_runtime_injected)
         tcc_add_cpp_n6_main_runtime(s1);
+    if (tcc_diag_g1_enabled()) {
+        tcc_diag_g1_emit_int("G0_N6_MAIN_RUNTIME_INJECTED",
+            s1->cpp_n6_main_runtime_injected);
+        tcc_diag_g1_emit_int("G0_TLS_RUNTIME_INJECTED",
+            s1->cpp_tls_runtime_injected);
+    }
 
     cstr_new(&cstr);
     if (use_n6_wrapper && !need_n5) {
@@ -2799,15 +3082,15 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "{\n"
         "    return atexit(fn);\n"
         "}\n"
-            , 0);
-        if (use_n6_wrapper) {
+            , -1);
+        if (use_n6_startup_gateway) {
             cstr_cat(&cstr,
         "void __cdecl __tcc_cpp_tls_n6_main_enter(void);\n"
         "void __cdecl __tcc_cpp_tls_n6_main_finalize(void);\n"
         "void __cdecl __tcc_cpp_n6_process_exit(int);\n"
-            , 0);
+            , -1);
         } else {
-            cstr_cat(&cstr, "extern void exit(int);\n", 0);
+            cstr_cat(&cstr, "extern void exit(int);\n", -1);
         }
         cstr_cat(&cstr,
         "int main(int,char**,char**);\n"
@@ -2819,29 +3102,37 @@ ST_FUNC void tcc_add_cpp_init_startup(TCCState *s1)
         "    _controlfp(0x10000,0x30000);\n"
         "    si.newmode = 0;\n"
         "    __getmainargs(&argc,&argv,&env,0,&si);\n"
-        , 0);
-        if (use_n6_wrapper)
-            cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_enter();\n", 0);
+        , -1);
+        if (use_n6_startup_gateway)
+            cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_enter();\n", -1);
         cstr_cat(&cstr,
         "    atexit(tcc_cpp_run_fini_once);\n"
         "    tcc_cpp_run_init();\n"
         "    ret = main(argc,argv,env);\n"
-        , 0);
-        if (use_n6_wrapper)
-            cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_finalize();\n", 0);
-        if (use_n6_wrapper)
-            cstr_cat(&cstr, "    __tcc_cpp_n6_process_exit(ret);\n", 0);
+        , -1);
+        if (use_n6_startup_gateway)
+            cstr_cat(&cstr, "    __tcc_cpp_tls_n6_main_finalize();\n", -1);
+        if (use_n6_startup_gateway)
+            cstr_cat(&cstr, "    __tcc_cpp_n6_process_exit(ret);\n", -1);
         else {
-            cstr_cat(&cstr, "    tcc_cpp_run_fini_once();\n", 0);
-            cstr_cat(&cstr, "    exit(ret);\n", 0);
+            cstr_cat(&cstr, "    tcc_cpp_run_fini_once();\n", -1);
+            cstr_cat(&cstr, "    exit(ret);\n", -1);
         }
-        cstr_cat(&cstr, "}\n", 0);
+        cstr_cat(&cstr, "}\n", -1);
+        cstr_ccat(&cstr, '\0');
     }
-    s1->cpp_init_startup_done = 1;
-    tcc_compile_injected_c_no_debug(s1, cstr.data);
+    if (!tcc_cpp_compile_init_startup_cstr(s1, &cstr,
+            need_n5 && use_n6_wrapper)) {
+        cstr_free(&cstr);
+        return;
+    }
+    if (tcc_diag_g1_profile(s1) && need_n5 && use_n6_wrapper)
+        tcc_diag_g1_emit_startsym(s1, "05_BEFORE_N6_TAIL");
     if (use_n6_wrapper && need_n5 && !s1->cpp_n6_main_runtime_injected
         && !s1->cpp_tls_runtime_injected)
         tcc_add_cpp_n6_main_runtime(s1);
+    if (tcc_diag_g1_profile(s1) && need_n5 && use_n6_wrapper)
+        tcc_diag_g1_emit_startsym(s1, "06_AFTER_N6_TAIL");
     cstr_free(&cstr);
 }
 

@@ -84,6 +84,27 @@ for %%f in (a9\*.cpp a7\member_call.cpp a7\default_arg.cpp a7\inline_member.cpp 
     )
 )
 
+rem === Phase 2b: -run crash gate (BUG-50: second compile -> tccgen_init) ===
+rem Phase 2 uses -o (single compile). -run always compiles the TU twice
+rem (user C++ + runmain C wrapper), so dynarray ownership bugs in
+rem tccgen_init only surface here. CRASH detection matches Phase 1/2.
+echo === Phase 2b: -run a9\local_static_dtor.cpp ===
+"%TCC%" -run a9\local_static_dtor.cpp >"%CRLOG%" 2>&1
+set "EC=!errorlevel!"
+set "ISCRASH="
+if !EC! lss 0 set "ISCRASH=1"
+"%FINDSTR%" /c:"internal error" "%CRLOG%" >nul 2>nul && set "ISCRASH=1"
+if defined ISCRASH (
+    echo   [CRASH] -run a9\local_static_dtor.cpp exit=!EC!
+    type "%CRLOG%"
+    set /a CRASHES+=1
+    set /a FAILED+=1
+) else if !EC! neq 0 (
+    type "%CRLOG%"
+    echo   [RUN FAIL] -run a9\local_static_dtor.cpp
+    set /a FAILED+=1
+)
+
 rem === Phase 3: negative gate (compilation MUST fail) ===
 rem Inverse of Phase 1: these sources pin down what tcc has to REJECT, e.g.
 rem using a class name that is currently hidden by a parameter.  KNOWNFAIL
@@ -226,6 +247,11 @@ if errorlevel 1 set /a FAILED+=1
 rem === N6-08: final thread_local regression (N6-01..07 + stress + C/N5/G7) ===
 echo === a9\manual\n6_08_final_regression.bat ===
 call a9\manual\n6_08_final_regression.bat
+if errorlevel 1 set /a FAILED+=1
+
+rem === N7-01: no viable default constructor fail-closed regression ===
+echo === a9\manual\n7_01_default_ctor_fail_closed.bat ===
+call a9\manual\n7_01_default_ctor_fail_closed.bat
 if errorlevel 1 set /a FAILED+=1
 
 
