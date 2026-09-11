@@ -612,6 +612,7 @@ typedef struct Sym {
     int cpp_local_state_id; /* durable local-state snapshot for C++ goto */
     int cpp_local_id; /* durable local-state node for a local symbol */
     int cpp_nonvacuous_init; /* C++ goto initialization legality */
+    int cpp_implicit_class_name; /* C++ compiler-injected class/tag ordinary name */
     struct Sym *cpp_tls_desc; /* N6-01: process-wide descriptor for TLS storage */
     /* G3: class-scope typedefs / nested type names live on this SEPARATE
        list (linked via ->prev by sym_push2), never on the member chain -

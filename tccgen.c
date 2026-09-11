@@ -7572,6 +7572,19 @@ static Sym* external_sym(int v, CType* type, int r, AttributeDef* ad)
            fork a new Sym here; the added class check covers the same-
            signature cross-class case. */
         if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC
+            && s->cpp_implicit_class_name) {
+            // N7-05B: keep the synthetic class-name entry; stack the function
+            // on the identifier chain so redeclarations patch the function Sym.
+            s = global_identifier_push(v, type->t, 0);
+            s->r |= r;
+            s->a = ad->a;
+            s->asm_label = ad->asm_label;
+            s->type.ref = type->ref;
+            if (local_stack)
+                sym_copy_ref(s, &global_stack);
+            s->parent_class = cpp_pending_member_class;
+            cpp_set_func_mangle_label(s, type);
+        } else if (tcc_state->cpp && (type->t & VT_BTYPE) == VT_FUNC
             && (s->type.t & VT_BTYPE) == VT_FUNC
             && (!is_compatible_types(&s->type, type)
                 || (cpp_pending_member_class
@@ -12843,8 +12856,14 @@ do_decl:
                 tag_v = s->v & ~SYM_STRUCT;
                 ctype = *type;
                 ctype.t |= VT_TYPEDEF;
-                if (is_class == 1 || !sym_find(tag_v))
-                    sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
+                if (is_class == 1 || !sym_find(tag_v)) {
+                    Sym *td;
+                    td = sym_push(tag_v, &ctype, VT_TYPEDEF, 0);
+                    // N7-05B: distinguish injected class/tag names from
+                    // source typedefs so a same-spelling function can coexist.
+                    if (tcc_state->cpp)
+                        td->cpp_implicit_class_name = 1;
+                }
             }
             // G3 P1: register a nested class/struct name on the enclosing
             // class's typedef list too, so the P3 qualified lookup can
@@ -19707,6 +19726,8 @@ static int decl(int l)
                             tcc_error("'%s' �̍Ē�`�͌݊���������܂���",
                                 get_tok_str(v, NULL));
                         sym->type = type;
+                        // N7-05B: explicit typedef replaces injected class name.
+                        sym->cpp_implicit_class_name = 0;
                     }
                     else {
                         sym = sym_push(v, &type, 0, 0);
