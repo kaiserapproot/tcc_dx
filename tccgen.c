@@ -663,6 +663,7 @@ static Sym *cpp_find_dtor_field(Sym *class_sym);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
 static void cpp_validate_decl_default_initialization(CType *pt);
 static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_automatic);
+static void cpp_emit_local_array_default_ctor_calls(Sym *obj_sym);
 static int cpp_local_array_element_needs_ctor_emission(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
 static int cpp_can_implicit_default_ctor_exist(Sym *class_sym, int relation);
@@ -4962,7 +4963,7 @@ static void cpp_push_member_array_element_lvalue(Sym *field, int index)
     vtop->r |= VT_LVAL;
 }
 
-static void cpp_emit_class_default_ctor_on_lvalue(Sym *member_class)
+static void cpp_emit_class_default_ctor_call(Sym *member_class, int relation)
 {
     Sym *ctor_field;
     Sym *ctor_global;
@@ -4971,16 +4972,19 @@ static void cpp_emit_class_default_ctor_on_lvalue(Sym *member_class)
     SValue lv;
     SValue *mark;
 
-    if (!member_class || !cpp_this_sym)
+    if (!member_class)
         return;
     ctor_field = cpp_find_ctor_field(member_class);
     if (!ctor_field) {
-        cpp_validate_implicit_default_ctor(member_class, 1);
+        cpp_validate_implicit_default_ctor(member_class, relation);
         vpop();
         return;
     }
-    if (!cpp_class_has_default_ctor(member_class))
-        tcc_error("class member has no default constructor");
+    if (!cpp_class_has_default_ctor(member_class)) {
+        if (relation == 1)
+            tcc_error("class member has no default constructor");
+        tcc_error("class has no default constructor");
+    }
     mt.t = VT_STRUCT;
     mt.ref = member_class;
     ctor_global = cpp_lookup_member_func(ctor_field, &mt);
@@ -5009,6 +5013,34 @@ static void cpp_emit_class_default_ctor_on_lvalue(Sym *member_class)
     gfunc_call(1);
     while (vtop >= mark)
         vpop();
+}
+
+static void cpp_emit_class_default_ctor_on_lvalue(Sym *member_class)
+{
+    if (!member_class || !cpp_this_sym)
+        return;
+    cpp_emit_class_default_ctor_call(member_class, 1);
+}
+
+static void cpp_push_local_array_element_lvalue(Sym *obj_sym, CType *elem_type,
+                                                int index)
+{
+    int elem_size, align, elem_ofs, qualifiers;
+
+    elem_size = type_size(elem_type, &align);
+    elem_ofs = index * elem_size;
+    vset(&obj_sym->type, obj_sym->r | VT_LVAL, obj_sym->c);
+    vtop->sym = obj_sym;
+    qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
+    gaddrof();
+    vtop->type = char_pointer_type;
+    if (elem_ofs) {
+        vpushi(elem_ofs);
+        gen_op('+');
+    }
+    vtop->type = *elem_type;
+    vtop->type.t |= qualifiers;
+    vtop->r |= VT_LVAL;
 }
 
 static void cpp_emit_member_array_default_ctor_calls(Sym *field)
@@ -5267,10 +5299,7 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
     }
 }
 
-// N7-07B: local automatic class arrays have no elementwise ctor walker.
-// FEAT-4F only matches scalar class objects (VT_STRUCT), so `M a[4];` used
-// to pass cpp_validate_decl_default_initialization and then allocate raw
-// storage with ctor_count=0.  Reject only when ctor emission is required.
+// N7-07B/N7-07C: local automatic class arrays bypass FEAT-4F (VT_STRUCT only).
 static int cpp_local_array_element_needs_ctor_emission(CType *pt)
 {
     CType elem;
@@ -5291,13 +5320,53 @@ static int cpp_local_array_element_needs_ctor_emission(CType *pt)
 
 static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_automatic)
 {
+    Sym *class_sym;
+
     if (!tcc_state->cpp || !is_local_automatic)
         return;
     if (!(pt->t & VT_ARRAY))
         return;
     if (!cpp_local_array_element_needs_ctor_emission(pt))
         return;
-    tcc_error("implicit default construction of local class array is unsupported");
+    class_sym = cpp_type_class_sym(pt, NULL);
+    if (!class_sym)
+        return;
+    if (cpp_class_requires_destruction(class_sym))
+        tcc_error("destruction of local class array is unsupported");
+    if (cpp_class_needs_vptr_init(class_sym))
+        tcc_error("implicit default construction of polymorphic local class array is unsupported");
+}
+
+// N7-07C: elementwise default ctor calls for local automatic class arrays.
+// Reuses member-array element addressing + cpp_emit_class_default_ctor_call
+// (not cpp_emit_ctor_call_at, which targets global startup thunks).
+static void cpp_emit_local_array_default_ctor_calls(Sym *obj_sym)
+{
+    Sym *class_sym;
+    CType elem_type;
+    int flat_count;
+    int i;
+
+    if (!obj_sym || !(obj_sym->type.t & VT_ARRAY))
+        return;
+    class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
+    if (!class_sym || flat_count <= 0)
+        return;
+    cpp_ensure_synthetic_odr(class_sym);
+    if (!cpp_find_ctor_field(class_sym)) {
+        cpp_validate_implicit_default_ctor(class_sym, 0);
+        return;
+    }
+    if (!cpp_class_has_default_ctor(class_sym)
+        && !cpp_class_has_implicit_default_ctor_viable(class_sym))
+        tcc_error("class has no default constructor");
+    elem_type = obj_sym->type;
+    while (elem_type.t & VT_ARRAY)
+        elem_type = *pointed_type(&elem_type);
+    for (i = 0; i < flat_count; i++) {
+        cpp_push_local_array_element_lvalue(obj_sym, &elem_type, i);
+        cpp_emit_class_default_ctor_call(class_sym, 0);
+    }
 }
 
 // N7-01: one shared gate for default-initialization at a declaration site.
@@ -19951,6 +20020,18 @@ static int decl(int l)
                             type.t |= VT_EXTERN;
                         if (!global_copy_init_done)
                             decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
+                        if (tcc_state->cpp
+                            && l == VT_LOCAL
+                            && !has_init
+                            && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+                            && (type.t & VT_ARRAY)
+                            && cpp_local_array_element_needs_ctor_emission(&type)) {
+                            Sym *local_array_sym;
+
+                            local_array_sym = sym_find(v);
+                            if (local_array_sym)
+                                cpp_emit_local_array_default_ctor_calls(local_array_sym);
+                        }
                         // N7-02-03: `A g[N];` parses `[N]` in type_decl after the
                         // FEAT-4G scalar gate, so register startup ctor thunks here.
                         if (tcc_state->cpp
