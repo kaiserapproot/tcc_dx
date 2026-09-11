@@ -11649,6 +11649,217 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
     }
     return 1;
 }
+
+static int cpp_try_member_binop(int op_tok);
+static int cpp_implicit_copy_assign_member_type_viable(CType *type);
+static void cpp_emit_memberwise_copy_assign_fields(Sym *class_sym,
+    CType *parent_ptype, int dst_slot, int src_slot, int dst_ofs, int src_ofs);
+static void cpp_emit_implicit_memberwise_copy_assign(Sym *class_sym);
+
+static int cpp_implicit_copy_assign_is_memberwise_viable(Sym *class_sym)
+{
+    Sym *f;
+    CType base_type;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_implicit_copy_assign_is_memberwise_viable");
+    if (!class_sym)
+        return 0;
+    if (cpp_class_declares_copy_assign(class_sym))
+        return 0;
+    if (cpp_class_needs_vptr_init(class_sym))
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (cpp_is_base_field(f)) {
+            if (f->c != 0)
+                return 0;
+            base_type.t = VT_STRUCT;
+            base_type.ref = f->parent_class;
+            if (!cpp_implicit_copy_assign_member_type_viable(&base_type))
+                return 0;
+            continue;
+        }
+        if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+            continue;
+        if (!cpp_implicit_copy_assign_member_type_viable(&f->type))
+            return 0;
+    }
+    return 1;
+}
+
+static int cpp_implicit_copy_assign_member_type_viable(CType *type)
+{
+    CType *elem_type;
+
+    if (!type)
+        return 0;
+    if (type->t & (VT_REFERENCE | VT_CONSTANT | VT_VOLATILE))
+        return 0;
+    if (type->t & VT_ARRAY) {
+        elem_type = pointed_type(type);
+        return cpp_implicit_copy_assign_member_type_viable(elem_type);
+    }
+    if ((type->t & VT_BTYPE) == VT_STRUCT && type->ref) {
+        if (cpp_class_needs_vptr_init(type->ref))
+            return 0;
+        if (cpp_class_declares_copy_assign(type->ref))
+            return 1;
+        if (cpp_implicit_copy_assign_is_safe(type->ref))
+            return 1;
+        return cpp_implicit_copy_assign_is_memberwise_viable(type->ref);
+    }
+    return 1;
+}
+
+static void cpp_push_subobject_lvalue(CType *parent_ptype, int ptr_slot, int ofs,
+                                    CType *member_type)
+{
+    vset(parent_ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    indir();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(ofs);
+    gen_op('+');
+    vtop->type = *member_type;
+    vtop->r |= VT_LVAL;
+}
+
+static void cpp_emit_struct_subobject_copy_assign(CType *member_type)
+{
+    Sym *class_sym;
+    CType ptype;
+    SValue lhs_m, rhs_m;
+    int dst_m, src_m;
+
+    if ((member_type->t & VT_BTYPE) != VT_STRUCT || !member_type->ref)
+        tcc_error("internal error: struct copy assign expected");
+    class_sym = member_type->ref;
+    if (cpp_try_member_binop('=')) {
+        vpop();
+        return;
+    }
+    if (cpp_implicit_copy_assign_is_safe(class_sym)) {
+        vstore();
+        vpop();
+        return;
+    }
+    if (!cpp_implicit_copy_assign_is_memberwise_viable(class_sym))
+        tcc_error("implicit copy assignment is unsupported for a class"
+                  " with non-trivial or non-assignable subobjects;"
+                  " declare operator= for this class");
+    lhs_m = vtop[-1];
+    rhs_m = vtop[0];
+    vtop -= 2;
+    vpushv(&lhs_m);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    dst_m = cpp_spill_ptr_to_temp(&ptype);
+    vpushv(&rhs_m);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    src_m = cpp_spill_ptr_to_temp(&ptype);
+    cpp_emit_memberwise_copy_assign_fields(class_sym, &ptype, dst_m, src_m, 0, 0);
+}
+
+static void cpp_emit_copy_assign_at(CType *parent_ptype, int dst_slot, int src_slot,
+                                    int dst_ofs, int src_ofs, CType *member_type)
+{
+    CType elem_type;
+    int i, nb, elem_size, align, elem_ofs;
+
+    if (member_type->t & VT_ARRAY) {
+        elem_type = *pointed_type(member_type);
+        nb = member_type->ref->c;
+        elem_size = type_size(&elem_type, &align);
+        for (i = 0; i < nb; i++) {
+            elem_ofs = dst_ofs + i * elem_size;
+            cpp_emit_copy_assign_at(parent_ptype, dst_slot, src_slot,
+                elem_ofs, src_ofs + i * elem_size, &elem_type);
+        }
+        return;
+    }
+    cpp_push_subobject_lvalue(parent_ptype, dst_slot, dst_ofs, member_type);
+    cpp_push_subobject_lvalue(parent_ptype, src_slot, src_ofs, member_type);
+    if ((member_type->t & VT_BTYPE) == VT_STRUCT && member_type->ref)
+        cpp_emit_struct_subobject_copy_assign(member_type);
+    else {
+        vstore();
+        vpop();
+    }
+}
+
+static void cpp_emit_memberwise_copy_assign_fields(Sym *class_sym,
+    CType *parent_ptype, int dst_slot, int src_slot, int dst_ofs, int src_ofs)
+{
+    Sym *f;
+    CType base_type;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_memberwise_copy_assign_fields");
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (cpp_is_base_field(f)) {
+            if (f->c != 0)
+                tcc_error("implicit copy assignment of a non-primary base is unsupported");
+            base_type.t = VT_STRUCT;
+            base_type.ref = f->parent_class;
+            cpp_emit_copy_assign_at(parent_ptype, dst_slot, src_slot,
+                dst_ofs + f->c, src_ofs + f->c, &base_type);
+            continue;
+        }
+        if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+            continue;
+        cpp_emit_copy_assign_at(parent_ptype, dst_slot, src_slot,
+            dst_ofs + f->c, src_ofs + f->c, &f->type);
+    }
+}
+
+static void cpp_emit_implicit_memberwise_copy_assign(Sym *class_sym)
+{
+    CType ptype, obj_type;
+    SValue lhs_sv;
+    int dst_slot, src_slot;
+
+    if (!class_sym)
+        tcc_error("internal error: implicit copy assign without class");
+    /* Keep lhs for the assignment result; mirror vstore() struct address path. */
+    lhs_sv = vtop[-1];
+    obj_type = lhs_sv.type;
+    mk_pointer(&obj_type);
+    ptype = obj_type;
+
+    vpushv(vtop);
+#ifdef CONFIG_TCC_BCHECK
+    if (vtop->r & VT_MUSTBOUND)
+        gbound();
+#endif
+    vtop->type.t = VT_PTR;
+    gaddrof();
+    src_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    vpushv(vtop - 1);
+#ifdef CONFIG_TCC_BCHECK
+    if (vtop->r & VT_MUSTBOUND)
+        gbound();
+#endif
+    vtop->type.t = VT_PTR;
+    gaddrof();
+    dst_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    vtop -= 2;
+    cpp_emit_memberwise_copy_assign_fields(class_sym, &ptype, dst_slot, src_slot, 0, 0);
+    vpushv(&lhs_sv);
+}
+
 static int cpp_try_member_binop(int op_tok)
 {
     Sym *field, *s, *best;
@@ -16343,10 +16554,15 @@ static void expr_eq(void)
             if (tcc_state->cpp
                 && (vtop[-1].type.t & VT_BTYPE) == VT_STRUCT
                 && vtop[-1].type.ref
-                && !cpp_implicit_copy_assign_is_safe(vtop[-1].type.ref))
+                && !cpp_implicit_copy_assign_is_safe(vtop[-1].type.ref)) {
+                if (cpp_implicit_copy_assign_is_memberwise_viable(vtop[-1].type.ref)) {
+                    cpp_emit_implicit_memberwise_copy_assign(vtop[-1].type.ref);
+                    return;
+                }
                 tcc_error("implicit copy assignment is unsupported for a class"
                           " with non-trivial or non-assignable subobjects;"
                           " declare operator= for this class");
+            }
         }
         else {
             /* C++: struct compound assignment via operator+= etc.
