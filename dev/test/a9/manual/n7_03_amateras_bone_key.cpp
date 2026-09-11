@@ -44,9 +44,9 @@ int main(void)
 {
     mmd_vmd_bone_track_t tr;
     mmd_vmd_bone_key_t key;
-    // N7-07B: avoid automatic local class-array (fail-closed); copy-assign
-    // under test does not depend on stack array default construction.
-    static mmd_vmd_bone_key_t store[2];
+    // N7-07C: automatic local class-array ctor emission; copy-assign under
+    // test does not depend on static init-once array construction (N7-07D).
+    mmd_vmd_bone_key_t store[2];
 
     tr.keys = store;
     tr.key_count = 0;
