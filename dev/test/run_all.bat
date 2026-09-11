@@ -269,9 +269,14 @@ echo === a9\manual\n7_05b\n7_05b_measure.bat ===
 call a9\manual\n7_05b\n7_05b_measure.bat
 if errorlevel 1 set /a FAILED+=1
 
-rem === N7-07B: local class array default construction fail-closed gate ===
+rem === N7-07B: local class array fail-closed boundary regression ===
 echo === a9\manual\n7_07b\n7_07b_measure.bat ===
 call a9\manual\n7_07b\n7_07b_measure.bat
+if errorlevel 1 set /a FAILED+=1
+
+rem === N7-07C: local class array elementwise construction gate ===
+echo === a9\manual\n7_07c\n7_07c_measure.bat ===
+call a9\manual\n7_07c\n7_07c_measure.bat
 if errorlevel 1 set /a FAILED+=1
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
