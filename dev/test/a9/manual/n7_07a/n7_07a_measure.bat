@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0"
 
-set "TCC=..\..\..\tcc.exe"
+set "TCC=..\..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
 set "OUT=%~dp0n7_07a_out"
 if not exist "%OUT%" mkdir "%OUT%"

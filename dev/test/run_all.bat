@@ -269,6 +269,11 @@ echo === a9\manual\n7_05b\n7_05b_measure.bat ===
 call a9\manual\n7_05b\n7_05b_measure.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem === N7-07B: local class array default construction fail-closed gate ===
+echo === a9\manual\n7_07b\n7_07b_measure.bat ===
+call a9\manual\n7_07b\n7_07b_measure.bat
+if errorlevel 1 set /a FAILED+=1
+
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
 rem Real-world sources that are NOT expected to compile yet - only the
 rem compiler surviving them is gated.  Diagnostics are fine; a crash
