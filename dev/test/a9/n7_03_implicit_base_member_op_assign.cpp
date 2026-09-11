@@ -1,5 +1,3 @@
-// Same guard, reached through a BASE subobject: the walker must recurse into
-// base fields, not just the class's own data members.
 struct M {
     int v;
     M() { v = 1; }
@@ -22,6 +20,7 @@ int main()
 {
     D x, y;
 
+    x.m.v = 7;
     y = x;
-    return y.d;
+    return y.m.v == 1007 && y.d == 0 ? 0 : 1;
 }

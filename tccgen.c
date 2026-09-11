@@ -4880,6 +4880,149 @@ static int cpp_is_class_data_member_array(Sym *f)
     return 1;
 }
 
+static int cpp_can_implicit_default_ctor_exist(Sym *class_sym, int relation);
+static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
+static int cpp_class_requires_destruction(Sym *class_sym);
+
+static int cpp_class_member_array_elem_class(Sym *f, CType *elem_out)
+{
+    CType elem;
+
+    if (!cpp_is_class_data_member_array(f))
+        return 0;
+    elem = *pointed_type(&f->type);
+    if (elem.t & VT_ARRAY)
+        return 0;
+    if ((elem.t & VT_BTYPE) != VT_STRUCT || !elem.ref)
+        return 0;
+    if (elem_out)
+        *elem_out = elem;
+    return 1;
+}
+
+static int cpp_can_class_member_array_default_ctor_exist(Sym *f, int relation)
+{
+    CType elem;
+
+    if (!cpp_class_member_array_elem_class(f, &elem))
+        return 1;
+    return cpp_can_implicit_default_ctor_exist(elem.ref, relation);
+}
+
+static void cpp_validate_class_member_array_default_ctor(Sym *f, int relation)
+{
+    CType elem;
+
+    if (!cpp_class_member_array_elem_class(f, &elem))
+        return;
+    cpp_validate_implicit_default_ctor(elem.ref, relation);
+}
+
+static int cpp_can_class_member_array_dtor_exist(Sym *f)
+{
+    CType elem;
+
+    if (!cpp_class_member_array_elem_class(f, &elem))
+        return 1;
+    if (cpp_class_requires_destruction(elem.ref))
+        return 0;
+    return 1;
+}
+
+static void cpp_validate_class_member_array_dtor(Sym *f)
+{
+    CType elem;
+
+    if (!cpp_class_member_array_elem_class(f, &elem))
+        return;
+    if (cpp_class_requires_destruction(elem.ref))
+        tcc_error("implicit destruction of class member array is unsupported");
+}
+
+static void cpp_push_member_array_element_lvalue(Sym *field, int index)
+{
+    CType elem_type;
+    int elem_size, align, elem_ofs, qualifiers;
+
+    elem_type = *pointed_type(&field->type);
+    elem_size = type_size(&elem_type, &align);
+    elem_ofs = index * elem_size;
+    cpp_push_member_var(field);
+    qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
+    gaddrof();
+    vtop->type = char_pointer_type;
+    if (elem_ofs) {
+        vpushi(elem_ofs);
+        gen_op('+');
+    }
+    vtop->type = elem_type;
+    vtop->type.t |= qualifiers;
+    vtop->r |= VT_LVAL;
+}
+
+static void cpp_emit_class_default_ctor_on_lvalue(Sym *member_class)
+{
+    Sym *ctor_field;
+    Sym *ctor_global;
+    Sym *resolved;
+    CType mt;
+    SValue lv;
+    SValue *mark;
+
+    if (!member_class || !cpp_this_sym)
+        return;
+    ctor_field = cpp_find_ctor_field(member_class);
+    if (!ctor_field) {
+        cpp_validate_implicit_default_ctor(member_class, 1);
+        vpop();
+        return;
+    }
+    if (!cpp_class_has_default_ctor(member_class))
+        tcc_error("class member has no default constructor");
+    mt.t = VT_STRUCT;
+    mt.ref = member_class;
+    ctor_global = cpp_lookup_member_func(ctor_field, &mt);
+    if (!ctor_global || (ctor_global->type.t & VT_BTYPE) != VT_FUNC) {
+        vpop();
+        return;
+    }
+    resolved = cpp_resolve_member_func_call(ctor_global, 0);
+    if (!resolved)
+        resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC) {
+        vpop();
+        return;
+    }
+    if (cpp_func_param_count(resolved) != 0)
+        tcc_error("implicit default construction via default arguments is unsupported");
+    lv = *vtop;
+    mark = vtop;
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    vpushv(&lv);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    gfunc_call(1);
+    while (vtop >= mark)
+        vpop();
+}
+
+static void cpp_emit_member_array_default_ctor_calls(Sym *field)
+{
+    CType elem_type;
+    int nb, i;
+
+    if (!field || !cpp_class_member_array_elem_class(field, &elem_type))
+        return;
+    nb = field->type.ref->c;
+    for (i = 0; i < nb; i++) {
+        cpp_push_member_array_element_lvalue(field, i);
+        cpp_emit_class_default_ctor_on_lvalue(elem_type.ref);
+    }
+}
+
 /* C++: report whether destroying a class needs a destructor call,
    including implicitly destroyed bases and class-type members. */
 static int cpp_class_requires_destruction(Sym *class_sym)
@@ -4930,43 +5073,18 @@ static int cpp_class_requires_destruction(Sym *class_sym)
 static void cpp_emit_member_default_ctor_call(Sym *field)
 {
     Sym *member_class;
-    Sym *ctor_field;
-    Sym *ctor_global;
-    Sym *resolved;
-    CType mt;
 
     if (!field || !cpp_this_sym)
         return;
+    if (cpp_is_class_data_member_array(field)) {
+        cpp_emit_member_array_default_ctor_calls(field);
+        return;
+    }
     member_class = field->type.ref;
     if (!member_class)
         return;
-    ctor_field = cpp_find_ctor_field(member_class);
-    if (!ctor_field) {
-        cpp_validate_implicit_default_ctor(member_class, 1);
-        return;
-    }
-    if (!cpp_class_has_default_ctor(member_class))
-        tcc_error("class member has no default constructor");
-    mt.t = VT_STRUCT;
-    mt.ref = member_class;
-    ctor_global = cpp_lookup_member_func(ctor_field, &mt);
-    if (!ctor_global || (ctor_global->type.t & VT_BTYPE) != VT_FUNC)
-        return;
-    // G7: declaration-side overload resolution first (see forward decl)
-    resolved = cpp_resolve_member_func_call(ctor_global, 0);
-    if (!resolved)
-        resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
-    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC)
-        return;
-    if (cpp_func_param_count(resolved) != 0)
-        tcc_error("implicit default construction via default arguments is unsupported");
-    vset(&resolved->type, resolved->r | VT_SYM, 0);
-    vtop->sym = resolved;
-    vtop->r &= ~VT_LVAL;
     cpp_push_member_var(field);
-    gaddrof();
-    mk_pointer(&vtop->type);    // BUG-15/16: pass `this` as a pointer.
-    gfunc_call(1);
+    cpp_emit_class_default_ctor_on_lvalue(member_class);
 }
 
 // G7: which data members does the mem-initializer list name?  Mirror of
@@ -5047,9 +5165,7 @@ static void cpp_emit_implicit_member_ctors(Sym *class_sym,
     if (nb_done < 0)
         return;
     for (f = class_sym->next; f; f = f->next) {
-        if (cpp_is_class_data_member_array(f))
-            tcc_error("implicit default construction of class member array is unsupported");
-        if (!cpp_is_class_data_member(f))
+        if (!cpp_is_class_data_member(f) && !cpp_is_class_data_member_array(f))
             continue;
         seen = 0;
         for (i = 0; i < nb_done; i++) {
@@ -5090,8 +5206,11 @@ static int cpp_can_implicit_default_ctor_exist(Sym *class_sym, int relation)
         if ((f->type.t & VT_REFERENCE)
             && !(f->type.t & (VT_STATIC | VT_EXTERN)))
             return 0;
-        if (cpp_is_class_data_member_array(f))
-            return 0;
+        if (cpp_is_class_data_member_array(f)) {
+            if (!cpp_can_class_member_array_default_ctor_exist(f, 1))
+                return 0;
+            continue;
+        }
         if (cpp_is_class_data_member(f)) {
             if (!cpp_can_implicit_default_ctor_exist(f->type.ref, 1))
                 return 0;
@@ -5137,8 +5256,10 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
             && !(f->type.t & (VT_STATIC | VT_EXTERN))) {
             tcc_error("implicit default construction of class with reference member is unsupported");
         }
-        if (cpp_is_class_data_member_array(f))
-            tcc_error("implicit default construction of class member array is unsupported");
+        if (cpp_is_class_data_member_array(f)) {
+            cpp_validate_class_member_array_default_ctor(f, relation);
+            continue;
+        }
         if (cpp_is_class_data_member(f))
             cpp_validate_implicit_default_ctor(f->type.ref, 1);
     }
@@ -5189,8 +5310,11 @@ static int cpp_can_implicit_dtor_exist(Sym *class_sym, int relation)
                 return 0;
             continue;
         }
-        if (cpp_is_class_data_member_array(f))
-            return 0;
+        if (cpp_is_class_data_member_array(f)) {
+            if (!cpp_can_class_member_array_dtor_exist(f))
+                return 0;
+            continue;
+        }
         if (cpp_is_class_data_member(f)) {
             if (!cpp_can_implicit_dtor_exist(f->type.ref, 1))
                 return 0;
@@ -5219,9 +5343,8 @@ static void cpp_validate_implicit_dtor(Sym *class_sym, int relation)
             continue;
         }
         if (cpp_is_class_data_member_array(f)) {
-            if (cpp_find_ctor_field(class_sym))
-                tcc_error("implicit default construction of class member array is unsupported");
-            tcc_error("implicit destruction of class member array is unsupported");
+            cpp_validate_class_member_array_dtor(f);
+            continue;
         }
         if (cpp_is_class_data_member(f))
             cpp_validate_implicit_dtor(f->type.ref, 1);
@@ -5240,8 +5363,10 @@ static void cpp_validate_explicit_ctor_members(Sym *class_sym)
         return;
     CPP_WALKER_DEPTH_GUARD("cpp_validate_explicit_ctor_members");
     for (f = class_sym->next; f; f = f->next) {
-        if (cpp_is_class_data_member_array(f))
-            tcc_error("implicit default construction of class member array is unsupported");
+        if (cpp_is_class_data_member_array(f)) {
+            cpp_validate_class_member_array_default_ctor(f, 1);
+            continue;
+        }
         if (!cpp_is_class_data_member(f))
             continue;
         if (f->type.ref && !cpp_find_ctor_field(f->type.ref))
@@ -5266,8 +5391,10 @@ static void cpp_validate_explicit_dtor_members(Sym *class_sym)
                 cpp_validate_explicit_dtor_members(f->parent_class);
             continue;
         }
-        if (cpp_is_class_data_member_array(f))
-            tcc_error("implicit destruction of class member array is unsupported");
+        if (cpp_is_class_data_member_array(f)) {
+            cpp_validate_class_member_array_dtor(f);
+            continue;
+        }
         if (!cpp_is_class_data_member(f))
             continue;
         if (f->type.ref && !cpp_find_dtor_field(f->type.ref))
@@ -5289,8 +5416,14 @@ static void cpp_emit_member_dtor_calls(Sym *field)
     if (!field || !cpp_this_sym)
         return;
     cpp_emit_member_dtor_calls(field->next);
-    if (cpp_is_class_data_member_array(field))
-        tcc_error("implicit destruction of class member array is unsupported");
+    if (cpp_is_class_data_member_array(field)) {
+        CType elem;
+
+        if (cpp_class_member_array_elem_class(field, &elem)
+            && cpp_class_requires_destruction(elem.ref))
+            tcc_error("implicit destruction of class member array is unsupported");
+        return;
+    }
     if (!cpp_is_class_data_member(field))
         return;
     member_class = field->type.ref;
@@ -5451,6 +5584,8 @@ static int cpp_class_has_nontrivial_subobjects(Sym *class_sym)
         return 0;
     for (f = class_sym->next; f; f = f->next) {
         if (cpp_is_base_field(f))
+            return 1;
+        if (cpp_is_class_data_member_array(f))
             return 1;
         if (cpp_is_class_data_member(f) && f->type.ref)
             return 1;
@@ -11649,6 +11784,217 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
     }
     return 1;
 }
+
+static int cpp_try_member_binop(int op_tok);
+static int cpp_implicit_copy_assign_member_type_viable(CType *type);
+static void cpp_emit_memberwise_copy_assign_fields(Sym *class_sym,
+    CType *parent_ptype, int dst_slot, int src_slot, int dst_ofs, int src_ofs);
+static void cpp_emit_implicit_memberwise_copy_assign(Sym *class_sym);
+
+static int cpp_implicit_copy_assign_is_memberwise_viable(Sym *class_sym)
+{
+    Sym *f;
+    CType base_type;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_implicit_copy_assign_is_memberwise_viable");
+    if (!class_sym)
+        return 0;
+    if (cpp_class_declares_copy_assign(class_sym))
+        return 0;
+    if (cpp_class_needs_vptr_init(class_sym))
+        return 0;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (cpp_is_base_field(f)) {
+            if (f->c != 0)
+                return 0;
+            base_type.t = VT_STRUCT;
+            base_type.ref = f->parent_class;
+            if (!cpp_implicit_copy_assign_member_type_viable(&base_type))
+                return 0;
+            continue;
+        }
+        if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+            continue;
+        if (!cpp_implicit_copy_assign_member_type_viable(&f->type))
+            return 0;
+    }
+    return 1;
+}
+
+static int cpp_implicit_copy_assign_member_type_viable(CType *type)
+{
+    CType *elem_type;
+
+    if (!type)
+        return 0;
+    if (type->t & (VT_REFERENCE | VT_CONSTANT | VT_VOLATILE))
+        return 0;
+    if (type->t & VT_ARRAY) {
+        elem_type = pointed_type(type);
+        return cpp_implicit_copy_assign_member_type_viable(elem_type);
+    }
+    if ((type->t & VT_BTYPE) == VT_STRUCT && type->ref) {
+        if (cpp_class_needs_vptr_init(type->ref))
+            return 0;
+        if (cpp_class_declares_copy_assign(type->ref))
+            return 1;
+        if (cpp_implicit_copy_assign_is_safe(type->ref))
+            return 1;
+        return cpp_implicit_copy_assign_is_memberwise_viable(type->ref);
+    }
+    return 1;
+}
+
+static void cpp_push_subobject_lvalue(CType *parent_ptype, int ptr_slot, int ofs,
+                                    CType *member_type)
+{
+    vset(parent_ptype, VT_LOCAL | VT_LVAL, ptr_slot);
+    indir();
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(ofs);
+    gen_op('+');
+    vtop->type = *member_type;
+    vtop->r |= VT_LVAL;
+}
+
+static void cpp_emit_struct_subobject_copy_assign(CType *member_type)
+{
+    Sym *class_sym;
+    CType ptype;
+    SValue lhs_m, rhs_m;
+    int dst_m, src_m;
+
+    if ((member_type->t & VT_BTYPE) != VT_STRUCT || !member_type->ref)
+        tcc_error("internal error: struct copy assign expected");
+    class_sym = member_type->ref;
+    if (cpp_try_member_binop('=')) {
+        vpop();
+        return;
+    }
+    if (cpp_implicit_copy_assign_is_safe(class_sym)) {
+        vstore();
+        vpop();
+        return;
+    }
+    if (!cpp_implicit_copy_assign_is_memberwise_viable(class_sym))
+        tcc_error("implicit copy assignment is unsupported for a class"
+                  " with non-trivial or non-assignable subobjects;"
+                  " declare operator= for this class");
+    lhs_m = vtop[-1];
+    rhs_m = vtop[0];
+    vtop -= 2;
+    vpushv(&lhs_m);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    dst_m = cpp_spill_ptr_to_temp(&ptype);
+    vpushv(&rhs_m);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    src_m = cpp_spill_ptr_to_temp(&ptype);
+    cpp_emit_memberwise_copy_assign_fields(class_sym, &ptype, dst_m, src_m, 0, 0);
+}
+
+static void cpp_emit_copy_assign_at(CType *parent_ptype, int dst_slot, int src_slot,
+                                    int dst_ofs, int src_ofs, CType *member_type)
+{
+    CType elem_type;
+    int i, nb, elem_size, align, elem_ofs;
+
+    if (member_type->t & VT_ARRAY) {
+        elem_type = *pointed_type(member_type);
+        nb = member_type->ref->c;
+        elem_size = type_size(&elem_type, &align);
+        for (i = 0; i < nb; i++) {
+            elem_ofs = dst_ofs + i * elem_size;
+            cpp_emit_copy_assign_at(parent_ptype, dst_slot, src_slot,
+                elem_ofs, src_ofs + i * elem_size, &elem_type);
+        }
+        return;
+    }
+    cpp_push_subobject_lvalue(parent_ptype, dst_slot, dst_ofs, member_type);
+    cpp_push_subobject_lvalue(parent_ptype, src_slot, src_ofs, member_type);
+    if ((member_type->t & VT_BTYPE) == VT_STRUCT && member_type->ref)
+        cpp_emit_struct_subobject_copy_assign(member_type);
+    else {
+        vstore();
+        vpop();
+    }
+}
+
+static void cpp_emit_memberwise_copy_assign_fields(Sym *class_sym,
+    CType *parent_ptype, int dst_slot, int src_slot, int dst_ofs, int src_ofs)
+{
+    Sym *f;
+    CType base_type;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_emit_memberwise_copy_assign_fields");
+    if (!class_sym)
+        return;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (cpp_is_base_field(f)) {
+            if (f->c != 0)
+                tcc_error("implicit copy assignment of a non-primary base is unsupported");
+            base_type.t = VT_STRUCT;
+            base_type.ref = f->parent_class;
+            cpp_emit_copy_assign_at(parent_ptype, dst_slot, src_slot,
+                dst_ofs + f->c, src_ofs + f->c, &base_type);
+            continue;
+        }
+        if ((f->v & ~SYM_FIELD) >= SYM_FIRST_ANOM)
+            continue;
+        cpp_emit_copy_assign_at(parent_ptype, dst_slot, src_slot,
+            dst_ofs + f->c, src_ofs + f->c, &f->type);
+    }
+}
+
+static void cpp_emit_implicit_memberwise_copy_assign(Sym *class_sym)
+{
+    CType ptype, obj_type;
+    SValue lhs_sv;
+    int dst_slot, src_slot;
+
+    if (!class_sym)
+        tcc_error("internal error: implicit copy assign without class");
+    /* Keep lhs for the assignment result; mirror vstore() struct address path. */
+    lhs_sv = vtop[-1];
+    obj_type = lhs_sv.type;
+    mk_pointer(&obj_type);
+    ptype = obj_type;
+
+    vpushv(vtop);
+#ifdef CONFIG_TCC_BCHECK
+    if (vtop->r & VT_MUSTBOUND)
+        gbound();
+#endif
+    vtop->type.t = VT_PTR;
+    gaddrof();
+    src_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    vpushv(vtop - 1);
+#ifdef CONFIG_TCC_BCHECK
+    if (vtop->r & VT_MUSTBOUND)
+        gbound();
+#endif
+    vtop->type.t = VT_PTR;
+    gaddrof();
+    dst_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    vtop -= 2;
+    cpp_emit_memberwise_copy_assign_fields(class_sym, &ptype, dst_slot, src_slot, 0, 0);
+    vpushv(&lhs_sv);
+}
+
 static int cpp_try_member_binop(int op_tok)
 {
     Sym *field, *s, *best;
@@ -16343,10 +16689,15 @@ static void expr_eq(void)
             if (tcc_state->cpp
                 && (vtop[-1].type.t & VT_BTYPE) == VT_STRUCT
                 && vtop[-1].type.ref
-                && !cpp_implicit_copy_assign_is_safe(vtop[-1].type.ref))
+                && !cpp_implicit_copy_assign_is_safe(vtop[-1].type.ref)) {
+                if (cpp_implicit_copy_assign_is_memberwise_viable(vtop[-1].type.ref)) {
+                    cpp_emit_implicit_memberwise_copy_assign(vtop[-1].type.ref);
+                    return;
+                }
                 tcc_error("implicit copy assignment is unsupported for a class"
                           " with non-trivial or non-assignable subobjects;"
                           " declare operator= for this class");
+            }
         }
         else {
             /* C++: struct compound assignment via operator+= etc.
