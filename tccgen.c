@@ -662,6 +662,8 @@ static Sym *cpp_find_ctor_field(Sym *class_sym);
 static Sym *cpp_find_dtor_field(Sym *class_sym);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
 static void cpp_validate_decl_default_initialization(CType *pt);
+static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_automatic);
+static int cpp_local_array_element_needs_ctor_emission(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
 static int cpp_can_implicit_default_ctor_exist(Sym *class_sym, int relation);
 static int cpp_can_implicit_dtor_exist(Sym *class_sym, int relation);
@@ -5263,6 +5265,39 @@ static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation)
         if (cpp_is_class_data_member(f))
             cpp_validate_implicit_default_ctor(f->type.ref, 1);
     }
+}
+
+// N7-07B: local automatic class arrays have no elementwise ctor walker.
+// FEAT-4F only matches scalar class objects (VT_STRUCT), so `M a[4];` used
+// to pass cpp_validate_decl_default_initialization and then allocate raw
+// storage with ctor_count=0.  Reject only when ctor emission is required.
+static int cpp_local_array_element_needs_ctor_emission(CType *pt)
+{
+    CType elem;
+    Sym *class_sym;
+
+    elem = *pt;
+    while ((elem.t & VT_ARRAY) && elem.ref)
+        elem = *pointed_type(&elem);
+    if ((elem.t & VT_BTYPE) != VT_STRUCT || !elem.ref)
+        return 0;
+    class_sym = elem.ref;
+    if (cpp_find_ctor_field(class_sym) && cpp_class_has_default_ctor(class_sym))
+        return 1;
+    if (cpp_class_has_implicit_default_ctor_viable(class_sym))
+        return 1;
+    return 0;
+}
+
+static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_automatic)
+{
+    if (!tcc_state->cpp || !is_local_automatic)
+        return;
+    if (!(pt->t & VT_ARRAY))
+        return;
+    if (!cpp_local_array_element_needs_ctor_emission(pt))
+        return;
+    tcc_error("implicit default construction of local class array is unsupported");
 }
 
 // N7-01: one shared gate for default-initialization at a declaration site.
@@ -19820,6 +19855,10 @@ static int decl(int l)
                         && cpp_find_dtor_field(type.ref)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_explicit_dtor_members(type.ref);
+                    if (tcc_state->cpp && !has_init
+                        && l == VT_LOCAL
+                        && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF)))
+                        cpp_validate_local_automatic_class_array(&type, 1);
                     if (tcc_state->cpp && !has_init
                         && (l == VT_LOCAL || l == VT_CONST)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF)))
