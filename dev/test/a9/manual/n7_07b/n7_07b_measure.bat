@@ -68,8 +68,8 @@ echo === N7-07B LOCAL CLASS ARRAY FAIL-CLOSED ===
 echo TCC=%TCC%
 echo.
 
-call :expect_fail_msg TOP_LEVEL_LOCAL_CLASS_ARRAY n7_07b_local_class_array_neg.cpp "local class array"
-call :expect_fail_msg TOP_LEVEL_MULTIDIM_CLASS_ARRAY n7_07b_local_class_array_multidim_neg.cpp "local class array"
+call :expect_pass TOP_LEVEL_LOCAL_CLASS_ARRAY ../n7_07c/n7_07c_local_array_ctor.cpp
+call :expect_pass TOP_LEVEL_MULTIDIM_CLASS_ARRAY ../n7_07c/n7_07c_local_array_multidim.cpp
 call :expect_pass TRIVIAL_LOCAL_STRUCT_ARRAY n7_07b_trivial_struct_array.cpp
 call :expect_pass SCALAR_LOCAL_CLASS_DEFAULT_CTOR n7_07b_scalar_class_control.cpp
 call :expect_pass GLOBAL_CLASS_ARRAY_DEFAULT_CTOR n7_07b_global_class_array_control.cpp
