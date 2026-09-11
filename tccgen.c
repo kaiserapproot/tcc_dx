@@ -666,6 +666,7 @@ static Sym *cpp_find_dtor_field(Sym *class_sym);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
 static void cpp_validate_decl_default_initialization(CType *pt);
 static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_automatic);
+static void cpp_validate_local_static_class_array(CType *pt, int is_local_static);
 static void cpp_emit_local_array_default_ctor_calls(Sym *obj_sym);
 static int cpp_local_array_element_needs_ctor_emission(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
@@ -5320,6 +5321,29 @@ static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_aut
         tcc_error("destruction of local class array is unsupported");
     if (cpp_class_needs_vptr_init(class_sym))
         tcc_error("implicit default construction of polymorphic local class array is unsupported");
+}
+
+// N7-07D: function-local static class arrays skip FEAT-4F (VT_STRUCT scalar
+// gate) and the N7-07C automatic-array ctor walker; reject instead of silent
+// miscompile until init-once array construction exists (N7-07E).
+static void cpp_validate_local_static_class_array(CType *pt, int is_local_static)
+{
+    Sym *class_sym;
+
+    if (!tcc_state->cpp || !is_local_static)
+        return;
+    if (!(pt->t & VT_ARRAY))
+        return;
+    if (!cpp_local_array_element_needs_ctor_emission(pt))
+        return;
+    class_sym = cpp_type_class_sym(pt, NULL);
+    if (!class_sym)
+        return;
+    if (cpp_class_requires_destruction(class_sym))
+        tcc_error("destruction of static local class array is unsupported");
+    if (cpp_class_needs_vptr_init(class_sym))
+        tcc_error("implicit default construction of polymorphic static local class array is unsupported");
+    tcc_error("implicit default construction of static local class array is unsupported");
 }
 
 // N7-07C: elementwise default ctor calls for local automatic class arrays.
@@ -19985,6 +20009,11 @@ static int decl(int l)
                         && l == VT_LOCAL
                         && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF)))
                         cpp_validate_local_automatic_class_array(&type, 1);
+                    if (tcc_state->cpp && !has_init
+                        && l == VT_LOCAL
+                        && (type.t & VT_STATIC)
+                        && !(type.t & (VT_EXTERN | VT_TYPEDEF)))
+                        cpp_validate_local_static_class_array(&type, 1);
                     if (tcc_state->cpp && !has_init
                         && (l == VT_LOCAL || l == VT_CONST)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF)))
