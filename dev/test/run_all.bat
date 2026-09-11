@@ -279,6 +279,11 @@ echo === a9\manual\n7_07c\n7_07c_measure.bat ===
 call a9\manual\n7_07c\n7_07c_measure.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem === N7-07C-F2: default-arg implicit ctor / extern-C array gate ===
+echo === a9\manual\n7_07c_followup\n7_07c_f2_measure.bat ===
+call a9\manual\n7_07c_followup\n7_07c_f2_measure.bat
+if errorlevel 1 set /a FAILED+=1
+
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===
 rem Real-world sources that are NOT expected to compile yet - only the
 rem compiler surviving them is gated.  Diagnostics are fine; a crash

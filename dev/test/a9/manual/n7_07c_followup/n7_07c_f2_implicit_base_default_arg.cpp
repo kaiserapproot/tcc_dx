@@ -1,4 +1,3 @@
-// An implicit base ctor with default arguments must not be silently skipped.
 int calls;
 struct B { B(int value = 9) { calls = value; } };
 struct D : B { D() { } };
