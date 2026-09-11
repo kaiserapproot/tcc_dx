@@ -194,6 +194,7 @@ static void vpush64(int ty, unsigned long long v);
 static void vpush(CType* type);
 static int gvtst(int inv, int t);
 static void gen_inline_functions(TCCState* s);
+static void gen_function(Sym *sym);
 static void free_inline_functions(TCCState* s);
 static void skip_or_save_block(TokenString** str);
 static void gv_dup(void);
@@ -256,6 +257,7 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type);
    which lives with the other member-call helpers. */
 static void cpp_spill_member_this(void);
 static int cpp_spill_ptr_to_temp(CType *ptype);
+static void cpp_emit_local_copy_init(Sym *obj_sym, Sym *class_sym);
 static int cpp_emit_copied_class_subobject(Sym *class_sym, CType *dst_ptype,
                                            int dst_ptr_slot, int src_ptr_slot,
                                            int dst_base_ofs, int src_base_ofs);
@@ -1634,14 +1636,30 @@ static int cpp_ctor_viable_with_zero_args(Sym *f)
 
 static int cpp_class_has_default_ctor(Sym *class_sym)
 {
+    CppSyntheticSpecial *sp;
     Sym *f;
+    int class_name_tok;
 
     if (!class_sym)
         return 0;
-    f = cpp_find_ctor_field(class_sym);
-    if (!f)
-        return 0;
-    return cpp_ctor_viable_with_zero_args(f);
+    // Walk every ctor overload on the field chain.  cpp_find_ctor_field
+    // returns only the first declaration, so vec4(vec3&)/vec4(const
+    // vec4&)/vec4(float...) declared before vec4() made `vec4 a;` fail
+    // with "class has no default constructor" even though a zero-arg
+    // overload exists (amateras vec_quat.h / MMD C bodies as C++).
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (cpp_ctor_viable_with_zero_args(f))
+            return 1;
+    }
+    sp = cpp_get_synthetic_special(class_sym);
+    if (sp && sp->ctor_field)
+        return cpp_ctor_viable_with_zero_args(sp->ctor_field);
+    return 0;
 }
 
 static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym)
@@ -1651,6 +1669,28 @@ static int cpp_class_has_implicit_default_ctor_viable(Sym *class_sym)
     return !cpp_find_ctor_field(class_sym)
         && cpp_class_has_nontrivial_subobjects(class_sym)
         && cpp_can_implicit_default_ctor_exist(class_sym, 0);
+}
+
+// N7-02-03: peel array wrappers to the underlying class and count flat
+// elements.  Returns NULL when the type is not a class object declaration.
+static Sym *cpp_type_class_sym(CType *type, int *flat_count)
+{
+    CType elem;
+    int n;
+
+    elem = *type;
+    n = 1;
+    while (elem.t & VT_ARRAY) {
+        if (!elem.ref || elem.ref->c < 0)
+            return NULL;
+        n *= elem.ref->c;
+        elem = *pointed_type(&elem);
+    }
+    if ((elem.t & VT_BTYPE) != VT_STRUCT || !elem.ref)
+        return NULL;
+    if (flat_count)
+        *flat_count = n;
+    return elem.ref;
 }
 
 static int cpp_class_would_have_synthetic_ctor(Sym *class_sym)
@@ -2446,8 +2486,104 @@ typedef struct CppGlobalDynEntry {
     Sym *obj_sym;
     TokenString *ctor_args; /* NULL for default ctor or dtor entry */
     int is_dtor;
+    int is_copy_init; /* N7-CROSS-01B: saved init expr tokens */
     Sym *wrapper_sym;
 } CppGlobalDynEntry;
+
+static void cpp_emit_global_copy_init_thunk(CppGlobalDynEntry *ent);
+static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent);
+
+// N7-CROSS-01B: gen_function replay target for global copy-init startup.
+static CppGlobalDynEntry *cpp_global_copy_init_emit_ent;
+static int cpp_global_copy_init_reg_count;
+
+static int cpp_is_synthetic_source_file(const char *fn)
+{
+    /* tccpp_putfile(":global_copy_init:") prepends the real directory, so
+     * match the pseudo-name anywhere in the path (N7-CROSS-01C reentry guard). */
+    if (!fn)
+        return 0;
+    return strstr(fn, ":global_copy_init:") != NULL
+        || strstr(fn, ":inline:") != NULL;
+}
+
+static int cpp_global_copy_init_decl_allowed(void)
+{
+    if (!file || !file->filename)
+        return 0;
+    /* Startup replay must not register a second dynamic-init declaration. */
+    if (cpp_global_copy_init_emit_ent)
+        return 0;
+    if (cpp_is_synthetic_source_file(file->filename))
+        return 0;
+    /* Real primary TU and real #include files; FEAT-4F/4G stay primary-only. */
+    return 1;
+}
+
+static void cpp_diag_global_copy_init_gate(int has_init, int scope_is_const,
+                                           int type_is_struct, int tok_after_eq,
+                                           int allowed, int intercepted)
+{
+    const char *diag;
+
+    diag = getenv("TCC_N7_CROSS_01C_DIAG");
+    if (!diag || diag[0] != '1')
+        return;
+    fprintf(stderr,
+        "N7_01C_DIAG FILE_NAME=%s FILE_PREV_PRESENT=%d FILE_PREV_NAME=%s "
+        "CPP_IN_USER_SOURCE_FILE=%d HAS_INIT=%d SCOPE=%s TYPE_IS_STRUCT=%d "
+        "TOK_AFTER_EQUAL=%d GLOBAL_COPY_INIT_DECL_ALLOWED=%d "
+        "GLOBAL_COPY_INIT_INTERCEPTED=%d REG_COUNT=%d\n",
+        file && file->filename ? file->filename : "",
+        file && file->prev ? 1 : 0,
+        file && file->prev && file->prev->filename ? file->prev->filename : "",
+        cpp_in_user_source_file(),
+        has_init,
+        scope_is_const ? "VT_CONST" : "other",
+        type_is_struct,
+        tok_after_eq,
+        allowed,
+        intercepted,
+        cpp_global_copy_init_reg_count);
+}
+
+typedef struct CppGlobalEmitSaved {
+    Section *saved_text_sec;
+    int loc;
+    int ind;
+} CppGlobalEmitSaved;
+
+static void cpp_save_global_emit_state(CppGlobalEmitSaved *sav)
+{
+    sav->saved_text_sec = cur_text_section;
+    sav->loc = loc;
+    sav->ind = ind;
+}
+
+static void cpp_restore_global_emit_state(CppGlobalEmitSaved *sav)
+{
+    (void)sav;
+    cur_text_section = text_section;
+    if (cpp_global_copy_init_emit_ent)
+        tcc_error("internal error: global copy-init emit target not cleared");
+    loc = 0;
+    // gen_function ends with DATA_ONLY_WANTED; minimal thunks after it need codegen on.
+    nocode_wanted = 0;
+    check_vstack();
+}
+
+static void cpp_emit_global_dyn_entry(CppGlobalDynEntry *ent)
+{
+    if (!ent)
+        return;
+    if (ent->is_dtor) {
+        cpp_emit_global_dyn_thunk(ent);
+    } else if (ent->is_copy_init) {
+        cpp_emit_global_copy_init_thunk(ent);
+    } else {
+        cpp_emit_global_dyn_thunk(ent);
+    }
+}
 
 static CppGlobalDynEntry **cpp_global_dyns;
 static int nb_cpp_global_dyns;
@@ -2873,7 +3009,8 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
 
     if (!obj_sym || !tcc_state->cpp)
         return;
-    if ((obj_sym->type.t & VT_BTYPE) != VT_STRUCT)
+    class_sym = cpp_type_class_sym(&obj_sym->type, NULL);
+    if (!class_sym)
         return;
     /* dynarray_add stores the pointer as-is (no struct copy), so each
        entry must be heap-allocated; a stack address here dangles and
@@ -2882,10 +3019,10 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     ent->obj_sym = obj_sym;
     ent->ctor_args = ctor_args;
     ent->is_dtor = is_dtor;
+    ent->is_copy_init = 0;
     ent->wrapper_sym = NULL;
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
-        class_sym = obj_sym->type.ref;
         if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
             && cpp_class_requires_destruction(class_sym))
             tcc_error("global destructor runtime in DLL is unsupported");
@@ -2898,9 +3035,50 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
             ent->obj_sym = obj_sym;
             ent->ctor_args = NULL;
             ent->is_dtor = 1;
+            ent->is_copy_init = 0;
             ent->wrapper_sym = NULL;
             dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
         }
+    }
+}
+
+static void cpp_register_global_copy_init(Sym *obj_sym, TokenString *init_expr)
+{
+    CppGlobalDynEntry *ent;
+    Sym *class_sym;
+
+    if (!obj_sym || !init_expr || !tcc_state->cpp)
+        return;
+    class_sym = cpp_type_class_sym(&obj_sym->type, NULL);
+    if (!class_sym)
+        return;
+    // INIT_TOKEN_OWNER=CppGlobalDynEntry.ctor_args (heap TokenString).
+    // INIT_TOKEN_ALLOC_SITE=skip_or_save_block() in decl() copy-init gate.
+    // INIT_TOKEN_CONSUME_SITE=begin_macro(init_toks,1) in copy-init body emit.
+    // INIT_TOKEN_FREE_SITE=end_macro() (alloc=1 -> tok_str_free once).
+    // INIT_TOKEN_FREE_COUNT=1; never tok_str_free ent->ctor_args elsewhere.
+    ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+    ent->obj_sym = obj_sym;
+    ent->ctor_args = init_expr;
+    ent->is_dtor = 0;
+    ent->is_copy_init = 1;
+    ent->wrapper_sym = NULL;
+    cpp_global_copy_init_reg_count++;
+    dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
+    if (class_sym && tcc_state->output_type == TCC_OUTPUT_DLL
+        && cpp_class_requires_destruction(class_sym))
+        tcc_error("global destructor runtime in DLL is unsupported");
+    cpp_ensure_synthetic_odr(class_sym);
+    if (!cpp_find_dtor_field(class_sym))
+        cpp_validate_implicit_dtor(class_sym, 0);
+    if (cpp_find_dtor_field(class_sym)) {
+        ent = tcc_malloc(sizeof(CppGlobalDynEntry));
+        ent->obj_sym = obj_sym;
+        ent->ctor_args = NULL;
+        ent->is_dtor = 1;
+        ent->is_copy_init = 0;
+        ent->wrapper_sym = NULL;
+        dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     }
 }
 
@@ -2973,24 +3151,37 @@ static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
 
 static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
 {
-    SValue obj_addr;
+    Sym *class_sym;
+    CType elem_type;
+    int flat_count;
+    int elem_size;
+    int elem_align;
+    int i;
+    int nb_args;
 
-    if (!cpp_find_ctor_field(obj_sym->type.ref))
+    class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
+    if (!class_sym || !cpp_find_ctor_field(class_sym) || flat_count <= 0)
         return 0;
-    // addend 0: obj_sym->c is the ELF symbol index for globals, not a
-    // section offset; passing it skewed the object address by c bytes.
-    // Forming the address is pure vstack bookkeeping (VT_CONST|VT_SYM),
-    // so doing it before the argument expressions emits no code.
-    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
-    vtop->sym = obj_sym;
-    gaddrof();
-    // BUG-16: gaddrof keeps the struct type, so gfunc_call would pass the
-    // global by value - for objects larger than 8 bytes Win64 stages a copy
-    // and the ctor initializes that copy, leaving the real global zeroed.
-    mk_pointer(&vtop->type);
-    obj_addr = *vtop;
-    vpop();
-    return cpp_emit_ctor_call_at(obj_sym->type.ref, &obj_addr, arg_toks);
+    elem_type = obj_sym->type;
+    while (elem_type.t & VT_ARRAY)
+        elem_type = *pointed_type(&elem_type);
+    elem_size = type_size(&elem_type, &elem_align);
+    nb_args = 0;
+    for (i = 0; i < flat_count; i++) {
+        // addend 0: obj_sym->c is the ELF symbol index for globals, not a
+        // section offset; passing it skewed the object address by c bytes.
+        vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+        vtop->sym = obj_sym;
+        gaddrof();
+        mk_pointer(&vtop->type);
+        if (i != 0) {
+            vpushi((addr_t)(i * elem_size));
+            gen_op('+');
+        }
+        nb_args = cpp_emit_ctor_call_at(class_sym, vtop, arg_toks);
+        vpop();
+    }
+    return nb_args;
 }
 
 static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
@@ -3331,6 +3522,7 @@ static void cpp_finish_global_dyns(TCCState *s1)
 {
     int i;
     int saved_nocode;
+    CppGlobalEmitSaved emit_saved;
 
     if (!s1->cpp || nb_cpp_global_dyns == 0)
         return;
@@ -3342,8 +3534,12 @@ static void cpp_finish_global_dyns(TCCState *s1)
             cpp_global_dyns[i]->wrapper_sym =
                 cpp_new_static_function_sym(&cpp_local_static_dtor_type);
     }
-    for (i = 0; i < nb_cpp_global_dyns; i++)
-        cpp_emit_global_dyn_thunk(cpp_global_dyns[i]);
+    for (i = 0; i < nb_cpp_global_dyns; i++) {
+        cpp_save_global_emit_state(&emit_saved);
+        cur_text_section = text_section;
+        cpp_emit_global_dyn_entry(cpp_global_dyns[i]);
+        cpp_restore_global_emit_state(&emit_saved);
+    }
     dynarray_reset(&cpp_global_dyns, &nb_cpp_global_dyns);
     /* survives the per-TU save/restore of s1->cpp; gates the PE startup
        injection at link time (tccpe.c). */
@@ -5901,6 +6097,8 @@ ST_FUNC void tccgen_init(TCCState* s1)
     cpp_cur_class = NULL;
     cpp_default_arg_replay = 0;
     cpp_user_inline_feat4b_replay = 0;
+    cpp_global_copy_init_emit_ent = NULL;
+    cpp_global_copy_init_reg_count = 0;
     decl_once_flag = 0;
     cpp_member_this_pending = 0;
     cpp_this_sym = NULL;
@@ -11453,13 +11651,30 @@ static int cpp_implicit_copy_assign_is_safe(Sym *class_sym)
 }
 static int cpp_try_member_binop(int op_tok)
 {
-    Sym *field, *s;
+    Sym *field, *s, *best;
     SValue rhs;
-    int cumofs;
+    int cumofs, v, want_const, best_score;
 
     if (!tcc_state->cpp || (vtop[-1].type.t & VT_BTYPE) != VT_STRUCT)
         return 0;
-    field = cpp_find_operator_member(&vtop[-1].type, cpp_operator_field_tok(op_tok), &cumofs, 1);
+    v = cpp_operator_field_tok(op_tok);
+    if (!v)
+        return 0;
+    // Score operator overloads against the RHS on vtop (nb_args == 1).
+    // cpp_find_operator_member only keeps the first arity match, so
+    // operator*(T&) declared before operator*(float) would always
+    // win and then fail converting a scalar RHS (vec_quat.h vec3).
+    best = NULL;
+    best_score = -1;
+    want_const = (vtop[-1].type.t & VT_CONSTANT) ? 1 : 0;
+    cpp_score_member_overloads(vtop[-1].type.ref, v | SYM_FIELD, 1,
+                               want_const, &best, &best_score);
+    if (!best && !want_const)
+        cpp_score_member_overloads(vtop[-1].type.ref, v | SYM_FIELD, 1,
+                                   1, &best, &best_score);
+    field = best;
+    if (!field)
+        field = cpp_find_operator_member(&vtop[-1].type, v, &cumofs, 1);
     if (op_tok == '=' && field && field->parent_class != vtop[-1].type.ref)
         return 0;
     if (!field || (field->type.t & VT_BTYPE) != VT_FUNC)
@@ -13915,6 +14130,83 @@ static void cpp_emit_local_copy_init(Sym *obj_sym, Sym *class_sym)
     cpp_reconstruct_copied_class_members(class_sym, &ptype, dst_slot,
                                          src_slot, 0, 0);
 }
+
+static void cpp_emit_global_copy_init_body(CppGlobalDynEntry *ent)
+{
+    Sym *obj_sym;
+    Sym *class_sym;
+    TokenString *init_toks;
+    int flat_count;
+
+    if (!ent || !ent->obj_sym || !ent->ctor_args)
+        return;
+    obj_sym = ent->obj_sym;
+    init_toks = ent->ctor_args;
+    int saved_t;
+
+    class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
+    if (!class_sym || flat_count != 1)
+        tcc_error("global copy-init of class array is not supported");
+    saved_t = obj_sym->type.t;
+    // One-time dynamic init in startup only; restore semantic const after.
+    obj_sym->type.t &= ~VT_CONSTANT;
+    begin_macro(init_toks, 1);
+    next();
+    expr_eq();
+    if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+        && vtop->type.ref == class_sym) {
+        cpp_emit_local_copy_init(obj_sym, class_sym);
+    } else if ((vtop->type.t & VT_BTYPE) == VT_STRUCT
+               && vtop->type.ref
+               && cpp_base_subobject_offset(vtop->type.ref, class_sym) >= 0) {
+        tcc_error("slicing copy-initialization is unsupported; use direct-initialization");
+    } else {
+        cpp_push_declared_object(obj_sym);
+        vswap();
+        gen_assign_cast(&obj_sym->type);
+        vstore();
+        vpop();
+    }
+    end_macro();
+    obj_sym->type.t = saved_t;
+    check_vstack();
+}
+
+static void cpp_emit_global_copy_init_thunk(CppGlobalDynEntry *ent)
+{
+    CType void_type;
+    CType func_type;
+    Sym *proto;
+    Sym *wrapper;
+    TokenString *body;
+
+    if (!ent || !ent->obj_sym || !ent->ctor_args)
+        return;
+
+    void_type.t = VT_VOID;
+    func_type.t = VT_FUNC;
+    proto = sym_push(SYM_FIELD, &void_type, 0, 0);
+    proto->f.func_call = FUNC_CDECL;
+    proto->f.func_type = FUNC_NEW;
+    func_type.ref = proto;
+    wrapper = cpp_new_static_function_sym(&func_type);
+    ent->wrapper_sym = wrapper;
+
+    // FEAT-4G minimal thunks cannot host copy-init (stack scratch + sret).
+    // Emit a real void startup function via gen_function instead.
+    body = cpp_make_empty_member_body();
+    cpp_global_copy_init_emit_ent = ent;
+    tccpp_putfile(":global_copy_init:");
+    cur_text_section = text_section;
+    begin_macro(body, 1);
+    next();
+    gen_function(wrapper);
+    end_macro();
+    if (cpp_global_copy_init_emit_ent)
+        tcc_error("internal error: global copy-init startup body not emitted");
+    add_array(tcc_state, ".init_array", wrapper->c);
+}
+
 // Emit __cpp_ctor_C(p, args) for the object whose address sits in
 // ptr_slot.  Argument handling mirrors cpp_emit_base_ctor_call: parse
 // first, resolve the overload from the raw types, then convert.
@@ -18183,27 +18475,32 @@ static void gen_function(Sym* sym)
     rsym = 0;
     func_vla_arg(sym);
 
-    /* MI: construct every base subobject the mem-initializer list does NOT
-     * name (including the case of a ctor with no list at all).  Emitted
-     * BEFORE the list runs because C++ guarantees bases are fully
-     * constructed first, so a member initializer may legally read a base
-     * member.  MI Phase 1 only handled explicitly listed bases. */
-    if (tcc_state->cpp && cpp_this_sym && sym->parent_class
-        && cpp_is_ctor_global(sym)) {
-        cpp_emit_implicit_base_ctors(sym->parent_class, sym->cpp_mem_init_list);
-        // G7: class-type data members the list does not name are
-        // default-constructed too (C++ semantics; TestResult's
-        // SimpleList members crashed the first driver run otherwise).
-        cpp_emit_implicit_member_ctors(sym->parent_class,
-                                       sym->cpp_mem_init_list);
-    }
+    if (cpp_global_copy_init_emit_ent
+        && sym == cpp_global_copy_init_emit_ent->wrapper_sym) {
+        cpp_emit_global_copy_init_body(cpp_global_copy_init_emit_ent);
+        cpp_global_copy_init_emit_ent = NULL;
+    } else {
+        /* MI: construct every base subobject the mem-initializer list does NOT
+         * name (including the case of a ctor with no list at all).  Emitted
+         * BEFORE the list runs because C++ guarantees bases are fully
+         * constructed first, so a member initializer may legally read a base
+         * member.  MI Phase 1 only handled explicitly listed bases. */
+        if (tcc_state->cpp && cpp_this_sym && sym->parent_class
+            && cpp_is_ctor_global(sym)) {
+            cpp_emit_implicit_base_ctors(sym->parent_class, sym->cpp_mem_init_list);
+            // G7: class-type data members the list does not name are
+            // default-constructed too (C++ semantics; TestResult's
+            // SimpleList members crashed the first driver run otherwise).
+            cpp_emit_implicit_member_ctors(sym->parent_class,
+                                           sym->cpp_mem_init_list);
+        }
 
-    /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
-     * the ctor sym into `this->a = x; this->b = y;` instructions before the
-     * body runs.  Base-class initializers call __cpp_ctor_Base on the
-     * embedded base subobject (FEAT-4D). */
-    if (tcc_state->cpp && sym->cpp_mem_init_list
-        && cpp_this_sym && sym->parent_class) {
+        /* C++ constructor member-initializer list: expand `: a(x), b(y)` saved on
+         * the ctor sym into `this->a = x; this->b = y;` instructions before the
+         * body runs.  Base-class initializers call __cpp_ctor_Base on the
+         * embedded base subobject (FEAT-4D). */
+        if (tcc_state->cpp && sym->cpp_mem_init_list
+            && cpp_this_sym && sym->parent_class) {
         TokenString *init_copy = tok_str_dup_for_default(sym->cpp_mem_init_list);
         if (init_copy) {
             Sym *class_sym = sym->parent_class;
@@ -18295,9 +18592,10 @@ static void gen_function(Sym* sym)
              * keep block()'s entry contract. */
             unget_tok('{');
         }
-    }
+        }
 
-    block(0);
+        block(0);
+    }
     cpp_flush_class_temps(-1);
     gsym(rsym);
 
@@ -18438,6 +18736,7 @@ static int decl(int l)
     CType type, btype;
     CType static_elem_type;
     Sym* sym;
+    Sym *global_class_sym;
     AttributeDef ad, adbase;
     ElfSym* esym;
 
@@ -18603,15 +18902,15 @@ static int decl(int l)
             // (.init_array) construction path - its object lives in
             // per-thread runtime storage and is constructed lazily by the
             // TLS resolver, so it falls through to the VT_CPP_TLS branch.
+            global_class_sym = cpp_type_class_sym(&btype, NULL);
             if (tcc_state->cpp
                 && l == VT_CONST
-                && (btype.t & VT_BTYPE) == VT_STRUCT
-                && btype.ref
+                && global_class_sym
                 && !(btype.t & VT_CPP_TLS)
                 && tok >= TOK_UIDENT
                 && cpp_in_user_source_file()
-                && (cpp_find_ctor_field(btype.ref)
-                    || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
+                && (cpp_find_ctor_field(global_class_sym)
+                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
                 int saved_var_tok = tok;
                 int obj_r = VT_LVAL | VT_CONST;
                 Sym *obj_sym;
@@ -18647,9 +18946,9 @@ static int decl(int l)
                               excluding VT_STATIC: function-local statics need
                               once-only guarded construction, not this path.) */
                            && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
-                           && (cpp_class_has_default_ctor(btype.ref)
-                               || cpp_class_has_implicit_default_ctor_viable(btype.ref))) {
-                    cpp_ensure_synthetic_odr(btype.ref);
+                           && (cpp_class_has_default_ctor(global_class_sym)
+                               || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
+                    cpp_ensure_synthetic_odr(global_class_sym);
                     decl_initializer_alloc(&type, &ad, obj_r,
                         0, saved_var_tok, 1);
                     obj_sym = sym_find(saved_var_tok);
@@ -19179,16 +19478,90 @@ static int decl(int l)
                         }
                     }
                     else {
+                        int global_copy_init_done;
+                        int global_init_eq_consumed;
+                        TokenString *init_toks;
+                        Sym *obj_sym;
+                        CType alloc_type;
+
+                        global_copy_init_done = 0;
+                        global_init_eq_consumed = 0;
+                        init_toks = NULL;
+                        obj_sym = NULL;
+                        alloc_type.t = 0;
                         if (l == VT_CONST || (type.t & VT_STATIC))
                             r |= VT_CONST;
                         else
                             r |= VT_LOCAL;
-                        if (has_init)
+                        if (has_init
+                            && tcc_state->cpp
+                            && l == VT_CONST
+                            && (type.t & VT_BTYPE) == VT_STRUCT
+                            && type.ref
+                            && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_CPP_TLS))) {
+                            int copy_init_allowed;
+                            int tok_after_eq;
+                            int intercepted;
+
+                            copy_init_allowed = cpp_global_copy_init_decl_allowed();
+                            tok_after_eq = 0;
+                            intercepted = 0;
+                            if (copy_init_allowed) {
+                                next();
+                                global_init_eq_consumed = 1;
+                                tok_after_eq = tok;
+                                if (tok != '{') {
+                                    cpp_ensure_synthetic_odr(type.ref);
+                                    skip_or_save_block(&init_toks);
+                                    // Writable storage only; semantic const stays on sym.
+                                    alloc_type = type;
+                                    alloc_type.t &= ~VT_CONSTANT;
+                                    decl_initializer_alloc(&alloc_type, &ad, r | VT_LVAL,
+                                        0, v, 1);
+                                    obj_sym = sym_find(v);
+                                    if (!obj_sym)
+                                        tcc_error("internal error: global copy-init object lost");
+                                    if (type.t & VT_CONSTANT)
+                                        obj_sym->type.t |= VT_CONSTANT;
+                                    cpp_register_global_copy_init(obj_sym, init_toks);
+                                    global_copy_init_done = 1;
+                                    intercepted = 1;
+                                    has_init = 0;
+                                }
+                            }
+                            cpp_diag_global_copy_init_gate(has_init || global_init_eq_consumed,
+                                l == VT_CONST, 1, tok_after_eq,
+                                copy_init_allowed, intercepted);
+                        }
+                        if (has_init && !global_init_eq_consumed)
                             next();
-                        else if (l == VT_CONST)
+                        else if (l == VT_CONST && !global_copy_init_done)
                             /* uninitialized global variables may be overridden */
                             type.t |= VT_EXTERN;
-                        decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
+                        if (!global_copy_init_done)
+                            decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
+                        // N7-02-03: `A g[N];` parses `[N]` in type_decl after the
+                        // FEAT-4G scalar gate, so register startup ctor thunks here.
+                        if (tcc_state->cpp
+                            && l == VT_CONST
+                            && !has_init
+                            && (type.t & VT_ARRAY)
+                            && !(type.t & (VT_TYPEDEF | VT_CPP_TLS))
+                            && cpp_in_user_source_file()) {
+                            global_class_sym = cpp_type_class_sym(&type, NULL);
+                            if (global_class_sym
+                                && (cpp_find_ctor_field(global_class_sym)
+                                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))
+                                && (cpp_class_has_default_ctor(global_class_sym)
+                                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
+                                Sym *obj_sym;
+
+                                cpp_ensure_synthetic_odr(global_class_sym);
+                                obj_sym = sym_find(v);
+                                if (obj_sym)
+                                    cpp_register_global_dyn(obj_sym, NULL, 0);
+                            }
+                        }
                         if (tcc_state->cpp
                             && l == VT_LOCAL
                             && (type.t & VT_STATIC)
