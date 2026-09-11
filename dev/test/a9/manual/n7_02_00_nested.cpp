@@ -16,7 +16,6 @@ B global_b;
 
 int main(void)
 {
-    marker = 0;
     if (marker != 1)
         return 1;
     return 0;
