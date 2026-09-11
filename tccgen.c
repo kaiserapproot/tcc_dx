@@ -658,6 +658,9 @@ static Sym *cpp_class_sym_push(int v, CType *type, int r, int c);
 // a ctor that is only declared has no global yet, and the global-side
 // fallback then binds whatever single extern happened to exist.
 static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args);
+static Sym *cpp_resolve_implicit_ctor_overload(Sym *class_sym, Sym *ctor_global,
+                                               int nb_args);
+static void cpp_emit_resolved_implicit_ctor(Sym *resolved);
 static Sym *cpp_find_ctor_field(Sym *class_sym);
 static Sym *cpp_find_dtor_field(Sym *class_sym);
 static void cpp_validate_implicit_default_ctor(Sym *class_sym, int relation);
@@ -4692,20 +4695,13 @@ static void cpp_emit_base_default_ctor_call(Sym *base_field)
        exists: the field-level check above only proves it was declared, and
        cpp_resolve_func_call falls back to sym_find on no match. */
     // G7: declaration-side overload resolution first (see forward decl)
-    resolved = cpp_resolve_member_func_call(ctor_global, 0);
+    resolved = cpp_resolve_implicit_ctor_overload(base_class, ctor_global, 0);
     if (!resolved)
         resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
     if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC)
         return;
-    if (cpp_func_param_count(resolved) != 0)
-        tcc_error("implicit default construction via default arguments is unsupported");
-    vset(&resolved->type, resolved->r | VT_SYM, 0);
-    vtop->sym = resolved;
-    vtop->r &= ~VT_LVAL;
     cpp_push_member_var(base_field);
-    gaddrof();
-    mk_pointer(&vtop->type);    /* BUG-15/16: pass `this` as a pointer. */
-    gfunc_call(1);
+    cpp_emit_resolved_implicit_ctor(resolved);
 }
 
 /* Collect the base subobject fields that a ctor's mem-initializer list names
@@ -4969,11 +4965,11 @@ static void cpp_emit_class_default_ctor_call(Sym *member_class, int relation)
     Sym *ctor_global;
     Sym *resolved;
     CType mt;
-    SValue lv;
     SValue *mark;
 
     if (!member_class)
         return;
+    mark = vtop;
     ctor_field = cpp_find_ctor_field(member_class);
     if (!ctor_field) {
         cpp_validate_implicit_default_ctor(member_class, relation);
@@ -4992,26 +4988,15 @@ static void cpp_emit_class_default_ctor_call(Sym *member_class, int relation)
         vpop();
         return;
     }
-    resolved = cpp_resolve_member_func_call(ctor_global, 0);
+    resolved = cpp_resolve_implicit_ctor_overload(member_class, ctor_global, 0);
     if (!resolved)
         resolved = cpp_resolve_func_call(ctor_global->v, 0, ctor_global);
     if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC) {
         vpop();
         return;
     }
-    if (cpp_func_param_count(resolved) != 0)
-        tcc_error("implicit default construction via default arguments is unsupported");
-    lv = *vtop;
-    mark = vtop;
-    vpop();
-    vset(&resolved->type, resolved->r | VT_SYM, 0);
-    vtop->sym = resolved;
-    vtop->r &= ~VT_LVAL;
-    vpushv(&lv);
-    gaddrof();
-    mk_pointer(&vtop->type);
-    gfunc_call(1);
-    while (vtop >= mark)
+    cpp_emit_resolved_implicit_ctor(resolved);
+    while (vtop > mark)
         vpop();
 }
 
@@ -10987,6 +10972,78 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
     // must be looked up (or created) under the declaring class.
     return cpp_member_func_global_exact(best, best->parent_class
                                         ? best->parent_class : class_sym);
+}
+
+// N7-07C-F2: declaration-side 0-arg ctor resolution for implicit
+// construction.  cpp_resolve_member_func_call is disabled inside extern "C"
+// and cpp_resolve_func_call there is sym_find-only, so array emission must
+// still score ctor overloads with default-arg viability on the class body.
+static Sym *cpp_resolve_implicit_ctor_overload(Sym *class_sym, Sym *ctor_global,
+                                               int nb_args)
+{
+    Sym *best;
+    Sym *resolved;
+    int v1;
+    int best_score;
+    int want_const;
+
+    resolved = cpp_resolve_member_func_call(ctor_global, nb_args);
+    if (resolved)
+        return resolved;
+    if (!class_sym || !ctor_global)
+        return NULL;
+    v1 = class_sym->v & ~SYM_STRUCT;
+    v1 |= SYM_FIELD;
+    best = NULL;
+    best_score = -1;
+    want_const = !!(ctor_global->type.ref
+                    && ctor_global->type.ref->f.func_const);
+    cpp_score_member_overloads(class_sym, v1, nb_args, want_const,
+                               &best, &best_score);
+    if (!best)
+        return NULL;
+    return cpp_member_func_global_exact(best, best->parent_class
+                                        ? best->parent_class : class_sym);
+}
+
+// N7-07C-F2: run a resolved ctor on the object lvalue at vtop, materializing
+// any missing parameters through cpp_apply_default_args before gfunc_call.
+static void cpp_emit_resolved_implicit_ctor(Sym *resolved)
+{
+    SValue lv;
+    SValue this_sv;
+    Sym *sa;
+    int nb_args;
+    int na;
+
+    if (!resolved || (resolved->type.t & VT_BTYPE) != VT_FUNC)
+        return;
+    lv = *vtop;
+    vpop();
+    vset(&resolved->type, resolved->r | VT_SYM, 0);
+    vtop->sym = resolved;
+    vtop->r &= ~VT_LVAL;
+    sa = resolved->type.ref->next;
+    nb_args = 0;
+    if (sa && sa->type.t != VT_VOID)
+        cpp_apply_default_args(resolved->type.ref, &nb_args, &sa);
+    na = nb_args;
+    vpushv(&lv);
+    gaddrof();
+    mk_pointer(&vtop->type);
+    this_sv = *vtop;
+    vpop();
+    if (na == 0) {
+        vpushv(&this_sv);
+        gfunc_call(1);
+    } else {
+        vtop++;
+        nb_args = na + 1;
+        memmove(vtop - nb_args + 2, vtop - nb_args + 1,
+                na * sizeof(SValue));
+        vtop[-nb_args + 1] = this_sv;
+        gfunc_call(nb_args);
+    }
 }
 
 // G-CONV: implicit application of a converting constructor.  When an
