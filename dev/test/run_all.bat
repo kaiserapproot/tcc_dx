@@ -284,9 +284,14 @@ echo === a9\manual\n7_07c_followup\n7_07c_f2_measure.bat ===
 call a9\manual\n7_07c_followup\n7_07c_f2_measure.bat
 if errorlevel 1 set /a FAILED+=1
 
-rem === N7-07D: static local class array fail-closed gate ===
+rem === N7-07D: static local class array init-once regression gate ===
 echo === a9\manual\n7_07d\n7_07d_measure.bat ===
 call a9\manual\n7_07d\n7_07d_measure.bat
+if errorlevel 1 set /a FAILED+=1
+
+rem === N7-07E: static local class array init-once construction gate ===
+echo === a9\manual\n7_07e\n7_07e_measure.bat ===
+call a9\manual\n7_07e\n7_07e_measure.bat
 if errorlevel 1 set /a FAILED+=1
 
 rem === Phase 4: crash corpus (C2, crash-prevention plan) ===

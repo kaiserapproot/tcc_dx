@@ -9,7 +9,7 @@ struct M {
 
 int M::count;
 
-void f()
+void touch()
 {
     static M a[4];
     (void)a;
@@ -17,13 +17,13 @@ void f()
 
 int main()
 {
-    f();
+    touch();
     if (M::count != 4)
         return 1;
-    f();
+    touch();
     if (M::count != 4)
         return 2;
-    f();
+    touch();
     if (M::count != 4)
         return 3;
     return 0;

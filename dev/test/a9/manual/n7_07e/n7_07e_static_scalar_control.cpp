@@ -11,17 +11,14 @@ int M::count;
 
 void f()
 {
-    static M a[2][3];
-    (void)a;
+    static M m;
+    (void)m;
 }
 
 int main()
 {
     f();
-    if (M::count != 6)
-        return 1;
     f();
-    if (M::count != 6)
-        return 2;
-    return 0;
+    f();
+    return (M::count == 1) ? 0 : 1;
 }
