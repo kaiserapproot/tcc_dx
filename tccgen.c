@@ -668,6 +668,8 @@ static void cpp_validate_decl_default_initialization(CType *pt);
 static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_automatic);
 static void cpp_validate_local_static_class_array(CType *pt, int is_local_static);
 static void cpp_emit_local_array_default_ctor_calls(Sym *obj_sym);
+static void cpp_emit_local_static_array_default_ctor_calls(Sym *obj_sym);
+static void cpp_push_declared_object(Sym *obj_sym);
 static int cpp_local_array_element_needs_ctor_emission(CType *pt);
 static void cpp_validate_implicit_dtor(Sym *class_sym, int relation);
 static int cpp_can_implicit_default_ctor_exist(Sym *class_sym, int relation);
@@ -5029,6 +5031,28 @@ static void cpp_push_local_array_element_lvalue(Sym *obj_sym, CType *elem_type,
     vtop->r |= VT_LVAL;
 }
 
+// N7-07E: static-local arrays live in .data/.bss via VT_SYM, not [rbp+off].
+static void cpp_push_local_static_array_element_lvalue(Sym *obj_sym,
+                                                       CType *elem_type,
+                                                       int index)
+{
+    int elem_size, align, elem_ofs, qualifiers;
+
+    elem_size = type_size(elem_type, &align);
+    elem_ofs = index * elem_size;
+    cpp_push_declared_object(obj_sym);
+    qualifiers = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
+    gaddrof();
+    vtop->type = char_pointer_type;
+    if (elem_ofs) {
+        vpushi(elem_ofs);
+        gen_op('+');
+    }
+    vtop->type = *elem_type;
+    vtop->type.t |= qualifiers;
+    vtop->r |= VT_LVAL;
+}
+
 static void cpp_emit_member_array_default_ctor_calls(Sym *field)
 {
     CType elem_type;
@@ -5323,9 +5347,8 @@ static void cpp_validate_local_automatic_class_array(CType *pt, int is_local_aut
         tcc_error("implicit default construction of polymorphic local class array is unsupported");
 }
 
-// N7-07D: function-local static class arrays skip FEAT-4F (VT_STRUCT scalar
-// gate) and the N7-07C automatic-array ctor walker; reject instead of silent
-// miscompile until init-once array construction exists (N7-07E).
+// N7-07D/N7-07E: function-local static class arrays skip FEAT-4F (VT_STRUCT
+// scalar gate).  Reject unsafe families; ctor emission is N7-07E.
 static void cpp_validate_local_static_class_array(CType *pt, int is_local_static)
 {
     Sym *class_sym;
@@ -5343,7 +5366,6 @@ static void cpp_validate_local_static_class_array(CType *pt, int is_local_static
         tcc_error("destruction of static local class array is unsupported");
     if (cpp_class_needs_vptr_init(class_sym))
         tcc_error("implicit default construction of polymorphic static local class array is unsupported");
-    tcc_error("implicit default construction of static local class array is unsupported");
 }
 
 // N7-07C: elementwise default ctor calls for local automatic class arrays.
@@ -5376,6 +5398,43 @@ static void cpp_emit_local_array_default_ctor_calls(Sym *obj_sym)
         cpp_push_local_array_element_lvalue(obj_sym, &elem_type, i);
         cpp_emit_class_default_ctor_call(class_sym, 0);
     }
+}
+
+// N7-07E: init-once elementwise default ctor calls for function-local static
+// class arrays.  Reuses FEAT-4F guard (cpp_begin/finish_local_static_init)
+// and N7-07C-FOLLOWUP implicit ctor resolution; not cpp_register_global_dyn.
+static void cpp_emit_local_static_array_default_ctor_calls(Sym *obj_sym)
+{
+    Sym *class_sym;
+    Sym *guard_sym;
+    CType elem_type;
+    int flat_count;
+    int guard_skip;
+    int i;
+
+    if (!obj_sym || !(obj_sym->type.t & VT_ARRAY))
+        return;
+    class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
+    if (!class_sym || flat_count <= 0)
+        return;
+    cpp_ensure_synthetic_odr(class_sym);
+    if (!cpp_find_ctor_field(class_sym)) {
+        cpp_validate_implicit_default_ctor(class_sym, 0);
+        return;
+    }
+    if (!cpp_class_has_default_ctor(class_sym)
+        && !cpp_class_has_implicit_default_ctor_viable(class_sym))
+        tcc_error("class has no default constructor");
+    guard_sym = cpp_alloc_local_static_guard();
+    guard_skip = cpp_begin_local_static_init(guard_sym);
+    elem_type = obj_sym->type;
+    while (elem_type.t & VT_ARRAY)
+        elem_type = *pointed_type(&elem_type);
+    for (i = 0; i < flat_count; i++) {
+        cpp_push_local_static_array_element_lvalue(obj_sym, &elem_type, i);
+        cpp_emit_class_default_ctor_call(class_sym, 0);
+    }
+    cpp_finish_local_static_init(guard_sym, guard_skip, NULL);
 }
 
 // N7-01: one shared gate for default-initialization at a declaration site.
@@ -20117,6 +20176,20 @@ static int decl(int l)
                             local_array_sym = sym_find(v);
                             if (local_array_sym)
                                 cpp_emit_local_array_default_ctor_calls(local_array_sym);
+                        }
+                        if (tcc_state->cpp
+                            && l == VT_LOCAL
+                            && !has_init
+                            && (type.t & VT_STATIC)
+                            && !(type.t & (VT_EXTERN | VT_TYPEDEF))
+                            && (type.t & VT_ARRAY)
+                            && cpp_local_array_element_needs_ctor_emission(&type)) {
+                            Sym *local_static_array_sym;
+
+                            local_static_array_sym = sym_find(v);
+                            if (local_static_array_sym)
+                                cpp_emit_local_static_array_default_ctor_calls(
+                                    local_static_array_sym);
                         }
                         // N7-02-03: `A g[N];` parses `[N]` in type_decl after the
                         // FEAT-4G scalar gate, so register startup ctor thunks here.
