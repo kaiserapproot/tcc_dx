@@ -18,5 +18,13 @@ void f()
 int main()
 {
     f();
+    if (M::count != 4)
+        return 1;
+    f();
+    if (M::count != 4)
+        return 2;
+    f();
+    if (M::count != 4)
+        return 3;
     return 0;
 }

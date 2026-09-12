@@ -18,5 +18,10 @@ void f()
 int main()
 {
     f();
+    if (M::count != 6)
+        return 1;
+    f();
+    if (M::count != 6)
+        return 2;
     return 0;
 }
