@@ -149,7 +149,26 @@ limitations in handling dllimport attribute.  */
 #endif
 
 #if !defined(__MINGW_INTRIN_INLINE) && (defined(__GNUC__) || defined(__TINYC__))
-#define __MINGW_INTRIN_INLINE extern __inline__ __attribute__((__always_inline__,__gnu_inline__))
+# ifdef __TINYC__
+/* TCC x86-64 may emit static __inline__ intrinsic wrappers as globals across TUs;
+ * windows.h multi-TU then hits defined-twice on _Interlocked*. Pre-mark
+ * __INTRINSIC_DEFINED_* so only prototypes remain (Amateras patch from tcc_bk). */
+#  define __INTRINSIC_DEFINED__InterlockedAnd       1
+#  define __INTRINSIC_DEFINED__InterlockedOr        1
+#  define __INTRINSIC_DEFINED__InterlockedXor       1
+#  define __INTRINSIC_DEFINED__InterlockedAnd64     1
+#  define __INTRINSIC_DEFINED__InterlockedOr64      1
+#  define __INTRINSIC_DEFINED__InterlockedXor64     1
+#  define __INTRINSIC_DEFINED__InterlockedAnd8      1
+#  define __INTRINSIC_DEFINED__InterlockedOr8       1
+#  define __INTRINSIC_DEFINED__InterlockedXor8      1
+#  define __INTRINSIC_DEFINED__InterlockedAnd16     1
+#  define __INTRINSIC_DEFINED__InterlockedOr16      1
+#  define __INTRINSIC_DEFINED__InterlockedXor16     1
+#  define __MINGW_INTRIN_INLINE static __inline__
+# else
+#  define __MINGW_INTRIN_INLINE extern __inline__ __attribute__((__always_inline__,__gnu_inline__))
+# endif
 #endif
 
 #ifndef __CYGWIN__
