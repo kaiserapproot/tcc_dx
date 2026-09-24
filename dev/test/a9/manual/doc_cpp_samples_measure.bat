@@ -2,12 +2,16 @@
 setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0"
 
-rem Qualification for the samples in the C++ feature guide: every fenced cpp / c
-rem block that has an int main() must build AND run with exit 0 using dev\tcc.exe.
-rem The guide claims the samples are buildable; this is what proves it.
+rem Qualification for the C++ feature guide, two halves:
+rem   1. every fenced cpp / c block with an int main() must build AND run with
+rem      exit 0 using dev\tcc.exe - the guide claims the samples are buildable
+rem   2. every `file.c:N` / `file.c:A-B` citation must be a real place in that
+rem      file, and a `name()` next to it must really be there.  A bulk
+rem      line-number update is easy to get half-right: the first attempt shifted
+rem      only the start of each range and left impossible A>B spans behind.
 rem
-rem The guide's file name is not ASCII, so it is located by the ASCII marker
-rem "doc-sample-qualification" that the guide carries near its top.
+rem The guide's file name is not ASCII, so both tools locate it by the ASCII
+rem marker "doc-sample-qualification" that the guide carries near its top.
 
 set "TCC=..\..\..\tcc.exe"
 if not "%TCC_EXE%"=="" set "TCC=%TCC_EXE%"
@@ -65,6 +69,16 @@ echo DOC_CPP_SAMPLES_TOTAL=!TOTAL!
 echo DOC_CPP_SAMPLES_COMPILE_PASS=!CPASS!
 echo DOC_CPP_SAMPLES_RUNTIME_PASS=!RPASS!
 echo DOC_CPP_SAMPLES_FAIL=!FAILED!
+
+echo.
+"%TCC%" doc_source_refs_check.c -w -o "%OUT%\doc_source_refs_check.exe" >nul 2>&1
+if errorlevel 1 (
+    echo DOC_SOURCE_REFS_CHECKER=BUILD_FAIL
+    set /a FAILED+=1
+) else (
+    "%OUT%\doc_source_refs_check.exe" "%ROOT%"
+    if errorlevel 1 set /a FAILED+=1
+)
 
 popd
 if not "!FAILED!"=="0" exit /b 1
