@@ -7615,7 +7615,19 @@ static void patch_type(Sym* sym, CType* type)
         /* set 'inline' if both agree or if one has static */
         if ((type->t | sym->type.t) & VT_INLINE) {
             if (!((type->t ^ sym->type.t) & VT_INLINE)
-                || ((type->t | sym->type.t) & VT_STATIC))
+                || ((type->t | sym->type.t) & VT_STATIC)
+                /* C++ [dcl.inline]/6: inline is a property of the function,
+                   not of the single declaration that carries the keyword, so
+                   once any declaration says inline the function stays inline.
+                   C is the opposite (C11 6.7.4/7: a non-inline file-scope
+                   declaration forces an external definition), which is what
+                   the two tests above encode.  winnt.h declares NtCurrentTeb /
+                   GetCurrentFiber / GetFiberData plainly and then defines them
+                   FORCEINLINE - plain inline in C++, gnu_inline extern in C -
+                   so under the C rule every C++ TU including windows.h emitted
+                   a strong definition and two such TUs failed to link.  Only
+                   C++ changes; the C path is untouched. */
+                || tcc_state->cpp)
                 static_proto |= VT_INLINE;
         }
 
@@ -20102,6 +20114,25 @@ static int decl(int l)
                         && !cpp_find_dtor_field(type.ref)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_implicit_dtor(type.ref, 0);
+
+                    /* C++ [dcl.link]/7: a declaration directly contained in a
+                       linkage-specification behaves as if it carried extern for
+                       the purpose of deciding whether it is a definition.  So
+                       `extern "C" const GUID name;` - what guiddef.h's
+                       DEFINE_GUID expands to without INITGUID, and what 3271
+                       hand-written EXTERN_C const lines across 171 SDK headers
+                       say - is a DECLARATION.  tpp treated it as a tentative
+                       definition, so every C++ TU including windows.h emitted
+                       its own zero-filled copy and any two such TUs failed to
+                       link with ~396 "defined twice".  An explicit static or an
+                       initializer still means a definition, and a local stays
+                       local, so only the namespace-scope uninitialized case
+                       changes. */
+                    if (tcc_state->cpp && tcc_state->extern_c
+                        && l == VT_CONST && !has_init
+                        && (type.t & VT_BTYPE) != VT_FUNC
+                        && !(type.t & (VT_TYPEDEF | VT_STATIC)))
+                        type.t |= VT_EXTERN;
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
