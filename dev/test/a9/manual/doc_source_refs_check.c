@@ -22,6 +22,10 @@
  *   DOC_SOURCE_REFS_NAME_CHECKED=<n>
  *   DOC_SOURCE_REFS_NAME_MISMATCH=<n>
  *   DOC_SOURCE_REFS_EXTERNAL=<n>      (files that live in another repo)
+ *
+ * EXTERNAL means the cited file is not under <repo-root>, which for this guide
+ * is the amateras tree (base_inc and test/tcc).  Those get the range check but
+ * not the bounds or name check, because the file is not here to read.
  * and exits non-zero if any invalid range, out-of-file or name mismatch is found.
  *
  * The guide's file name is not ASCII, so it is located by the ASCII marker
@@ -55,19 +59,23 @@ static void free_cached(void)
     g_cached_name[0] = '\0';
 }
 
-/* Load <root>\<name>; returns line count, or -1 when the file is not here. */
+/* Load <root>\<name>; returns line count, or -1 when the file is not here.
+ * <name> may be a repo-relative path, so normalise the separators. */
 static int load_source(const char *root, const char *name)
 {
     char path[1024];
+    char *p;
     FILE *f;
     char line[MAX_LINE];
 
     if (g_cached_n != -1 && strcmp(g_cached_name, name) == 0)
-        return g_cached_n;
+        return (g_cached_n == -2) ? -1 : g_cached_n;
     free_cached();
     strcpy(g_cached_name, name);
 
     sprintf(path, "%s\\%s", root, name);
+    for (p = path; *p; p++)
+        if (*p == '/') *p = '\\';
     f = fopen(path, "rb");
     if (!f) { g_cached_n = -2; return -1; }
     g_cached_n = 0;
@@ -88,26 +96,42 @@ static int is_name_char(char c)
         || (c >= '0' && c <= '9') || c == '_';
 }
 
-/* A source file name ends in .c or .h and holds only name chars plus dots
- * and dashes.  Scan backwards from the ':' that starts the line number. */
+/* Which suffixes count as a source file.  .cpp / .hpp / .cc / .cxx are here
+ * because the guide cites a .cpp test (test/tcc/vec_quat/vec_quat_matrix_cpp.cpp);
+ * with only .c / .h those three references were skipped silently, so "every
+ * reference is audited" was not actually true. */
+static int has_source_ext(const char *name)
+{
+    static const char *exts[] = { ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", 0 };
+    size_t nlen = strlen(name);
+    int i;
+    for (i = 0; exts[i]; i++) {
+        size_t elen = strlen(exts[i]);
+        if (nlen > elen && strcmp(name + nlen - elen, exts[i]) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+/* A source file name holds name chars, dots, dashes and path separators.
+ * Separators are kept so a citation like base_inc/cross_base.h:29 is read as a
+ * path: dropping them would turn a repo-relative path into a bare file name and
+ * a future dev/foo/bar.h:123 would be classed external and skip the checks.
+ * Scan backwards from the ':' that starts the line number. */
 static int grab_filename(const char *line, int colon, char *out, size_t outsz)
 {
     int s = colon;
     int len;
     while (s > 0) {
         char c = line[s-1];
-        if (is_name_char(c) || c == '.' || c == '-') s--;
+        if (is_name_char(c) || c == '.' || c == '-' || c == '/' || c == '\\') s--;
         else break;
     }
     len = colon - s;
     if (len <= 2 || (size_t)len + 1 > outsz) return 0;
     memcpy(out, line + s, len);
     out[len] = '\0';
-    if (strstr(out, ".c") == NULL && strstr(out, ".h") == NULL) return 0;
-    /* must actually END in .c or .h */
-    if (!(len > 2 && out[len-2] == '.' && (out[len-1] == 'c' || out[len-1] == 'h')))
-        return 0;
-    return 1;
+    return has_source_ext(out);
 }
 
 /* After the reference, an identifier in backticks like `foo()` may follow. */
