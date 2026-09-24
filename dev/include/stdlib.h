@@ -414,7 +414,12 @@ _CRTIMP int __cdecl ___mb_cur_max_func(void);
   __MINGW_EXTENSION __int64 __cdecl _abs64(__int64);
 #ifdef __MINGW_INTRIN_INLINE
   __MINGW_INTRIN_INLINE __int64 __cdecl _abs64(__int64 x) {
+#ifdef __TINYC__
+    /* TCC has no __builtin_llabs; keep portable abs. */
+    return x >= 0 ? x : -x;
+#else
     return __builtin_llabs(x);
+#endif
   }
 #endif
 
