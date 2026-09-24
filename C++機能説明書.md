@@ -14,7 +14,7 @@
 
 - 本プロジェクトが実装した C++ 機能を、機能ごとに「できること」「実装箇所」「amateras での用途」「サンプル」「制限」の順で説明する。
 - 実装箇所は、すべてソースを直接確認した上で記載している。行番号は基準コミット時点の値である。
-- **行番号の参照は機械的に監査している**（`DOC_SOURCE_REFS_TOTAL=232` / `INVALID_RANGE=0` / `OUT_OF_FILE=0` / `NAME_CHECKED=153` / `NAME_MISMATCH=0`）。範囲の始点が終点を超えていないか、ファイルの行数を超えていないか、関数名を併記した参照がその関数の中を指しているかを `dev\test\a9\manual\doc_source_refs_check.c` が確認する。実行は `dev\test\a9\manual\doc_cpp_samples_measure.bat`。`tccgen.c` を触ったら必ず回すこと。
+- **行番号の参照は機械的に監査している**（`DOC_SOURCE_REFS_TOTAL=235` / `INVALID_RANGE=0` / `OUT_OF_FILE=0` / `NAME_CHECKED=153` / `NAME_MISMATCH=0` / `EXTERNAL=41`）。範囲の始点が終点を超えていないか、ファイルの行数を超えていないか、関数名を併記した参照がその関数の中を指しているかを `dev\test\a9\manual\doc_source_refs_check.c` が確認する。実行は `dev\test\a9\manual\doc_cpp_samples_measure.bat`。`tccgen.c` を触ったら必ず回すこと。
 - amateras での用途は、`E:\work\work_cross_platform\kaiser_system\amateras` のソース（`base_inc/**`、`test/tcc/**`）を直接確認した上で記載している。
 
 ### 0.2 関連文書
