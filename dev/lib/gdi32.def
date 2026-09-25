@@ -279,6 +279,8 @@ SetBoundsRect
 SetBrushOrgEx
 SetColorAdjustment
 SetColorSpace
+SetDCBrushColor
+SetDCPenColor
 SetDIBColorTable
 SetDIBits
 SetDIBitsToDevice
