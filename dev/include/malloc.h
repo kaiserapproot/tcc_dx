@@ -112,7 +112,13 @@ void * __mingw_aligned_realloc (void *_Memory, size_t _Size, size_t _Offset);
 
   _CRTIMP void *__cdecl _expand(void *_Memory,size_t _NewSize);
   _CRTIMP size_t __cdecl _msize(void *_Memory);
-#ifdef __GNUC__
+// TCC は alloca を組み込みで持つ（tcctok.h の TOK_alloca）が、GCC 綴りの
+// __builtin_alloca は知らない。_mingw.h が __GNUC__ を名乗るため GCC の枝に入り、
+// そのままだとリンク時に __builtin_alloca が未定義になる。組み込みへ写す。
+#if defined(__TINYC__)
+#undef _alloca
+#define _alloca(x) alloca((x))
+#elif defined(__GNUC__)
 #undef _alloca
 #define _alloca(x) __builtin_alloca((x))
 #else
@@ -178,10 +184,13 @@ void * __mingw_aligned_realloc (void *_Memory, size_t _Size, size_t _Offset);
 #endif /* RC_INVOKED */
 
 #ifndef	NO_OLDNAMES
+// TCC では alloca 自体が組み込みなので再定義しない（上と同じ理由）。
+#if defined(__TINYC__)
+#elif defined(__GNUC__)
 #undef alloca
-#ifdef __GNUC__
 #define alloca(x) __builtin_alloca((x))
 #else
+#undef alloca
 #define alloca _alloca
 #endif
 #endif
