@@ -191,6 +191,7 @@ static void vpush_type_size(CType* type, int* a);
 static int is_compatible_unqualified_types(CType* type1, CType* type2);
 static inline int64_t expr_const64(void);
 static void vpush64(int ty, unsigned long long v);
+static int cpp_is_synthetic_source_file(const char *fn);
 static void vpush(CType* type);
 static int gvtst(int inv, int t);
 static void gen_inline_functions(TCCState* s);
@@ -1729,10 +1730,21 @@ static int cpp_in_user_source_file(void)
 
 static int cpp_allow_local_class_direct_init(void)
 {
-    /* FEAT-4B only: primary TU or deferred replay of a user inline body
-       registered with user_feat4b_body (see gen_inline_functions).  FEAT-4F
-       keeps cpp_in_user_source_file() alone - not widened here. */
-    return cpp_in_user_source_file() || cpp_user_inline_feat4b_replay;
+    /* FEAT-4B / FEAT-COPY-INIT: real primary TU and real #include files.
+       D3: the same primary-TU-only gate that N7-CROSS-01C lifted for global
+       copy-init also hid the LOCAL rewrite from #include'd bodies, so
+       `T b = make();` there fell through to the plain C struct assignment:
+       the user copy ctor never ran and the copy aliased the source object's
+       resources (amateras cross.h win_txt freed one buffer twice), and
+       `T c(a);` did not parse as a ctor call at all.  Shape follows
+       cpp_global_copy_init_decl_allowed(); synthetic replay files stay out
+       except the deferred user inline body that G7-01-FIX re-enabled.
+       FEAT-4F/4G keep cpp_in_user_source_file() - not widened here. */
+    if (!file || !file->filename)
+        return 0;
+    if (cpp_is_synthetic_source_file(file->filename))
+        return cpp_user_inline_feat4b_replay;
+    return 1;
 }
 
 /* C++: scan class_sym's member chain for the destructor field. */
@@ -7603,7 +7615,19 @@ static void patch_type(Sym* sym, CType* type)
         /* set 'inline' if both agree or if one has static */
         if ((type->t | sym->type.t) & VT_INLINE) {
             if (!((type->t ^ sym->type.t) & VT_INLINE)
-                || ((type->t | sym->type.t) & VT_STATIC))
+                || ((type->t | sym->type.t) & VT_STATIC)
+                /* C++ [dcl.inline]/6: inline is a property of the function,
+                   not of the single declaration that carries the keyword, so
+                   once any declaration says inline the function stays inline.
+                   C is the opposite (C11 6.7.4/7: a non-inline file-scope
+                   declaration forces an external definition), which is what
+                   the two tests above encode.  winnt.h declares NtCurrentTeb /
+                   GetCurrentFiber / GetFiberData plainly and then defines them
+                   FORCEINLINE - plain inline in C++, gnu_inline extern in C -
+                   so under the C rule every C++ TU including windows.h emitted
+                   a strong definition and two such TUs failed to link.  Only
+                   C++ changes; the C path is untouched. */
+                || tcc_state->cpp)
                 static_proto |= VT_INLINE;
         }
 
@@ -15886,7 +15910,13 @@ tok_next:
             && cpp_cur_func_class) {
             Sym *mf = NULL;
             if (!s) {
-                mf = cpp_lookup_member_field(t, cpp_cur_func_class);
+                /* D1: a name that is not a member here is the normal case - it
+                   may be a global, or an undeclared function that the
+                   implicit-declaration path further down handles.  The
+                   erroring cpp_lookup_member_field() turned amateras cross.h's
+                   snprintf call inside reg_window() into "field not found"
+                   whenever no earlier global call had implicitly declared it. */
+                mf = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
             } else if (sym_scope(s) == 0 && cpp_this_sym) {
                 /* A global was found, but class scope outranks it.  Restrict
                    this to what cpp_push_member_var can actually emit: a
@@ -20084,6 +20114,25 @@ static int decl(int l)
                         && !cpp_find_dtor_field(type.ref)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_implicit_dtor(type.ref, 0);
+
+                    /* C++ [dcl.link]/7: a declaration directly contained in a
+                       linkage-specification behaves as if it carried extern for
+                       the purpose of deciding whether it is a definition.  So
+                       `extern "C" const GUID name;` - what guiddef.h's
+                       DEFINE_GUID expands to without INITGUID, and what 3271
+                       hand-written EXTERN_C const lines across 171 SDK headers
+                       say - is a DECLARATION.  tpp treated it as a tentative
+                       definition, so every C++ TU including windows.h emitted
+                       its own zero-filled copy and any two such TUs failed to
+                       link with ~396 "defined twice".  An explicit static or an
+                       initializer still means a definition, and a local stays
+                       local, so only the namespace-scope uninitialized case
+                       changes. */
+                    if (tcc_state->cpp && tcc_state->extern_c
+                        && l == VT_CONST && !has_init
+                        && (type.t & VT_BTYPE) != VT_FUNC
+                        && !(type.t & (VT_TYPEDEF | VT_STATIC)))
+                        type.t |= VT_EXTERN;
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
