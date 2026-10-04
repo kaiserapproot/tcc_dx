@@ -162,6 +162,8 @@ tail -50 build.log
 
 コンパイルは成功してもリンク時に TCC が持たない MSVC/GCC 組み込み関数が不足する。これらをラップするファイルを作成する。
 
+> tcc_dx の `dev\include`（`psdk_inc/intrin-tcc.h` があるもの、x86-64）を使う場合、`_Interlocked*` の本体はヘッダにある。下の `/* _Interlocked intrinsics */` の 9 行は書かない。残すと、`windows.h` が先に入れた本体と定義が重複してコンパイルエラーになる。
+
 ### 8-1: `tcc_compat.c` を作成
 
 ```bash
@@ -274,7 +276,7 @@ tail -20 install.log
 | `windres: preprocessing failed` (gcc/cc1 not found) | Configure に `no-legacy no-quic` を追加し、Makefile から `.res.obj` を除去、`RC='true'` でビルド |
 | `'IN6_IS_ADDR_*' defined twice` | Makefile に `-nostdinc -I/e/.../dev/include -Iinclude` を追加し `make clean` 後に再ビルド |
 | `UI64` 構文エラー | `grep -rl "UI64" ... | xargs sed -i 's/UI64/ULL/g'` で一括置換 |
-| `undefined symbol '_InterlockedExchange'` 等 | `tcc_compat.c` を作成してリンク（手順8） |
+| `undefined symbol '_InterlockedExchange'` 等 | `tcc_compat.c` を作成してリンク（手順8）。tcc_dx の `dev\include` では本体がヘッダにあるので、この行は起きない |
 | `undefined symbol 'strtoll'` | `tcc_compat.c` の `strtoll`/`strtoull` 実装を使う（手順8） |
 | MSYS2 の pacman がキーエラー | `SigLevel = Never` に変更して `pacman -Syu` 後に元に戻す |
 
