@@ -26,6 +26,10 @@ static int check_32(void)
     CHECK(11, InterlockedIncrement(&v) == (LONG)0x80000000 && v == (LONG)0x80000000);
     v = 0;
     CHECK(12, InterlockedDecrement(&v) == -1 && v == -1);
+    v = 0x7FFFFFFF;
+    CHECK(14, InterlockedAdd(&v, 2) == (LONG)0x80000001 && v == (LONG)0x80000001);
+    v = (LONG)0x80000000;
+    CHECK(15, InterlockedDecrement(&v) == 0x7FFFFFFF && v == 0x7FFFFFFF);
     /* the leading-underscore names are the same functions */
     v = 1;
     CHECK(13, _InterlockedIncrement(&v) == 2 && _InterlockedCompareExchange(&v, 3, 2) == 2 && v == 3);
@@ -49,6 +53,11 @@ static int check_64(void)
     /* a carry out of the low 32 bits must reach the high half */
     w = 0xFFFFFFFFLL;
     CHECK(31, InterlockedIncrement64(&w) == 0x100000000LL && w == 0x100000000LL);
+    /* and the sign bit: the result wraps like the locked add */
+    w = 0x7FFFFFFFFFFFFFFFLL;
+    CHECK(32, InterlockedIncrement64(&w) == (LONG64)0x8000000000000000ULL && w == (LONG64)0x8000000000000000ULL);
+    CHECK(33, InterlockedDecrement64(&w) == 0x7FFFFFFFFFFFFFFFLL && w == 0x7FFFFFFFFFFFFFFFLL);
+    CHECK(34, InterlockedAdd64(&w, 2) == (LONG64)0x8000000000000001ULL && w == (LONG64)0x8000000000000001ULL);
     return 0;
 }
 
