@@ -20060,6 +20060,25 @@ static int decl(int l)
                         }
                     }
                     else {
+                    /* C++ [dcl.link]/7: only a declaration DIRECTLY contained in
+                       a linkage-specification - the single-declaration form
+                       `extern "C" const GUID name;` (decl_once_flag) - behaves as
+                       if it carried extern when deciding whether it is a
+                       definition.  That is what guiddef.h's DEFINE_GUID (without
+                       INITGUID) and the SDK's EXTERN_C const lines expand to;
+                       treating them as tentative definitions made two C++ TUs
+                       including windows.h fail to link ("defined twice").  A
+                       declaration inside the braces of `extern "C" { int x; }`
+                       is NOT directly contained and stays a definition.  This
+                       must run before the default-init / ctor / dtor validators
+                       below: `extern "C" A a;` is a declaration and needs no
+                       default constructor.  static and initializers still define. */
+                    if (tcc_state->cpp && tcc_state->extern_c && decl_once_flag
+                        && l == VT_CONST && !has_init
+                        && (type.t & VT_BTYPE) != VT_FUNC
+                        && !(type.t & (VT_TYPEDEF | VT_STATIC)))
+                        type.t |= VT_EXTERN;
+
                     if (tcc_state->cpp
                         && l == VT_LOCAL
                         && (type.t & VT_STATIC)
@@ -20114,25 +20133,6 @@ static int decl(int l)
                         && !cpp_find_dtor_field(type.ref)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_implicit_dtor(type.ref, 0);
-
-                    /* C++ [dcl.link]/7: a declaration directly contained in a
-                       linkage-specification behaves as if it carried extern for
-                       the purpose of deciding whether it is a definition.  So
-                       `extern "C" const GUID name;` - what guiddef.h's
-                       DEFINE_GUID expands to without INITGUID, and what 3271
-                       hand-written EXTERN_C const lines across 171 SDK headers
-                       say - is a DECLARATION.  tpp treated it as a tentative
-                       definition, so every C++ TU including windows.h emitted
-                       its own zero-filled copy and any two such TUs failed to
-                       link with ~396 "defined twice".  An explicit static or an
-                       initializer still means a definition, and a local stays
-                       local, so only the namespace-scope uninitialized case
-                       changes. */
-                    if (tcc_state->cpp && tcc_state->extern_c
-                        && l == VT_CONST && !has_init
-                        && (type.t & VT_BTYPE) != VT_FUNC
-                        && !(type.t & (VT_TYPEDEF | VT_STATIC)))
-                        type.t |= VT_EXTERN;
 
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC

@@ -70,7 +70,12 @@
 extern "C" {
 #endif
 
+/* TCC ships no GCC x86intrin.h (no _mm_* / __rdtsc builtins).  _mingw.h makes
+   TCC claim __GNUC__, so skip the include here instead of relying on an empty
+   stub that would make <x86intrin.h> look supported. */
+#ifndef __TINYC__
 #include <x86intrin.h>
+#endif
 
 /* Before 4.9.2, x86intrin.h had broken versions of these. */
 #undef _lrotl
