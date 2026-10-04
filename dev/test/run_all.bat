@@ -171,6 +171,11 @@ echo === a9\sdk_gate.bat ===
 call a9\sdk_gate.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem tccdbg.c: -gdwarf output must stay readable by gdb (locals, C++ classes, references).
+echo === a9\dwarf_gate.bat ===
+call a9\dwarf_gate.bat
+if errorlevel 1 set /a FAILED+=1
+
 rem === PR-N3A: path-sensitive temporary and reference lifetime gate ===
 echo === a9\manual\pr_n3a_temp_path.bat ===
 call a9\manual\pr_n3a_temp_path.bat

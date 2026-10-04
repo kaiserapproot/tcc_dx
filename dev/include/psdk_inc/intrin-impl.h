@@ -59,6 +59,9 @@ __INTRINSICS_USEINLINE
 /* However we do check for __MINGW_INTRIN_INLINE.  In theory this means we
    can work with other compilers.  */
 
+/* TCC is excluded on purpose: everything below is GCC/Clang inline asm and
+   builtins.  For TCC the intrinsics stay declarations (see the
+   __MINGW_INTRIN_INLINE note in _mingw.h for which ones have a TCC body). */
 #if defined(__MINGW_INTRIN_INLINE) && !defined(__TINYC__)
 
 /* Clang has support for MSVC builtins, GCC doesn't */
