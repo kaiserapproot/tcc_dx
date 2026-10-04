@@ -411,7 +411,13 @@ _CRTIMP int __cdecl ___mb_cur_max_func(void);
   long __cdecl labs(long _X);
 #endif
 
+#ifndef __TINYC__
   __MINGW_EXTENSION __int64 __cdecl _abs64(__int64);
+#endif
+  /* TCC: no prototype in front of the static __inline__ body below (see the
+     __MINGW_INTRIN_INLINE note in _mingw.h).  With the prototype, intrin.h's
+     later re-declaration made every C TU emit a global _abs64, and two such
+     TUs failed to link with "defined twice". */
 #ifdef __MINGW_INTRIN_INLINE
   __MINGW_INTRIN_INLINE __int64 __cdecl _abs64(__int64 x) {
 #ifdef __TINYC__

@@ -1,7 +1,7 @@
 ﻿# tpp (TCC 拡張版) C++ 機能説明書
 
 **対象**: `dev\tcc.exe`（tcc version 0.9.28rc、x86_64 Windows）
-**基準コミット**: `f593cb2`（2026-09-24。BUG-52/53 修正を含む。行番号はこのコミット時点の値）
+**基準コミット**: `3b2ffa2`（2026-10-04。BUG-52/53 修正と、`extern "C"` の単一宣言形の修正を含む。行番号はこのコミット時点の値）
 **位置づけ**: TCC (Tiny C Compiler) に C++98 の一部機能を追加したもの。C++ コンパイラの置き換えではない。
 
 <!-- doc-sample-qualification: この行はサンプル検証スクリプトがこのファイルを見つけるための ASCII マーカー。消さないこと。 -->
@@ -14,7 +14,7 @@
 
 - 本プロジェクトが実装した C++ 機能を、機能ごとに「できること」「実装箇所」「amateras での用途」「サンプル」「制限」の順で説明する。
 - 実装箇所は、すべてソースを直接確認した上で記載している。行番号は基準コミット時点の値である。
-- **行番号の参照は機械的に監査している**（`DOC_SOURCE_REFS_TOTAL=242` / `INVALID_RANGE=0` / `OUT_OF_FILE=0` / `NAME_CHECKED=156` / `NAME_MISMATCH=0` / `EXTERNAL=41`）。範囲の始点が終点を超えていないか、ファイルの行数を超えていないか、関数名を併記した参照がその関数の中を指しているかを `dev\test\a9\manual\doc_source_refs_check.c` が確認する。実行は `dev\test\a9\manual\doc_cpp_samples_measure.bat`。`tccgen.c` を触ったら必ず回すこと。
+- **行番号の参照は機械的に監査している**（`DOC_SOURCE_REFS_TOTAL=244` / `INVALID_RANGE=0` / `OUT_OF_FILE=0` / `NAME_CHECKED=156` / `NAME_MISMATCH=0` / `EXTERNAL=42`）。範囲の始点が終点を超えていないか、ファイルの行数を超えていないか、関数名を併記した参照がその関数の中を指しているかを `dev\test\a9\manual\doc_source_refs_check.c` が確認する。実行は `dev\test\a9\manual\doc_cpp_samples_measure.bat`。`tccgen.c` を触ったら必ず回すこと。
 - amateras での用途は、`E:\work\work_cross_platform\kaiser_system\amateras` のソース（`base_inc/**`、`test/tcc/**`）を直接確認した上で記載している。
 
 ### 0.2 関連文書

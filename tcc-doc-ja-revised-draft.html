@@ -606,6 +606,12 @@ CPU flags や条件 jump の状態を遅延評価的に保持します。</p>
 サンプル 26 本の compile/run 成功を記録しています。ただし本改訂版では、
 次段階で実装者が最新ソースと実動作を再検証する前提です。
 </div>
+<div class="notice changed">
+<strong>正本は <code>C++機能説明書.md</code> です。</strong>この章は基準コミット <code>f593cb2</code> 時点の写しで、
+それ以降の変更は反映していません。2026-10-04 時点の正本は、基準コミット <code>3b2ffa2</code>、
+ソース参照監査 244 件、サンプル 28 本です。特に 2.2 節の <code>extern &quot;C&quot;</code> の説明は正本で訂正されています
+（宣言になるのは <code>extern &quot;C&quot; 宣言;</code> の単一宣言形だけで、<code>extern &quot;C&quot; { }</code> の中は定義のまま）。
+</div>
 <div class="cpp-integrated">
 <h2>tpp (TCC 拡張版) C++ 機能説明書</h2>
 <p><strong>対象</strong>: <code>dev\tcc.exe</code>（tcc version 0.9.28rc、x86_64 Windows）
@@ -2347,6 +2353,7 @@ Amateras を通すためだけの挙動と一般 C++ 契約を混同しない。
 <ul>
 <li>元文書: <code>tcc-doc.html</code> — Tiny C Compiler 0.9.28rc reference。</li>
 <li>C++ 統合資料: <code>C++機能説明書.md</code> — 基準コミット <code>f593cb2</code>（2026-09-24）と記載。</li>
+<li>2026-10-04 追記: 正本の <code>C++機能説明書.md</code> は基準コミット <code>3b2ffa2</code> に更新済み。本 HTML の C++ 章は <code>f593cb2</code> 時点の写しのままで、未更新。</li>
 <li>GitHub 確認時の作業 branch: <code>fix/cpp-included-file-local-class-init</code>。</li>
 <li>同 branch の確認時 HEAD: <code>294ca623d4ebd20bd74311ca4e13a03df094dbb2</code>。</li>
 <li>上記 HEAD の最後の変更は主に文書参照監査器の改善で、C++ 機能説明書のソース参照総数を 235 件へ補正したもの。</li>
