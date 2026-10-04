@@ -121,6 +121,8 @@ static const struct {
 #define	DWARF_ABBREV_SUBROUTINE_TYPE		24
 #define	DWARF_ABBREV_SUBROUTINE_EMPTY_TYPE	25
 #define	DWARF_ABBREV_FORMAL_PARAMETER2		26
+// C++ reference types (tcc_dx). Appended last so the existing abbrev codes do not change.
+#define	DWARF_ABBREV_REFERENCE			27
 
 /* all entries should have been generated with dwarf_uleb128 except
    has_children. All values are currently below 128 so this currently
@@ -298,6 +300,10 @@ static const unsigned char dwarf_abbrev_init[] = {
           DW_AT_type, DW_FORM_ref4,
           0, 0,
     DWARF_ABBREV_FORMAL_PARAMETER2, DW_TAG_formal_parameter, 0,
+          DW_AT_type, DW_FORM_ref4,
+          0, 0,
+    DWARF_ABBREV_REFERENCE, DW_TAG_reference_type, 0,
+          DW_AT_byte_size, DW_FORM_data1,
           DW_AT_type, DW_FORM_ref4,
           0, 0,
   0
@@ -1603,6 +1609,12 @@ static void tcc_debug_remove(TCCState *s1, Sym *t)
        (s->type.t & VT_BTYPE) == VT_INT ||     \
        (s->type.t & VT_BTYPE) == VT_LLONG)))
 
+// C++ (tcc_dx): member functions live in the struct field chain as VT_FUNC symbols.
+// tcc_get_dwarf_info() returns -1 for a bare function type, which was written as
+// DW_AT_type 0xffffffff and made GDB drop the whole CU. They are not data members: skip them.
+#define	DWARF_STRUCT_NODEBUG(s) \
+    (STRUCT_NODEBUG(s) || (s->type.t & VT_BTYPE) == VT_FUNC)
+
 static void tcc_get_debug_info(TCCState *s1, Sym *s, CString *result)
 {
     int type;
@@ -1733,7 +1745,10 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
         type = t->type.t & ~(VT_STORAGE | VT_CONSTANT | VT_VOLATILE | VT_VLA);
         if ((type & VT_BTYPE) != VT_BYTE)
             type &= ~VT_DEFSIGN;
-        if (type == VT_PTR || type == (VT_PTR | VT_ARRAY))
+        // C++ reference (tcc_dx) is VT_PTR | VT_REFERENCE. Walk through it like a pointer;
+        // otherwise it matched no base type and "return 0" produced DW_AT_type 0x0.
+        if (type == VT_PTR || type == (VT_PTR | VT_ARRAY)
+            || type == (VT_PTR | VT_REFERENCE))
             t = t->type.ref;
         else
             break;
@@ -1749,7 +1764,7 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
 	    i = 0;
 	    while (e->next) {
 		e = e->next;
-		if (STRUCT_NODEBUG(e))
+		if (DWARF_STRUCT_NODEBUG(e))
 		    continue;
 		i++;
 	    }
@@ -1774,7 +1789,7 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
 	    i = 0;
             while (e->next) {
                 e = e->next;
-		if (STRUCT_NODEBUG(e))
+		if (DWARF_STRUCT_NODEBUG(e))
 		    continue;
 	        dwarf_data1(dwarf_info_section,
 			    e->type.t & VT_BITFIELD ? DWARF_ABBREV_MEMBER_BF
@@ -1804,7 +1819,7 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
 	    i = 0;
 	    while (e->next) {
 		e = e->next;
-		if (STRUCT_NODEBUG(e))
+		if (DWARF_STRUCT_NODEBUG(e))
 		    continue;
 		type = tcc_get_dwarf_info(s1, e);
 		tcc_debug_check_anon(s1, e, pos_type[i]);
@@ -1886,11 +1901,12 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
         type = t->type.t & ~(VT_STORAGE | VT_CONSTANT | VT_VOLATILE | VT_VLA);
         if ((type & VT_BTYPE) != VT_BYTE)
             type &= ~VT_DEFSIGN;
-        if (type == VT_PTR) {
+        if (type == VT_PTR || type == (VT_PTR | VT_REFERENCE)) {
 	    i = dwarf_info_section->data_offset;
 	    if (retval == debug_type)
 		retval = i;
-	    dwarf_data1(dwarf_info_section, DWARF_ABBREV_POINTER);
+	    dwarf_data1(dwarf_info_section, type == VT_PTR ? DWARF_ABBREV_POINTER
+						      : DWARF_ABBREV_REFERENCE);
 	    dwarf_data1(dwarf_info_section, PTR_SIZE);
 	    if (last_pos != -1) {
 		tcc_debug_check_anon(s1, e, last_pos);
@@ -2046,9 +2062,11 @@ static void tcc_debug_finish (TCCState *s1, struct _debug_info *cur)
 		}
 		else {
 		    /* param/local */
-                    dwarf_data1(dwarf_info_section, dwarf_sleb128_size(s->value) + 1);
+                    // s->value is unsigned long (32 bit on Windows LLP64): a negative fbreg offset such as -24
+                    // was emitted as 4294967272, so GDB read rbp+4294967272. Convert to int first. (DWARF 2-5)
+                    dwarf_data1(dwarf_info_section, dwarf_sleb128_size((int)s->value) + 1);
                     dwarf_data1(dwarf_info_section, DW_OP_fbreg);
-                    dwarf_sleb128(dwarf_info_section, s->value);
+                    dwarf_sleb128(dwarf_info_section, (int)s->value);
 		}
 		tcc_free (s->str);
             }

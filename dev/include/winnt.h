@@ -1640,6 +1640,25 @@ extern "C" {
     /* unsigned __LONG32 __readgsdword(unsigned __LONG32 Offset); moved to psdk_inc/intrin-impl.h */
     /* __MINGW_EXTENSION unsigned __int64 __readgsqword(unsigned __LONG32 Offset); moved to psdk_inc/intrin-impl.h */
 
+#ifdef __TINYC__
+    /* Amateras/TCC: psdk_inc/intrin-impl.h is skipped in full for TCC (its
+     * __MINGW_INTRIN_INLINE && !__TINYC__ guard), so __readgsqword has neither
+     * a declaration nor a body there.  The FORCEINLINE NtCurrentTeb() and
+     * GetCurrentFiber() further down call it, and in C++ __forceinline is a
+     * plain inline that TCC emits even when unused, so every C++ TU including
+     * windows.h failed to link with "undefined symbol '__readgsqword'".
+     * This body is the one that used to live in base_inc/coroutine/am_coro.c. */
+    static __inline__ unsigned __int64 __readgsqword(unsigned __LONG32 Offset)
+    {
+      unsigned __int64 gs_value;
+      unsigned __int64 gs_offset;
+      gs_offset = (unsigned __int64)Offset;
+      __asm__ __volatile__("movq %%gs:(%1), %0" : "=r"(gs_value) : "r"(gs_offset));
+      return gs_value;
+    }
+#define __INTRINSIC_DEFINED___readgsqword 1
+#endif
+
     /* void __writegsbyte(unsigned __LONG32 Offset,unsigned char Data); moved to psdk_inc/intrin-impl.h */
     /* void __writegsword(unsigned __LONG32 Offset,unsigned short Data); moved to psdk_inc/intrin-impl.h */
     /* void __writegsdword(unsigned __LONG32 Offset,unsigned __LONG32 Data); moved to psdk_inc/intrin-impl.h */
@@ -8786,13 +8805,14 @@ typedef DWORD (WINAPI *PRTL_RUN_ONCE_INIT_FN)(PRTL_RUN_ONCE, PVOID, PVOID *);
     struct _TEB *NtCurrentTeb(VOID);
     PVOID GetCurrentFiber(VOID);
     PVOID GetFiberData(VOID);
-#ifndef __TINYC__
+    /* Amateras/TCC: keep FORCEINLINE bodies (tcc_dx guarded them with !__TINYC__,
+     * which left unresolved GetFiberData imports and broke Fiber coroutine).
+     * __readgsqword itself is supplied for TCC near the top of this file. */
     FORCEINLINE struct _TEB *NtCurrentTeb(VOID) { return (struct _TEB *)__readgsqword(FIELD_OFFSET(NT_TIB,Self)); }
     FORCEINLINE PVOID GetCurrentFiber(VOID) { return(PVOID)__readgsqword(FIELD_OFFSET(NT_TIB,FiberData)); }
     FORCEINLINE PVOID GetFiberData(VOID) {
       return *(PVOID *)GetCurrentFiber();
     }
-#endif
 #endif /* __x86_64 */
 
 #if defined (__arm__) && !defined (__WIDL__)
