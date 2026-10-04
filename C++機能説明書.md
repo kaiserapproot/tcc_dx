@@ -187,31 +187,36 @@ int main()
 - `extern "C++" { ... }` は未対応（エラーになる）。
 - `extern "C" { #include "..." }` は未対応。
 - `extern "C"` の内側は C の字句解析になるため、内側に `class X;` のような前方宣言は書けない。SDK ヘッダ（`dev/include/GL/glu.h` など）はこの理由で `__TINYC__` 用の分岐を持つ。
-**`extern "C"` の中の宣言は定義にならない**
+**`extern "C" 宣言;` の形だけが宣言になる**
 
-`extern "C"` に直接入っている宣言は、初期化子が無ければ定義ではなく宣言として扱う（C++ [dcl.link]/7）。C の暫定定義とは逆の決まりで、C++ のときだけ適用する。
+`extern "C"` に**直接入っている**宣言、つまり波かっこを使わない単一宣言の形は、初期化子が無ければ定義ではなく宣言として扱う（C++ [dcl.link]/7）。波かっこで囲んだブロックの中の宣言は「直接入っている」ものではないので、従来どおり定義になる。C++ のときだけ適用する。
 
 ```cpp
-extern "C" { const GUID IID_IUnknown; }   // 宣言。実体は出さない
-extern "C" const GUID IID_IUnknown = ...; // 初期化子があればこちらが定義
-extern "C" { static int s; }              // static は従来どおり定義
+extern "C" const GUID IID_IUnknown;       // 宣言。実体は出さない
+extern "C" const GUID IID_IUnknown = ...; // 初期化子があれば定義
+extern "C" { int g_count; }               // ブロックの中は定義
+extern "C" { static int s; }              // static も定義
 ```
 
-これが無いと、`INITGUID` を定義しない `DEFINE_GUID`（`guiddef.h`）と、SDK ヘッダに直書きされた 3271 行の `EXTERN_C const` が、`windows.h` を取り込む C++ の翻訳単位ごとにゼロ初期化の実体を作る。そのため翻訳単位を 2 つリンクすると 396 件の `defined twice` になっていた。
+単一宣言の形は `extern` を書いたのと同じ扱いなので、クラス型でも既定コンストラクタを要求しない（`struct A { A(int); }; extern "C" A a;` は宣言）。ブロックの中の `A a;` は定義なので、従来どおり既定コンストラクタが無ければエラーになる。
+
+これが無いと、`INITGUID` を定義しない `DEFINE_GUID`（`guiddef.h`）と、SDK ヘッダに直書きされた 3271 行の `EXTERN_C const` が、`windows.h` を取り込む C++ の翻訳単位ごとにゼロ初期化の実体を作る。そのため翻訳単位を 2 つリンクすると 396 件の `defined twice` になっていた。`EXTERN_C` は C++ では `extern "C"` に展開される（`guiddef.h:49`）ので、これらは単一宣言の形である。
 
 **実装箇所**
 
-- `tccgen.c:20131-20135` — `decl()` で `extern "C"` 内のファイルスコープ宣言に `VT_EXTERN` を付ける
-- `tcc.h:816` `extern_c` — `extern "C"` のネスト数。0 より大きいときだけ適用する
+- `tccgen.c:20076-20080` — `decl()` で、単一宣言の形のファイルスコープ宣言に `VT_EXTERN` を付ける。既定初期化・コンストラクタ・デストラクタの検証より前で行う
+- `tccgen.c:223` `decl_once_flag` — 単一宣言の形を処理している間だけ 1 になる
+- `tcc.h:816` `extern_c` — `extern "C"` のネスト数
 
 **サンプル**
 
 ```cpp
 // extern_c_const_decl.cpp
-extern "C" { const int g_k; }      // 宣言。[dcl.link]/7 により定義にならない
+extern "C" const int g_k;          // 宣言。[dcl.link]/7 により定義にならない
 extern "C" const int g_k = 7;      // 定義はここだけ
+extern "C" { int g_n; }            // ブロックの中は定義
 static const int s_k = 7;          // 対比。extern "C" の外は従来どおり
-int main() { return g_k - s_k; }
+int main() { g_n = s_k; return g_k - g_n; }
 ```
 
 
@@ -552,7 +557,7 @@ int main()
 - `tccgen.c:1602` `cpp_find_ctor_field()`、`tccgen.c:1647` `cpp_class_has_default_ctor()` — コンストラクタの検索と「引数なしで呼べるか」の判定
 - `tccgen.c:11088` `cpp_resolve_implicit_ctor_overload()`、`tccgen.c:11118` `cpp_emit_resolved_implicit_ctor()` — 宣言 `Foo f(args);` に対するコンストラクタ選択と呼び出し
 - `tccgen.c:5207` `cpp_emit_implicit_member_ctors()` — クラス型メンバの自動構築
-- `tccgen.c:20089-20266` — `decl()` 内で宣言ごとに構築処理を接続する箇所
+- `tccgen.c:20108-20266` — `decl()` 内で宣言ごとに構築処理を接続する箇所
 
 **amateras での用途**
 
