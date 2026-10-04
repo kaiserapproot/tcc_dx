@@ -70,7 +70,12 @@
 extern "C" {
 #endif
 
+/* TCC ships no GCC x86intrin.h (no _mm_* / __rdtsc builtins).  _mingw.h makes
+   TCC claim __GNUC__, so skip the include here instead of relying on an empty
+   stub that would make <x86intrin.h> look supported. */
+#ifndef __TINYC__
 #include <x86intrin.h>
+#endif
 
 /* Before 4.9.2, x86intrin.h had broken versions of these. */
 #undef _lrotl
@@ -278,7 +283,12 @@ extern "C" {
   __MACHINEIA64(__MINGW_EXTENSION void _AcquireSpinLock(unsigned __int64 *))
 #ifdef __GNUC__
 #undef _alloca
+// TCC は __builtin_alloca を知らない。組み込みの alloca へ写す（malloc.h と同じ）。
+#if defined(__TINYC__)
+#define _alloca(x) alloca((x))
+#else
 #define _alloca(x) __builtin_alloca((x))
+#endif
 #else
     __MACHINE(void *__cdecl _alloca(size_t))
 #endif

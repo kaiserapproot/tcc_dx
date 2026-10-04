@@ -149,7 +149,41 @@ limitations in handling dllimport attribute.  */
 #endif
 
 #if !defined(__MINGW_INTRIN_INLINE) && (defined(__GNUC__) || defined(__TINYC__))
-#define __MINGW_INTRIN_INLINE extern __inline__ __attribute__((__always_inline__,__gnu_inline__))
+# ifdef __TINYC__
+/* TCC x86-64 may emit static __inline__ intrinsic wrappers as globals across TUs;
+ * windows.h multi-TU then hits defined-twice on _Interlocked*. Pre-mark
+ * __INTRINSIC_DEFINED_* so only prototypes remain (Amateras patch from tcc_bk). */
+#  define __INTRINSIC_DEFINED__InterlockedAnd       1
+#  define __INTRINSIC_DEFINED__InterlockedOr        1
+#  define __INTRINSIC_DEFINED__InterlockedXor       1
+#  define __INTRINSIC_DEFINED__InterlockedAnd64     1
+#  define __INTRINSIC_DEFINED__InterlockedOr64      1
+#  define __INTRINSIC_DEFINED__InterlockedXor64     1
+#  define __INTRINSIC_DEFINED__InterlockedAnd8      1
+#  define __INTRINSIC_DEFINED__InterlockedOr8       1
+#  define __INTRINSIC_DEFINED__InterlockedXor8      1
+#  define __INTRINSIC_DEFINED__InterlockedAnd16     1
+#  define __INTRINSIC_DEFINED__InterlockedOr16      1
+#  define __INTRINSIC_DEFINED__InterlockedXor16     1
+/* What __MINGW_INTRIN_INLINE means for TCC (it is not the GCC meaning):
+ *  - It is defined only so that headers which test it take the same paths as
+ *    with GCC.  The GCC implementations in psdk_inc/intrin-impl.h are NOT used
+ *    (that file is guarded with !defined(__TINYC__)): their inline asm is
+ *    GCC-only.  An intrinsic is therefore a declaration only, and using it
+ *    fails at link time ("undefined symbol"), unless a TCC body exists.
+ *  - TCC bodies: __debugbreak (below in this file), _abs64 (stdlib.h),
+ *    __readgsqword (winnt.h).
+ *  - A TCC body must be the FIRST declaration of its function in the TU.  TCC
+ *    takes the linkage from the first declaration: an extern prototype in
+ *    front drops `static` from the body, and any later plain re-declaration
+ *    (intrin.h has one per intrinsic) then drops `inline` as well (C11
+ *    6.7.4p7), so the body becomes an external definition in every TU -
+ *    "defined twice" at link time, or a compile error if the body is GCC asm.
+ *    dev\test\a9\sdk_gate.bat keeps this from coming back. */
+#  define __MINGW_INTRIN_INLINE static __inline__
+# else
+#  define __MINGW_INTRIN_INLINE extern __inline__ __attribute__((__always_inline__,__gnu_inline__))
+# endif
 #endif
 
 #ifndef __CYGWIN__
@@ -627,11 +661,27 @@ extern "C" {
 #define __MINGW_DEBUGBREAK_IMPL 1
 #endif
 #if __MINGW_DEBUGBREAK_IMPL == 1
+#ifdef __TINYC__
+/* TCC: the GCC shape below does not work here, for two separate reasons.
+   1. Linkage.  With the extern prototype first, TCC takes the linkage from it
+      and drops `static` from the definition; intrin.h then re-declares
+      __debugbreak without `inline`, which under C11 6.7.4p7 turns it into an
+      external definition, so the body has to be compiled in every TU.
+   2. Syntax.  TCC's assembler knows neither the `{$}` dialect alternative nor
+      an operand list that is empty after `:`.
+   So: no prototype in front, and plain AT&T syntax.  The function stays
+   `static __inline__` and is only compiled where it is called. */
+static __inline__ void __cdecl __debugbreak(void)
+{
+  __asm__ __volatile__("int $3");
+}
+#else
 void __cdecl __debugbreak(void);
 __MINGW_INTRIN_INLINE void __cdecl __debugbreak(void)
 {
   __asm__ __volatile__("int {$}3":);
 }
+#endif
 #endif
 #endif
 
