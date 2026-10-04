@@ -4,12 +4,16 @@ rem   - <intrin.h> loads from C and C++, alone and after <windows.h>, and two C
 rem     translation units that include it link (no header-emitted globals).
 rem   - the intrinsics that have a TCC body really execute (__debugbreak, _abs64,
 rem     __readgsqword); one without a body fails at link time, not silently.
+rem   - the Interlocked bodies (psdk_inc/intrin-tcc.h): values in C and C++, two
+rem     TUs per language, and totals under contention from several threads.
 rem   - a direct <x86intrin.h> include is rejected (fail-closed, no empty stub).
 rem   - msimg32.def and d3dcompiler_47.def resolve their imports.
 rem   - libdxguid.a links from C and C++, works next to a translation unit that
 rem     defines GUIDs itself through INITGUID, and is byte-identical to a fresh
 rem     build of dev\dxguid\dxguid.c (dev\dxguid\make_lib.bat).
 rem Sources are in a9\link\.  Exes go to %TEMP%.
+rem Keep this file CRLF: cmd can misread call/goto labels in an LF-only batch
+rem file, and adding the Interlocked lines made it jump into the middle of it.
 setlocal EnableExtensions EnableDelayedExpansion
 goto :main
 :build_run_ok
@@ -104,7 +108,13 @@ call :build_run_ok SDK_INTRIN_H_CPP "sdk_intrin_cpp.cpp"
 call :build_run_ok SDK_INTRIN_TWO_TU_C "sdk_intrin_tu1.c sdk_intrin_tu2.c"
 call :build_run_ok SDK_INTRIN_EXEC_C "sdk_intrin_exec.c"
 call :build_run_ok SDK_INTRIN_EXEC_CPP "sdk_intrin_exec_cpp.cpp"
-call :build_must_fail SDK_INTRIN_DECL_ONLY_FAILS_AT_LINK "sdk_intrin_decl_only.c" "undefined symbol '_InterlockedIncrement'"
+call :build_must_fail SDK_INTRIN_DECL_ONLY_FAILS_AT_LINK "sdk_intrin_decl_only.c" "undefined symbol '_BitScanForward'"
+call :build_run_ok SDK_INTERLOCKED_C "sdk_interlocked.c"
+call :build_run_ok SDK_INTERLOCKED_CPP "sdk_interlocked_cpp.cpp"
+call :build_run_ok SDK_INTERLOCKED_TWO_TU_C "sdk_interlocked_tu1.c sdk_interlocked_tu2.c"
+call :build_run_ok SDK_INTERLOCKED_TWO_TU_CPP "sdk_interlocked_tu1_cpp.cpp sdk_interlocked_tu2_cpp.cpp"
+call :build_run_ok SDK_INTERLOCKED_CONTEND_C "sdk_interlocked_contend.c"
+call :build_run_ok SDK_INTERLOCKED_CONTEND_CPP "sdk_interlocked_contend_cpp.cpp"
 call :build_must_fail SDK_X86INTRIN_H_FAIL_CLOSED "sdk_x86intrin.c" "is not supported by this TCC build"
 call :build_run_ok SDK_DEF_MSIMG32_D3DCOMPILER_47 "sdk_defs.c -lmsimg32 -ld3dcompiler_47"
 call :build_run_ok SDK_LIBDXGUID_C "sdk_dxguid.c -ldxguid"
