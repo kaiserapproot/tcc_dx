@@ -4,6 +4,8 @@ rem   A  extern "C" int a;         declaration - needs a definition elsewhere
 rem   B  extern "C" { int b; }     definition
 rem   C  extern "C" C c;           declaration - no default constructor needed
 rem   D  extern "C" int d = 123;   definition
+rem   E  extern "C" int e(int); then int e(int) { } outside: still the C function
+rem   F  calls inside an extern "C" block still resolve overloads
 rem plus the reason the rule was added: two C++ TUs that both include
 rem windows.h must link, and a GUID declared in one TU must resolve to the
 rem definition in the other.  Sources are in a9\link\ (a subdirectory, so the
@@ -81,6 +83,8 @@ call :build_run_ok DCL_LINK_D_INITIALIZER_DEFINES "dcl_link_d_init.cpp"
 call :build_must_fail DCL_LINK_BLOCK_CLASS_STILL_NEEDS_CTOR "dcl_link_neg_block_class.cpp" "class has no default constructor"
 call :build_run_ok DCL_LINK_TWO_TU_WINDOWS_H "dcl_link_w1.cpp dcl_link_w2.cpp"
 call :build_run_ok DCL_LINK_GUID_DECL_AND_DEF "dcl_link_g1.cpp dcl_link_g2.cpp"
+call :build_run_ok DCL_LINK_E_DEF_KEEPS_C_LINKAGE "dcl_link_e_def.cpp dcl_link_e_use.c"
+call :build_run_ok DCL_LINK_F_CALL_IN_BLOCK_RESOLVES "dcl_link_f_resolve.cpp"
 
 if not "!FAILED!"=="0" (
   echo DCL_LINK=FAIL failed=!FAILED!
