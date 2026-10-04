@@ -172,7 +172,8 @@ limitations in handling dllimport attribute.  */
  *    GCC-only.  An intrinsic is therefore a declaration only, and using it
  *    fails at link time ("undefined symbol"), unless a TCC body exists.
  *  - TCC bodies: __debugbreak (below in this file), _abs64 (stdlib.h),
- *    __readgsqword (winnt.h).
+ *    __readgsqword (winnt.h), and the x86-64 Interlocked set
+ *    (psdk_inc/intrin-tcc.h, included below in this file).
  *  - A TCC body must be the FIRST declaration of its function in the TU.  TCC
  *    takes the linkage from the first declaration: an extern prototype in
  *    front drops `static` from the body, and any later plain re-declaration
@@ -683,6 +684,12 @@ __MINGW_INTRIN_INLINE void __cdecl __debugbreak(void)
 }
 #endif
 #endif
+#endif
+
+#if defined(__TINYC__) && defined(__x86_64__)
+/* After __debugbreak and before anything else can declare them: the bodies
+   must be the first declaration of each intrinsic in the TU. */
+#include "psdk_inc/intrin-tcc.h"
 #endif
 
 /* mingw-w64 specific functions: */
