@@ -28,7 +28,9 @@
 
    How
      Each read-modify-write is one locked instruction (lock xadd, xchg, lock
-     cmpxchg), so it is atomic and a full barrier, as with MSVC.  And / Or /
+     cmpxchg), so it is atomic and a full barrier, as with MSVC.  The barrier
+     comes from the locked instruction: TCC accepts the "memory" clobber but
+     does not act on it.  And / Or /
      Xor are a lock cmpxchg loop and return the old value.
 
    Rules (see the __MINGW_INTRIN_INLINE note in _mingw.h)
@@ -56,17 +58,19 @@ static __inline__ __LONG32 _InterlockedExchangeAdd(__LONG32 volatile *Addend, __
 
 static __inline__ __LONG32 _InterlockedAdd(__LONG32 volatile *Addend, __LONG32 Value)
 {
-  return _InterlockedExchangeAdd(Addend, Value) + Value;
+  /* The result wraps like the locked add did: unsigned arithmetic, because
+     old + Value in signed arithmetic would overflow at LONG_MAX. */
+  return (__LONG32)((unsigned __LONG32)_InterlockedExchangeAdd(Addend, Value) + (unsigned __LONG32)Value);
 }
 
 static __inline__ __LONG32 _InterlockedIncrement(__LONG32 volatile *Addend)
 {
-  return _InterlockedExchangeAdd(Addend, 1) + 1;
+  return (__LONG32)((unsigned __LONG32)_InterlockedExchangeAdd(Addend, 1) + 1U);
 }
 
 static __inline__ __LONG32 _InterlockedDecrement(__LONG32 volatile *Addend)
 {
-  return _InterlockedExchangeAdd(Addend, -1) - 1;
+  return (__LONG32)((unsigned __LONG32)_InterlockedExchangeAdd(Addend, -1) - 1U);
 }
 
 static __inline__ __LONG32 _InterlockedExchange(__LONG32 volatile *Target, __LONG32 Value)
@@ -120,17 +124,18 @@ static __inline__ __int64 _InterlockedExchangeAdd64(__int64 volatile *Addend, __
 
 static __inline__ __int64 _InterlockedAdd64(__int64 volatile *Addend, __int64 Value)
 {
-  return _InterlockedExchangeAdd64(Addend, Value) + Value;
+  /* unsigned for the same reason as _InterlockedAdd */
+  return (__int64)((unsigned __int64)_InterlockedExchangeAdd64(Addend, Value) + (unsigned __int64)Value);
 }
 
 static __inline__ __int64 _InterlockedIncrement64(__int64 volatile *Addend)
 {
-  return _InterlockedExchangeAdd64(Addend, 1) + 1;
+  return (__int64)((unsigned __int64)_InterlockedExchangeAdd64(Addend, 1) + 1U);
 }
 
 static __inline__ __int64 _InterlockedDecrement64(__int64 volatile *Addend)
 {
-  return _InterlockedExchangeAdd64(Addend, -1) - 1;
+  return (__int64)((unsigned __int64)_InterlockedExchangeAdd64(Addend, -1) - 1U);
 }
 
 static __inline__ __int64 _InterlockedExchange64(__int64 volatile *Target, __int64 Value)
@@ -186,14 +191,14 @@ static __inline__ short _InterlockedIncrement16(short volatile *Addend)
 {
   short v = 1;
   __asm__ __volatile__("lock xaddw %0, (%1)" : "+r"(v) : "r"(Addend) : "memory");
-  return (short)(v + 1);
+  return (short)(unsigned short)((unsigned short)v + 1U);
 }
 
 static __inline__ short _InterlockedDecrement16(short volatile *Addend)
 {
   short v = -1;
   __asm__ __volatile__("lock xaddw %0, (%1)" : "+r"(v) : "r"(Addend) : "memory");
-  return (short)(v - 1);
+  return (short)(unsigned short)((unsigned short)v - 1U);
 }
 
 /* pointer (8 bytes on x86-64) */

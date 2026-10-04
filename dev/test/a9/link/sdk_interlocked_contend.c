@@ -17,10 +17,11 @@ static volatile LONG g_guarded;
 static volatile LONG g_or;
 static volatile LONG g_xor;
 static volatile LONG64 g_and64;
-static PVOID volatile g_ptr;
-static volatile LONG g_ptr_swaps;
+static PVOID volatile g_ptr_lock;
+static volatile LONG g_ptr_guarded;
+static volatile LONG g_ptr_release_fail;
 static HANDLE g_start;
-static char g_slots[2];
+static char g_tokens[THREADS];
 
 static DWORD WINAPI worker(LPVOID arg)
 {
@@ -28,8 +29,7 @@ static DWORD WINAPI worker(LPVOID arg)
     int i;
     WaitForSingleObject(g_start, INFINITE);
     for (i = 0; i < LOOPS; i++) {
-        PVOID mine = &g_slots[i & 1];
-        PVOID seen;
+        PVOID mine = &g_tokens[id];
         InterlockedIncrement(&g_inc);
         InterlockedExchangeAdd64(&g_add64, 0x100000001LL);
         InterlockedIncrement16(&g_inc16);
@@ -45,10 +45,14 @@ static DWORD WINAPI worker(LPVOID arg)
         InterlockedXor(&g_xor, 1L << id);
         if (i == LOOPS - 1)
             InterlockedAnd64(&g_and64, ~(1LL << (id + 32)));
-        /* a pointer swap counted only when this thread's CAS won */
-        seen = g_ptr;
-        if (InterlockedCompareExchangePointer(&g_ptr, mine, seen) == seen)
-            InterlockedIncrement(&g_ptr_swaps);
+        /* the same kind of lock built from the pointer CompareExchange alone:
+           taken by swapping NULL for this thread's token, released by swapping
+           the token back for NULL.  A non-atomic pointer CAS lets two threads
+           in at once and the plain add below comes out short. */
+        while (InterlockedCompareExchangePointer(&g_ptr_lock, mine, NULL) != NULL) { }
+        g_ptr_guarded = g_ptr_guarded + 1;
+        if (InterlockedCompareExchangePointer(&g_ptr_lock, NULL, mine) != mine)
+            InterlockedIncrement(&g_ptr_release_fail);
     }
     return 0;
 }
@@ -80,6 +84,7 @@ int main(void)
     if (g_or != expect_or) return 6;
     if (g_xor != 0) return 7;
     if (g_and64 != 0x000000000000000FLL) return 8;
-    if (g_ptr_swaps < 1 || g_ptr_swaps > THREADS * LOOPS) return 9;
+    if (g_ptr_guarded != THREADS * LOOPS) return 9;
+    if (g_ptr_lock != NULL || g_ptr_release_fail != 0) return 10;
     return 0;
 }
