@@ -11,7 +11,8 @@
  *   The 1090 names and their 16 bytes were read out of that COFF archive
  *   (sha256 13DE09BE7E4D740EEAE184B068A1F36833F293F1006F6E6D2FBCB1F937BD7334)
  *   with llvm-readobj and written here, one DXGUID() line per symbol, sorted
- *   by name.  Every value was checked against the archive (1090 of 1090).
+ *   by name.  Every value was checked against the archive (1090 of 1090);
+ *   verify_original.bat repeats that check from git history.
  *
  * Why the definitions are weak
  *   mingw declares these with DECLSPEC_SELECTANY (COMDAT: duplicates are
