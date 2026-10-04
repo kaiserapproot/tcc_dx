@@ -1,7 +1,7 @@
 ﻿# tpp (TCC 拡張版) C++ 機能説明書
 
 **対象**: `dev\tcc.exe`（tcc version 0.9.28rc、x86_64 Windows）
-**基準コミット**: `d9caaef` にブランチ `fix/cpp-overload-qualification-mangle` の修正を加えた状態（2026-10-05。符号や const / volatile だけが違うオーバーロードの修正を含む。行番号はこの時点の値）
+**基準コミット**: `f9758e3` にブランチ `fix/cpp-extern-c-resolution-linkage` の修正を加えた状態（2026-10-05。符号や const / volatile だけが違うオーバーロードの修正と、`extern "C"` のリンケージと呼び出し解決の修正を含む。行番号はこの時点の値）
 **位置づけ**: TCC (Tiny C Compiler) に C++98 の一部機能を追加したもの。C++ コンパイラの置き換えではない。
 
 <!-- doc-sample-qualification: この行はサンプル検証スクリプトがこのファイルを見つけるための ASCII マーカー。消さないこと。 -->
@@ -90,7 +90,7 @@ C++ では同じ名前の関数を複数定義できるため、リンク名に�
 
 - `tccgen.c:371` `cpp_build_func_mangle()` — 宣言側のリンク名生成
 - `tccgen.c:408` `cpp_build_call_mangle()` — 呼び出し側のリンク名生成
-- `tccgen.c:1122` `cpp_ctor_name_tok()`、`tccgen.c:1150` `cpp_dtor_name_tok()` — コンストラクタ / デストラクタの名前
+- `tccgen.c:1138` `cpp_ctor_name_tok()`、`tccgen.c:1166` `cpp_dtor_name_tok()` — コンストラクタ / デストラクタの名前
 
 **制限**
 
@@ -150,13 +150,17 @@ int main(void)
 - `extern "C" { ... }` のブロック
 - `extern "C" void f();` の単一宣言
 - どちらも内側の宣言はリンク名を修飾しない。
+- `extern "C"` で宣言した関数は、ブロックの外で定義しても C の関数のまま（リンク名を修飾しない）。C++ の規則どおり、最初の宣言のリンケージを引き継ぐ。引数の型が違う同名の関数は別の関数なので、C++ のリンク名になる。
+- `extern "C"` のブロックの中に書いた関数呼び出しも、外と同じようにオーバーロードを解決する。
 
 **実装箇所**
 
-- `tccgen.c:19415-19462` — `decl()` 内の `extern "C"` の処理（ブロック形と単一宣言形）
+- `tccgen.c:19434-19481` — `decl()` 内の `extern "C"` の処理（ブロック形と単一宣言形）
 - `tccgen.c:354` `cpp_repromote_stale_lookahead()` — `extern "C"` を抜けた直後のトークンを C++ キーワードに戻す
-- `tcc.h:817` `lex_c` — `extern "C"` の内側で C の字句解析に切り替えるカウンタ
+- `tcc.h:818` `lex_c` — `extern "C"` の内側で C の字句解析に切り替えるカウンタ
 - `tccgen.c:223` `decl_once_flag` — 単一宣言形の処理
+- `tccgen.c:660` `cpp_set_func_mangle_label()`、`tcc.h:616` `cpp_c_linkage` — 最初の宣言が `extern "C"` の関数を覚えておき、後の定義でもリンク名を修飾しない
+- `tccgen.c:539` `cpp_resolve_func_call()`、`tccgen.c:609` `cpp_resolve_free_func_call()` — `extern "C"` の中の呼び出しも解決する
 
 **amateras での用途**
 
@@ -206,9 +210,9 @@ extern "C" { static int s; }              // static も定義
 
 **実装箇所**
 
-- `tccgen.c:20103-20107` — `decl()` で、単一宣言の形のファイルスコープ宣言に `VT_EXTERN` を付ける。既定初期化・コンストラクタ・デストラクタの検証より前で行う
+- `tccgen.c:20122-20126` — `decl()` で、単一宣言の形のファイルスコープ宣言に `VT_EXTERN` を付ける。既定初期化・コンストラクタ・デストラクタの検証より前で行う
 - `tccgen.c:223` `decl_once_flag` — 単一宣言の形を処理している間だけ 1 になる
-- `tcc.h:816` `extern_c` — `extern "C"` のネスト数
+- `tcc.h:817` `extern_c` — `extern "C"` のネスト数
 
 **サンプル**
 
@@ -233,7 +237,7 @@ int main() { g_n = s_k; return g_k - g_n; }
 
 - `tcctok.h:170-176` — `true`、`false`、`bool` のキーワード登録
 - `tccpp.c:471` `is_cpp_only_keyword()` — C では識別子に落とす
-- `tccgen.c:15256-15261` — `true` / `false` を定数として積む
+- `tccgen.c:15272-15277` — `true` / `false` を定数として積む
 
 **amateras での用途**
 
@@ -264,8 +268,8 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:7643-7657` `patch_type()` — 宣言と定義をマージするときの `VT_INLINE` の決め方。C++ では `tcc_state->cpp` で無条件に維持する
-- `tccgen.c:19348` `gen_inline_functions()` — 翻訳単位の終わりに、参照された（`sym->c`）か inline でないものだけコード生成する
+- `tccgen.c:7659-7673` `patch_type()` — 宣言と定義をマージするときの `VT_INLINE` の決め方。C++ では `tcc_state->cpp` で無条件に維持する
+- `tccgen.c:19367` `gen_inline_functions()` — 翻訳単位の終わりに、参照された（`sym->c`）か inline でないものだけコード生成する
 
 **amateras での用途**
 
@@ -282,7 +286,7 @@ int main() { return f() - 7; }
 
 **制限**
 
-- inline 関数の実体は、参照した翻訳単位ごとに `STB_LOCAL` で出る（`tccgen.c:6575-6576`）。COMDAT ではないため、リンクは通るが実体は 1 つにならない。実測: 2 つの翻訳単位が同じヘッダの `inline int f()` を参照すると `&f` が一致せず（`same_addr=0`）、関数内 `static` も共有されない（両方で 1 から数え始める）。
+- inline 関数の実体は、参照した翻訳単位ごとに `STB_LOCAL` で出る（`tccgen.c:6591-6592`）。COMDAT ではないため、リンクは通るが実体は 1 つにならない。実測: 2 つの翻訳単位が同じヘッダの `inline int f()` を参照すると `&f` が一致せず（`same_addr=0`）、関数内 `static` も共有されない（両方で 1 から数え始める）。
 - これは `inline` の従来からの性質で、この節の変更で新しく生じたものではない。「非 `inline` 宣言 + `inline` 定義」の形は、変更前は翻訳単位を 2 つリンクできなかったので、動いていたプログラムの挙動が変わることはない。単一翻訳単位は変更前後で同じ。
 - 関数内 `static` を翻訳単位の間で共有したい場合は、`inline` を付けずに 1 か所で定義する。
 
@@ -299,12 +303,12 @@ int main() { return f() - 7; }
 
 **実装箇所**
 
-- `tcc.h:1155` `VT_REFERENCE` — 参照型を示す型フラグ
-- `tccgen.c:13954` — 宣言子で `&` を読んで `VT_REFERENCE` を付ける
-- `tccgen.c:9733` `cpp_can_bind_lvalue_to_reference()` — 参照に束縛できるかの判定
-- `tccgen.c:9777`、`9805` — 参照へのバインド（アドレスを格納する）
-- `tccgen.c:16017-16056` — 参照変数を使うときに自動で間接参照する
-- `tccgen.c:18406-18432` — ローカル参照変数の初期化（アドレス格納）
+- `tcc.h:1156` `VT_REFERENCE` — 参照型を示す型フラグ
+- `tccgen.c:13970` — 宣言子で `&` を読んで `VT_REFERENCE` を付ける
+- `tccgen.c:9749` `cpp_can_bind_lvalue_to_reference()` — 参照に束縛できるかの判定
+- `tccgen.c:9793`、`9805` — 参照へのバインド（アドレスを格納する）
+- `tccgen.c:16033-16072` — 参照変数を使うときに自動で間接参照する
+- `tccgen.c:18425-18451` — ローカル参照変数の初期化（アドレス格納）
 
 **amateras での用途**
 
@@ -355,16 +359,16 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:12638` `struct_decl()` — クラス本体の解析。`is_class` が 1 のとき `class`、2 のとき C++ の `struct`
-- `tccgen.c:12857-12865` — アクセス指定子の記録（`cur_access`）
-- `tccgen.c:12928` — `friend class X;` の読み飛ばし
-- `tccgen.c:5713` `cpp_register_member_body()`、`tcc.h:607` `Sym.inline_func_str` — クラス内定義の本体をトークン列として保存
-- `tccgen.c:5972` `cpp_finish_member_inlines()` — クラス定義の終了後に保存した本体をコード生成する
-- `tccgen.c:920` `parse_cpp_scope_qualifier()` — クラス外定義の `Foo::bar` の解析
-- `tccgen.c:19039` `gen_function()` — メンバ関数に隠し引数 `this` を付ける
-- `tccgen.c:4535` `cpp_push_member_var()` — 暗黙のメンバ参照を `this->member` に置き換える
-- `tccgen.c:5735` `cpp_name_unnamed_params()` — 引数名の省略
-- `tccgen.c:6918` `cpp_class_sym_push()` — 局所クラスの定義シンボルをファイル全体で生かす
+- `tccgen.c:12654` `struct_decl()` — クラス本体の解析。`is_class` が 1 のとき `class`、2 のとき C++ の `struct`
+- `tccgen.c:12873-12881` — アクセス指定子の記録（`cur_access`）
+- `tccgen.c:12944` — `friend class X;` の読み飛ばし
+- `tccgen.c:5729` `cpp_register_member_body()`、`tcc.h:607` `Sym.inline_func_str` — クラス内定義の本体をトークン列として保存
+- `tccgen.c:5988` `cpp_finish_member_inlines()` — クラス定義の終了後に保存した本体をコード生成する
+- `tccgen.c:936` `parse_cpp_scope_qualifier()` — クラス外定義の `Foo::bar` の解析
+- `tccgen.c:19058` `gen_function()` — メンバ関数に隠し引数 `this` を付ける
+- `tccgen.c:4551` `cpp_push_member_var()` — 暗黙のメンバ参照を `this->member` に置き換える
+- `tccgen.c:5751` `cpp_name_unnamed_params()` — 引数名の省略
+- `tccgen.c:6934` `cpp_class_sym_push()` — 局所クラスの定義シンボルをファイル全体で生かす
 - `tcc.h:609` `Sym.parent_class` — メンバがどのクラスに属するか
 
 **amateras での用途**
@@ -416,13 +420,13 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:539` `cpp_resolve_func_call()`、`tccgen.c:607` `cpp_resolve_free_func_call()` — 自由関数のオーバーロード解決
+- `tccgen.c:539` `cpp_resolve_func_call()`、`tccgen.c:609` `cpp_resolve_free_func_call()` — 自由関数のオーバーロード解決
 - `tccgen.c:422` `cpp_arg_matches_param()` — 引数と仮引数の一致判定
-- `tccgen.c:10996` `cpp_score_member_overloads()`、`tccgen.c:11079` `cpp_resolve_member_func_call()` — メンバ関数のオーバーロード解決（完全一致 10 点、`T*` から `const` / `volatile` を足した `T*` への変換 9 点、変換可 1 点）
-- `tccgen.c:1305` `cpp_make_member_func_extern()` — 未定義のメンバ関数を外部参照として作る（前方参照の呼び出し用）
-- `tccgen.c:5661` `cpp_save_default_arg()` — デフォルト引数のトークン列を保存
-- `tccgen.c:5989` `cpp_apply_default_args()` — 呼び出し時に省略された引数を補う
-- `tccgen.c:6073` `cpp_inherit_decl_defaults()` — 宣言側のデフォルト引数を定義側へ引き継ぐ
+- `tccgen.c:11012` `cpp_score_member_overloads()`、`tccgen.c:11095` `cpp_resolve_member_func_call()` — メンバ関数のオーバーロード解決（完全一致 10 点、`T*` から `const` / `volatile` を足した `T*` への変換 9 点、変換可 1 点）
+- `tccgen.c:1321` `cpp_make_member_func_extern()` — 未定義のメンバ関数を外部参照として作る（前方参照の呼び出し用）
+- `tccgen.c:5677` `cpp_save_default_arg()` — デフォルト引数のトークン列を保存
+- `tccgen.c:6005` `cpp_apply_default_args()` — 呼び出し時に省略された引数を補う
+- `tccgen.c:6089` `cpp_inherit_decl_defaults()` — 宣言側のデフォルト引数を定義側へ引き継ぐ
 
 **amateras での用途**
 
@@ -467,9 +471,9 @@ int main()
 **実装箇所**
 
 - `tcc.h:534` `FuncAttr.func_const` — const メンバ関数を示すフラグ
-- `tccgen.c:10908` `cpp_find_field_for_call()` — オブジェクトの const 性に合うメンバ関数を選ぶ
+- `tccgen.c:10924` `cpp_find_field_for_call()` — オブジェクトの const 性に合うメンバ関数を選ぶ
 - `tccgen.c:371` `cpp_build_func_mangle()` — リンク名末尾の `_C`
-- `tccgen.c:19039` `gen_function()` — `this` の型を `const T*` にする
+- `tccgen.c:19058` `gen_function()` — `this` の型を `const T*` にする
 
 **amateras での用途**
 
@@ -506,9 +510,9 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:1068` `cpp_lookup_static_member()` — `Class::member` の解決
-- `tccgen.c:979` `cpp_unget_scoped_expr()` — 文頭の `Class::member = ...;` を式として扱う
-- `tccgen.c:19039` `gen_function()` — 静的メンバ関数には `this` を付けない
+- `tccgen.c:1084` `cpp_lookup_static_member()` — `Class::member` の解決
+- `tccgen.c:995` `cpp_unget_scoped_expr()` — 文頭の `Class::member = ...;` を式として扱う
+- `tccgen.c:19058` `gen_function()` — 静的メンバ関数には `this` を付けない
 - `struct_layout()` — 静的メンバをインスタンスの大きさから除外
 
 **amateras での用途**
@@ -554,13 +558,13 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:5693` `cpp_save_mem_init_list()`、`tcc.h:608` `Sym.cpp_mem_init_list` — 初期化子リストの保存
-- `tccgen.c:19151-19237` — `gen_function()` 内で初期化子リストを展開
-- `tccgen.c:4451` `cpp_peek_out_of_class_ctor()` — クラス外定義 `Foo::Foo(...)` の検出
-- `tccgen.c:1629` `cpp_find_ctor_field()`、`tccgen.c:1674` `cpp_class_has_default_ctor()` — コンストラクタの検索と「引数なしで呼べるか」の判定
-- `tccgen.c:11115` `cpp_resolve_implicit_ctor_overload()`、`tccgen.c:11145` `cpp_emit_resolved_implicit_ctor()` — 宣言 `Foo f(args);` に対するコンストラクタ選択と呼び出し
-- `tccgen.c:5234` `cpp_emit_implicit_member_ctors()` — クラス型メンバの自動構築
-- `tccgen.c:20135-20293` — `decl()` 内で宣言ごとに構築処理を接続する箇所
+- `tccgen.c:5709` `cpp_save_mem_init_list()`、`tcc.h:608` `Sym.cpp_mem_init_list` — 初期化子リストの保存
+- `tccgen.c:19170-19256` — `gen_function()` 内で初期化子リストを展開
+- `tccgen.c:4467` `cpp_peek_out_of_class_ctor()` — クラス外定義 `Foo::Foo(...)` の検出
+- `tccgen.c:1645` `cpp_find_ctor_field()`、`tccgen.c:1690` `cpp_class_has_default_ctor()` — コンストラクタの検索と「引数なしで呼べるか」の判定
+- `tccgen.c:11131` `cpp_resolve_implicit_ctor_overload()`、`tccgen.c:11161` `cpp_emit_resolved_implicit_ctor()` — 宣言 `Foo f(args);` に対するコンストラクタ選択と呼び出し
+- `tccgen.c:5250` `cpp_emit_implicit_member_ctors()` — クラス型メンバの自動構築
+- `tccgen.c:20154-20312` — `decl()` 内で宣言ごとに構築処理を接続する箇所
 
 **amateras での用途**
 
@@ -612,10 +616,10 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:5810` `cpp_synthesize_implicit_special_members()` — 暗黙のコンストラクタ / デストラクタを合成する
-- `tccgen.c:5267` `cpp_can_implicit_default_ctor_exist()`、`tccgen.c:5305` `cpp_validate_implicit_default_ctor()` — 暗黙のデフォルト構築が可能かの検査
-- `tccgen.c:5484` `cpp_validate_decl_default_initialization()` — 宣言時の検査
-- `tccgen.c:5947` `cpp_ensure_synthetic_odr()` — 合成した関数を 1 回だけ出力する
+- `tccgen.c:5826` `cpp_synthesize_implicit_special_members()` — 暗黙のコンストラクタ / デストラクタを合成する
+- `tccgen.c:5283` `cpp_can_implicit_default_ctor_exist()`、`tccgen.c:5321` `cpp_validate_implicit_default_ctor()` — 暗黙のデフォルト構築が可能かの検査
+- `tccgen.c:5500` `cpp_validate_decl_default_initialization()` — 宣言時の検査
+- `tccgen.c:5963` `cpp_ensure_synthetic_odr()` — 合成した関数を 1 回だけ出力する
 
 **amateras での用途**
 
@@ -654,11 +658,11 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:14759` `cpp_emit_local_copy_init()` — ローカル変数のコピー初期化
-- `tccgen.c:14608` `cpp_emit_copied_class_subobject()` — 使えるコピーコンストラクタがあればそれを呼ぶ
-- `tccgen.c:14686` `cpp_reconstruct_copied_class_members()` — メンバごとの再構築
-- `tccgen.c:19796` — `decl()` の `=` 初期化子からの接続
-- `tccgen.c:14873` `cpp_emit_heap_ctor_call()` — `new T(obj)` の構築
+- `tccgen.c:14775` `cpp_emit_local_copy_init()` — ローカル変数のコピー初期化
+- `tccgen.c:14624` `cpp_emit_copied_class_subobject()` — 使えるコピーコンストラクタがあればそれを呼ぶ
+- `tccgen.c:14702` `cpp_reconstruct_copied_class_members()` — メンバごとの再構築
+- `tccgen.c:19815` — `decl()` の `=` 初期化子からの接続
+- `tccgen.c:14889` `cpp_emit_heap_ctor_call()` — `new T(obj)` の構築
 
 **amateras での用途**
 
@@ -702,8 +706,8 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:11193` `cpp_try_class_conversion()` — 変換コンストラクタの探索と一時オブジェクトの構築
-- `tccgen.c:10329`、`10291` — 型変換の入口（`gen_assign_cast` 系）からの呼び出し
+- `tccgen.c:11209` `cpp_try_class_conversion()` — 変換コンストラクタの探索と一時オブジェクトの構築
+- `tccgen.c:10345`、`10291` — 型変換の入口（`gen_assign_cast` 系）からの呼び出し
 
 **amateras での用途**
 
@@ -748,15 +752,15 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:1816` `cpp_emit_local_dtor()` — 1 個のローカルの破棄コードを出す
-- `tccgen.c:2364` `cpp_finish_scope()`、`tccgen.c:2317` `cpp_block_cleanup()` — ブロック終了時の破棄
-- `tccgen.c:2377` `cpp_spill_return_value()`、`tccgen.c:2484` `cpp_restore_return_value()` — `return` 時に戻り値を退避してから破棄
-- `tccgen.c:17613-17655` — `return` 文の処理からの呼び出し
-- `tccgen.c:2257` `cpp_validate_goto_target()`、`tccgen.c:2275` `cpp_emit_scope_exit_dtors()` — `goto` の検査と破棄
-- `tccgen.c:2150` `cpp_validate_switch_entry()` — `switch` で初期化を飛び越す形の検査
-- `tccgen.c:1920` `cpp_note_class_temp()`、`tccgen.c:2002` `cpp_flush_class_temps()` — 一時オブジェクトの登録と破棄
-- `tccgen.c:4851` `cpp_emit_base_dtor_calls()`、`tccgen.c:5619` `cpp_emit_member_dtor_calls()` — 基底とメンバの自動破棄
-- `tccgen.c:19284-19286` — デストラクタ本体の末尾にメンバ・基底の破棄を付ける
+- `tccgen.c:1832` `cpp_emit_local_dtor()` — 1 個のローカルの破棄コードを出す
+- `tccgen.c:2380` `cpp_finish_scope()`、`tccgen.c:2333` `cpp_block_cleanup()` — ブロック終了時の破棄
+- `tccgen.c:2393` `cpp_spill_return_value()`、`tccgen.c:2500` `cpp_restore_return_value()` — `return` 時に戻り値を退避してから破棄
+- `tccgen.c:17632-17674` — `return` 文の処理からの呼び出し
+- `tccgen.c:2273` `cpp_validate_goto_target()`、`tccgen.c:2291` `cpp_emit_scope_exit_dtors()` — `goto` の検査と破棄
+- `tccgen.c:2166` `cpp_validate_switch_entry()` — `switch` で初期化を飛び越す形の検査
+- `tccgen.c:1936` `cpp_note_class_temp()`、`tccgen.c:2018` `cpp_flush_class_temps()` — 一時オブジェクトの登録と破棄
+- `tccgen.c:4867` `cpp_emit_base_dtor_calls()`、`tccgen.c:5635` `cpp_emit_member_dtor_calls()` — 基底とメンバの自動破棄
+- `tccgen.c:19303-19305` — デストラクタ本体の末尾にメンバ・基底の破棄を付ける
 
 **amateras での用途**
 
@@ -794,7 +798,7 @@ int main()
 
 **制限**
 
-- 自分でデストラクタを宣言していないが、メンバや基底のためにデストラクタ処理が要るクラス（例: デストラクタを持つクラスの配列をメンバに持つクラス）を値で返す関数はエラーになる（`return by value of a class requiring destruction is unsupported`）。**自分でデストラクタを宣言しているクラスは値で返せる**。判定は `tccgen.c:17578-17587` で、`cpp_class_requires_destruction()` が真でも `cpp_find_dtor_field()` が自クラスのデストラクタを見つければ通す。回帰テストは `dev/test/a9/negative/return_array_dtor.cpp`（エラー側）と `dev/test/a9/header_local_copy_init.cpp`（返せる側）。
+- 自分でデストラクタを宣言していないが、メンバや基底のためにデストラクタ処理が要るクラス（例: デストラクタを持つクラスの配列をメンバに持つクラス）を値で返す関数はエラーになる（`return by value of a class requiring destruction is unsupported`）。**自分でデストラクタを宣言しているクラスは値で返せる**。判定は `tccgen.c:17597-17606` で、`cpp_class_requires_destruction()` が真でも `cpp_find_dtor_field()` が自クラスのデストラクタを見つければ通す。回帰テストは `dev/test/a9/negative/return_array_dtor.cpp`（エラー側）と `dev/test/a9/header_local_copy_init.cpp`（返せる側）。
 - デストラクタを持つクラスの配列（ローカル配列、メンバ配列）はエラーになる。
 
 ---
@@ -816,13 +820,13 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:3053` `cpp_register_global_dyn()` — 構築が必要なグローバル変数の登録
-- `tccgen.c:3093` `cpp_register_global_copy_init()`、`tccgen.c:14835` `cpp_emit_global_copy_init_thunk()` — `= 関数呼び出し` 形の登録と構築コード
-- `tccgen.c:3490` `cpp_emit_global_dyn_thunk()`、`tccgen.c:3569` `cpp_finish_global_dyns()` — 呼び出し関数の生成と `.init_array` / `.fini_array` への登録
-- `tccgen.c:4355` `cpp_init_global_vptr()` — グローバル変数の仮想関数表ポインタの静的初期化
+- `tccgen.c:3069` `cpp_register_global_dyn()` — 構築が必要なグローバル変数の登録
+- `tccgen.c:3109` `cpp_register_global_copy_init()`、`tccgen.c:14851` `cpp_emit_global_copy_init_thunk()` — `= 関数呼び出し` 形の登録と構築コード
+- `tccgen.c:3506` `cpp_emit_global_dyn_thunk()`、`tccgen.c:3585` `cpp_finish_global_dyns()` — 呼び出し関数の生成と `.init_array` / `.fini_array` への登録
+- `tccgen.c:4371` `cpp_init_global_vptr()` — グローバル変数の仮想関数表ポインタの静的初期化
 - `tccelf.c:2900` `tcc_add_cpp_init_startup()` — 起動関数 `_tcc_cpp_start` の組み込み
 - `tccpe.c:1904-1915` — 実行ファイル生成時にエントリを差し替える判定
-- `tcc.h:827` `cpp_global_ctors`、`tcc.h:820` `cpp_init_startup_done`
+- `tcc.h:828` `cpp_global_ctors`、`tcc.h:821` `cpp_init_startup_done`
 
 **amateras での用途**
 
@@ -865,11 +869,11 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:2491` `cpp_alloc_local_static_guard()` — 宣言ごとの「初期化済み」フラグ
-- `tccgen.c:2511` `cpp_begin_local_static_init()`、`tccgen.c:2519` `cpp_finish_local_static_init()` — フラグを見て 1 回だけ構築する分岐
-- `tccgen.c:2830` `cpp_prepare_local_static_dtor()`、`tccgen.c:2861` `cpp_emit_local_static_dtor_registration()` — 終了時デストラクタの登録
-- `tccgen.c:5445` `cpp_emit_local_static_array_default_ctor_calls()` — `static` クラス配列の構築
-- `tccgen.c:20308-20312` — `decl()` からの接続
+- `tccgen.c:2507` `cpp_alloc_local_static_guard()` — 宣言ごとの「初期化済み」フラグ
+- `tccgen.c:2527` `cpp_begin_local_static_init()`、`tccgen.c:2535` `cpp_finish_local_static_init()` — フラグを見て 1 回だけ構築する分岐
+- `tccgen.c:2846` `cpp_prepare_local_static_dtor()`、`tccgen.c:2877` `cpp_emit_local_static_dtor_registration()` — 終了時デストラクタの登録
+- `tccgen.c:5461` `cpp_emit_local_static_array_default_ctor_calls()` — `static` クラス配列の構築
+- `tccgen.c:20327-20331` — `decl()` からの接続
 
 **amateras での用途**
 
@@ -916,11 +920,11 @@ int main()
 **実装箇所**
 
 - `tcctok.h:172` `TOK_CPP_THREAD_LOCAL`、`tccpp.c:485` — C++ のみのキーワード（C では識別子）
-- `tccgen.c:13403-13407` — 記憶クラス `VT_CPP_TLS` の付与（C ではエラー）
-- `tcc.h:1158` `VT_CPP_TLS`、`tcc.h:616` `Sym.cpp_tls_desc`
-- `tccgen.c:7368` `cpp_alloc_tls_global()`、`tccgen.c:7498` `cpp_push_tls_lvalue()` — TLS 領域の確保とアクセス（毎回 `__tcc_cpp_tls_addr` を呼ぶ）
-- `tccgen.c:7420` `cpp_validate_tls_class()` — 対応外の型（仮想関数あり、デフォルトコンストラクタなし等）をエラーにする
-- `tccgen.c:7467` `cpp_register_tls_ctor()`、`tccgen.c:7485` `cpp_register_tls_dtor()`、`tccgen.c:3442` `cpp_emit_tls_ctor_thunks()`
+- `tccgen.c:13419-13423` — 記憶クラス `VT_CPP_TLS` の付与（C ではエラー）
+- `tcc.h:1159` `VT_CPP_TLS`、`tcc.h:617` `Sym.cpp_tls_desc`
+- `tccgen.c:7384` `cpp_alloc_tls_global()`、`tccgen.c:7514` `cpp_push_tls_lvalue()` — TLS 領域の確保とアクセス（毎回 `__tcc_cpp_tls_addr` を呼ぶ）
+- `tccgen.c:7436` `cpp_validate_tls_class()` — 対応外の型（仮想関数あり、デフォルトコンストラクタなし等）をエラーにする
+- `tccgen.c:7483` `cpp_register_tls_ctor()`、`tccgen.c:7501` `cpp_register_tls_dtor()`、`tccgen.c:3458` `cpp_emit_tls_ctor_thunks()`
 - `tccelf.c:1925` `tcc_add_cpp_tls_runtime()` — 実行時コードの組み込み
 - `tccpe.c:2057-2061` — `IMAGE_TLS_DIRECTORY` の出力
 - `tccrun.c:87`、`165-210`、`384-389` — `-run` 時の対応
@@ -968,10 +972,10 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:5413` `cpp_emit_local_array_default_ctor_calls()` — ローカル配列の各要素の構築
-- `tccgen.c:5370` `cpp_validate_local_automatic_class_array()`、`tccgen.c:5391` `cpp_validate_local_static_class_array()` — 構築できない形の検査
-- `tccgen.c:5095` `cpp_emit_member_array_default_ctor_calls()` — メンバ配列の構築
-- `tccgen.c:20254`、`20222` — `decl()` からの接続
+- `tccgen.c:5429` `cpp_emit_local_array_default_ctor_calls()` — ローカル配列の各要素の構築
+- `tccgen.c:5386` `cpp_validate_local_automatic_class_array()`、`tccgen.c:5407` `cpp_validate_local_static_class_array()` — 構築できない形の検査
+- `tccgen.c:5111` `cpp_emit_member_array_default_ctor_calls()` — メンバ配列の構築
+- `tccgen.c:20273`、`20222` — `decl()` からの接続
 
 **amateras での用途**
 
@@ -1016,11 +1020,11 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:12306` `cpp_try_member_binop()` — ユーザー定義 `operator=` の呼び出し
-- `tccgen.c:12068` `cpp_implicit_copy_assign_is_safe()` — バイト列コピーで済ませてよいかの判定
-- `tccgen.c:12102` `cpp_implicit_copy_assign_is_memberwise_viable()` — メンバごとの代入が可能かの判定
-- `tccgen.c:12269` `cpp_emit_implicit_memberwise_copy_assign()` — メンバごとの代入コードの生成
-- `tccgen.c:16997-17022` — `expr_eq()` の `=` の処理からの接続
+- `tccgen.c:12322` `cpp_try_member_binop()` — ユーザー定義 `operator=` の呼び出し
+- `tccgen.c:12084` `cpp_implicit_copy_assign_is_safe()` — バイト列コピーで済ませてよいかの判定
+- `tccgen.c:12118` `cpp_implicit_copy_assign_is_memberwise_viable()` — メンバごとの代入が可能かの判定
+- `tccgen.c:12285` `cpp_emit_implicit_memberwise_copy_assign()` — メンバごとの代入コードの生成
+- `tccgen.c:17016-17041` — `expr_eq()` の `=` の処理からの接続
 
 **amateras での用途**
 
@@ -1070,12 +1074,12 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:12734-12746` — 基底クラスの解析と、基底を先頭（または直後）に埋め込む
-- `tccgen.c:11428` `cpp_base_subobject_offset()` — 基底オブジェクトの位置（曖昧なら負を返す）
-- `tccgen.c:4589` `cpp_emit_base_ctor_call()` — `: Base(args)` の呼び出し
-- `tccgen.c:4819` `cpp_emit_implicit_base_ctors()` — 書かれていない基底のデフォルト構築
-- `tccgen.c:4851` `cpp_emit_base_dtor_calls()` — 基底の自動破棄
-- `tccgen.c:4567` `cpp_find_base_field()` — 基底の埋め込みフィールドの検索
+- `tccgen.c:12750-12762` — 基底クラスの解析と、基底を先頭（または直後）に埋め込む
+- `tccgen.c:11444` `cpp_base_subobject_offset()` — 基底オブジェクトの位置（曖昧なら負を返す）
+- `tccgen.c:4605` `cpp_emit_base_ctor_call()` — `: Base(args)` の呼び出し
+- `tccgen.c:4835` `cpp_emit_implicit_base_ctors()` — 書かれていない基底のデフォルト構築
+- `tccgen.c:4867` `cpp_emit_base_dtor_calls()` — 基底の自動破棄
+- `tccgen.c:4583` `cpp_find_base_field()` — 基底の埋め込みフィールドの検索
 - `find_field()` の再帰 — 派生から基底メンバへのアクセス
 
 **amateras での用途**
@@ -1132,15 +1136,15 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:3785` `cpp_assign_virtual_slots()` — 仮想関数表の並びを決める
-- `tccgen.c:3832` `cpp_insert_vptr_field()` — オブジェクト先頭に仮想関数表ポインタを入れる
-- `tccgen.c:3958` `cpp_emit_vtable()` — 仮想関数表（`__cpp_vtbl_<Class>`）の出力。表の 1 つ前の要素にオブジェクト先頭までの距離を置く
-- `tccgen.c:4098` `cpp_emit_secondary_vtables()`、`tccgen.c:4046` `cpp_new_virtual_thunk()`、`tccgen.c:4230` `cpp_finish_virtual_thunks()` — 多重継承用の 2 番目以降の表と中継関数
-- `tccgen.c:4316` `cpp_init_local_vptr()`、`tccgen.c:4355` `cpp_init_global_vptr()`、`tccgen.c:14575` `cpp_init_heap_vptr()` — ローカル / グローバル / `new` のオブジェクトの仮想関数表ポインタの初期化
-- `tccgen.c:4384` `cpp_prepare_virtual_member_call()` — 仮想関数表を経由した呼び出し
-- `tccgen.c:3927` `cpp_class_is_abstract()`、`tccgen.c:3945` `cpp_check_not_abstract()` — 抽象クラスの判定
+- `tccgen.c:3801` `cpp_assign_virtual_slots()` — 仮想関数表の並びを決める
+- `tccgen.c:3848` `cpp_insert_vptr_field()` — オブジェクト先頭に仮想関数表ポインタを入れる
+- `tccgen.c:3974` `cpp_emit_vtable()` — 仮想関数表（`__cpp_vtbl_<Class>`）の出力。表の 1 つ前の要素にオブジェクト先頭までの距離を置く
+- `tccgen.c:4114` `cpp_emit_secondary_vtables()`、`tccgen.c:4062` `cpp_new_virtual_thunk()`、`tccgen.c:4246` `cpp_finish_virtual_thunks()` — 多重継承用の 2 番目以降の表と中継関数
+- `tccgen.c:4332` `cpp_init_local_vptr()`、`tccgen.c:4371` `cpp_init_global_vptr()`、`tccgen.c:14591` `cpp_init_heap_vptr()` — ローカル / グローバル / `new` のオブジェクトの仮想関数表ポインタの初期化
+- `tccgen.c:4400` `cpp_prepare_virtual_member_call()` — 仮想関数表を経由した呼び出し
+- `tccgen.c:3943` `cpp_class_is_abstract()`、`tccgen.c:3961` `cpp_check_not_abstract()` — 抽象クラスの判定
 - `tcc.h:546` `FuncAttr.func_pure` — 純粋仮想の印
-- `tccgen.c:3770` `cpp_find_virtual_dtor_in_chain()` — 仮想デストラクタの継承
+- `tccgen.c:3786` `cpp_find_virtual_dtor_in_chain()` — 仮想デストラクタの継承
 
 **amateras での用途**
 
@@ -1194,10 +1198,10 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:15016` `cpp_parse_new()`、`tccgen.c:15092` `cpp_parse_delete()` — 構文解析と生成
-- `tccgen.c:15817-15823` — `unary()` からの入口
-- `tccgen.c:14873` `cpp_emit_heap_ctor_call()` — 確保した領域へのコンストラクタ呼び出し
-- `tccgen.c:14575` `cpp_init_heap_vptr()` — 仮想関数表ポインタの初期化
+- `tccgen.c:15032` `cpp_parse_new()`、`tccgen.c:15108` `cpp_parse_delete()` — 構文解析と生成
+- `tccgen.c:15833-15839` — `unary()` からの入口
+- `tccgen.c:14889` `cpp_emit_heap_ctor_call()` — 確保した領域へのコンストラクタ呼び出し
+- `tccgen.c:14591` `cpp_init_heap_vptr()` — 仮想関数表ポインタの初期化
 
 **amateras での用途**
 
@@ -1264,16 +1268,16 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:1164` `cpp_operator_suffix()`、`tccgen.c:1216` `cpp_operator_field_tok()` — 演算子ごとの内部名（`__cpp_op_plus` など）
-- `tccgen.c:1249` `cpp_parse_operator_decl_name()`、`tccgen.c:14009-14018` — `operator+` 宣言の解析
-- `tccgen.c:12306` `cpp_try_member_binop()` — メンバの二項演算子（引数の型でオーバーロードを採点する）
-- `tccgen.c:11776` `cpp_try_free_binop()` — 非メンバの二項演算子
-- `tccgen.c:11820` `cpp_try_cpp_subscript()` — `[]`
-- `tccgen.c:11883` `cpp_try_member_unop()`、`tccgen.c:11904` `cpp_try_free_unop()` — 単項と前置
-- `tccgen.c:11943` `cpp_try_member_postop()`、`tccgen.c:11971` `cpp_try_free_postop()` — 後置
-- `tccgen.c:10832` `cpp_find_operator_member()` — メンバ演算子の検索
-- `tccgen.c:16052` — `->` の入口（`operator->` を 1 段だけ適用する）
-- `tccgen.c:11540` `cpp_finish_member_call()`、`tccgen.c:11669` `cpp_finish_free_call()` — 実際の呼び出しコード
+- `tccgen.c:1180` `cpp_operator_suffix()`、`tccgen.c:1232` `cpp_operator_field_tok()` — 演算子ごとの内部名（`__cpp_op_plus` など）
+- `tccgen.c:1265` `cpp_parse_operator_decl_name()`、`tccgen.c:14025-14034` — `operator+` 宣言の解析
+- `tccgen.c:12322` `cpp_try_member_binop()` — メンバの二項演算子（引数の型でオーバーロードを採点する）
+- `tccgen.c:11792` `cpp_try_free_binop()` — 非メンバの二項演算子
+- `tccgen.c:11836` `cpp_try_cpp_subscript()` — `[]`
+- `tccgen.c:11899` `cpp_try_member_unop()`、`tccgen.c:11920` `cpp_try_free_unop()` — 単項と前置
+- `tccgen.c:11959` `cpp_try_member_postop()`、`tccgen.c:11987` `cpp_try_free_postop()` — 後置
+- `tccgen.c:10848` `cpp_find_operator_member()` — メンバ演算子の検索
+- `tccgen.c:16068` — `->` の入口（`operator->` を 1 段だけ適用する）
+- `tccgen.c:11556` `cpp_finish_member_call()`、`tccgen.c:11685` `cpp_finish_free_call()` — 実際の呼び出しコード
 
 **amateras での用途**
 
@@ -1331,12 +1335,12 @@ int main()
 
 **実装箇所**
 
-- `tcc.h:1156` `VT_MPTR` — メンバポインタ型のフラグ
-- `tccgen.c:1465` `cpp_parse_member_pointer()` — `T Class::*` の宣言解析
-- `tccgen.c:1502` `cpp_parse_qualified_member()` — `&Class::member` の解析
-- `tccgen.c:1553` `cpp_emit_mptr_dmp_access()` — データメンバポインタのアクセス
-- `tccgen.c:1582` `cpp_emit_mptr_pmf_invoke()` — メンバ関数ポインタの呼び出し（仮想なら `cpp_prepare_virtual_member_call()` へ）
-- `tccgen.c:16075-16077` — `.*` / `->*` の入口
+- `tcc.h:1157` `VT_MPTR` — メンバポインタ型のフラグ
+- `tccgen.c:1481` `cpp_parse_member_pointer()` — `T Class::*` の宣言解析
+- `tccgen.c:1518` `cpp_parse_qualified_member()` — `&Class::member` の解析
+- `tccgen.c:1569` `cpp_emit_mptr_dmp_access()` — データメンバポインタのアクセス
+- `tccgen.c:1598` `cpp_emit_mptr_pmf_invoke()` — メンバ関数ポインタの呼び出し（仮想なら `cpp_prepare_virtual_member_call()` へ）
+- `tccgen.c:16091-16093` — `.*` / `->*` の入口
 
 **amateras での用途**
 
@@ -1387,10 +1391,10 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:821` `cpp_parse_global_scope_qualifier()` — 先頭 `::`
-- `tccgen.c:6819` `cpp_global_scope_find()`、`tccgen.c:6846` `cpp_global_lookup_type_name()` — グローバル限定の探索
-- `tccgen.c:2939` `cpp_class_typedef_find()`、`tcc.h:621` `Sym.cpp_class_typedefs` — クラス内 typedef（メンバの並びとは別に保持する）
-- `tccgen.c:920` `parse_cpp_scope_qualifier()` — 多段の `A::B::` の解析
+- `tccgen.c:837` `cpp_parse_global_scope_qualifier()` — 先頭 `::`
+- `tccgen.c:6835` `cpp_global_scope_find()`、`tccgen.c:6862` `cpp_global_lookup_type_name()` — グローバル限定の探索
+- `tccgen.c:2955` `cpp_class_typedef_find()`、`tcc.h:622` `Sym.cpp_class_typedefs` — クラス内 typedef（メンバの並びとは別に保持する）
+- `tccgen.c:936` `parse_cpp_scope_qualifier()` — 多段の `A::B::` の解析
 
 **amateras での用途**
 
@@ -1432,9 +1436,9 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:2913` `cpp_lookup_type_name()` — C++ の規則に従った型名の探索（共通ヘルパー）
-- `tccgen.c:3014` `cpp_tok_starts_type_name()` — 文頭の識別子が型名かどうかの判定
-- `tccgen.c:2995` `cpp_unqualified_class_type_find()` — 非修飾のクラス型の探索
+- `tccgen.c:2929` `cpp_lookup_type_name()` — C++ の規則に従った型名の探索（共通ヘルパー）
+- `tccgen.c:3030` `cpp_tok_starts_type_name()` — 文頭の識別子が型名かどうかの判定
+- `tccgen.c:3011` `cpp_unqualified_class_type_find()` — 非修飾のクラス型の探索
 
 **amateras での用途**
 
@@ -1480,10 +1484,10 @@ int main()
 
 **実装箇所**
 
-- `tccgen.c:14375` `cpp_try_functional_cast()` — 式の先頭が型名で直後が `(` のときの処理
-- `tccgen.c:14320` `cpp_tok_is_cast_type_name()` — 型名かどうかの判定（推測ではなく型の探索で決める）
-- `tccgen.c:11305` `cpp_functional_ctor_temp()` — クラス型の一時オブジェクトの構築
-- `tccgen.c:1920` `cpp_note_class_temp()` — 一時オブジェクトの破棄予約
+- `tccgen.c:14391` `cpp_try_functional_cast()` — 式の先頭が型名で直後が `(` のときの処理
+- `tccgen.c:14336` `cpp_tok_is_cast_type_name()` — 型名かどうかの判定（推測ではなく型の探索で決める）
+- `tccgen.c:11321` `cpp_functional_ctor_temp()` — クラス型の一時オブジェクトの構築
+- `tccgen.c:1936` `cpp_note_class_temp()` — 一時オブジェクトの破棄予約
 
 **amateras での用途**
 
@@ -1546,7 +1550,7 @@ int main()
 | 事項 | 挙動 |
 |---|---|
 | 未宣言関数の呼び出し | C++ 標準ではエラーだが、tpp は TCC 由来の C 挙動を引き継ぎ、`implicit declaration of function '<名前>'` の警告を出して `int` を返す無型関数として扱う。メンバ関数の本体からでも自由関数からでも同じ（`dev/test/a9/member_body_implicit_decl.cpp`）。`<stdio.h>` を取り込まずに `printf` を呼ぶような書き方が通ってしまうので、C++ として書くなら宣言を自分で用意すること |
-| inline 関数の実体 | 標準では翻訳単位をまたいで 1 つになるが、tpp は参照した翻訳単位ごとに `STB_LOCAL` で実体を出す（`tccgen.c:6575-6576`）。実測で `&f` が翻訳単位ごとに異なり、関数内 `static` も共有されない。単一翻訳単位では差が出ない。共有したいときは `inline` を付けずに 1 か所で定義すること |
+| inline 関数の実体 | 標準では翻訳単位をまたいで 1 つになるが、tpp は参照した翻訳単位ごとに `STB_LOCAL` で実体を出す（`tccgen.c:6591-6592`）。実測で `&f` が翻訳単位ごとに異なり、関数内 `static` も共有されない。単一翻訳単位では差が出ない。共有したいときは `inline` を付けずに 1 か所で定義すること |
 
 ---
 

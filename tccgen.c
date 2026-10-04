@@ -541,7 +541,9 @@ static Sym *cpp_resolve_func_call(int v, int nb_args, Sym *cur)
     Sym *s, *best = NULL;
     int best_score = -1;
 
-    if (!tcc_state->cpp || tcc_state->extern_c)
+    // An extern "C" block only sets the linkage of what is declared in it;
+    // a call written inside one is still resolved like any C++ call.
+    if (!tcc_state->cpp)
         return sym_find(v);
 
     for (s = sym_find(v); s; s = s->prev_tok) {
@@ -609,7 +611,8 @@ static Sym *cpp_resolve_free_func_call(int v, int nb_args)
     Sym *s, *best = NULL;
     int best_score = -1;
 
-    if (!tcc_state->cpp || tcc_state->extern_c)
+    // Also inside an extern "C" block (see cpp_resolve_func_call).
+    if (!tcc_state->cpp)
         return NULL;
 
     for (s = sym_find(v); s; s = s->prev_tok) {
@@ -661,9 +664,22 @@ static void cpp_set_func_mangle_label(Sym *sym, CType *type)
     int len;
     const char *entry_name;
 
-    if (!tcc_state->cpp || tcc_state->extern_c)
+    if (!tcc_state->cpp)
         return;
     if (!sym || (type->t & VT_BTYPE) != VT_FUNC)
+        return;
+    // [dcl.link]: a function keeps the language linkage of its first
+    // declaration, so extern "C" int f(void); followed by a plain
+    // int f(void) { ... } defines the C function f.  The definition used
+    // to get a mangled name, and callers of the declaration then failed to
+    // link.  external_sym hands a compatible redeclaration the same Sym, so
+    // the mark set here is seen by the later declarations.
+    if (tcc_state->extern_c) {
+        if (!sym->parent_class)
+            sym->cpp_c_linkage = 1;
+        return;
+    }
+    if (sym->cpp_c_linkage)
         return;
     entry_name = get_tok_str(sym->v, NULL);
     if (!strcmp(entry_name, "main") || !strcmp(entry_name, "wmain"))
@@ -16304,7 +16320,7 @@ post_ops:
                raw argument types (otherwise args get cast to the params
                of the initially bound overload before re-resolution).
                reverse_funcargs keeps the eager behavior. */
-            cpp_defer = tcc_state->cpp && !tcc_state->extern_c
+            cpp_defer = tcc_state->cpp
                 && !tcc_state->reverse_funcargs
                 && (vtop->r & VT_SYM) && vtop->sym
                 && cpp_call_has_overloads(vtop->sym);
@@ -16425,7 +16441,10 @@ post_ops:
 
             next();
             vcheck_cmp(); /* the generators don't like VT_CMP on vtop */
-            if (tcc_state->cpp && !tcc_state->extern_c && nb_args >= 0
+            // Overloads are resolved inside an extern "C" block too: there the
+            // most recently declared overload used to be called as is (winbase.h
+            // InterlockedExchangeAdd on a LONG ran the 64-bit overload).
+            if (tcc_state->cpp && nb_args >= 0
                 && (vtop[-nb_args].r & VT_SYM)
                 && vtop[-nb_args].sym
                 && (vtop[-nb_args].type.t & VT_BTYPE) == VT_FUNC) {
