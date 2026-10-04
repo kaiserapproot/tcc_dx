@@ -293,6 +293,14 @@ static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
             (ty.t & VT_MPTR) ? 'm' :
             (ty.t & VT_REFERENCE) ? 'r' : 'p');
         ty = *pointed_type(&ty);
+        // The qualifiers of what a pointer or reference points to are part
+        // of the parameter type: f(long *) and f(long volatile *) are two
+        // overloads.  Top-level qualifiers are not (f(const int) is f(int)),
+        // so they are written only here, under a pointer or reference.
+        if (ty.t & VT_CONSTANT)
+            mangle_append_char(buf, buf_size, pos, 'K');
+        if (ty.t & VT_VOLATILE)
+            mangle_append_char(buf, buf_size, pos, 'V');
     }
     bt = ty.t & VT_BTYPE;
     c = 'x';
@@ -305,14 +313,16 @@ static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
         c = (ty.t & VT_UNSIGNED) ? 't' : 's';
         break;
     case VT_INT:
+        // unsigned long needs its own letter: with 'l' for both,
+        // f(long) and f(unsigned long) got one symbol ("defined twice").
         if (ty.t & VT_LONG)
-            c = 'l';
+            c = (ty.t & VT_UNSIGNED) ? 'k' : 'l';
         else if (ty.t & VT_UNSIGNED)
             c = 'u';
         else
             c = 'i';
         break;
-    case VT_LLONG: c = 'L'; break;
+    case VT_LLONG: c = (ty.t & VT_UNSIGNED) ? 'y' : 'L'; break;
     case VT_FLOAT: c = 'f'; break;
     case VT_DOUBLE: c = 'd'; break;
     case VT_LDOUBLE: c = 'e'; break;
@@ -449,6 +459,23 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
     }
     p_bt = param->t & VT_BTYPE;
     a_bt = arg->t & VT_BTYPE;
+    // Qualification conversion: T* -> const/volatile T* is an exact-match
+    // conversion in C++ ([over.ics.scs]), ranked just below identity.  It
+    // used to fall through to the generic ptr/ptr rule below, so for a long*
+    // argument f(long volatile *) tied with f(double volatile *) and the most
+    // recently declared overload won (winbase.h InterlockedIncrement picked
+    // the unsigned __int64 overload for a LONG and did a 64-bit locked add).
+    if (tcc_state->cpp && p_bt == VT_PTR && a_bt == VT_PTR
+        && !(param->t & (VT_REFERENCE | VT_MPTR)) && !(arg->t & VT_MPTR)) {
+        CType *pp = pointed_type(param);
+        CType *ap = pointed_type(arg);
+        int pq = pp->t & (VT_CONSTANT | VT_VOLATILE);
+        int aq = ap->t & (VT_CONSTANT | VT_VOLATILE);
+        if ((aq & ~pq) == 0 && is_compatible_unqualified_types(pp, ap)) {
+            *score_out = 9;
+            return 1;
+        }
+    }
     if ((is_float(p_bt) || is_integer_btype(p_bt)) &&
         (is_float(a_bt) || is_integer_btype(a_bt))) {
         *score_out = 1;
