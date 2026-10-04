@@ -1,0 +1,2363 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiny C Compiler / tpp Reference Documentation 日本語・暫定改訂版</title>
+<meta name="description" content="Tiny C Compiler 0.9.28rc reference の日本語化と tpp/TCC DX C++・Amateras 拡張を統合した暫定改訂版">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #202124;
+  --muted: #5f6368;
+  --border: #d0d7de;
+  --code: #f6f8fa;
+  --link: #0969da;
+  --note: #eef6ff;
+  --warn: #fff8c5;
+  --changed: #f0fff4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --border:#30363d;
+    --code:#161b22; --link:#58a6ff; --note:#0d2d4a; --warn:#3d3300; --changed:#0b2e1b;
+  }
+}
+html { scroll-behavior:smooth; }
+body {
+  margin: 0 auto; padding: 2rem 2.5rem 5rem; max-width: 1120px;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;
+  line-height: 1.72; background:var(--bg); color:var(--fg);
+}
+h1,h2,h3,h4,h5 { line-height:1.3; margin-top:2.1em; }
+h1 { font-size:2.1rem; margin-top:.3em; }
+h2 { border-bottom:1px solid var(--border); padding-bottom:.35em; }
+a { color:var(--link); }
+code, pre { font-family:Consolas,"Cascadia Mono","SFMono-Regular",monospace; }
+code { background:var(--code); padding:.08em .28em; border-radius:4px; }
+pre { background:var(--code); padding:1em 1.2em; border:1px solid var(--border); border-radius:6px; overflow:auto; line-height:1.45; }
+table { width:100%; border-collapse:collapse; margin:1.1em 0 1.6em; }
+th,td { border:1px solid var(--border); padding:.55em .7em; vertical-align:top; }
+th { text-align:left; background:var(--code); }
+.notice { border:1px solid var(--border); border-left-width:5px; padding:.8em 1em; margin:1em 0 1.4em; border-radius:4px; }
+.notice.info { background:var(--note); }
+.notice.warning { background:var(--warn); }
+.notice.changed, tr.changed { background:var(--changed); }
+.badge { display:inline-block; padding:.16em .52em; border:1px solid var(--border); border-radius:999px; font-size:.82em; margin-right:.3em; }
+.toc { columns:2; column-gap:2.5em; padding-left:1.2em; }
+.toc li { break-inside:avoid; margin:.22em 0; }
+.meta { color:var(--muted); }
+section { scroll-margin-top:1rem; }
+.cpp-integrated > h2:first-of-type { margin-top:0; }
+.cpp-integrated table { font-size:.94em; }
+.cpp-integrated h3 { border-left:4px solid var(--border); padding-left:.55em; }
+footer { margin-top:4rem; color:var(--muted); border-top:1px solid var(--border); padding-top:1rem; }
+</style>
+</head>
+<body>
+<header id="Top">
+<h1>Tiny C Compiler / tpp Reference Documentation<br>日本語・暫定改訂版</h1>
+<p class="meta">
+<span class="badge">元文書: TCC 0.9.28rc</span>
+<span class="badge">tpp C++ 基準: f593cb2</span>
+<span class="badge">作業 branch 確認: 294ca623</span>
+<span class="badge">実装者検証前</span>
+</p>
+<p>元の <code>tcc-doc.html</code> を日本語化し、現在の tpp / TCC DX で追加された
+C++ サブセットと Amateras 対応を統合した改訂案です。</p>
+</header>
+
+<nav id="SEC_Contents">
+<h2>目次</h2>
+<ol class="toc">
+<li><a href="#status">0. この改訂版について</a></li>
+<li><a href="#Introduction">1. はじめに</a></li>
+<li><a href="#Invoke">2. コマンドラインからの利用</a></li>
+<li><a href="#Clang">3. C 言語サポート</a></li>
+<li><a href="#asm">4. TinyCC アセンブラ</a></li>
+<li><a href="#linker">5. TinyCC リンカ</a></li>
+<li><a href="#Bounds">6. メモリ・境界検査</a></li>
+<li><a href="#Libtcc">7. libtcc ライブラリ</a></li>
+<li><a href="#devel">8. 開発者向けガイド</a></li>
+<li><a href="#cpp-ext">9. tpp / TCC DX C++ 拡張</a></li>
+<li><a href="#diff-audit">10. 元文書との差分監査</a></li>
+<li><a href="#verify">11. 実装者に依頼する検証項目</a></li>
+<li><a href="#revision">12. この暫定版の基準</a></li>
+</ol>
+</nav>
+
+
+<section id="status">
+<h2>0. この改訂版について</h2>
+<div class="notice warning">
+  <strong>暫定改訂版（実装者によるソース・実機検証前）</strong><br>
+  この文書は、元の <code>tcc-doc.html</code>（Tiny C Compiler 0.9.28rc のリファレンス）を日本語化し、
+  tpp / TCC DX で追加された C++・Windows・Amateras 向け機能を統合した改訂案です。
+  C/C99/GNU C/TinyCC の基本説明は元文書を基礎とし、C++ 部分は
+  <code>C++機能説明書.md</code> と <code>kaiserapproot/tcc_dx</code> の現行実装記録を基礎にしています。
+</div>
+<p>この版の目的は、最終仕様を断定することではなく、実装者がソースと実行結果を照合するための
+<strong>検証可能な叩き台</strong>を作ることです。特に tpp 固有の記述には、後段で
+<code>tccgen.c</code>、<code>libtcc.c</code>、<code>tccpp.c</code>、<code>tccelf.c</code>、
+<code>tccpe.c</code>、<code>tccrun.c</code> および回帰テストを確認することを前提としています。</p>
+
+<table>
+<tr><th>区分</th><th>扱い</th></tr>
+<tr><td>元 TCC 0.9.28rc の説明</td><td>原文を日本語化。意味を変えないことを優先。</td></tr>
+<tr><td>tpp / TCC DX の追加機能</td><td>既存の C++ 機能説明書を統合。実装者による再検証対象。</td></tr>
+<tr><td>既知の制限・未対応</td><td>「使える」と誤認しないよう明示。実装変更で変わり得る。</td></tr>
+<tr><td>Amateras 固有の利用例</td><td>現在の consumer qualification と作業履歴に基づく。</td></tr>
+</table>
+</section>
+
+<section id="Introduction">
+<h2>1. はじめに</h2>
+<p>TinyCC（TCC）は、小さく非常に高速な C コンパイラです。外部のアセンブラやリンカに依存せず、
+TCC 自身がコンパイル、アセンブル、リンクを行えるよう設計されています。</p>
+<p>TCC は ANSI C に加え、ISO C99 の多くの機能と GNU C 拡張（インラインアセンブリを含む）を
+サポートします。また、コンパイル速度を利用して C ソースをスクリプトのように直接実行できます。</p>
+<p><code>libtcc</code> を使うと、TCC を動的コード生成用バックエンドとして組み込めます。
+<code>-b</code> を指定すると、ポインタや配列への境界検査コードを追加できます。</p>
+<div class="notice info">
+<strong>tpp / TCC DX での重要な追加:</strong>
+本 fork には C++98 を中心とする限定的な C++ サブセットと、一部の追加機能
+（例: <code>thread_local</code>）が実装されています。これは完全な ISO C++ コンパイラではありません。
+詳細は第9章を参照してください。
+</div>
+<p>元の 0.9.28rc 文書には対象 CPU に関する古い記述があります。この改訂案ではその文面を
+歴史的説明として扱い、現在の実装対象は最終的にソース・ビルド構成で確認する方針とします。</p>
+</section>
+
+<section id="Invoke">
+<h2>2. コマンドラインからの利用</h2>
+<h3>2.1 クイックスタート</h3>
+<pre>usage: tcc [options] [infile1 infile2 ...] [-run infile args ...]</pre>
+<p>TCC のオプション体系は GCC に近いものです。大きな違いの一つは、
+生成したプログラムをファイルへ保存せず、その場で実行して実行時引数を渡せることです。</p>
+<table>
+<tr><th>例</th><th>意味</th></tr>
+<tr><td><code>tcc -run a.c</code></td><td><code>a.c</code> をコンパイルして直接実行します。</td></tr>
+<tr><td><code>tcc -run a.c arg1</code></td><td><code>a.c</code> を直接実行し、<code>arg1</code> を <code>main()</code> の第1引数として渡します。</td></tr>
+<tr><td><code>tcc a.c -run b.c arg1</code></td><td><code>a.c</code> と <code>b.c</code> をまとめてコンパイル・リンクして実行します。</td></tr>
+<tr><td><code>tcc -o myprog a.c b.c</code></td><td>2つの C ソースをコンパイル・リンクして実行ファイル <code>myprog</code> を生成します。</td></tr>
+<tr><td><code>tcc -o myprog a.o b.o</code></td><td>オブジェクトファイルをリンクして実行ファイルを生成します。</td></tr>
+<tr><td><code>tcc -c a.c</code></td><td><code>a.c</code> をコンパイルし、オブジェクトファイル <code>a.o</code> を生成します。</td></tr>
+<tr><td><code>tcc -c asmfile.S</code></td><td>C プリプロセッサを通した後にアセンブルし、<code>asmfile.o</code> を生成します。</td></tr>
+<tr><td><code>tcc -c asmfile.s</code></td><td>プリプロセスせずにアセンブルします。</td></tr>
+<tr><td><code>tcc -r -o ab.o a.c b.c</code></td><td>複数入力をまとめた再配置可能オブジェクト <code>ab.o</code> を生成します。</td></tr>
+</table>
+
+<h4>C スクリプト</h4>
+<p>Unix 系では、ソース先頭に次のような shebang を置くことで C ソースをスクリプトのように実行できます。</p>
+<pre>#!/usr/local/bin/tcc -run
+#include &lt;stdio.h&gt;
+
+int main(void)
+{
+    printf("Hello World\n");
+    return 0;
+}</pre>
+<p>入力ファイル名の代わりに <code>-</code> を指定すると標準入力から C ソースを読み込めます。</p>
+<pre>echo 'main(){puts("hello");}' | tcc -run -</pre>
+
+<h3>2.2 主なオプション</h3>
+<h4>一般</h4>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-c</code></td><td>オブジェクトファイルを生成します。</td></tr>
+<tr><td><code>-o outfile</code></td><td>オブジェクト、実行ファイル、DLL などの出力先を指定します。</td></tr>
+<tr><td><code>-run source [args...]</code></td><td>ソースをコンパイルして即時実行します。後続の引数は実行プログラムへ渡されます。</td></tr>
+<tr><td><code>-v</code></td><td>TCC のバージョンを表示します。</td></tr>
+<tr><td><code>-vv</code> / <code>-vvv</code></td><td>インクルードファイルや検索ディレクトリ、検索試行の詳細を表示します。</td></tr>
+<tr><td><code>-bench</code></td><td>コンパイル統計を表示します。</td></tr>
+</table>
+
+<h4>プリプロセッサ</h4>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-Idir</code></td><td>インクルード検索パスを追加します。指定順に検索され、システムの既定パスはその後に検索されます。</td></tr>
+<tr><td><code>-isystem dir</code></td><td>システムインクルードパスを追加します。</td></tr>
+<tr><td><code>-nostdinc</code></td><td>既定のシステムインクルードパスを検索しません。</td></tr>
+<tr><td><code>-include file</code></td><td>各入力ファイルの先頭で指定ファイルをインクルードしたものとして処理します。</td></tr>
+<tr><td><code>-Dsym[=val]</code></td><td>プリプロセッサシンボルを定義します。値を省略すると 1 です。関数形式マクロも指定できます。</td></tr>
+<tr><td><code>-Usym</code></td><td>プリプロセッサシンボルの定義を解除します。</td></tr>
+<tr><td><code>-E</code></td><td>プリプロセスだけを行います。</td></tr>
+<tr><td><code>-P</code></td><td><code>#line</code> 指令を出力しません。</td></tr>
+<tr><td><code>-P1</code></td><td>別形式の <code>#line</code> 指令を出力します。</td></tr>
+<tr><td><code>-dD</code> / <code>-dM</code></td><td><code>#define</code> 指令を出力します。</td></tr>
+<tr><td><code>-Wp,-opt</code></td><td><code>-opt</code> と同じ扱いです。</td></tr>
+</table>
+
+<h4>コンパイルフラグ</h4>
+<p>一部の <code>-f...</code> オプションには <code>-fno-...</code> 形式の反転指定があります。</p>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-funsigned-char</code></td><td><code>char</code> を符号なしとして扱います。</td></tr>
+<tr><td><code>-fsigned-char</code></td><td><code>char</code> を符号付きとして扱います。</td></tr>
+<tr><td><code>-fno-common</code></td><td>未初期化データに common symbol を生成しません。</td></tr>
+<tr><td><code>-fleading-underscore</code></td><td>C シンボル名の先頭にアンダースコアを付けます。</td></tr>
+<tr><td><code>-fms-extensions</code></td><td>一部の Microsoft C 言語拡張を許可します。</td></tr>
+<tr><td><code>-fdollars-in-identifiers</code></td><td>識別子中の <code>$</code> を許可します。</td></tr>
+<tr><td><code>-freverse-funcargs</code></td><td>関数引数を右から左へ評価します。</td></tr>
+<tr><td><code>-fgnu89-inline</code></td><td><code>extern inline</code> を GNU89 風に扱います。</td></tr>
+<tr><td><code>-fasynchronous-unwind-tables</code></td><td><code>eh_frame</code> セクションを生成します。</td></tr>
+<tr><td><code>-ftest-coverage</code></td><td>カバレッジ計測用コードを生成し、実行後に <code>.tcov</code> を出力します。</td></tr>
+</table>
+
+<h4>警告</h4>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-w</code></td><td>すべての警告を無効にします。</td></tr>
+<tr><td><code>-Wimplicit-function-declaration</code></td><td>プロトタイプのない暗黙の関数宣言を警告します。</td></tr>
+<tr><td><code>-Wdiscarded-qualifiers</code></td><td><code>const</code> などの修飾が失われる場合に警告します。</td></tr>
+<tr><td><code>-Wunsupported</code></td><td>TCC が無視する未対応 GCC 機能について警告します。</td></tr>
+<tr><td><code>-Wwrite-strings</code></td><td>文字列リテラルを <code>const char *</code> として扱います。</td></tr>
+<tr><td><code>-Werror</code></td><td>警告をエラーとして扱います。例: <code>-Werror=unsupported</code>。</td></tr>
+<tr><td><code>-Wall</code></td><td>有用な警告の一部を有効にします。</td></tr>
+</table>
+
+<h4>リンカ</h4>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-Ldir</code></td><td><code>-l</code> で使うライブラリ検索パスを追加します。</td></tr>
+<tr><td><code>-lxxx</code></td><td><code>libxxx.so</code> または <code>libxxx.a</code> をリンクします。</td></tr>
+<tr><td><code>-Bdir</code></td><td>TCC 内部ライブラリと内部ヘッダの検索基点を指定します。</td></tr>
+<tr><td><code>-shared</code></td><td>実行ファイルの代わりに共有ライブラリを生成します。</td></tr>
+<tr><td><code>-soname name</code></td><td>共有ライブラリの実行時名を設定します。</td></tr>
+<tr><td><code>-static</code></td><td>静的リンクの実行ファイルを生成します。</td></tr>
+<tr><td><code>-rdynamic</code></td><td>グローバルシンボルを動的リンカへ公開します。</td></tr>
+<tr><td><code>-r</code></td><td>複数入力を結合したオブジェクトファイルを生成します。</td></tr>
+<tr><td><code>-nostdlib</code></td><td>libc、C ランタイム、libtcc1 等の暗黙リンクを行いません。</td></tr>
+<tr><td><code>-Wl,-nostdlib</code></td><td>既定のライブラリ検索パスを使いません。</td></tr>
+<tr><td><code>-Wl,-rpath=path</code></td><td>動的ライブラリの検索パスを実行ファイルへ埋め込みます。</td></tr>
+<tr><td><code>-Wl,-Ipath</code> / <code>--dynamic-linker=path</code></td><td>ELF インタプリタ（動的リンカ）を指定します。</td></tr>
+<tr><td><code>-Wl,--enable-new-dtags</code></td><td>RPATH の代わりに RUNPATH を使う新しい dynamic tag を生成します。</td></tr>
+<tr><td><code>-Wl,--oformat=fmt</code></td><td>出力形式を指定します。元文書では <code>elf32-i386</code>、<code>binary</code>、一部ターゲットの <code>coff</code> が説明されています。</td></tr>
+<tr><td><code>-Wl,--export-all-symbols</code> / <code>--export-dynamic</code></td><td>グローバルシンボルを動的リンカへ公開します。</td></tr>
+<tr><td><code>-Wl,-subsystem=...</code></td><td>PE（Windows）実行ファイルの subsystem を指定します。</td></tr>
+<tr><td><code>-Wl,-Ttext=#</code> ほか</td><td>section alignment、file alignment、image base、stack 等の実行ファイル配置を変更します。</td></tr>
+<tr><td><code>-Wl,-Bsymbolic</code></td><td><code>DT_SYMBOLIC</code> tag を設定します。</td></tr>
+<tr><td><code>-Wl,-(no-)whole-archive</code></td><td>アーカイブ内の全オブジェクトをリンク対象にするか切り替えます。</td></tr>
+</table>
+
+<h4>デバッグ</h4>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-g</code></td><td>実行時の stab デバッグ情報を生成し、障害時の位置情報を詳しくします。</td></tr>
+<tr><td><code>-gdwarf[-x]</code></td><td>stab の代わりに DWARF 実行時デバッグ情報を生成します。</td></tr>
+<tr><td><code>-b</code></td><td>メモリ確保と配列・ポインタ境界を検査する追加コードを生成します。<code>-g</code> も暗黙に有効です。</td></tr>
+<tr><td><code>-bt[N]</code></td><td>スタックトレースに N 個の呼び出し元を表示します。使用時は <code>__TCC_BACKTRACE__</code> が定義されます。</td></tr>
+</table>
+
+<h4>その他</h4>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-std=version</code></td><td><code>__STDC_VERSION__</code> を指定バージョンに応じて設定します。</td></tr>
+<tr><td><code>-x c</code> / <code>-x a</code> / <code>-x b</code> / <code>-x n</code></td><td>後続入力の種別を C / assembler / binary / none として指定します。</td></tr>
+<tr class="changed"><td><code>-x c++</code> / <code>-x c++-header</code></td><td><strong>tpp/TCC DX 追加。</strong>拡張子に関係なく C++ モードを強制します。元の <code>tcc-doc.html</code> には記載がありません。</td></tr>
+<tr><td><code>-O[n]</code></td><td><code>-O0</code> 以外では概ね <code>-D__OPTIMIZE__</code> と同様に扱われます。</td></tr>
+<tr><td><code>-pthread</code></td><td><code>_REENTRANT</code> を定義し、<code>-lpthread</code> をリンクします。</td></tr>
+<tr><td><code>-M</code> / <code>-MM</code> / <code>-MD</code> / <code>-MMD</code></td><td>Makefile 形式の依存関係を出力します。<code>MM/MMD</code> はシステムヘッダを除外します。</td></tr>
+<tr><td><code>-MF depfile</code></td><td><code>-MD</code> 等の依存情報出力ファイルを指定します。</td></tr>
+<tr><td><code>-MP</code></td><td>依存ファイルもターゲットとして出力します。</td></tr>
+<tr><td><code>-print-search-dirs</code></td><td>インストール場所と検索ディレクトリを表示します。</td></tr>
+<tr><td><code>-dumpversion</code></td><td>バージョンを表示します。</td></tr>
+<tr><td><code>-dt</code></td><td><code>-run</code>/<code>-E</code> と組み合わせ、<code>test_...</code> マクロを自動定義します。</td></tr>
+</table>
+
+<h4>ターゲット固有</h4>
+<table>
+<tr><th>オプション</th><th>説明</th></tr>
+<tr><td><code>-mms-bitfields</code></td><td>MSVC と整合する bitfield alignment アルゴリズムを使います。</td></tr>
+<tr><td><code>-mfloat-abi</code></td><td>ARM の浮動小数点 ABI（<code>softfp</code>/<code>hard</code>）を指定します。</td></tr>
+<tr><td><code>-mno-sse</code></td><td>x86_64 で SSE レジスタを使用しません。</td></tr>
+<tr><td><code>-m32</code> / <code>-m64</code></td><td>i386/x86_64 クロスコンパイラへコマンドラインを渡します。</td></tr>
+</table>
+<p>元文書では、認識されない一部の GCC <code>-f...</code>/<code>-m...</code> オプションは無視されると説明されています。</p>
+
+<h4>環境変数</h4>
+<table>
+<tr><th>変数</th><th>説明</th></tr>
+<tr><td><code>CPATH</code> / <code>C_INCLUDE_PATH</code></td><td>インクルード検索ディレクトリを列挙します。<code>-I</code> 指定が先に検索されます。</td></tr>
+<tr><td><code>LIBRARY_PATH</code></td><td><code>-l</code> 用のライブラリ検索ディレクトリを列挙します。<code>-L</code> 指定が先に検索されます。</td></tr>
+</table>
+</section>
+
+<section id="Clang">
+<h2>3. C 言語サポート</h2>
+<h3>3.1 ANSI C</h3>
+<p>元文書では、構造体 bit-field と浮動小数点型
+（<code>long double</code>、<code>double</code>、<code>float</code>）を含む ANSI C を実装していると説明されています。</p>
+
+<h3>3.2 ISO C99 拡張</h3>
+<p>ISO C99 の多くの機能を実装しています。元文書では complex / imaginary number は未実装とされています。</p>
+<ul>
+<li>可変長配列（VLA）</li>
+<li>64 bit <code>long long</code></li>
+<li><code>_Bool</code></li>
+<li>現在の関数名を表す <code>__func__</code></li>
+<li><code>__VA_ARGS__</code> を使う可変引数マクロ</li>
+<li>ブロック内の任意位置での宣言</li>
+<li>designated initializer</li>
+<li>compound literal</li>
+<li>16進浮動小数点定数</li>
+</ul>
+<pre>#define dprintf(level, __VA_ARGS__) printf(__VA_ARGS__)
+
+struct { int x, y; } st[10] = { [0].x = 1, [0].y = 2 };
+int tab[10] = { 1, 2, [5] = 5, [9] = 9 };
+
+int *p = (int []){ 1, 2, 3 };
+double d = 0x1234p10;</pre>
+<p>元文書では <code>inline</code> と <code>restrict</code> は無視されると説明されています。
+tpp の C++ 経路では <code>inline</code> に C++ 固有の処理が追加されているため、
+C++ モードの挙動は第9章の記述を優先してください。</p>
+
+<h3>3.3 GNU C 拡張</h3>
+<ul>
+<li><code>=</code> を省略した古い形式の配列 designator</li>
+<li><code>x: value</code> 形式の構造体 field designator</li>
+<li><code>\e</code>（ASCII 27）</li>
+<li><code>case 1 ... 9:</code> のような case range</li>
+<li><code>__attribute__</code> の一部</li>
+<li>GNU 形式の可変引数マクロ</li>
+<li><code>__FUNCTION__</code>（C99 <code>__func__</code> として処理）</li>
+<li><code>__alignof__</code></li>
+<li><code>typeof(x)</code></li>
+<li>computed goto（<code>&amp;&amp;label</code>、<code>goto *expr</code>）</li>
+<li>GNU 風の inline assembly</li>
+<li><code>__builtin_types_compatible_p()</code>、<code>__builtin_constant_p()</code></li>
+<li><code>#pragma pack</code></li>
+</ul>
+<p>元文書が挙げる主な attribute は
+<code>aligned(n)</code>、<code>packed</code>、<code>section(name)</code>、<code>unused</code>、
+<code>cdecl</code>、<code>stdcall</code>、<code>regparm(n)</code>、Windows の
+<code>dllexport</code>、<code>nodecorate</code> です。</p>
+<pre>int a __attribute__((aligned(8), section(".mysection")));
+
+int my_add(int a, int b) __attribute__((section(".mycodesection")))
+{
+    return a + b;
+}</pre>
+
+<h3>3.4 TinyCC 独自拡張</h3>
+<ul>
+<li><code>__TINYC__</code> は TCC 使用時に定義されます。</li>
+<li>行頭の <code>#!</code> は C スクリプトのため無視されます。</li>
+<li><code>0b101</code> のような2進整数リテラルを使えます。</li>
+</ul>
+</section>
+
+<section id="asm">
+<h2>4. TinyCC アセンブラ</h2>
+<p>TinyCC は内蔵アセンブラを持ちます。元文書では gas（GNU assembler）に似た構文を採用し、
+C コンパイラ本体は内蔵アセンブラへ依存しないため、より小さい TCC を作る場合は
+アセンブラ機能を無効化できると説明されています。</p>
+<p><code>.S</code> は C プリプロセス付きアセンブラ、<code>.s</code> は通常のアセンブラ入力として扱われます。
+C ソース中の GNU 形式 <code>asm</code> にも内蔵アセンブラが使われます。</p>
+
+<h3>4.1 構文</h3>
+<ul>
+<li>多くの gas 構文をサポートし、token の基本規則は C と同じです。</li>
+<li>C / C++ 形式のコメントを使用できます。</li>
+<li>識別子の規則は C と同じで、元文書では <code>.</code> や <code>$</code> を識別子に使えないと説明されています。</li>
+<li>元文書では整数値は 32 bit までと説明されています。</li>
+</ul>
+
+<h3>4.2 式</h3>
+<p>10進・8進・16進整数、単項 <code>+</code>/<code>-</code>/<code>~</code>、
+二項 <code>* / %</code>、<code>&amp; | ^</code>、<code>+ -</code> を扱います。
+値は絶対値、または label + offset です。</p>
+
+<h3>4.3 ラベル</h3>
+<p>未定義ラベルを除きローカルとして扱います。gas と同様の数字ラベルを複数回定義でき、
+<code>b</code>（backward）と <code>f</code>（forward）で参照できます。</p>
+<pre>1:
+    jmp 1b
+    jmp 1f
+1:</pre>
+
+<h3>4.4 ディレクティブ</h3>
+<p>元文書で列挙される主なディレクティブ:</p>
+<pre>.align n[,value]
+.skip n[,value]
+.space n[,value]
+.byte value1[,...]
+.word value1[,...]
+.short value1[,...]
+.int value1[,...]
+.long value1[,...]
+.quad immediate_value1[,...]
+.globl symbol
+.global symbol
+.section section
+.text
+.data
+.bss
+.fill repeat[,size[,value]]
+.org n
+.previous
+.string string[,...]
+.asciz string[,...]
+.ascii string[,...]</pre>
+
+<h3>4.5 x86 アセンブラ</h3>
+<p>元文書では x86 opcode を扱い、AT&amp;T 構文（source → destination）だけをサポートすると説明されています。
+サイズ suffix が無い場合は operand サイズから推定します。MMX/SSE に関する記述は古い可能性があるため、
+現行ターゲット実装では実装者が再確認してください。</p>
+</section>
+
+<section id="linker">
+<h2>5. TinyCC リンカ</h2>
+<h3>5.1 ELF 出力</h3>
+<p>TCC は外部リンカを使わず、再配置可能 ELF、ELF 実行ファイル、動的 ELF ライブラリを直接生成できます。</p>
+<p>元文書では、動的ライブラリは生成できるものの C コンパイラが PIC を生成しないため、
+生成コードを複数プロセス間で十分共有できないと説明されています。</p>
+<p>ライブラリ中の未参照コードを除外します。object/library の走査は1パスで、
+GNU ld と同様に入力順が重要です。元文書では <code>--start-group</code>/<code>--end-group</code> は未対応です。</p>
+
+<h3>5.2 ELF ローダ</h3>
+<p>ELF object、archive（<code>.a</code>）、dynamic library（<code>.so</code>）をロードできます。</p>
+
+<h3>5.3 Windows PE</h3>
+<p>Windows 版 TCC は PE 形式の EXE（console / GUI）および DLL を生成できます。
+元文書の章名は「PE-i386」ですが、tpp の C++/TLS 拡張は x86_64 Windows で検証されているため、
+この表題を現行ターゲット全般の保証とは解釈しないでください。</p>
+
+<h3>5.4 GNU linker script</h3>
+<p>Linux の一部 <code>libc.so</code> などが GNU ld script になっていることに対応するため、
+TCC リンカは GNU ld script の一部を読めます。
+元文書では <code>GROUP</code> と <code>FILE</code> をサポートし、
+<code>OUTPUT_FORMAT</code> と <code>TARGET</code> は無視すると説明されています。</p>
+</section>
+
+<section id="Bounds">
+<h2>6. メモリ・境界検査</h2>
+<p><code>-b</code> で有効にします。元文書では次のような問題を検出対象の例として挙げています。</p>
+<ul>
+<li>標準文字列/メモリ関数へ不正な範囲を渡す</li>
+<li>グローバル・ローカル配列の範囲外アクセス</li>
+<li><code>malloc</code> した領域の範囲外アクセス</li>
+<li>解放済みメモリへのアクセス</li>
+<li>二重 <code>free</code></li>
+</ul>
+<pre>{
+    char tab[10];
+    memset(tab, 0, 11);
+}
+
+{
+    int *tab = malloc(20 * sizeof(int));
+    free(tab);
+    free(tab);
+}</pre>
+<p>有効時は <code>__TCC_BCHECK__</code> が定義されます。</p>
+<table>
+<tr><th>環境変数</th><th>役割</th></tr>
+<tr><td><code>TCC_BOUNDS_WARN_POINTER_ADD</code></td><td>不正な pointer addition を警告します。</td></tr>
+<tr><td><code>TCC_BOUNDS_PRINT_CALLS</code></td><td>境界検査呼び出しを表示します。</td></tr>
+<tr><td><code>TCC_BOUNDS_PRINT_HEAP</code></td><td>終了時に未解放 heap object を表示します。</td></tr>
+<tr><td><code>TCC_BOUNDS_PRINT_STATISTIC</code></td><td>終了時に統計を表示します。</td></tr>
+<tr><td><code>TCC_BOUNDS_NEVER_FATAL</code></td><td>境界検査エラー後も可能なら継続を試みます。</td></tr>
+</table>
+<p><code>__bounds_checking(x)</code> を使ってコードの一部だけ検査を OFF/ON できます。</p>
+<pre>#ifdef __TCC_BCHECK__
+extern void __bounds_checking (int x);
+# define BOUNDS_CHECKING_OFF __bounds_checking(1)
+# define BOUNDS_CHECKING_ON  __bounds_checking(-1)
+#else
+# define BOUNDS_CHECKING_OFF
+# define BOUNDS_CHECKING_ON
+#endif</pre>
+<p>元文書の注意事項では、対応ターゲット、生成コードの増大、shared library との組み合わせ、
+signal handler / multi-threaded <code>fork()</code> と内部 lock の関係などが説明されています。
+ターゲット一覧は歴史的に更新されているため、現行の対応範囲はソースで再確認してください。</p>
+</section>
+
+<section id="Libtcc">
+<h2>7. libtcc ライブラリ</h2>
+<p><code>libtcc</code> を使うと、TCC を動的コード生成のバックエンドとしてアプリケーションへ組み込めます。</p>
+<p>基本的な考え方は、コンパイルしたいプログラムを文字列として libtcc に渡し、
+定義されたグローバルシンボル（関数や変数）へホスト側からアクセスすることです。
+API の一覧は <code>libtcc.h</code>、最小例は <code>libtcc_test.c</code> を参照します。</p>
+<div class="notice changed">
+<strong>tpp / TCC DX では追加検証が必要:</strong>
+C++ global/static object、<code>thread_local</code>、<code>tcc_run()</code>、
+direct relocate 後にホストが手動で <code>main()</code> を呼ぶ経路では、
+C だけの元文書よりライフサイクル契約が増えています。第9章の実行形態表を参照してください。
+</div>
+</section>
+
+<section id="devel">
+<h2>8. 開発者向けガイド</h2>
+<p>この章は TCC 内部を変更する開発者向けです。利用するだけなら読み飛ばせます。</p>
+
+<h3>8.1 ファイル読み込み</h3>
+<p><code>BufferedFile</code> が、現在行番号を含むファイル読み込み状態を保持します。
+元文書では <code>tcc_open()</code> がファイルを開き、<code>tcc_close()</code> が閉じ、
+<code>inp()</code> が次の文字を返すと説明されています。</p>
+
+<h3>8.2 字句解析</h3>
+<p><code>next()</code> は現在ファイルから次 token を読み、<code>next_nomacro()</code> は
+macro 展開を行わず token を読みます。<code>tok</code> は現在 token、
+<code>tokc</code> は数値・文字列などの追加情報を保持します。</p>
+<div class="notice changed">
+tpp では C/C++ 共存のため、C++ 専用 keyword を C モードでは通常の識別子へ戻す処理が追加されています。
+この追加は元の開発者ガイドにはありません。
+</div>
+
+<h3>8.3 パーサ</h3>
+<p>パーサは yacc 等を使わず手書きです。基本的に1パスで動作します。
+元文書が例外として挙げるのは、サイズ未確定の初期化配列の要素数計数と、
+引数評価順を反転する必要があるアーキテクチャでの事前処理です。</p>
+
+<h3>8.4 型</h3>
+<p>元 TCC は型情報を主に1つの整数へ符号化します。元文書の代表的な基本型値:</p>
+<pre>#define VT_INT        0
+#define VT_BYTE       1
+#define VT_SHORT      2
+#define VT_VOID       3
+#define VT_PTR        4
+#define VT_ENUM       5
+#define VT_FUNC       6
+#define VT_STRUCT     7
+#define VT_FLOAT      8
+#define VT_DOUBLE     9
+#define VT_LDOUBLE   10
+#define VT_BOOL      11
+#define VT_LLONG     12
+#define VT_LONG      13
+
+#define VT_UNSIGNED   0x0010
+#define VT_ARRAY      0x0020
+#define VT_BITFIELD   0x0040
+#define VT_CONSTANT   0x0800
+#define VT_VOLATILE   0x1000
+#define VT_DEFSIGN    0x2000</pre>
+<p>配列は <code>VT_PTR</code> と <code>VT_ARRAY</code> の組み合わせとして扱われ、
+VLA は別 flag を使います。storage class も解析中は同じ型整数の flag 群として保持されます。</p>
+<div class="notice changed">
+tpp では参照、member pointer、C++ TLS など C++ 用の型/記憶クラス flag が追加されています。
+正確な現在値は <code>tcc.h</code> を authority としてください。
+</div>
+
+<h3>8.5 シンボル</h3>
+<p>symbol は hash 化された symbol stack に保存され、各要素は <code>Sym</code> です。
+<code>Sym.v</code> は名前 token、<code>Sym.t</code> は型、<code>Sym.r</code> は主に register、
+<code>Sym.c</code> は address・array 要素数・VLA runtime size 位置などに使われます。</p>
+<p>主な stack は macro 用 <code>define_stack</code>、global 用 <code>global_stack</code>、
+local 用 <code>local_stack</code>、label 用の stack 群です。
+<code>sym_find(v)</code> は local を上から検索し、その後 global を検索します。</p>
+
+<h3>8.6 セクション</h3>
+<p>生成コードとデータは <code>Section</code> に書き込まれます。
+代表例は <code>text_section</code>、<code>data_section</code>、<code>bss_section</code>、
+bound check 用 section、debug 用 stab section、symbol/string table です。</p>
+
+<h3>8.7 コード生成</h3>
+<h4>8.7.1 概要</h4>
+<p>TCC の code generator は、一般的なコンパイラのようなテキストアセンブリを中間出力せず、
+リンク可能な binary code を直接生成します。元文書では register based で、
+最適化は主に expression level、式の中間状態は value stack に保持すると説明されています。</p>
+<h4>8.7.2 value stack</h4>
+<p>式の値は <code>vstack</code> に積まれ、top は <code>vtop</code> です。
+各要素は <code>SValue</code> で、型と値の所在を保持します。</p>
+<pre>#define VT_CONST      0x00f0
+#define VT_LLOCAL     0x00f1
+#define VT_LOCAL      0x00f2
+#define VT_CMP        0x00f3
+#define VT_JMP        0x00f4
+#define VT_JMPI       0x00f5
+#define VT_LVAL       0x0100
+#define VT_SYM        0x0200
+#define VT_MUSTCAST   0x0400
+#define VT_MUSTBOUND  0x0800
+#define VT_BOUNDED    0x8000</pre>
+<p><code>VT_LVAL</code> は代入可能な左辺値であることを表す重要な flag です。
+<code>VT_CMP</code>、<code>VT_JMP</code>/<code>VT_JMPI</code> では、
+CPU flags や条件 jump の状態を遅延評価的に保持します。</p>
+
+<h4>8.7.3 value stack の操作</h4>
+<p><code>vsetc()</code>/<code>vset()</code> が値を積み、<code>vpop()</code> が取り出します。
+<code>gv(rc)</code> は <code>vtop</code> を指定 register class へ評価するコードを生成し、
+元文書では code generator の最重要関数と説明されています。
+<code>gv2()</code> は top 2 要素を対象にします。</p>
+
+<h4>8.7.4 CPU 依存 codegen</h4>
+<p>元文書では <code>i386-gen.c</code> を例として、
+<code>load()</code>、<code>store()</code>、<code>gfunc_start()</code>、
+<code>gfunc_param()</code>、<code>gfunc_call()</code>、
+<code>gfunc_prolog()</code>/<code>gfunc_epilog()</code>、
+整数/浮動小数点演算生成と各種型変換関数を挙げています。</p>
+
+<h3>8.8 最適化</h3>
+<p>元文書では定数伝播、乗除算の shift 化、processor flags を保持する比較最適化、
+<code>&amp;&amp;</code>/<code>||</code>/<code>!</code> の jump target を使った最適化を説明しています。
+より大規模な jump optimization は、より抽象的な中間表現が必要になるため行っていないとされています。</p>
+</section>
+
+
+<section id="cpp-ext">
+<h2>9. tpp / TCC DX C++ 拡張</h2>
+<div class="notice changed">
+以下は、既存の <code>C++機能説明書.md</code> を内容を削らずに HTML へ統合したものです。
+同資料自身が基準コミット <code>f593cb2</code>、ソース参照監査 235 件、
+サンプル 26 本の compile/run 成功を記録しています。ただし本改訂版では、
+次段階で実装者が最新ソースと実動作を再検証する前提です。
+</div>
+<div class="cpp-integrated">
+<h2>tpp (TCC 拡張版) C++ 機能説明書</h2>
+<p><strong>対象</strong>: <code>dev\tcc.exe</code>（tcc version 0.9.28rc、x86_64 Windows）
+<strong>基準コミット</strong>: <code>f593cb2</code>（2026-09-24。BUG-52/53 修正を含む。行番号はこのコミット時点の値）
+<strong>位置づけ</strong>: TCC (Tiny C Compiler) に C++98 の一部機能を追加したもの。C++ コンパイラの置き換えではない。</p>
+<p>&lt;!-- doc-sample-qualification: この行はサンプル検証スクリプトがこのファイルを見つけるための ASCII マーカー。消さないこと。 --&gt;</p>
+<hr/>
+<h3>0. この文書の読み方</h3>
+<h4>0.1 目的</h4>
+<ul>
+<li>本プロジェクトが実装した C++ 機能を、機能ごとに「できること」「実装箇所」「amateras での用途」「サンプル」「制限」の順で説明する。</li>
+<li>実装箇所は、すべてソースを直接確認した上で記載している。行番号は基準コミット時点の値である。</li>
+<li><strong>行番号の参照は機械的に監査している</strong>（<code>DOC_SOURCE_REFS_TOTAL=235</code> / <code>INVALID_RANGE=0</code> / <code>OUT_OF_FILE=0</code> / <code>NAME_CHECKED=153</code> / <code>NAME_MISMATCH=0</code> / <code>EXTERNAL=41</code>）。範囲の始点が終点を超えていないか、ファイルの行数を超えていないか、関数名を併記した参照がその関数の中を指しているかを <code>dev\test\a9\manual\doc_source_refs_check.c</code> が確認する。実行は <code>dev\test\a9\manual\doc_cpp_samples_measure.bat</code>。<code>tccgen.c</code> を触ったら必ず回すこと。</li>
+<li>amateras での用途は、<code>E:\work\work_cross_platform\kaiser_system\amateras</code> のソース（<code>base_inc/**</code>、<code>test/tcc/**</code>）を直接確認した上で記載している。</li>
+</ul>
+<h4>0.2 関連文書</h4>
+<table>
+<thead>
+<tr>
+<th>文書</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="%E5%AE%9F%E8%A3%85%E6%B8%88%E3%81%BF.md">実装済み.md</a></td>
+<td>機能一覧の正本（実装日・テスト名つき）</td>
+</tr>
+<tr>
+<td><a href="tpp%E4%BB%95%E6%A7%98.md">tpp仕様.md</a></td>
+<td>動作しない機能の実測結果</td>
+</tr>
+<tr>
+<td><a href="CPP_CAPABILITY_MATRIX.md">CPP_CAPABILITY_MATRIX.md</a></td>
+<td>機能ごとの対応状況の一覧表</td>
+</tr>
+<tr>
+<td><a href="amateras%E5%AF%BE%E5%BF%9C%E4%BD%9C%E6%A5%AD%E5%B1%A5%E6%AD%B4.md">amateras対応作業履歴.md</a></td>
+<td>amateras を C++ としてビルドした経緯</td>
+</tr>
+<tr>
+<td><a href="%E5%95%8F%E9%A1%8C%E3%81%A8%E5%8E%9F%E5%9B%A0.md">問題と原因.md</a></td>
+<td>過去のバグと原因</td>
+</tr>
+</tbody>
+</table>
+<h4>0.3 主な実装ファイル</h4>
+<table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>役割</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tccgen.c</code></td>
+<td>構文解析とコード生成。C++ 機能の大部分はここにある（<code>cpp_</code> で始まる関数が C++ 用）</td>
+</tr>
+<tr>
+<td><code>tccpp.c</code></td>
+<td>字句解析とマクロ処理。C++ キーワードの扱いと <code>__cplusplus</code> の定義</td>
+</tr>
+<tr>
+<td><code>tcc.h</code></td>
+<td>共通の型定義。C++ 用の型フラグ（参照、メンバポインタ、<code>thread_local</code>）とシンボルの追加フィールド</td>
+</tr>
+<tr>
+<td><code>tcctok.h</code></td>
+<td>キーワード一覧。<code>class</code>、<code>virtual</code>、<code>this</code>、<code>operator</code> などの C++ キーワード</td>
+</tr>
+<tr>
+<td><code>libtcc.c</code></td>
+<td>拡張子による C / C++ の判定、<code>-x c++</code> オプション</td>
+</tr>
+<tr>
+<td><code>tccelf.c</code></td>
+<td>グローバルオブジェクトの起動コードと <code>thread_local</code> の実行時コードの組み込み</td>
+</tr>
+<tr>
+<td><code>tccpe.c</code></td>
+<td>Windows 実行ファイル生成時のエントリ差し替えと TLS ディレクトリの出力</td>
+</tr>
+<tr>
+<td><code>tccrun.c</code></td>
+<td><code>-run</code>（メモリ上で即実行）時の <code>thread_local</code> 対応</td>
+</tr>
+</tbody>
+</table>
+<h4>0.4 サンプルの前提</h4>
+<ul>
+<li>サンプルはすべて <code>.cpp</code> として <code>dev\tcc.exe sample.cpp -o sample.exe</code> でビルドできる形で書いている。</li>
+<li>実行結果は終了コードで確認できるようにしている（<code>0</code> が成功）。</li>
+<li>各サンプルは <code>dev/test/a7/</code>、<code>dev/test/a8/</code>、<code>dev/test/a9/</code> の回帰テスト（<code>run_all.bat</code> でビルドと実行を確認しているもの）の形を元に作成した。</li>
+<li><strong>本文書のサンプルは全 26 本を <code>dev\tcc.exe</code> でビルドして実行し、すべて終了コード 0 になることを確認している</strong>（<code>DOC_CPP_SAMPLES_TOTAL=26</code> / <code>COMPILE_PASS=26</code> / <code>RUNTIME_PASS=26</code> / <code>FAIL=0</code>）。確認は <code>dev\test\a9\manual\doc_cpp_samples_measure.bat</code> が行う。Markdown の <code>cpp / </code>c ブロックのうち <code>int main</code> を含むものを <code>dev\test\a9\manual\doc_sample_extract.c</code> が抜き出し、<code>.cpp</code>（C++ ブロック）と <code>.c</code>（C ブロック）に振り分けてビルド・実行する。サンプルを増やしたら同じスクリプトを回すこと。</li>
+</ul>
+<hr/>
+<h3>1. 全体像</h3>
+<h4>1.1 C++ として処理される条件</h4>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>動作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>拡張子が <code>.cpp</code> / <code>.cxx</code> / <code>.cc</code> / <code>.hpp</code></td>
+<td>C++ として処理する</td>
+</tr>
+<tr>
+<td><code>-x c++</code> または <code>-x c++-header</code> を指定</td>
+<td>拡張子に関係なく C++ として処理する</td>
+</tr>
+<tr>
+<td>拡張子が <code>.h</code></td>
+<td>それを取り込んだ元のソースファイルのモードに従う</td>
+</tr>
+<tr>
+<td>拡張子が <code>.c</code></td>
+<td>常に C として処理する。<code>class</code> などの C++ キーワードは普通の識別子として扱う</td>
+</tr>
+</tbody>
+</table>
+<p><code>tcc foo.cpp bar.c</code> のように C と C++ を混ぜてビルドできる。</p>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>libtcc.c:1218</code> <code>is_cpp_source()</code> — 拡張子の判定</li>
+<li><code>libtcc.c:1228</code> <code>guess_filetype()</code> — ファイル種別の決定（<code>.cpp</code> などを C 系ソースとして扱う）</li>
+<li><code>libtcc.c:825-827</code> — ファイルごとに <code>s1-&gt;cpp</code> を設定</li>
+<li><code>libtcc.c:2157-2158</code> — <code>-x c++</code> の処理（<code>cpp_forced</code>）</li>
+<li><code>tccpp.c:3710</code> — C++ のときだけ <code>#define __cplusplus 199711L</code> を定義</li>
+</ul>
+<h4>1.2 名前修飾（リンク名の付け方）</h4>
+<p>C++ では同じ名前の関数を複数定義できるため、リンク名に引数の型を付けて区別する。本プロジェクトは独自の形式を使う。</p>
+<table>
+<thead>
+<tr>
+<th>対象</th>
+<th>リンク名</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>自由関数</td>
+<td><code>__tcc_&lt;関数名&gt;_&lt;引数型の並び&gt;</code></td>
+</tr>
+<tr>
+<td>メンバ関数</td>
+<td><code>__tcc_&lt;クラス名&gt;__&lt;関数名&gt;_&lt;引数型の並び&gt;</code>（const メンバ関数は末尾に <code>_C</code>）</td>
+</tr>
+<tr>
+<td>コンストラクタ</td>
+<td><code>__cpp_ctor_&lt;クラス名&gt;</code></td>
+</tr>
+<tr>
+<td>デストラクタ</td>
+<td><code>__cpp_dtor_&lt;クラス名&gt;</code></td>
+</tr>
+<tr>
+<td>仮想関数表</td>
+<td><code>__cpp_vtbl_&lt;クラス名&gt;</code>、多重継承の 2 番目以降は <code>__cpp_vtbl2_&lt;派生&gt;_&lt;基底&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>main</code> / <code>wmain</code> と <code>extern "C"</code> を付けた宣言は修飾しない。</p>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:361</code> <code>cpp_build_func_mangle()</code> — 宣言側のリンク名生成</li>
+<li><code>tccgen.c:398</code> <code>cpp_build_call_mangle()</code> — 呼び出し側のリンク名生成</li>
+<li><code>tccgen.c:1095</code> <code>cpp_ctor_name_tok()</code>、<code>tccgen.c:1123</code> <code>cpp_dtor_name_tok()</code> — コンストラクタ / デストラクタの名前</li>
+</ul>
+<p><strong>制限</strong></p>
+<ul>
+<li>他の C++ コンパイラ（MSVC、GCC）が生成したオブジェクトファイルとはリンクできない。外部ライブラリと繋ぐときは <code>extern "C"</code> の関数を経由する。</li>
+</ul>
+<h4>1.3 実行形態ごとの対応</h4>
+<table>
+<thead>
+<tr>
+<th>実行形態</th>
+<th>状況</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>通常の実行ファイル（<code>-o foo.exe</code>）</td>
+<td>全機能が対象</td>
+</tr>
+<tr>
+<td><code>-run</code>（メモリ上で即実行）</td>
+<td>グローバルオブジェクトの構築、<code>thread_local</code> を含めて対象</td>
+</tr>
+<tr>
+<td>ライブラリとして組み込み（libtcc）</td>
+<td><code>tcc_run()</code> 経由は対象。再配置だけして手動で <code>main</code> を呼ぶ形は後始末が呼び出し側の責任</td>
+</tr>
+<tr>
+<td>DLL（<code>-shared</code>）</td>
+<td>グローバルオブジェクトの構築、<code>thread_local</code> は対象外（<code>thread_local</code> はコンパイルエラーになる）</td>
+</tr>
+</tbody>
+</table>
+<hr/>
+<h3>2. 字句とキーワード</h3>
+<h4>2.1 C++ キーワードと C ソースの共存</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>.cpp</code> では <code>class</code>、<code>this</code>、<code>virtual</code>、<code>new</code>、<code>delete</code>、<code>operator</code>、<code>true</code>、<code>false</code>、<code>bool</code>、<code>friend</code>、<code>public</code> などをキーワードとして扱う。</li>
+<li><code>.c</code> では同じ単語を普通の識別子として扱う。たとえば C ソースの <code>int class;</code> や <code>int new;</code> はそのまま通る。</li>
+<li>1 回の実行で <code>.cpp</code> と <code>.c</code> を混ぜても、それぞれのモードで正しく処理する。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tcctok.h:56-61</code>、<code>163-176</code> — C++ キーワードの登録（<code>class</code>、<code>friend</code>、<code>new</code>、<code>delete</code>、<code>public</code>、<code>virtual</code>、<code>this</code>、<code>operator</code>、<code>true</code>、<code>false</code>、<code>bool</code>）</li>
+<li><code>tccpp.c:462</code> <code>effective_cpp_lex()</code> — 現在 C++ の字句解析をしてよいかの判定</li>
+<li><code>tccpp.c:471</code> <code>is_cpp_only_keyword()</code> — C では識別子に落とすキーワードの一覧</li>
+<li><code>tccpp.c:497</code> <code>tok_alloc_demote()</code>、<code>tccpp.c:526</code> <code>demote_cpp_keyword_to_ident()</code> — キーワードを識別子に落とす処理</li>
+<li><code>tccpp.c:2801</code> — 識別子を読んだ直後にキーワードか識別子かを決める箇所</li>
+<li><code>tcc.h:452</code> <code>TokenSym.alt_ident_tok</code> — 識別子に落としたときの代替トークンを記憶する</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li>amateras は C と C++ の両方でビルドできるヘッダ（<code>inc/UTF_8/cross.h</code>）を持つ。C 側のソース（<code>test/tcc/viewer/model_view.c</code> など）と C++ 側のソース（<code>test/tcc/n7_06/test_mmd_cross_cpp_compile.cpp</code> など）が同じヘッダを使うため、この共存が前提になっている。</li>
+</ul>
+<p><strong>サンプル</strong>（<code>.c</code> 側で C++ キーワードを識別子に使う）</p>
+<pre><code class="language-c">/* keyword_in_c.c : C として処理されるので class は識別子 */
+int main(void)
+{
+    int class = 1;
+    int new = 2;
+    class++;
+    return class + new - 4;   /* 0 */
+}
+</code></pre>
+<h4>2.2 <code>extern "C"</code></h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>extern "C" { ... }</code> のブロック</li>
+<li><code>extern "C" void f();</code> の単一宣言</li>
+<li>どちらも内側の宣言はリンク名を修飾しない。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:19376-19423</code> — <code>decl()</code> 内の <code>extern "C"</code> の処理（ブロック形と単一宣言形）</li>
+<li><code>tccgen.c:344</code> <code>cpp_repromote_stale_lookahead()</code> — <code>extern "C"</code> を抜けた直後のトークンを C++ キーワードに戻す</li>
+<li><code>tcc.h:817</code> <code>lex_c</code> — <code>extern "C"</code> の内側で C の字句解析に切り替えるカウンタ</li>
+<li><code>tccgen.c:223</code> <code>decl_once_flag</code> — 単一宣言形の処理</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/cross_define.h:225</code> — <code>extern "C" double sqrt(double x);</code>。これが無いと <code>sqrt</code> がリンク名修飾されて未定義になる。</li>
+<li><code>base_inc/3d_format/fbx/fbx.h</code>、<code>base_inc/3d_format/nif/nif.h</code> など多数のヘッダで、C の API 宣言を <code>extern "C"</code> で囲んでいる。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// extern_c.cpp
+extern "C" int c_add(int a, int b);   // 単一宣言の形
+extern "C" {                          // ブロックの形
+    int c_sub(int a, int b);
+    int c_add(int a, int b) { return a + b; }
+    int c_sub(int a, int b) { return a - b; }
+}
+
+class Point { public: int x; };       // extern "C" の直後でもクラスを書ける
+
+int main()
+{
+    Point p;
+    p.x = c_add(1, 2) + c_sub(5, 3);  // 3 + 2
+    return p.x - 5;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li><code>extern "C++" { ... }</code> は未対応（エラーになる）。</li>
+<li><code>extern "C" { #include "..." }</code> は未対応。</li>
+<li><code>extern "C"</code> の内側は C の字句解析になるため、内側に <code>class X;</code> のような前方宣言は書けない。SDK ヘッダ（<code>dev/include/GL/glu.h</code> など）はこの理由で <code>__TINYC__</code> 用の分岐を持つ。</li>
+</ul>
+<h4>2.3 <code>bool</code> / <code>true</code> / <code>false</code></h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>bool</code> 型（C の <code>_Bool</code> と同じ大きさ）</li>
+<li><code>true</code> / <code>false</code> は定数 <code>1</code> / <code>0</code></li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tcctok.h:170-176</code> — <code>true</code>、<code>false</code>、<code>bool</code> のキーワード登録</li>
+<li><code>tccpp.c:471</code> <code>is_cpp_only_keyword()</code> — C では識別子に落とす</li>
+<li><code>tccgen.c:15217-15222</code> — <code>true</code> / <code>false</code> を定数として積む</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h:505</code> <code>bool operator==(arr2&amp; v)</code>、<code>:536</code> <code>bool operator==(arr3&amp; v)</code> — 比較演算子の戻り値</li>
+<li><code>base_inc/render/agc/agc_define.h:50</code> <code>virtual bool init()</code></li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// bool_basic.cpp
+int main()
+{
+    bool t = true;
+    bool z = (3 &lt; 5);
+    int r = 0;
+    if (!t) r += 1;
+    if (!z) r += 2;
+    return r + (t + z) - 2;   // 0
+}
+</code></pre>
+<hr/>
+<h3>3. 参照</h3>
+<p><strong>できること</strong></p>
+<ul>
+<li>関数の引数、戻り値、ローカル変数、クラスのメンバで参照 <code>T&amp;</code> / <code>const T&amp;</code> が使える。</li>
+<li>クラス型の値を <code>const T&amp;</code> 引数に渡せる。</li>
+<li>派生クラスのオブジェクトを基底クラスの参照 <code>B&amp;</code> に束縛できる（アドレス調整を含む）。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tcc.h:1155</code> <code>VT_REFERENCE</code> — 参照型を示す型フラグ</li>
+<li><code>tccgen.c:13915</code> — 宣言子で <code>&amp;</code> を読んで <code>VT_REFERENCE</code> を付ける</li>
+<li><code>tccgen.c:9694</code> <code>cpp_can_bind_lvalue_to_reference()</code> — 参照に束縛できるかの判定</li>
+<li><code>tccgen.c:9738</code>、<code>9805</code> — 参照へのバインド（アドレスを格納する）</li>
+<li><code>tccgen.c:15978-16017</code> — 参照変数を使うときに自動で間接参照する</li>
+<li><code>tccgen.c:18367-18393</code> — ローカル参照変数の初期化（アドレス格納）</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h:66</code> <code>vec2 operator=(const vec2&amp; in_data)</code>、<code>:74</code> <code>vec2 operator*(vec2&amp; in_data)</code> など、ベクトル演算子の引数はすべて参照で受けている。</li>
+<li><code>base_inc/utility/txt_util.h:55</code> <code>win_txt(const win_txt &amp;o)</code>、<code>:68</code> <code>win_txt &amp;operator=(const win_txt &amp;o)</code> — 文字列クラスのコピー処理。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// reference.cpp
+class P { public: int v; };
+
+void bump(P&amp; r) { r.v += 1; }
+int read(const P&amp; r) { return r.v; }
+
+int main()
+{
+    P a;
+    a.v = 7;
+    P&amp; r = a;        // ローカル参照
+    r.v += 1;        // a.v == 8
+    bump(a);         // a.v == 9
+    return read(a) - 9;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>ポインタへの参照（<code>void*&amp;</code>、<code>int*&amp;</code>）を直接宣言する形は未対応。typedef を経由すれば書ける。</li>
+</ul>
+<hr/>
+<h3>4. クラスの基本</h3>
+<h4>4.1 クラス定義とメンバ関数</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>class</code> / <code>struct</code> の定義。<code>struct</code> は既定で public、<code>class</code> は既定で private として記録する。</li>
+<li>アクセス指定子 <code>public:</code> / <code>private:</code> / <code>protected:</code> を受け付ける。</li>
+<li>メンバ関数のクラス内定義（インライン）とクラス外定義 <code>int Foo::bar() { ... }</code>。</li>
+<li>メンバ関数内での <code>this</code>、<code>this-&gt;x</code>、<code>*this</code>、暗黙のメンバ参照。</li>
+<li>クラス名をそのまま型名として使う（<code>Point p;</code>）。<code>typedef Point P;</code> も可。</li>
+<li>関数の引数名を省略できる（<code>void f(int) {}</code>）。</li>
+<li><code>friend class X;</code> は受け付けて読み飛ばす。</li>
+<li>関数の中でのクラス定義（局所クラス）。</li>
+<li>入れ子クラスのクラス外定義 <code>class Outer::Inner { ... };</code>。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:12599</code> <code>struct_decl()</code> — クラス本体の解析。<code>is_class</code> が 1 のとき <code>class</code>、2 のとき C++ の <code>struct</code></li>
+<li><code>tccgen.c:12818-12826</code> — アクセス指定子の記録（<code>cur_access</code>）</li>
+<li><code>tccgen.c:12889</code> — <code>friend class X;</code> の読み飛ばし</li>
+<li><code>tccgen.c:5686</code> <code>cpp_register_member_body()</code>、<code>tcc.h:607</code> <code>Sym.inline_func_str</code> — クラス内定義の本体をトークン列として保存</li>
+<li><code>tccgen.c:5945</code> <code>cpp_finish_member_inlines()</code> — クラス定義の終了後に保存した本体をコード生成する</li>
+<li><code>tccgen.c:893</code> <code>parse_cpp_scope_qualifier()</code> — クラス外定義の <code>Foo::bar</code> の解析</li>
+<li><code>tccgen.c:19000</code> <code>gen_function()</code> — メンバ関数に隠し引数 <code>this</code> を付ける</li>
+<li><code>tccgen.c:4508</code> <code>cpp_push_member_var()</code> — 暗黙のメンバ参照を <code>this-&gt;member</code> に置き換える</li>
+<li><code>tccgen.c:5708</code> <code>cpp_name_unnamed_params()</code> — 引数名の省略</li>
+<li><code>tccgen.c:6891</code> <code>cpp_class_sym_push()</code> — 局所クラスの定義シンボルをファイル全体で生かす</li>
+<li><code>tcc.h:609</code> <code>Sym.parent_class</code> — メンバがどのクラスに属するか</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/cross_base.h</code> の <code>window_t</code> — C では <code>typedef struct</code>、C++ では <code>struct window_t</code> として開き、<code>init()</code>、<code>reg_win()</code>、<code>run()</code> などのウィンドウ処理を<strong>メンバ関数</strong>として取り込む（生成物 <code>inc/UTF_8/cross.h:6985</code> 以降。<code>init()</code> は <code>:7334</code>、<code>reg_win()</code> は <code>:7383</code>）。</li>
+<li><code>base_inc/utility/txt_util.h</code> の <code>win_txt</code> — 文字列バッファをクラスとして扱う。<code>clear()</code> などのメンバ関数を持つ。</li>
+<li><code>base_inc/vec_quat.h</code> の <code>vec2</code> / <code>vec3</code> / <code>vec4</code> / <code>matrix3</code> / <code>matrix4</code> — ベクトルと行列。</li>
+<li><code>base_inc/cross_base.h:186</code> — <code>init()</code> 内で <code>new_win = this;</code> のように <code>this</code> を使う（C では <code>malloc</code> で確保する）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// class_basic.cpp
+class Calc {
+public:
+    int base;
+    int add(int a, int b);            // クラス外で定義
+    int twice(int a) { return a * 2; } // クラス内で定義
+    int with_base(int a) { return this-&gt;base + a; }
+};
+
+int Calc::add(int a, int b) { return a + b + base; }
+
+int main()
+{
+    Calc c;
+    c.base = 10;
+    // 12 + 4 + 15 = 31
+    return c.add(1, 1) + c.twice(2) + c.with_base(5) - 31;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>アクセス指定子は記録するだけで、<code>private</code> メンバへの外部アクセスをエラーにはしない。</li>
+<li><code>friend</code> <strong>関数</strong>宣言はエラーになる（読み飛ばすと関数宣言そのものが消えるため）。</li>
+<li>局所クラスのタグ名は関数を抜けた後もファイル全体に残るため、同じ名前の局所クラスを別の関数で定義できない。</li>
+<li>クラス内の <code>enum</code> 定義、<code>mutable</code>、<code>explicit</code>、C++11 のメンバ初期化子（<code>int v = 5;</code>）は未対応。</li>
+</ul>
+<h4>4.2 関数のオーバーロードとデフォルト引数</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>同じ名前で引数の数や型が違う関数を複数定義できる（自由関数、メンバ関数、コンストラクタ）。</li>
+<li>デフォルト引数 <code>int f(int x = 10)</code>。静的メンバ関数の呼び出しでも適用される。</li>
+<li>デフォルト引数の式は、それを宣言したクラスのスコープで評価する（<code>= npos</code> のような静的メンバも解決できる）。</li>
+<li><code>.h</code> で宣言して <code>.cpp</code> で定義する、あるいは別ファイルで定義するメンバ関数を前方参照で呼べる。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:512</code> <code>cpp_resolve_func_call()</code>、<code>tccgen.c:580</code> <code>cpp_resolve_free_func_call()</code> — 自由関数のオーバーロード解決</li>
+<li><code>tccgen.c:412</code> <code>cpp_arg_matches_param()</code> — 引数と仮引数の一致判定</li>
+<li><code>tccgen.c:10957</code> <code>cpp_score_member_overloads()</code>、<code>tccgen.c:11040</code> <code>cpp_resolve_member_func_call()</code> — メンバ関数のオーバーロード解決（完全一致 10 点、変換可 1 点）</li>
+<li><code>tccgen.c:1278</code> <code>cpp_make_member_func_extern()</code> — 未定義のメンバ関数を外部参照として作る（前方参照の呼び出し用）</li>
+<li><code>tccgen.c:5634</code> <code>cpp_save_default_arg()</code> — デフォルト引数のトークン列を保存</li>
+<li><code>tccgen.c:5962</code> <code>cpp_apply_default_args()</code> — 呼び出し時に省略された引数を補う</li>
+<li><code>tccgen.c:6046</code> <code>cpp_inherit_decl_defaults()</code> — 宣言側のデフォルト引数を定義側へ引き継ぐ</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h:185</code> <code>vec3 operator*(vec3&amp; in_data)</code> と <code>:197</code> <code>vec3 operator*(float in_data)</code> — 引数の型が違う同名演算子。<code>vec3 b = a * 2.0f;</code> で <code>float</code> 版が選ばれる（<code>test/tcc/vec_quat/vec_quat_matrix_cpp.cpp:48</code>）。</li>
+<li><code>inc/UTF_8/cross.h:3113-3129</code> <code>win_txt</code> — 引数なし、<code>const AP_STR*</code>、<code>int</code> の 3 種類のコンストラクタ。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// overload_default.cpp
+int f(int x)          { return 1; }
+int f(double x)       { return 2; }
+int f(const char* s)  { return 3; }
+
+class Foo {
+public:
+    static int bar(int x = 10);
+};
+int Foo::bar(int x) { return x; }
+
+int main()
+{
+    int r = f(1) + f(2.0) + f("s");   // 1 + 2 + 3 = 6
+    return r + Foo::bar() - 16;       // 6 + 10 = 16
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>候補の順位付けは「完全一致」と「変換可」の 2 段階だけ。同点のときは先に宣言した方を選び、曖昧エラーは出さない。</li>
+<li>引数名を省略したメンバ関数のクラス外定義はエラーになる。</li>
+</ul>
+<h4>4.3 <code>const</code> メンバ関数</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>int get() const;</code> の宣言と定義。</li>
+<li><code>const</code> オブジェクトから <code>const</code> メンバ関数を呼べる。</li>
+<li><code>get()</code> と <code>get() const</code> を両方定義してオーバーロードできる。</li>
+<li><code>const</code> メンバ関数の中でメンバに代入するとエラーになる。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tcc.h:534</code> <code>FuncAttr.func_const</code> — const メンバ関数を示すフラグ</li>
+<li><code>tccgen.c:10869</code> <code>cpp_find_field_for_call()</code> — オブジェクトの const 性に合うメンバ関数を選ぶ</li>
+<li><code>tccgen.c:361</code> <code>cpp_build_func_mangle()</code> — リンク名末尾の <code>_C</code></li>
+<li><code>tccgen.c:19000</code> <code>gen_function()</code> — <code>this</code> の型を <code>const T*</code> にする</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h</code> の演算子は const を付けていない。amateras のソースでは <code>const</code> メンバ関数の使用は確認できなかった（CPPUnit の移植 <code>sample/cppunit</code> で使用）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// const_member.cpp
+class C {
+public:
+    int x;
+    int get() const;
+};
+int C::get() const { return x; }
+
+int main()
+{
+    C c;
+    c.x = 2;
+    const C&amp; rc = c;
+    return rc.get() - 2;
+}
+</code></pre>
+<h4>4.4 静的メンバ</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>クラス内の <code>static int count;</code> 宣言と、クラス外の <code>int Foo::count = 0;</code> 定義。</li>
+<li>静的メンバ関数（<code>this</code> を持たない）。</li>
+<li>式の中の <code>Foo::count</code>、<code>Foo::func()</code>、文頭の <code>Foo::count = 1;</code>。</li>
+<li>同じクラスの静的メンバ関数を、定義より前の位置から修飾なしで呼べる。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:1041</code> <code>cpp_lookup_static_member()</code> — <code>Class::member</code> の解決</li>
+<li><code>tccgen.c:952</code> <code>cpp_unget_scoped_expr()</code> — 文頭の <code>Class::member = ...;</code> を式として扱う</li>
+<li><code>tccgen.c:19000</code> <code>gen_function()</code> — 静的メンバ関数には <code>this</code> を付けない</li>
+<li><code>struct_layout()</code> — 静的メンバをインスタンスの大きさから除外</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li>amateras のソースでは静的メンバの使用は確認できなかった（CPPUnit の移植で使用）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// static_member.cpp
+class Counter {
+public:
+    static int count;
+    static int next();
+};
+int Counter::count = 0;
+int Counter::next() { count += 1; return count; }
+
+int main()
+{
+    Counter::next();
+    Counter::next();
+    Counter::count += 10;
+    return Counter::count - 12;
+}
+</code></pre>
+<hr/>
+<h3>5. コンストラクタ</h3>
+<h4>5.1 コンストラクタの宣言・定義・呼び出し</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>クラス内定義 <code>Foo(int x) : a(x) {}</code> とクラス外定義 <code>Foo::Foo(int x) : a(x) {}</code>。</li>
+<li>初期化子リスト <code>: a(x), b(y)</code>。<code>const</code> メンバの初期化も可。</li>
+<li>複数のコンストラクタ（オーバーロード）。デフォルト引数付きも可。</li>
+<li>ローカル変数 <code>Foo f(5);</code>、複数宣言 <code>Foo a(1), b(2);</code>。</li>
+<li>引数なしのコンストラクタがあるときの <code>Foo f;</code>。</li>
+<li>コンストラクタを持たないクラスの <code>Foo f;</code>（従来どおり領域確保のみ）。</li>
+<li>クラス型のメンバ変数は、初期化子リストに書かなくても自動で構築する。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:5666</code> <code>cpp_save_mem_init_list()</code>、<code>tcc.h:608</code> <code>Sym.cpp_mem_init_list</code> — 初期化子リストの保存</li>
+<li><code>tccgen.c:19112-19198</code> — <code>gen_function()</code> 内で初期化子リストを展開</li>
+<li><code>tccgen.c:4424</code> <code>cpp_peek_out_of_class_ctor()</code> — クラス外定義 <code>Foo::Foo(...)</code> の検出</li>
+<li><code>tccgen.c:1602</code> <code>cpp_find_ctor_field()</code>、<code>tccgen.c:1647</code> <code>cpp_class_has_default_ctor()</code> — コンストラクタの検索と「引数なしで呼べるか」の判定</li>
+<li><code>tccgen.c:11076</code> <code>cpp_resolve_implicit_ctor_overload()</code>、<code>tccgen.c:11106</code> <code>cpp_emit_resolved_implicit_ctor()</code> — 宣言 <code>Foo f(args);</code> に対するコンストラクタ選択と呼び出し</li>
+<li><code>tccgen.c:5207</code> <code>cpp_emit_implicit_member_ctors()</code> — クラス型メンバの自動構築</li>
+<li><code>tccgen.c:20077-20254</code> — <code>decl()</code> 内で宣言ごとに構築処理を接続する箇所</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h:57-58</code> <code>vec2():x(0),y(0){}</code>、<code>vec2(float in_x,float in_y):x(in_x),y(in_y){}</code> — 引数なしと 2 引数のコンストラクタ。<code>vec3</code> / <code>vec4</code> も同様。</li>
+<li><code>inc/UTF_8/cross.h:9607</code> <code>window_t(): handle(0), draw_context(NULL), ...</code> — ウィンドウ構造体の初期化。</li>
+<li><code>base_inc/cross_base.h:29</code> <code>win_txt title;</code> — <code>window_t</code> のメンバ <code>title</code> は <code>win_txt</code> 型で、<code>window_t</code> の構築時に自動で構築される（<code>cross_base.h:186</code> のコメント「win_txt はコンストラクタで初期化済み」）。</li>
+<li><code>base_inc/mmd/vmd_parse.h:44</code> <code>mmd_vmd_bone_key_t</code> — <code>vec3 pos; vec4 rot;</code> をメンバに持つ C 形式の <code>typedef struct</code>。C++ ではメンバのコンストラクタが自動で走る（<code>dev/test/a9/manual/n7_03_amateras_bone_key.cpp</code> が同じ形を検証）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// ctor_basic.cpp
+class Inner {
+public:
+    int v;
+    Inner() : v(3) {}
+};
+
+class Foo {
+public:
+    int a;
+    const int c;
+    Inner in;                 // 初期化子リストに無くても自動で構築される
+    Foo(int x);
+    Foo(int x, int y) : a(x + y), c(9) {}
+};
+Foo::Foo(int x) : a(x), c(9) {}
+
+int main()
+{
+    Foo f(5);
+    Foo g(1, 2);
+    return f.a + g.a + f.c + f.in.v - 20;   // 5 + 3 + 9 + 3 = 20
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>引数ありのコンストラクタしか持たないクラスの <code>Foo f;</code> はコンパイルエラーになる（C++ の規則どおり）。</li>
+<li>要素を明示初期化する配列 <code>Foo h[2] = { ... }</code> は未対応。</li>
+<li>委譲コンストラクタ、<code>initializer_list</code> は未対応。</li>
+</ul>
+<h4>5.2 暗黙のデフォルトコンストラクタ</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>コンストラクタを宣言していないクラスでも、メンバや基底クラスにコンストラクタ付きの型があれば、それらを自動で構築する。</li>
+<li>メンバや基底クラスが引数なしで構築できない場合は、コンパイルエラーになる。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:5783</code> <code>cpp_synthesize_implicit_special_members()</code> — 暗黙のコンストラクタ / デストラクタを合成する</li>
+<li><code>tccgen.c:5240</code> <code>cpp_can_implicit_default_ctor_exist()</code>、<code>tccgen.c:5278</code> <code>cpp_validate_implicit_default_ctor()</code> — 暗黙のデフォルト構築が可能かの検査</li>
+<li><code>tccgen.c:5457</code> <code>cpp_validate_decl_default_initialization()</code> — 宣言時の検査</li>
+<li><code>tccgen.c:5920</code> <code>cpp_ensure_synthetic_odr()</code> — 合成した関数を 1 回だけ出力する</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/mmd/vmd_parse.h:44</code> <code>mmd_vmd_bone_key_t</code> — コンストラクタを持たない <code>typedef struct</code> だが、メンバ <code>vec3</code> / <code>vec4</code> のコンストラクタが自動で呼ばれる。</li>
+<li><code>base_inc/mmd/mmd_skinning.h</code> <code>mmd_dq_t</code> — <code>vec4 r, d;</code> をメンバに持つ。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// implicit_default_ctor.cpp
+struct M {
+    int v;
+    M() : v(7) {}
+};
+struct H {          // コンストラクタを書いていない
+    M m;
+    int n;
+};
+
+int main()
+{
+    H h;            // M のコンストラクタが自動で呼ばれる
+    return h.m.v - 7;
+}
+</code></pre>
+<h4>5.3 コピーコンストラクタとコピー初期化</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>ユーザー定義のコピーコンストラクタ <code>P(const P&amp; o)</code>。</li>
+<li>コピー初期化 <code>P b = a;</code> と直接初期化 <code>P c(a);</code> の両方でコピーコンストラクタを呼ぶ。</li>
+<li>コピーコンストラクタが無いクラスは、メンバごとにコピーする（メンバにコピーコンストラクタがあればそれを呼ぶ）。</li>
+<li>関数の戻り値、参照、ポインタの間接参照からの初期化も可。</li>
+<li><code>new T(obj)</code> も同じ規則で構築する。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:14720</code> <code>cpp_emit_local_copy_init()</code> — ローカル変数のコピー初期化</li>
+<li><code>tccgen.c:14569</code> <code>cpp_emit_copied_class_subobject()</code> — 使えるコピーコンストラクタがあればそれを呼ぶ</li>
+<li><code>tccgen.c:14647</code> <code>cpp_reconstruct_copied_class_members()</code> — メンバごとの再構築</li>
+<li><code>tccgen.c:19757</code> — <code>decl()</code> の <code>=</code> 初期化子からの接続</li>
+<li><code>tccgen.c:14834</code> <code>cpp_emit_heap_ctor_call()</code> — <code>new T(obj)</code> の構築</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/utility/txt_util.h:55</code> <code>win_txt(const win_txt &amp;o)</code> — バッファを複製するコピーコンストラクタ。</li>
+<li><code>test/tcc/vec_quat/vec_quat_matrix_cpp.cpp:48-52</code> — <code>vec3 b = a * 2.0f;</code>、<code>vec3 e = a;</code> のコピー初期化。</li>
+<li><code>base_inc/mmd/mmd_anim.h:514</code> <code>vec3 vmd_pos = VEC3_LIT(0.0f, 0.0f, 0.0f);</code> — C++ では <code>vec3(...)</code> の一時オブジェクトからのコピー初期化に展開される。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// copy_init.cpp
+static int g_copies = 0;
+
+struct P {
+    int v;
+    P() { v = 1; }
+    P(const P&amp; o) { v = o.v + 100; g_copies++; }
+};
+
+int main()
+{
+    P a;
+    P b = a;      // コピー初期化 → b.v == 101
+    P c(a);       // 直接初期化 → c.v == 101
+    if (b.v != 101 || c.v != 101) return 1;
+    return g_copies - 2;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>派生クラスのオブジェクトを基底クラスの値へコピーする形（<code>B b = d;</code>、値渡し、値返し）はエラーになる。参照 <code>const B&amp;</code> で渡すか、直接初期化 <code>B b(d);</code> を使う。</li>
+<li>関数の引数と戻り値で構造体を値渡しするときは、コピーコンストラクタを呼ばずにバイト列をコピーする。</li>
+</ul>
+<h4>5.4 変換コンストラクタの自動適用</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>引数 1 個で呼べるコンストラクタを持つクラスへ、<code>return</code>、初期化子リスト、代入、引数渡し（値渡し・<code>const T&amp;</code>）の場面で自動的に変換する。</li>
+<li>適用は 1 段だけ。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:11154</code> <code>cpp_try_class_conversion()</code> — 変換コンストラクタの探索と一時オブジェクトの構築</li>
+<li><code>tccgen.c:10290</code>、<code>10291</code> — 型変換の入口（<code>gen_assign_cast</code> 系）からの呼び出し</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li>amateras のソースでは変換コンストラクタの自動適用は確認できなかった（CPPUnit の移植で使用）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// convert_ctor.cpp
+struct Str {
+    int len;
+    Str() : len(0) {}
+    Str(const char* p) { len = 0; while (p[len]) len++; }
+};
+int take(const Str&amp; s) { return s.len; }
+
+int main()
+{
+    Str s;
+    s = "abc";               // 代入で Str("abc") に変換
+    return take("hello") + s.len - 8;   // 5 + 3
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li><code>explicit</code> は未対応（書けない）。</li>
+</ul>
+<hr/>
+<h3>6. デストラクタと自動破棄</h3>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>~Foo() {}</code> のクラス内定義とクラス外定義 <code>Foo::~Foo() {}</code>。</li>
+<li>ブロックを抜けるときにローカルオブジェクトを宣言と逆順で破棄する。</li>
+<li><code>return</code> で関数を抜けるときも、全スコープのローカルを破棄してから戻る（戻り値は退避する）。</li>
+<li><code>break</code> / <code>continue</code> / <code>goto</code> でスコープを抜けるときも破棄する。<code>goto</code> で初期化を飛び越す形は検査してエラーにする。</li>
+<li>式の中で作られた一時オブジェクトを文の終わりで破棄する。</li>
+<li>派生クラスのデストラクタの後に基底クラスのデストラクタを自動で呼ぶ。クラス型メンバも逆順で自動破棄する。</li>
+<li>明示呼び出し <code>f.~Foo()</code> も可。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:1789</code> <code>cpp_emit_local_dtor()</code> — 1 個のローカルの破棄コードを出す</li>
+<li><code>tccgen.c:2337</code> <code>cpp_finish_scope()</code>、<code>tccgen.c:2290</code> <code>cpp_block_cleanup()</code> — ブロック終了時の破棄</li>
+<li><code>tccgen.c:2350</code> <code>cpp_spill_return_value()</code>、<code>tccgen.c:2457</code> <code>cpp_restore_return_value()</code> — <code>return</code> 時に戻り値を退避してから破棄</li>
+<li><code>tccgen.c:17574-17616</code> — <code>return</code> 文の処理からの呼び出し</li>
+<li><code>tccgen.c:2230</code> <code>cpp_validate_goto_target()</code>、<code>tccgen.c:2248</code> <code>cpp_emit_scope_exit_dtors()</code> — <code>goto</code> の検査と破棄</li>
+<li><code>tccgen.c:2123</code> <code>cpp_validate_switch_entry()</code> — <code>switch</code> で初期化を飛び越す形の検査</li>
+<li><code>tccgen.c:1893</code> <code>cpp_note_class_temp()</code>、<code>tccgen.c:1975</code> <code>cpp_flush_class_temps()</code> — 一時オブジェクトの登録と破棄</li>
+<li><code>tccgen.c:4824</code> <code>cpp_emit_base_dtor_calls()</code>、<code>tccgen.c:5592</code> <code>cpp_emit_member_dtor_calls()</code> — 基底とメンバの自動破棄</li>
+<li><code>tccgen.c:19245-19247</code> — デストラクタ本体の末尾にメンバ・基底の破棄を付ける</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>inc/UTF_8/cross.h:3129</code> <code>~win_txt() { clear(); }</code> — 文字列バッファの解放。</li>
+<li><code>inc/UTF_8/cross.h:9649</code> <code>~window_t()</code> — スレッドハンドルの解放（<code>:9565</code> のコメント「~window_t()（C++）での二重 CloseHandle を防ぐ」）。</li>
+<li><code>window_t</code> は <code>win_txt</code> 型のメンバ（<code>title</code>、<code>class_name</code>）を持つため、<code>~window_t()</code> の後にそれらのデストラクタが自動で呼ばれる。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// dtor_scope.cpp
+static int log_value;
+
+struct Guard {
+    int id;
+    Guard(int n) : id(n) {}
+    ~Guard() { log_value = log_value * 10 + id; }
+};
+
+int work()
+{
+    Guard a(1);
+    {
+        Guard b(2);
+        return 5;          // b → a の順で破棄してから 5 を返す
+    }
+}
+
+int main()
+{
+    int r = work();        // log_value == 21
+    return (r == 5 &amp;&amp; log_value == 21) ? 0 : 1;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>自分でデストラクタを宣言していないが、メンバや基底のためにデストラクタ処理が要るクラス（例: デストラクタを持つクラスの配列をメンバに持つクラス）を値で返す関数はエラーになる（<code>return by value of a class requiring destruction is unsupported</code>）。<strong>自分でデストラクタを宣言しているクラスは値で返せる</strong>。判定は <code>tccgen.c:17539-17548</code> で、<code>cpp_class_requires_destruction()</code> が真でも <code>cpp_find_dtor_field()</code> が自クラスのデストラクタを見つければ通す。回帰テストは <code>dev/test/a9/negative/return_array_dtor.cpp</code>（エラー側）と <code>dev/test/a9/header_local_copy_init.cpp</code>（返せる側）。</li>
+<li>デストラクタを持つクラスの配列（ローカル配列、メンバ配列）はエラーになる。</li>
+</ul>
+<hr/>
+<h3>7. グローバル・静的オブジェクト</h3>
+<h4>7.1 グローバル変数の構築と破棄</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>P g;</code>、<code>P g(17);</code> のようなグローバル変数を <code>main</code> の前に構築し、<code>main</code> の後に破棄する。</li>
+<li><code>static const V c = make_v();</code> のように関数呼び出しで初期化するグローバル変数（動的初期化）。</li>
+<li>仮想関数を持つクラスのグローバル変数は、仮想関数表へのポインタを静的に初期化する。</li>
+</ul>
+<p><strong>仕組み</strong></p>
+<ul>
+<li>構築が必要なグローバル変数ごとに小さな呼び出し関数（<code>__cpp_gi_N</code> / <code>__cpp_gd_N</code>）を作り、<code>.init_array</code> / <code>.fini_array</code> に登録する。</li>
+<li>実行ファイルをリンクするとき、<code>.init_array</code> を順に呼ぶ起動関数 <code>_tcc_cpp_start</code> を C ソースとして組み込み、エントリポイントを差し替える。破棄は <code>atexit</code> で登録する。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:3026</code> <code>cpp_register_global_dyn()</code> — 構築が必要なグローバル変数の登録</li>
+<li><code>tccgen.c:3066</code> <code>cpp_register_global_copy_init()</code>、<code>tccgen.c:14796</code> <code>cpp_emit_global_copy_init_thunk()</code> — <code>= 関数呼び出し</code> 形の登録と構築コード</li>
+<li><code>tccgen.c:3463</code> <code>cpp_emit_global_dyn_thunk()</code>、<code>tccgen.c:3542</code> <code>cpp_finish_global_dyns()</code> — 呼び出し関数の生成と <code>.init_array</code> / <code>.fini_array</code> への登録</li>
+<li><code>tccgen.c:4328</code> <code>cpp_init_global_vptr()</code> — グローバル変数の仮想関数表ポインタの静的初期化</li>
+<li><code>tccelf.c:2900</code> <code>tcc_add_cpp_init_startup()</code> — 起動関数 <code>_tcc_cpp_start</code> の組み込み</li>
+<li><code>tccpe.c:1904-1915</code> — 実行ファイル生成時にエントリを差し替える判定</li>
+<li><code>tcc.h:827</code> <code>cpp_global_ctors</code>、<code>tcc.h:820</code> <code>cpp_init_startup_done</code></li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/mmd/mmd_skinning.h:143</code> <code>static const mmd_dq_t c_identity_dq = mmd_dq_make_identity();</code> — 単位デュアルクォータニオンの定数。メンバ <code>vec4</code> がコンストラクタを持つため波括弧で初期化できず、関数の戻り値で初期化している（<code>dev/test/a9/manual/n7_00_minimal_static_dyninit.cpp</code> が同じ形を検証）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// global_ctor.cpp
+class P {
+public:
+    int v;
+    P(int n) { v = n; }
+};
+
+struct V { int x; };
+static V make_v(void) { V v; v.x = 9; return v; }
+
+P g(17);                          // main の前に構築
+static const V c_identity = make_v();   // 関数呼び出しで初期化
+
+int main()
+{
+    return (g.v - 17) + (c_identity.x - 9);
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>DLL は対象外。</li>
+<li><code>.cpp</code> を <code>.o</code> にしてから別の実行でリンクする形は対象外（同じ実行でコンパイルとリンクを行う）。</li>
+</ul>
+<h4>7.2 関数内 <code>static</code> オブジェクト</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>static P s;</code>、<code>static P s(a, b);</code>、<code>static P s = src;</code> を、最初に到達したときだけ 1 回構築する。</li>
+<li>プログラム終了時にデストラクタを呼ぶ。</li>
+<li><code>static M arr[4];</code> のようなクラス配列も 1 回だけ構築する。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:2464</code> <code>cpp_alloc_local_static_guard()</code> — 宣言ごとの「初期化済み」フラグ</li>
+<li><code>tccgen.c:2484</code> <code>cpp_begin_local_static_init()</code>、<code>tccgen.c:2492</code> <code>cpp_finish_local_static_init()</code> — フラグを見て 1 回だけ構築する分岐</li>
+<li><code>tccgen.c:2803</code> <code>cpp_prepare_local_static_dtor()</code>、<code>tccgen.c:2834</code> <code>cpp_emit_local_static_dtor_registration()</code> — 終了時デストラクタの登録</li>
+<li><code>tccgen.c:5418</code> <code>cpp_emit_local_static_array_default_ctor_calls()</code> — <code>static</code> クラス配列の構築</li>
+<li><code>tccgen.c:20250-20254</code> — <code>decl()</code> からの接続</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/3d_format/nif/nif_scene_impl.h:1664</code>、<code>:1700</code> <code>static vec3 vertex_storage[32];</code> — NIF 形式の読み込みで使う作業用配列（<code>test/tcc/n7_07/test_static_local_vec3_array.cpp</code> で検証）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// local_static.cpp
+static int ctor_count;
+
+struct Probe {
+    int value;
+    Probe() { value = 7; ctor_count++; }
+    Probe(int a, int b) { value = a + b; ctor_count++; }
+};
+
+Probe* get(int a, int b)
+{
+    static Probe item(a, b);   // 最初の呼び出しの引数で 1 回だけ構築
+    return &amp;item;
+}
+
+int main()
+{
+    Probe* p = get(1, 2);
+    get(10, 20);               // 2 回目は構築しない
+    return (p-&gt;value == 3 &amp;&amp; ctor_count == 1) ? 0 : 1;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>初期化の途中で例外が起きた場合の再試行、スレッド安全な初期化は対象外。</li>
+</ul>
+<h4>7.3 <code>thread_local</code></h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>グローバルスコープの <code>thread_local int value;</code>、<code>thread_local int value = 123;</code>、<code>thread_local MyClass object;</code>。</li>
+<li>スレッドごとに別の領域を持ち、最初のアクセス時に構築する。</li>
+<li>スレッド終了時にデストラクタを逆順で呼ぶ。通常の実行ファイルでは PE の TLS コールバック、<code>-run</code> では <code>CreateThread</code> / <code>_beginthreadex</code> / <code>ExitThread</code> / <code>_endthreadex</code> を包む関数で対応する。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tcctok.h:172</code> <code>TOK_CPP_THREAD_LOCAL</code>、<code>tccpp.c:485</code> — C++ のみのキーワード（C では識別子）</li>
+<li><code>tccgen.c:13364-13368</code> — 記憶クラス <code>VT_CPP_TLS</code> の付与（C ではエラー）</li>
+<li><code>tcc.h:1158</code> <code>VT_CPP_TLS</code>、<code>tcc.h:616</code> <code>Sym.cpp_tls_desc</code></li>
+<li><code>tccgen.c:7341</code> <code>cpp_alloc_tls_global()</code>、<code>tccgen.c:7471</code> <code>cpp_push_tls_lvalue()</code> — TLS 領域の確保とアクセス（毎回 <code>__tcc_cpp_tls_addr</code> を呼ぶ）</li>
+<li><code>tccgen.c:7393</code> <code>cpp_validate_tls_class()</code> — 対応外の型（仮想関数あり、デフォルトコンストラクタなし等）をエラーにする</li>
+<li><code>tccgen.c:7440</code> <code>cpp_register_tls_ctor()</code>、<code>tccgen.c:7458</code> <code>cpp_register_tls_dtor()</code>、<code>tccgen.c:3415</code> <code>cpp_emit_tls_ctor_thunks()</code></li>
+<li><code>tccelf.c:1925</code> <code>tcc_add_cpp_tls_runtime()</code> — 実行時コードの組み込み</li>
+<li><code>tccpe.c:2057-2061</code> — <code>IMAGE_TLS_DIRECTORY</code> の出力</li>
+<li><code>tccrun.c:87</code>、<code>165-210</code>、<code>384-389</code> — <code>-run</code> 時の対応</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li>amateras のソースでは C++ の <code>thread_local</code> の使用は確認できなかった（amateras のスレッドローカル変数は C のマクロ経由で実装されている）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// tls_basic.cpp
+thread_local int tls_value;
+
+struct Counter {
+    int n;
+    Counter() : n(100) {}
+};
+thread_local Counter tls_counter;
+
+int main()
+{
+    tls_value = 5;
+    tls_counter.n += 1;
+    return (tls_value == 5 &amp;&amp; tls_counter.n == 101) ? 0 : 1;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>関数内の <code>static thread_local</code>、<code>extern thread_local</code>、クラスの静的メンバの <code>thread_local</code> は未対応（エラーになる）。</li>
+<li>仮想関数を持つクラス、デフォルトコンストラクタを持たないクラス、クラス配列は未対応（エラーになる）。</li>
+<li>DLL では未対応（エラーになる）。</li>
+</ul>
+<hr/>
+<h3>8. クラス配列</h3>
+<p><strong>できること</strong></p>
+<ul>
+<li>ローカルのクラス配列 <code>M a[4];</code>、多次元配列 <code>M a[2][3];</code> の各要素をデフォルトコンストラクタで構築する。</li>
+<li>関数内 <code>static</code> のクラス配列も 1 回だけ構築する。</li>
+<li>クラスのメンバであるクラス配列も自動で構築する。</li>
+<li>デフォルトコンストラクタを持たないクラスの配列はエラーになる。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:5386</code> <code>cpp_emit_local_array_default_ctor_calls()</code> — ローカル配列の各要素の構築</li>
+<li><code>tccgen.c:5343</code> <code>cpp_validate_local_automatic_class_array()</code>、<code>tccgen.c:5364</code> <code>cpp_validate_local_static_class_array()</code> — 構築できない形の検査</li>
+<li><code>tccgen.c:5068</code> <code>cpp_emit_member_array_default_ctor_calls()</code> — メンバ配列の構築</li>
+<li><code>tccgen.c:20196</code>、<code>20191</code> — <code>decl()</code> からの接続</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/town/town_mesh.h:415</code> <code>vec2 dir, nrm, corners[4];</code>、<code>:494</code> <code>vec2 corners[4];</code>、<code>base_inc/town/town_town.h:702</code> <code>vec2 to_relax[4];</code> — 街生成のメッシュ計算で使うローカル配列（<code>test/tcc/n7_07/test_town_mesh_406.cpp</code> などで検証）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// class_array.cpp
+static int ctor_count;
+
+struct M {
+    int v;
+    M() : v(7) { ctor_count++; }
+};
+
+int main()
+{
+    M a[4];
+    M b[2][3];
+    return (a[3].v == 7 &amp;&amp; b[1][2].v == 7 &amp;&amp; ctor_count == 10) ? 0 : 1;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>要素を明示初期化する形 <code>M a[2] = { ... }</code> は未対応。</li>
+<li>デストラクタを持つクラスの配列は未対応（エラーになる）。</li>
+<li><code>thread_local</code> のクラス配列は未対応（エラーになる）。</li>
+</ul>
+<hr/>
+<h3>9. 代入演算子と暗黙のコピー代入</h3>
+<p><strong>できること</strong></p>
+<ul>
+<li>ユーザー定義の <code>operator=</code>（メンバ）。<code>T&amp;</code> を返せば <code>a = b = c</code> と連鎖できる。</li>
+<li><code>operator=</code> を書いていないクラスの <code>a = b</code>。<ul>
+<li>メンバや基底クラスが <code>operator=</code> を持つ場合は、メンバごとにそれぞれの <code>operator=</code> を呼ぶ。</li>
+<li>どのメンバも <code>operator=</code> を持たない場合は、バイト列をコピーする（従来どおり）。</li>
+</ul>
+</li>
+<li>参照メンバや <code>const</code> メンバを持つクラス、仮想関数を持つクラスの暗黙コピー代入はエラーになる。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:12267</code> <code>cpp_try_member_binop()</code> — ユーザー定義 <code>operator=</code> の呼び出し</li>
+<li><code>tccgen.c:12029</code> <code>cpp_implicit_copy_assign_is_safe()</code> — バイト列コピーで済ませてよいかの判定</li>
+<li><code>tccgen.c:12063</code> <code>cpp_implicit_copy_assign_is_memberwise_viable()</code> — メンバごとの代入が可能かの判定</li>
+<li><code>tccgen.c:12230</code> <code>cpp_emit_implicit_memberwise_copy_assign()</code> — メンバごとの代入コードの生成</li>
+<li><code>tccgen.c:16958-16983</code> — <code>expr_eq()</code> の <code>=</code> の処理からの接続</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h:66</code> <code>vec2 operator=(const vec2&amp;)</code>、<code>:170</code> <code>vec3 operator=(const vec3&amp;)</code>、<code>:293</code> <code>vec4&amp; operator=(const vec4&amp;)</code>、<code>:303</code> <code>vec4&amp; operator=(const vec3&amp;)</code>。</li>
+<li><code>base_inc/utility/txt_util.h:68</code> <code>win_txt &amp;operator=(const win_txt &amp;o)</code> — 自己代入チェック付きの深いコピー。</li>
+<li><code>base_inc/mmd/vmd_parse.h:44</code> <code>mmd_vmd_bone_key_t</code> の代入 <code>tr.keys[n] = key;</code> — <code>operator=</code> を持たない構造体だが、メンバ <code>vec3</code> / <code>vec4</code> の <code>operator=</code> が呼ばれる（<code>dev/test/a9/manual/n7_03_amateras_bone_key.cpp</code>）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// copy_assign.cpp
+struct M {
+    int v;
+    M() { v = 1; }
+    M&amp; operator=(const M&amp; o) { v = o.v + 1000; return *this; }
+};
+struct H {          // operator= を書いていない
+    M m;
+    int n;
+    H() { n = 0; }
+};
+
+int main()
+{
+    H x, y;
+    x.m.v = 42;
+    y = x;          // y.m = x.m は M::operator= を経由する
+    return y.m.v == 1042 ? 0 : 1;
+}
+</code></pre>
+<hr/>
+<h3>10. 継承</h3>
+<h4>10.1 単一継承・多重継承</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>class D : public B</code> の単一継承。派生から基底のメンバ変数・メンバ関数へアクセスできる。</li>
+<li><code>class D : public A, public B</code> の多重継承（仮想継承なし）。2 番目以降の基底のメンバ関数を呼ぶときは <code>this</code> を調整する。</li>
+<li>派生クラスのコンストラクタから基底の初期化 <code>: Base(args)</code>。書かなければ基底のデフォルトコンストラクタを自動で呼ぶ。</li>
+<li>派生クラスのデストラクタの後に基底のデストラクタを自動で呼ぶ。</li>
+<li><code>D*</code> → <code>B*</code>、<code>D&amp;</code> → <code>B&amp;</code> の変換（アドレス調整を含む）。</li>
+<li>基底クラスの実装を明示的に呼ぶ <code>Base::method(args)</code>。</li>
+<li><code>sizeof(D)</code> は基底と派生の合計。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:12695-12707</code> — 基底クラスの解析と、基底を先頭（または直後）に埋め込む</li>
+<li><code>tccgen.c:11389</code> <code>cpp_base_subobject_offset()</code> — 基底オブジェクトの位置（曖昧なら負を返す）</li>
+<li><code>tccgen.c:4562</code> <code>cpp_emit_base_ctor_call()</code> — <code>: Base(args)</code> の呼び出し</li>
+<li><code>tccgen.c:4792</code> <code>cpp_emit_implicit_base_ctors()</code> — 書かれていない基底のデフォルト構築</li>
+<li><code>tccgen.c:4824</code> <code>cpp_emit_base_dtor_calls()</code> — 基底の自動破棄</li>
+<li><code>tccgen.c:4540</code> <code>cpp_find_base_field()</code> — 基底の埋め込みフィールドの検索</li>
+<li><code>find_field()</code> の再帰 — 派生から基底メンバへのアクセス</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/render/opengl/render_opengl.h:7</code> <code>struct render_opengl : public window_t</code> — OpenGL バックエンドはウィンドウ型を継承し、<code>init_opengl()</code>、<code>begin_frame()</code>、<code>end_frame()</code> をメンバ関数として持つ。C++ からは <code>render_opengl</code> のオブジェクト経由で使う（<code>amateras対応作業履歴.md</code> §2.6）。</li>
+<li><code>base_inc/render/dx/9/win_dx9.h:28</code> <code>class dx9_render : public window_t</code> など DirectX 系、<code>base_inc/render/agc/triangle_agc.h:42</code> <code>class triangle_agc : public agc_render</code> — 定義は存在するが、TCC での検証が済んでいるのは OpenGL 経路のみ。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// inherit.cpp
+class Base {
+public:
+    int b;
+    Base() : b(1) {}
+    int get() { return b; }
+};
+class Other {
+public:
+    int o;
+    Other() : o(2) {}
+    int geto() { return o; }
+};
+class Derived : public Base, public Other {
+public:
+    int d;
+    Derived(int x) : Base(), d(x) {}   // Other は自動でデフォルト構築
+};
+
+int main()
+{
+    Derived v(3);
+    Base* pb = &amp;v;                     // 先頭の基底へ
+    Other* po = (Other*)&amp;v;            // 2 番目の基底へ（アドレス調整される）
+    return v.get() + v.geto() + v.d + pb-&gt;b + po-&gt;o - 9;   // 1+2+3+1+2
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>仮想継承（<code>virtual public</code>）、菱形継承は未対応（エラーになる）。</li>
+<li>基底ポインタから派生ポインタへの逆方向変換ではアドレス調整をしない。</li>
+<li>多重継承時に基底クラスのメンバ関数ポインタを使う形は未対応。</li>
+</ul>
+<h4>10.2 仮想関数</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>virtual</code> メンバ関数、派生クラスでの上書き、値・ポインタ・参照経由の動的な呼び分け。</li>
+<li>純粋仮想関数 <code>= 0</code> と抽象クラス。抽象クラスのオブジェクト宣言と <code>new</code> はエラーになる（ポインタ・参照は可）。</li>
+<li>仮想デストラクタ。<code>delete base_ptr</code> で派生のデストラクタから順に呼ぶ。基底が仮想なら派生のデストラクタも自動で仮想になる。</li>
+<li>多重継承で 2 番目以降の基底にも仮想関数がある場合、基底ごとの仮想関数表と、<code>this</code> を調整してから本体へ飛ぶ小さな中継関数を生成する。</li>
+<li>仮想関数表は弱シンボルとして出力するため、複数のソースファイルで同じクラスを定義してもリンクできる。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:3758</code> <code>cpp_assign_virtual_slots()</code> — 仮想関数表の並びを決める</li>
+<li><code>tccgen.c:3805</code> <code>cpp_insert_vptr_field()</code> — オブジェクト先頭に仮想関数表ポインタを入れる</li>
+<li><code>tccgen.c:3931</code> <code>cpp_emit_vtable()</code> — 仮想関数表（<code>__cpp_vtbl_&lt;Class&gt;</code>）の出力。表の 1 つ前の要素にオブジェクト先頭までの距離を置く</li>
+<li><code>tccgen.c:4071</code> <code>cpp_emit_secondary_vtables()</code>、<code>tccgen.c:4019</code> <code>cpp_new_virtual_thunk()</code>、<code>tccgen.c:4203</code> <code>cpp_finish_virtual_thunks()</code> — 多重継承用の 2 番目以降の表と中継関数</li>
+<li><code>tccgen.c:4289</code> <code>cpp_init_local_vptr()</code>、<code>tccgen.c:4328</code> <code>cpp_init_global_vptr()</code>、<code>tccgen.c:14536</code> <code>cpp_init_heap_vptr()</code> — ローカル / グローバル / <code>new</code> のオブジェクトの仮想関数表ポインタの初期化</li>
+<li><code>tccgen.c:4357</code> <code>cpp_prepare_virtual_member_call()</code> — 仮想関数表を経由した呼び出し</li>
+<li><code>tccgen.c:3900</code> <code>cpp_class_is_abstract()</code>、<code>tccgen.c:3918</code> <code>cpp_check_not_abstract()</code> — 抽象クラスの判定</li>
+<li><code>tcc.h:546</code> <code>FuncAttr.func_pure</code> — 純粋仮想の印</li>
+<li><code>tccgen.c:3743</code> <code>cpp_find_virtual_dtor_in_chain()</code> — 仮想デストラクタの継承</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/render/agc/agc_define.h:49-53</code> <code>virtual ~agc_render()</code>、<code>virtual bool init()</code>、<code>virtual void render()</code> など、<code>base_inc/render/dx/9/win_dx9.h:110</code> <code>virtual void render()</code> — レンダリングバックエンドの共通インタフェース。定義は存在するが、TCC で検証済みなのは OpenGL 経路であり、これらの仮想関数を TCC で実行した記録は無い。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// virtual_basic.cpp
+static int state;
+
+class Shape {
+public:
+    virtual int area() = 0;          // 純粋仮想
+    virtual ~Shape() { state = state * 10 + 1; }
+};
+class Square : public Shape {
+public:
+    int s;
+    Square(int n) : s(n) {}
+    virtual int area() { return s * s; }
+    ~Square() { state = state * 10 + 2; }   // 基底が仮想なので自動で仮想
+};
+
+int main()
+{
+    Shape* p = (Shape*)new Square(3);
+    int a = p-&gt;area();               // 9
+    delete p;                        // ~Square → ~Shape の順（state == 21）
+    return (a == 9 &amp;&amp; state == 21) ? 0 : 1;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li><code>dynamic_cast</code>、<code>typeid</code> は未対応。</li>
+<li>上書きされていない純粋仮想関数のスロットは空（NULL）のまま。抽象クラスのオブジェクトを作れないため到達しない。</li>
+<li>深い継承で孫クラスが祖父母の 2 番目の基底の仮想関数を新たに上書きする形はエラーになる。</li>
+</ul>
+<hr/>
+<h3>11. <code>new</code> / <code>delete</code></h3>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>new Class(args)</code>、<code>new Class()</code>、<code>new Class</code> — メモリ確保 → 仮想関数表ポインタの初期化 → コンストラクタ（オーバーロード解決・デフォルト引数込み）。</li>
+<li><code>delete p</code> — NULL のときは何もしない → デストラクタ（仮想なら動的に呼び分け） → 解放。</li>
+<li><code>new T(obj)</code> — コピーコンストラクタ、または メンバごとのコピーで構築。</li>
+<li>コンストラクタもデストラクタも持たない型の <code>new T[n]</code> / <code>delete[]</code>。</li>
+<li>入れ子の <code>new</code>、<code>delete 0</code>。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:14977</code> <code>cpp_parse_new()</code>、<code>tccgen.c:15053</code> <code>cpp_parse_delete()</code> — 構文解析と生成</li>
+<li><code>tccgen.c:15778-15784</code> — <code>unary()</code> からの入口</li>
+<li><code>tccgen.c:14834</code> <code>cpp_emit_heap_ctor_call()</code> — 確保した領域へのコンストラクタ呼び出し</li>
+<li><code>tccgen.c:14536</code> <code>cpp_init_heap_vptr()</code> — 仮想関数表ポインタの初期化</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li>amateras の本体（<code>base_inc/**</code>）は C でもビルドできるように書かれており、<code>new</code> / <code>delete</code> は <code>base_inc/render/nvn/switch_nvn_context.h:885</code> <code>delete s;</code>（Switch 向け、TCC の対象外）と <code>base_inc/utility/leakdetect.h</code>（<code>operator new</code> の置き換え、TCC 未対応）にしか無い。</li>
+<li><code>base_inc/cross_base.h:705</code> のコメント「C++: w はユーザー所有。delete でデストラクタ(~win_txt)が buf を解放」— 利用側コードで <code>delete</code> を使う想定。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// new_delete.cpp
+static int g_dtor;
+
+class P {
+public:
+    int v;
+    P() { v = 5; }
+    P(int a, int b) { v = a * b; }
+    ~P() { g_dtor++; }
+};
+
+int main()
+{
+    P* a = new P();
+    P* b = new P(3, 4);
+    int r = a-&gt;v + b-&gt;v;   // 5 + 12
+    delete a;
+    delete b;
+    int* arr = new int[4];   // コンストラクタを持たない型の配列
+    arr[3] = 1;
+    delete[] arr;
+    return (r == 17 &amp;&amp; g_dtor == 2) ? 0 : 1;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li><code>new int</code> のような単一のスカラ型の <code>new</code> は未対応（エラーになる）。配列形 <code>new int[n]</code> は可。</li>
+<li>コンストラクタまたはデストラクタを持つクラスの <code>new C[n]</code> / <code>delete[]</code> は未対応（エラーになる）。</li>
+<li><code>operator new</code> の置き換え、配置 <code>new</code> は未対応。</li>
+</ul>
+<hr/>
+<h3>12. 演算子オーバーロード</h3>
+<p><strong>できること</strong></p>
+<table>
+<thead>
+<tr>
+<th>種類</th>
+<th>演算子</th>
+<th>メンバ</th>
+<th>非メンバ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>二項算術</td>
+<td><code>+ - * / % &amp; \| ^ &lt;&lt; &gt;&gt;</code></td>
+<td>可</td>
+<td>可</td>
+</tr>
+<tr>
+<td>比較</td>
+<td><code>== != &lt; &gt; &lt;= &gt;=</code></td>
+<td>可</td>
+<td>可</td>
+</tr>
+<tr>
+<td>代入</td>
+<td><code>=</code></td>
+<td>可</td>
+<td>—</td>
+</tr>
+<tr>
+<td>複合代入</td>
+<td><code>+= -= *= /= %= &amp;= \|= ^= &lt;&lt;= &gt;&gt;=</code></td>
+<td>可</td>
+<td>可</td>
+</tr>
+<tr>
+<td>単項</td>
+<td><code>! - ~</code></td>
+<td>可</td>
+<td>可</td>
+</tr>
+<tr>
+<td>前置</td>
+<td><code>++ --</code></td>
+<td>可</td>
+<td>可</td>
+</tr>
+<tr>
+<td>後置</td>
+<td><code>++ --</code>（<code>operator++(int)</code>）</td>
+<td>可</td>
+<td>可</td>
+</tr>
+<tr>
+<td>添字</td>
+<td><code>[]</code></td>
+<td>可</td>
+<td>可（本プロジェクト独自。標準 C++ では不可）</td>
+</tr>
+<tr>
+<td>間接参照</td>
+<td><code>*</code>（単項）</td>
+<td>可</td>
+<td>可</td>
+</tr>
+<tr>
+<td>アロー</td>
+<td><code>-&gt;</code></td>
+<td>可（1 段だけ）</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>明示呼び出し <code>a.operator+(b)</code> も可。</li>
+<li>構造体を返す演算子、8 バイトを超える構造体を返す演算子も可。</li>
+<li><code>T&amp; operator*()</code> のように参照を返せば、<code>(*it).v = 5</code> のように左辺値として使える。</li>
+<li><code>s &lt;&lt; a &lt;&lt; b</code> のような連鎖も可。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:1137</code> <code>cpp_operator_suffix()</code>、<code>tccgen.c:1189</code> <code>cpp_operator_field_tok()</code> — 演算子ごとの内部名（<code>__cpp_op_plus</code> など）</li>
+<li><code>tccgen.c:1222</code> <code>cpp_parse_operator_decl_name()</code>、<code>tccgen.c:13970-13979</code> — <code>operator+</code> 宣言の解析</li>
+<li><code>tccgen.c:12267</code> <code>cpp_try_member_binop()</code> — メンバの二項演算子（引数の型でオーバーロードを採点する）</li>
+<li><code>tccgen.c:11737</code> <code>cpp_try_free_binop()</code> — 非メンバの二項演算子</li>
+<li><code>tccgen.c:11781</code> <code>cpp_try_cpp_subscript()</code> — <code>[]</code></li>
+<li><code>tccgen.c:11844</code> <code>cpp_try_member_unop()</code>、<code>tccgen.c:11865</code> <code>cpp_try_free_unop()</code> — 単項と前置</li>
+<li><code>tccgen.c:11904</code> <code>cpp_try_member_postop()</code>、<code>tccgen.c:11932</code> <code>cpp_try_free_postop()</code> — 後置</li>
+<li><code>tccgen.c:10793</code> <code>cpp_find_operator_member()</code> — メンバ演算子の検索</li>
+<li><code>tccgen.c:16013</code> — <code>-&gt;</code> の入口（<code>operator-&gt;</code> を 1 段だけ適用する）</li>
+<li><code>tccgen.c:11501</code> <code>cpp_finish_member_call()</code>、<code>tccgen.c:11630</code> <code>cpp_finish_free_call()</code> — 実際の呼び出しコード</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h</code> — <code>vec2</code> / <code>vec3</code> / <code>vec4</code> の <code>operator= * + - / *=</code>、単項 <code>-</code>（<code>:243</code>）、<code>float operator[](int i)</code>（<code>:119</code>）、<code>arr2</code> / <code>arr3</code> の <code>operator== + +=</code>（<code>:505-523</code>）。ベクトルと行列の計算はほぼすべてこの演算子経由で書かれている。</li>
+<li><code>test/tcc/vec_quat/vec_quat_matrix_cpp.cpp:46-56</code> — <code>a * 2.0f</code>、<code>a + c</code>、<code>e *= 3.0f</code>、<code>q * 0.5f</code> を実行して値を検証している。</li>
+<li>同名演算子 <code>operator*(vec3&amp;)</code> と <code>operator*(float)</code> は宣言順に関係なく引数の型で選ばれる（以前は宣言順で決まる不具合があり、<code>dev/test/a9/manual/AMATERAS_TO_TCC_BLOCKER_N7_02_RETEST.md</code> で修正した）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// operators.cpp
+struct Vec2 {
+    float x, y;
+    Vec2() : x(0), y(0) {}
+    Vec2(float a, float b) : x(a), y(b) {}
+    Vec2 operator+(const Vec2&amp; o) { Vec2 r(x + o.x, y + o.y); return r; }
+    Vec2 operator*(float s)       { Vec2 r(x * s, y * s); return r; }
+    Vec2&amp; operator+=(const Vec2&amp; o) { x += o.x; y += o.y; return *this; }
+    bool operator==(const Vec2&amp; o) { return x == o.x &amp;&amp; y == o.y; }
+    float operator[](int i)       { return i == 0 ? x : y; }
+    Vec2 operator-()              { Vec2 r(-x, -y); return r; }
+};
+
+int main()
+{
+    Vec2 a(1.0f, 2.0f);
+    Vec2 b = a * 2.0f;          // (2, 4)
+    Vec2 c = a + b;             // (3, 6)
+    c += a;                     // (4, 8)
+    Vec2 d = -a;                // (-1, -2)
+    Vec2 e(4.0f, 8.0f);
+    if (!(c == e)) return 1;
+    if (c[1] != 8.0f) return 2;
+    if (d.x != -1.0f) return 3;
+    return 0;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li><code>operator new</code> / <code>operator delete</code> の置き換えは未対応。</li>
+<li><code>-&gt;</code> は 1 段だけ適用し、ポインタ以外を返すとエラーになる。</li>
+<li>型変換演算子 <code>operator int()</code> は未対応。</li>
+</ul>
+<hr/>
+<h3>13. メンバポインタ</h3>
+<p><strong>できること</strong></p>
+<ul>
+<li>データメンバポインタ <code>int Point::* pm = &amp;Point::x;</code>、<code>obj.*pm</code>、<code>ptr-&gt;*pm</code> の読み書き。</li>
+<li>メンバ関数ポインタ <code>void (Point::*pf)(int) = &amp;Point::set;</code>、<code>(obj.*pf)(42)</code>。</li>
+<li>仮想関数へのメンバ関数ポインタは、オブジェクトの実際の型で呼び分ける。</li>
+<li>派生クラスのオブジェクトに基底クラスのメンバ関数ポインタを使える（単一継承のみ）。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tcc.h:1156</code> <code>VT_MPTR</code> — メンバポインタ型のフラグ</li>
+<li><code>tccgen.c:1438</code> <code>cpp_parse_member_pointer()</code> — <code>T Class::*</code> の宣言解析</li>
+<li><code>tccgen.c:1475</code> <code>cpp_parse_qualified_member()</code> — <code>&amp;Class::member</code> の解析</li>
+<li><code>tccgen.c:1526</code> <code>cpp_emit_mptr_dmp_access()</code> — データメンバポインタのアクセス</li>
+<li><code>tccgen.c:1555</code> <code>cpp_emit_mptr_pmf_invoke()</code> — メンバ関数ポインタの呼び出し（仮想なら <code>cpp_prepare_virtual_member_call()</code> へ）</li>
+<li><code>tccgen.c:16036-16038</code> — <code>.*</code> / <code>-&gt;*</code> の入口</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li>amateras のソースではメンバポインタの使用は確認できなかった。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// member_pointer.cpp
+class Point {
+public:
+    int x;
+    void set(int v);
+    int get();
+};
+void Point::set(int v) { x = v; }
+int Point::get() { return x; }
+
+int main()
+{
+    void (Point::*pset)(int) = &amp;Point::set;
+    int (Point::*pget)() = &amp;Point::get;
+    int Point::*px = &amp;Point::x;
+    Point p;
+    (p.*pset)(42);
+    p.*px = (p.*px) + 1;
+    return (p.*pget)() - 43;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>多重継承のメンバ関数ポインタは未対応。</li>
+<li>MSVC の 16 バイトのメンバ関数ポインタ形式とは互換性がない。</li>
+</ul>
+<hr/>
+<h3>14. 名前解決</h3>
+<h4>14.1 スコープ修飾 <code>::</code></h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>先頭の <code>::</code> によるグローバルスコープ指定（型位置 <code>typedef ::C D;</code>、式位置 <code>::gfn()</code> / <code>::gv</code>）。ローカル変数が同名を隠していてもグローバルを選ぶ。</li>
+<li>クラス内 typedef（<code>typedef unsigned int size_type;</code>）と、その修飾参照 <code>Class::size_type</code>。</li>
+<li>二重修飾のクラス外定義 <code>Outer::Inner::method()</code>。</li>
+<li>三項演算子との隣接 <code>a ? b : ::c</code>。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:794</code> <code>cpp_parse_global_scope_qualifier()</code> — 先頭 <code>::</code></li>
+<li><code>tccgen.c:6792</code> <code>cpp_global_scope_find()</code>、<code>tccgen.c:6819</code> <code>cpp_global_lookup_type_name()</code> — グローバル限定の探索</li>
+<li><code>tccgen.c:2912</code> <code>cpp_class_typedef_find()</code>、<code>tcc.h:621</code> <code>Sym.cpp_class_typedefs</code> — クラス内 typedef（メンバの並びとは別に保持する）</li>
+<li><code>tccgen.c:893</code> <code>parse_cpp_scope_qualifier()</code> — 多段の <code>A::B::</code> の解析</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li>amateras のソースでは <code>::</code> の使用は確認できなかった（CPPUnit の移植で使用）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// scope_qualifier.cpp
+int gv = 7;
+class S {
+public:
+    typedef unsigned int size_type;
+    static const size_type npos;
+    size_type len;
+};
+const S::size_type S::npos = 100;
+
+int main()
+{
+    int gv = 1;                 // グローバルの gv を隠す
+    S::size_type n = S::npos;   // 100
+    return ::gv + (int)n - 107; // 7 + 100
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li><code>namespace</code> と <code>using</code> は未対応。</li>
+</ul>
+<h4>14.2 名前の隠蔽</h4>
+<p><strong>できること</strong></p>
+<ul>
+<li>引数やローカル変数がクラス名と同じでも、その変数を優先する（C++ の規則どおり）。</li>
+<li>内側の typedef が外側の同名クラスを隠す。</li>
+<li>メンバ関数内では、自クラスのメンバが同名のグローバル関数より優先される。</li>
+<li>クラス本体内の型名は、ブロックローカル → 自クラスと直接基底 → 外側クラス → グローバルの順に探す。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:2886</code> <code>cpp_lookup_type_name()</code> — C++ の規則に従った型名の探索（共通ヘルパー）</li>
+<li><code>tccgen.c:2987</code> <code>cpp_tok_starts_type_name()</code> — 文頭の識別子が型名かどうかの判定</li>
+<li><code>tccgen.c:2968</code> <code>cpp_unqualified_class_type_find()</code> — 非修飾のクラス型の探索</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h:406</code> <code>struct tex</code>（C++ のときだけ <code>struct tex</code>、C では <code>typedef struct tex</code>）と、<code>inc/UTF_8/cross.h</code> の <code>mmd_gl_free_texture()</code> の引数 <code>tex</code> — 引数がクラス名を隠す形。この処理が無いと <code>tex-&gt;gl_tex_id = 0;</code> がコンパイルできなかった（<code>amateras対応作業履歴.md</code> §2.2、回帰テスト <code>dev/test/a9/bug20_shadow_param.cpp</code>）。</li>
+<li><code>win_txt::clear()</code> と <code>window_t::clear[4]</code> — 別クラスのメンバ関数名と自クラスのメンバ変数名が同じ形（<code>amateras対応作業履歴.md</code> §2.6、回帰テスト <code>dev/test/a9/bug21_member_vs_global.cpp</code>）。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// name_hiding.cpp
+struct tex { float u, v; };          // クラス名 tex
+struct T { unsigned int id; };
+
+static void free_tex(T* tex)          // 引数名 tex がクラス名 tex を隠す
+{
+    tex-&gt;id = 0;                      // 型名ではなく引数として扱われる
+}
+
+int main()
+{
+    T t;
+    t.id = 1;
+    free_tex(&amp;t);
+    return t.id;                      // 0
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>同じグローバルスコープで <code>struct tex {...}; int tex;</code> の順に書くと再定義エラーになる（逆順や関数内なら可）。</li>
+<li>グローバル変数の名前を、どこかのクラスのメンバ関数名と同じにはできない。</li>
+</ul>
+<hr/>
+<h3>15. 関数形式のキャストと一時オブジェクト</h3>
+<p><strong>できること</strong></p>
+<ul>
+<li><code>size_type(-1)</code>、<code>int('A')</code> のような基本型・typedef 名の関数形式キャスト。</li>
+<li><code>Class::size_type(-1)</code> の修飾形。</li>
+<li>コンストラクタを持つクラスの一時オブジェクト <code>Foo(1)</code>、<code>Vec3(a, b, c)</code>。</li>
+<li>一時オブジェクトは文の終わりで自動的に破棄される。</li>
+</ul>
+<p><strong>実装箇所</strong></p>
+<ul>
+<li><code>tccgen.c:14336</code> <code>cpp_try_functional_cast()</code> — 式の先頭が型名で直後が <code>(</code> のときの処理</li>
+<li><code>tccgen.c:14281</code> <code>cpp_tok_is_cast_type_name()</code> — 型名かどうかの判定（推測ではなく型の探索で決める）</li>
+<li><code>tccgen.c:11266</code> <code>cpp_functional_ctor_temp()</code> — クラス型の一時オブジェクトの構築</li>
+<li><code>tccgen.c:1893</code> <code>cpp_note_class_temp()</code> — 一時オブジェクトの破棄予約</li>
+</ul>
+<p><strong>amateras での用途</strong></p>
+<ul>
+<li><code>base_inc/vec_quat.h:46-48</code> <code>#define VEC3_LIT(x, y, z) vec3((x), (y), (z))</code> — C++ のときはリテラル初期化子を一時オブジェクトに展開する。<code>base_inc/mmd/mmd_bone.h:314-315</code>、<code>base_inc/mmd/mmd_anim.h:514-515</code>、<code>base_inc/mmd/mmd_skinning.h:139-140</code> で使用。</li>
+</ul>
+<p><strong>サンプル</strong></p>
+<pre><code class="language-cpp">// functional_cast.cpp
+typedef unsigned int size_type;
+
+struct Vec3 {
+    float x, y, z;
+    Vec3() : x(0), y(0), z(0) {}
+    Vec3(float a, float b, float c) : x(a), y(b), z(c) {}
+};
+#define VEC3_LIT(x, y, z) Vec3((x), (y), (z))
+
+int main()
+{
+    size_type a;
+    a = size_type(-1);
+    Vec3 v = VEC3_LIT(1.0f, 2.0f, 3.0f);   // 一時オブジェクトからのコピー初期化
+    if (a != 0xffffffffu) return 1;
+    if (int('A') != 65) return 2;
+    return (v.z == 3.0f) ? 0 : 3;
+}
+</code></pre>
+<p><strong>制限</strong></p>
+<ul>
+<li>コンストラクタを持たないクラスの <code>Foo(1)</code>、引数なしの <code>Foo()</code> によるゼロ初期化は未対応（エラーになる）。</li>
+<li><code>static_cast</code> などのキャスト演算子は未対応。</li>
+</ul>
+<hr/>
+<h3>16. 未対応の機能</h3>
+<p>以下は現在の実装で使えない。多くはコンパイルエラーとして検出される。</p>
+<table>
+<thead>
+<tr>
+<th>機能</th>
+<th>状態</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>テンプレート（関数・クラス）</td>
+<td>未対応。エラーになる</td>
+</tr>
+<tr>
+<td>名前空間 <code>namespace</code> / <code>using</code></td>
+<td>未対応。エラーになる</td>
+</tr>
+<tr>
+<td>例外 <code>try</code> / <code>catch</code> / <code>throw</code></td>
+<td>未対応。エラーになる</td>
+</tr>
+<tr>
+<td>キャスト演算子 <code>static_cast</code> など</td>
+<td>未対応。エラーになる</td>
+</tr>
+<tr>
+<td>実行時型情報 <code>dynamic_cast</code> / <code>typeid</code></td>
+<td>未対応</td>
+</tr>
+<tr>
+<td>標準ライブラリ <code>&lt;iostream&gt;</code> など</td>
+<td>ヘッダが無い</td>
+</tr>
+<tr>
+<td>仮想継承・菱形継承</td>
+<td>未対応。エラーになる</td>
+</tr>
+<tr>
+<td><code>explicit</code>、<code>mutable</code>、クラス内 <code>enum</code></td>
+<td>未対応。エラーになる</td>
+</tr>
+<tr>
+<td>C++11 以降の機能（<code>auto</code>、ラムダ、<code>constexpr</code>、<code>nullptr</code>、メンバ初期化子、<code>enum class</code>、右辺値参照）</td>
+<td>未対応</td>
+</tr>
+<tr>
+<td><code>operator new</code> の置き換え、配置 <code>new</code></td>
+<td>未対応</td>
+</tr>
+<tr>
+<td>デストラクタを持つクラスの配列、<code>new C[n]</code></td>
+<td>未対応。エラーになる</td>
+</tr>
+<tr>
+<td>派生クラスの値を基底クラスの値へコピーする形（値渡し・値返し・コピー初期化）</td>
+<td>エラーになる（参照または直接初期化を使う）</td>
+</tr>
+<tr>
+<td>DLL でのグローバルオブジェクト構築 / <code>thread_local</code></td>
+<td>未対応</td>
+</tr>
+<tr>
+<td>DLL でのグローバルオブジェクト構築 / <code>thread_local</code></td>
+<td>未対応</td>
+</tr>
+</tbody>
+</table>
+<p><strong>標準からの逸脱（エラーにならないもの）</strong></p>
+<table>
+<thead>
+<tr>
+<th>事項</th>
+<th>挙動</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未宣言関数の呼び出し</td>
+<td>C++ 標準ではエラーだが、tpp は TCC 由来の C 挙動を引き継ぎ、<code>implicit declaration of function '&lt;名前&gt;'</code> の警告を出して <code>int</code> を返す無型関数として扱う。メンバ関数の本体からでも自由関数からでも同じ（<code>dev/test/a9/member_body_implicit_decl.cpp</code>）。<code>&lt;stdio.h&gt;</code> を取り込まずに <code>printf</code> を呼ぶような書き方が通ってしまうので、C++ として書くなら宣言を自分で用意すること</td>
+</tr>
+</tbody>
+</table>
+<hr/>
+<h3>17. amateras からの逆引き</h3>
+<p>amateras のどの部分が、どの C++ 機能に依存しているかをまとめる。</p>
+<table>
+<thead>
+<tr>
+<th>amateras の機能</th>
+<th>ファイル</th>
+<th>使っている C++ 機能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ベクトル・クォータニオン・行列</td>
+<td><code>base_inc/vec_quat.h</code></td>
+<td>クラス、コンストラクタ、参照引数、演算子オーバーロード（<code>= * + - / *= [] ==</code> 単項 <code>-</code>）、オーバーロード解決、<code>bool</code>、関数形式キャスト（<code>VEC3_LIT</code>）、名前の隠蔽（<code>struct tex</code>）</td>
+</tr>
+<tr>
+<td>ウィンドウ管理</td>
+<td><code>base_inc/cross_base.h</code>、<code>base_inc/platform/win/win_imp.h</code></td>
+<td>メンバ関数（<code>init()</code>、<code>reg_win()</code>、<code>run()</code>）、<code>this</code>、コンストラクタ / デストラクタ、クラス型メンバ（<code>win_txt</code>）の自動構築・破棄</td>
+</tr>
+<tr>
+<td>文字列バッファ</td>
+<td><code>base_inc/utility/txt_util.h</code></td>
+<td>コンストラクタのオーバーロード、コピーコンストラクタ、<code>operator=</code>、デストラクタ、参照</td>
+</tr>
+<tr>
+<td>OpenGL バックエンド</td>
+<td><code>base_inc/render/opengl/render_opengl.h</code></td>
+<td>単一継承（<code>render_opengl : public window_t</code>）、メンバ関数</td>
+</tr>
+<tr>
+<td>MMD スキニング</td>
+<td><code>base_inc/mmd/mmd_skinning.h</code></td>
+<td>関数呼び出しによるグローバル定数の動的初期化、クラス型メンバの自動構築</td>
+</tr>
+<tr>
+<td>MMD ボーン / アニメーション</td>
+<td><code>base_inc/mmd/vmd_parse.h</code>、<code>base_inc/mmd/mmd_bone.h</code>、<code>base_inc/mmd/mmd_anim.h</code></td>
+<td>クラス型メンバの自動構築、暗黙のメンバごとコピー代入、関数形式キャスト</td>
+</tr>
+<tr>
+<td>街生成（メッシュ）</td>
+<td><code>base_inc/town/town_mesh.h</code>、<code>base_inc/town/town_town.h</code></td>
+<td>ローカルのクラス配列</td>
+</tr>
+<tr>
+<td>NIF 形式の読み込み</td>
+<td><code>base_inc/3d_format/nif/nif_scene_impl.h</code></td>
+<td>関数内 <code>static</code> のクラス配列</td>
+</tr>
+<tr>
+<td>C の API との接続</td>
+<td><code>base_inc/cross_define.h</code>、<code>base_inc/3d_format/**/*.h</code></td>
+<td><code>extern "C"</code></td>
+</tr>
+<tr>
+<td>C++ からの動作確認</td>
+<td><code>test/tcc/vec_quat/vec_quat_matrix_cpp.cpp</code>、<code>test/tcc/n7_06/test_mmd_cross_cpp_compile.cpp</code>、<code>test/tcc/n7_07/*.cpp</code></td>
+<td>上記全体の統合確認（<code>cross.h</code> を C++ として取り込み、MMD モデルの描画まで実行）</td>
+</tr>
+</tbody>
+</table>
+<p>amateras 側の確認結果（<code>test/tcc/n7_08/AMATERAS_N7_08_FINAL_CONSUMER_QUALIFICATION.md</code>、2026-09-12）では、<code>cross.h</code> の C++ コンパイル、MMD + OpenGL の C++ ビルド・リンク・実行がすべて成功している。</p>
+<hr/>
+<h3>18. 主要な回帰テストの場所</h3>
+<table>
+<thead>
+<tr>
+<th>ディレクトリ</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dev/test/a2/</code></td>
+<td>C ソースでのキーワード降格</td>
+</tr>
+<tr>
+<td><code>dev/test/a7/</code></td>
+<td>メンバ関数、デフォルト引数、typedef</td>
+</tr>
+<tr>
+<td><code>dev/test/a8/</code></td>
+<td>継承、静的メンバ、コンストラクタ、デストラクタ、仮想関数、メンバポインタ</td>
+</tr>
+<tr>
+<td><code>dev/test/a9/</code></td>
+<td>演算子、<code>const</code> メンバ関数、参照、コピー初期化、<code>new</code> / <code>delete</code>、多重継承、名前解決、バグ回帰</td>
+</tr>
+<tr>
+<td><code>dev/test/a9/negative/</code></td>
+<td>エラーになるべき形（<code>.expected</code> に期待する診断）</td>
+</tr>
+<tr>
+<td><code>dev/test/a9/manual/</code></td>
+<td><code>thread_local</code>、クラス配列、amateras と同じ形の再現テスト</td>
+</tr>
+<tr>
+<td><code>sample/cppunit/</code></td>
+<td>CPPUnit の移植（12 ファイル + テストドライバ、17 テスト成功）</td>
+</tr>
+<tr>
+<td><code>dev/test/run_all.bat</code></td>
+<td>上記をまとめて実行する仕組み（<code>build.bat</code> から呼ばれる）</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</section>
+
+
+<section id="diff-audit">
+<h2>10. 元の tcc-doc.html との差分監査</h2>
+<table>
+<tr><th>領域</th><th>元文書</th><th>tpp/TCC DX 改訂で必要な扱い</th></tr>
+<tr><td>C++ 言語モード</td><td>実質記載なし</td><td><code>.cpp/.cxx/.cc/.hpp</code>、<code>-x c++</code>、<code>-x c++-header</code> を追記。</td></tr>
+<tr><td><code>__cplusplus</code></td><td>記載なし</td><td>C++ モードでは <code>199711L</code> を定義する実装を記載。</td></tr>
+<tr><td>C++ ABI</td><td>記載なし</td><td>独自 mangling、ctor/dtor/vtable 名、<code>extern "C"</code> 境界を記載。</td></tr>
+<tr><td>object lifetime</td><td>C のみ</td><td>ctor/dtor、RAII、global/static object、temporary、scope exit を追加。</td></tr>
+<tr><td><code>thread_local</code></td><td>言語機能として記載なし</td><td>EXE / <code>-run</code> / libtcc / DLL の差を追加。</td></tr>
+<tr><td>Windows SDK</td><td>一般的な Windows 利用のみ</td><td>TCC 互換 header、COM <code>CINTERFACE</code>、D3D helper 無効化等を追加。</td></tr>
+<tr><td>未対応 C++</td><td>記載なし</td><td>templates、namespace、exceptions、RTTI、C++11+ の多くなどを明示。</td></tr>
+<tr><td>ターゲット説明</td><td>章間で古い記述が混在</td><td>保証せず、現行 source/build で実装者が検証する注記を追加。</td></tr>
+</table>
+</section>
+
+<section id="verify">
+<h2>11. 実装者に依頼する検証項目</h2>
+<p>この章は次段階のソース・実機監査用です。文書を「正本」に昇格する前に、以下を確認してください。</p>
+<ol>
+<li><strong>基準 SHA の固定:</strong> 検証対象 branch/commit を1つに固定し、文書先頭へ SHA を記録する。</li>
+<li><strong>コマンドライン:</strong> <code>is_cpp_source()</code>、<code>guess_filetype()</code>、<code>TCC_OPTION_x</code> を確認し、
+<code>.cpp/.cxx/.cc/.hpp</code> と <code>-x c++/-x c++-header</code> の実動作を smoke test する。</li>
+<li><strong>プリプロセッサ:</strong> C++ 時の <code>__cplusplus</code> 値、C モードへの keyword demotion、
+<code>extern "C"</code> 内外の字句モードを確認する。</li>
+<li><strong>ABI:</strong> 自由関数、member function、const member、ctor、dtor、vtable の mangled name を
+object/symbol table でも確認する。</li>
+<li><strong>ライフタイム:</strong> local/global/static/TLS の ctor/dtor 順、return/goto/break/continue を含む scope exit を
+既存 gate と最小再現で確認する。</li>
+<li><strong>C++ 配列:</strong> local、function-local static、member array、未対応 dtor array、
+<code>new T[n]</code> を正負両方で確認する。</li>
+<li><strong>実行形態:</strong> normal EXE、<code>-run</code>/<code>tcc_run()</code>、libtcc direct relocate、DLL の差を確認する。</li>
+<li><strong>Windows SDK:</strong> <code>CINTERFACE</code>、<code>D3D10_NO_HELPERS</code>、
+<code>D3D11_NO_HELPERS</code>、<code>TCC_NO_FORCE_CINTERFACE</code> が現在も同じ契約か確認する。</li>
+<li><strong>Amateras consumer:</strong> <code>cross.h</code> C/C++、MMD+OpenGL、town の class array、
+NIF の local static class array などを実際に build/link/run する。</li>
+<li><strong>既知 gap:</strong> Windows header を複数 C++ TU で include した場合の GUID 重複定義、
+「先行 non-inline 宣言 + 後続 inline 定義」の未使用関数出力問題が現在も再現するか確認する。</li>
+<li><strong>元 TCC 章の回帰:</strong> C99/GNU C/assembler/linker/bounds/libtcc の説明について、
+fork による仕様変更が無いか upstream との差分を機械的に確認する。</li>
+<li><strong>ドキュメント gate:</strong> ソース参照監査、サンプル抽出・compile/run、negative gate を
+最終文書に合わせて更新し、文書記述を CI/回帰試験へ接続する。</li>
+</ol>
+<div class="notice warning">
+<strong>停止条件:</strong> 文書の記述と source/runtime が1件でも食い違った場合は、
+文書を正しいものとして実装を合わせるのではなく、まず「実装が正しいのか、文書が正しいのか」を切り分ける。
+Amateras を通すためだけの挙動と一般 C++ 契約を混同しない。
+</div>
+</section>
+
+<section id="revision">
+<h2>12. この暫定版の基準</h2>
+<ul>
+<li>元文書: <code>tcc-doc.html</code> — Tiny C Compiler 0.9.28rc reference。</li>
+<li>C++ 統合資料: <code>C++機能説明書.md</code> — 基準コミット <code>f593cb2</code>（2026-09-24）と記載。</li>
+<li>GitHub 確認時の作業 branch: <code>fix/cpp-included-file-local-class-init</code>。</li>
+<li>同 branch の確認時 HEAD: <code>294ca623d4ebd20bd74311ca4e13a03df094dbb2</code>。</li>
+<li>上記 HEAD の最後の変更は主に文書参照監査器の改善で、C++ 機能説明書のソース参照総数を 235 件へ補正したもの。</li>
+</ul>
+<p>この SHA 情報は、この暫定版を作った時点の基準です。実装者レビュー時には最新の検証対象 SHA に更新してください。</p>
+</section>
+
+
+<footer>
+<p>Generated as a provisional Japanese revision for source/runtime verification. 
+このファイル自体を正本にする前に、第11章の検証を実施してください。</p>
+</footer>
+</body>
+</html>
