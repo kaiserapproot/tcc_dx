@@ -176,6 +176,11 @@ echo === a9\dwarf_gate.bat ===
 call a9\dwarf_gate.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem x86_64-asm.h: SSE / SSE2 encodings (bytes checked against clang once).
+echo === a9\asm_gate.bat ===
+call a9\asm_gate.bat
+if errorlevel 1 set /a FAILED+=1
+
 rem === PR-N3A: path-sensitive temporary and reference lifetime gate ===
 echo === a9\manual\pr_n3a_temp_path.bat ===
 call a9\manual\pr_n3a_temp_path.bat
