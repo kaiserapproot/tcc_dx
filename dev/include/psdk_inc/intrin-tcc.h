@@ -4,7 +4,7 @@
  * No warranty is given; refer to the file DISCLAIMER.PD within this package.
  */
 
-/* TCC bodies for x86-64 intrinsics: Interlocked, bit scan and __rdtsc.
+/* TCC bodies for x86-64 intrinsics: Interlocked, bit scan, __rdtsc, fences.
 
    Why this file exists
      psdk_inc/intrin-impl.h is skipped for TCC (GCC builtins and GCC asm), and
@@ -27,6 +27,8 @@
      InterlockedIncrement64 and friends.
      Bit scan: _BitScanForward, _BitScanReverse and their 64 forms.
      Time stamp counter: __rdtsc.
+     Fences: _mm_lfence, _mm_mfence, _mm_sfence, _mm_pause, __faststorefence,
+     and the compiler barriers _ReadWriteBarrier / _ReadBarrier / _WriteBarrier.
 
    How
      Each read-modify-write is one locked instruction (lock xadd, xchg, lock
@@ -270,6 +272,48 @@ static __inline__ unsigned __int64 __rdtsc(void)
   __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
   return ((unsigned __int64)hi << 32) | lo;
 }
+/* fences and pause.  _mm_* is the MSVC / SSE2 spelling; winnt.h maps
+   MemoryBarrier, MemoryFence, LoadFence, StoreFence, FastFence and
+   YieldProcessor onto these names.  dev\include has no xmmintrin.h /
+   emmintrin.h, and TCC does not define __SSE__, so nothing else defines them. */
+
+static __inline__ void _mm_lfence(void)
+{
+  __asm__ __volatile__("lfence" : : : "memory");
+}
+
+static __inline__ void _mm_mfence(void)
+{
+  __asm__ __volatile__("mfence" : : : "memory");
+}
+
+static __inline__ void _mm_sfence(void)
+{
+  __asm__ __volatile__("sfence" : : : "memory");
+}
+
+static __inline__ void _mm_pause(void)
+{
+  __asm__ __volatile__("pause");
+}
+
+/* A full fence, as MSVC documents it (loads and stores before it are
+   globally visible before any after it), done the MSVC way with a locked
+   no-op on the stack.  mingw's intrin-impl.h uses sfence here, which does
+   not order a store before a later load. */
+static __inline__ void __faststorefence(void)
+{
+  __asm__ __volatile__("lock orl $0, (%%rsp)" : : : "memory");
+}
+
+/* Compiler barriers, the same macros as mingw's intrin-impl.h.  TCC accepts
+   the "memory" clobber without acting on it; it does not move memory
+   accesses across statements, so the empty asm is enough. */
+#ifndef _ReadWriteBarrier
+#define _ReadWriteBarrier() __asm__ __volatile__ ("" ::: "memory")
+#define _ReadBarrier _ReadWriteBarrier
+#define _WriteBarrier _ReadWriteBarrier
+#endif
 #endif /* defined(__TINYC__) && defined(__x86_64__) */
 
 #endif /* _INTRIN_TCC_H_ */
