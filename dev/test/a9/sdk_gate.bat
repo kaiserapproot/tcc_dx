@@ -8,6 +8,9 @@ rem   - the Interlocked bodies (psdk_inc/intrin-tcc.h): values in C and C++, two
 rem     TUs per language, and totals under contention from several threads.
 rem   - bit scan and __rdtsc (same header): values in C and C++, two TUs per
 rem     language (one of them after <intrin.h>).
+rem   - fences, pause and compiler barriers (same header): the instruction in
+rem     each body, a store-buffer litmus test with the full fences, C and C++,
+rem     two TUs per language (one after <intrin.h>, which declares some again).
 rem   - a direct <x86intrin.h> include is rejected (fail-closed, no empty stub).
 rem   - msimg32.def and d3dcompiler_47.def resolve their imports.
 rem   - libdxguid.a links from C and C++, works next to a translation unit that
@@ -121,6 +124,10 @@ call :build_run_ok SDK_BITSCAN_RDTSC_C "sdk_bitscan_rdtsc.c"
 call :build_run_ok SDK_BITSCAN_RDTSC_CPP "sdk_bitscan_rdtsc_cpp.cpp"
 call :build_run_ok SDK_BITSCAN_TWO_TU_C "sdk_bitscan_tu1.c sdk_bitscan_tu2.c"
 call :build_run_ok SDK_BITSCAN_TWO_TU_CPP "sdk_bitscan_tu1_cpp.cpp sdk_bitscan_tu2_cpp.cpp"
+call :build_run_ok SDK_FENCE_C "sdk_fence.c"
+call :build_run_ok SDK_FENCE_CPP "sdk_fence_cpp.cpp"
+call :build_run_ok SDK_FENCE_TWO_TU_C "sdk_fence_tu1.c sdk_fence_tu2.c"
+call :build_run_ok SDK_FENCE_TWO_TU_CPP "sdk_fence_tu1_cpp.cpp sdk_fence_tu2_cpp.cpp"
 call :build_must_fail SDK_X86INTRIN_H_FAIL_CLOSED "sdk_x86intrin.c" "is not supported by this TCC build"
 call :build_run_ok SDK_DEF_MSIMG32_D3DCOMPILER_47 "sdk_defs.c -lmsimg32 -ld3dcompiler_47"
 call :build_run_ok SDK_LIBDXGUID_C "sdk_dxguid.c -ldxguid"
