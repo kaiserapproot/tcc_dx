@@ -26,7 +26,13 @@
 
 #define TOK_ASM_first TOK_ASM_clc
 #define TOK_ASM_last TOK_ASM_emms
+/* the last table entry for which a failed match reports "bad operand"
+   rather than "unknown opcode" */
+#ifdef TCC_TARGET_X86_64
+#define TOK_ASM_alllast TOK_ASM_punpckhqdq
+#else
 #define TOK_ASM_alllast TOK_ASM_subps
+#endif
 
 #define OPC_B          0x01  /* only used with OPC_WL */
 #define OPC_WL         0x02  /* accepts w, l or no suffix */
@@ -697,6 +703,7 @@ ST_FUNC void asm_opcode(TCCState *s1, int opcode)
     Operand ops[MAX_OPERANDS], *pop;
     int op_type[3]; /* decoded op type */
     int alltypes;   /* OR of all operand types */
+    int mmxsse;     /* OP_MMX or OP_SSE once an OPT_MMXSSE operand matched */
     int autosize;
     int p66;
 #ifdef TCC_TARGET_X86_64
@@ -808,6 +815,7 @@ again:
 #endif
         /* now decode and check each operand */
 	alltypes = 0;
+	mmxsse = 0;
         for(i = 0; i < nb_ops; i++) {
             int op1, op2;
             op1 = pa->op_type[i];
@@ -841,6 +849,16 @@ again:
 	    op_type[i] = v;
             if ((ops[i].type & v) == 0)
                 goto next;
+            /* OPT_MMXSSE takes either register class, but all such operands of
+               one instruction must use the same one: paddq %mm1, %xmm2 is not an
+               instruction, and the 0x66 added below for the xmm operand used to
+               turn it into paddq %xmm1, %xmm2.  Forms that really mix the two
+               (cvtpi2ps) list OPT_MMX and OPT_SSE separately. */
+            if (op2 == OPT_MMXSSE && (ops[i].type & (OP_MMX | OP_SSE))) {
+                if (mmxsse && mmxsse != (ops[i].type & (OP_MMX | OP_SSE)))
+                    goto next;
+                mmxsse = ops[i].type & (OP_MMX | OP_SSE);
+            }
 	    alltypes |= ops[i].type;
         }
         (void)alltypes; /* maybe unused */
