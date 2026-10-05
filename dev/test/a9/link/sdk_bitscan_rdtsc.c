@@ -99,7 +99,11 @@ static int check_patterns(void)
     return 0;
 }
 
-static int check_rdtsc(void)
+/* RDTSC is not serializing, and counters of different CPUs need not agree
+   (Microsoft notes negative deltas when a thread moves between CPUs whose
+   TSCs are not in sync).  So the ordering checks run with the thread pinned
+   to one logical CPU, and the affinity is restored afterwards. */
+static int check_rdtsc_pinned(void)
 {
     unsigned __int64 t0, t1, t2;
     int i;
@@ -119,6 +123,19 @@ static int check_rdtsc(void)
        for more than a moment */
     CHECK(44, (t2 >> 32) != 0);
     return 0;
+}
+
+static int check_rdtsc(void)
+{
+    DWORD_PTR process_mask, system_mask, one_cpu, old_mask;
+    int rc;
+    CHECK(45, GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask) && process_mask != 0);
+    one_cpu = process_mask & (~process_mask + 1);   /* lowest CPU this process may use */
+    old_mask = SetThreadAffinityMask(GetCurrentThread(), one_cpu);
+    CHECK(46, old_mask != 0);
+    rc = check_rdtsc_pinned();
+    SetThreadAffinityMask(GetCurrentThread(), old_mask);
+    return rc;
 }
 
 int main(void)
