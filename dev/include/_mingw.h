@@ -172,8 +172,8 @@ limitations in handling dllimport attribute.  */
  *    GCC-only.  An intrinsic is therefore a declaration only, and using it
  *    fails at link time ("undefined symbol"), unless a TCC body exists.
  *  - TCC bodies: __debugbreak (below in this file), _abs64 (stdlib.h),
- *    __readgsqword (winnt.h), and the x86-64 Interlocked set
- *    (psdk_inc/intrin-tcc.h, included below in this file).
+ *    __readgsqword (winnt.h), and the x86-64 Interlocked set, bit scan and
+ *    __rdtsc (psdk_inc/intrin-tcc.h, included below in this file).
  *  - A TCC body must be the FIRST declaration of its function in the TU.  TCC
  *    takes the linkage from the first declaration: an extern prototype in
  *    front drops `static` from the body, and any later plain re-declaration

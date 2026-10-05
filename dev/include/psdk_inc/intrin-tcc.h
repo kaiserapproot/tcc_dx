@@ -4,7 +4,7 @@
  * No warranty is given; refer to the file DISCLAIMER.PD within this package.
  */
 
-/* TCC bodies for the x86-64 Interlocked intrinsics.
+/* TCC bodies for x86-64 intrinsics: Interlocked, bit scan and __rdtsc.
 
    Why this file exists
      psdk_inc/intrin-impl.h is skipped for TCC (GCC builtins and GCC asm), and
@@ -25,6 +25,8 @@
      The 64-bit and pointer forms are needed even by code that only uses the
      32-bit ones: in C++ the winbase.h overloads for unsigned types call
      InterlockedIncrement64 and friends.
+     Bit scan: _BitScanForward, _BitScanReverse and their 64 forms.
+     Time stamp counter: __rdtsc.
 
    How
      Each read-modify-write is one locked instruction (lock xadd, xchg, lock
@@ -40,8 +42,8 @@
        are used, and two TUs never define the same symbol.
      - TCC asm: plain AT&T syntax only (no {x|y} dialects).
 
-   dev\test\a9\sdk_gate.bat checks values, both languages, two TUs and
-   contention from several threads. */
+   dev\test\a9\sdk_gate.bat checks values, both languages, two TUs and, for
+   Interlocked, contention from several threads. */
 
 #ifndef _INTRIN_TCC_H_
 #define _INTRIN_TCC_H_
@@ -216,6 +218,58 @@ static __inline__ void *_InterlockedCompareExchangePointer(void *volatile *Desti
   return old;
 }
 
+/* bit scan.  MSVC leaves *Index undefined when Mask is 0; here it is not
+   written at all, and the result is 0.  bsf / bsr leave the destination
+   undefined for a zero source, so Mask is tested before the instruction. */
+
+static __inline__ unsigned char _BitScanForward(unsigned __LONG32 *Index, unsigned __LONG32 Mask)
+{
+  unsigned __LONG32 n;
+  if (!Mask)
+    return 0;
+  __asm__("bsfl %1, %0" : "=r"(n) : "r"(Mask));
+  *Index = n;
+  return 1;
+}
+
+static __inline__ unsigned char _BitScanReverse(unsigned __LONG32 *Index, unsigned __LONG32 Mask)
+{
+  unsigned __LONG32 n;
+  if (!Mask)
+    return 0;
+  __asm__("bsrl %1, %0" : "=r"(n) : "r"(Mask));
+  *Index = n;
+  return 1;
+}
+
+static __inline__ unsigned char _BitScanForward64(unsigned __LONG32 *Index, unsigned __int64 Mask)
+{
+  unsigned __int64 n;
+  if (!Mask)
+    return 0;
+  __asm__("bsfq %1, %0" : "=r"(n) : "r"(Mask));
+  *Index = (unsigned __LONG32)n;
+  return 1;
+}
+
+static __inline__ unsigned char _BitScanReverse64(unsigned __LONG32 *Index, unsigned __int64 Mask)
+{
+  unsigned __int64 n;
+  if (!Mask)
+    return 0;
+  __asm__("bsrq %1, %0" : "=r"(n) : "r"(Mask));
+  *Index = (unsigned __LONG32)n;
+  return 1;
+}
+
+/* time stamp counter (edx:eax).  Not serializing, as with MSVC. */
+
+static __inline__ unsigned __int64 __rdtsc(void)
+{
+  unsigned __LONG32 lo, hi;
+  __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+  return ((unsigned __int64)hi << 32) | lo;
+}
 #endif /* defined(__TINYC__) && defined(__x86_64__) */
 
 #endif /* _INTRIN_TCC_H_ */

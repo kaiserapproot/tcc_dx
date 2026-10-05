@@ -70,7 +70,8 @@
 extern "C" {
 #endif
 
-/* TCC ships no GCC x86intrin.h (no _mm_* / __rdtsc builtins).  _mingw.h makes
+/* TCC ships no GCC x86intrin.h (no _mm_* builtins; __rdtsc has a TCC body in
+   psdk_inc/intrin-tcc.h).  _mingw.h makes
    TCC claim __GNUC__, so skip the include here instead of relying on an empty
    stub that would make <x86intrin.h> look supported. */
 #ifndef __TINYC__
