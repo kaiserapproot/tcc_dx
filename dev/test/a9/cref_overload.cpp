@@ -21,6 +21,15 @@ static int k(int &) { return 1; }
 static int cv(const volatile int &) { return 1; }
 static int cv(double) { return 2; }
 
+// Each argument is scored by its own value category: an lvalue in one
+// position and an rvalue in the other pick different overloads (in either
+// declaration order).  Taking the category from the last argument for all
+// of them would send both calls to the same overload.
+static int two(int &, const int &) { return 1; }
+static int two(const int &, int &) { return 2; }
+static int owt(const int &, int &) { return 2; }
+static int owt(int &, const int &) { return 1; }
+
 static int g_value = 5;
 static int &ref_to_g() { return g_value; }
 static int same(const int &x) { return &x == &g_value; }
@@ -33,6 +42,8 @@ struct S {
     S(const double &) : k(2) {}
     int m(const int &) { return 1; }
     int m(const double &) { return 2; }
+    int p(int &, const int &) { return 1; }
+    int p(const int &, int &) { return 2; }
 };
 
 int main()
@@ -53,5 +64,8 @@ int main()
     if (!same(ref_to_g())) return 8;            /* T& result binds as-is */
     if (si.k != 1 || sd.k != 2) return 9;       /* constructors */
     if (s.m(1) != 1 || s.m(1.5) != 2) return 10; /* member functions */
+    if (two(i, 1) != 1 || two(1, i) != 2) return 11; /* per-argument category */
+    if (owt(i, 1) != 1 || owt(1, i) != 2) return 12;
+    if (s.p(i, 1) != 1 || s.p(1, i) != 2) return 13;
     return 0;
 }
