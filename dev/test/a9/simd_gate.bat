@@ -5,6 +5,8 @@ rem     simd\simd_values_expected.txt, which is the same program's output when
 rem     built by MSVC (manual\simd_golden_msvc.bat makes it)
 rem   - two TUs per language (one through <intrin.h>, one <emmintrin.h> alone)
 rem   - <xmmintrin.h> alone
+rem   - the x64 / older names (_mm_cvtss_si64x, _mm_stream_si64x, _mm_setl_epi64,
+rem     ...) through <intrin.h> alone, C and C++
 rem Keep this file CRLF: cmd can misread call/goto labels in LF-only files.
 setlocal EnableExtensions EnableDelayedExpansion
 goto :main
@@ -61,6 +63,8 @@ call :values_match SIMD_VALUES_CPP simd_values_cpp.cpp
 call :build_run_ok SIMD_TWO_TU_C "simd_tu1.c simd_tu2.c"
 call :build_run_ok SIMD_TWO_TU_CPP "simd_tu1_cpp.cpp simd_tu2_cpp.cpp"
 call :build_run_ok SIMD_XMMINTRIN_ONLY "simd_xmm_only.c"
+call :build_run_ok SIMD_INTRIN_H_X64_NAMES_C "simd_intrin_names.c"
+call :build_run_ok SIMD_INTRIN_H_X64_NAMES_CPP "simd_intrin_names_cpp.cpp"
 if not "!FAILED!"=="0" (
   echo SIMD_GATE=FAIL failed=!FAILED!
   popd
