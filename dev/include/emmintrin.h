@@ -533,10 +533,13 @@ static __inline__ void _mm_stream_si32(int *__p, int __a)
   __asm__ __volatile__("movnti %1, (%0)" : : "r"(__p), "r"(__a) : "memory");
 }
 
-static __inline__ void _mm_stream_si64(__int64 *__p, __int64 __a)
+/* _mm_stream_si64x is the MSVC name (intrin.h declares it with these types);
+   _mm_stream_si64 is its alias */
+static __inline__ void _mm_stream_si64x(__int64 *__p, __int64 __a)
 {
   __asm__ __volatile__("movnti %1, (%0)" : : "r"(__p), "r"(__a) : "memory");
 }
+#define _mm_stream_si64 _mm_stream_si64x
 
 /* bytes of a whose mask byte has the top bit set are stored to p */
 static __inline__ void _mm_maskmoveu_si128(__m128i __a, __m128i __mask, char *__p)
@@ -653,8 +656,10 @@ __TCC_XMM_BINOP(__m128d, _mm_unpacklo_pd, "unpcklpd")
 
 /* move / mask */
 __TCC_XMM_BINOP(__m128d, _mm_move_sd, "movsd")
-/* the low 64 bits, upper half zero */
+/* the low 64 bits, upper half zero (_mm_setl_epi64 is the same operation
+   under its older name; intrin.h no longer declares it once __SSE2__ is set) */
 __TCC_XMM_UNOP(__m128i, _mm_move_epi64, "movq")
+__TCC_XMM_UNOP(__m128i, _mm_setl_epi64, "movq")
 
 static __inline__ int _mm_movemask_epi8(__m128i __a)
 {

@@ -448,6 +448,31 @@ static void casts(void)
     put_bytes("_mm_castps_pd", 0, 0, &c, 16); put_bytes("_mm_castpd_ps", 0, 0, &e, 16);
 }
 
+/* the x64 / older names MSVC also has (they are aliases or the same
+   operation, and must give the same bytes as their canonical forms) */
+static void x64_names(void)
+{
+    static const float fs[4] = { 2.5f, -3.5f, 1.0e19f, -0.4f };
+    static const long long lls[3] = { 0, -9007199254740993LL, 9223372036854775807LL };
+    ALIGN16 __int64 nt[2];
+    int k;
+    for (k = 0; k < 4; k++) {
+        __m128 a = _mm_set_ss(fs[k]);
+        put_int("_mm_cvtss_si64x", k, 0, _mm_cvtss_si64x(a));
+        put_int("_mm_cvttss_si64x", k, 0, _mm_cvttss_si64x(a));
+    }
+    for (k = 0; k < 3; k++) {
+        __m128 r = _mm_cvtsi64x_ss(vf[2], lls[k]);
+        put_bytes("_mm_cvtsi64x_ss", k, 0, &r, 16);
+    }
+    for (k = 0; k < NI; k++) {
+        __m128i r = _mm_setl_epi64(vi[k]);
+        put_bytes("_mm_setl_epi64", k, 0, &r, 16);
+        nt[0] = 0x1111; nt[1] = 0x2222;
+        _mm_stream_si64x(&nt[1], vi[k].m128i_i64[0]);
+        put_bytes("_mm_stream_si64x", k, 0, nt, 16);
+    }
+}
 int main(void)
 {
     /* LF only, so the expected file does not depend on line-end conversion */
@@ -464,6 +489,7 @@ int main(void)
     sse2_set_memory();
     sse2_integer();
     casts();
+    x64_names();
     printf("SIMD_VALUES_END\n");
     return 0;
 }

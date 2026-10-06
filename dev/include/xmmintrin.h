@@ -8,7 +8,10 @@
 
    TCC: the intrinsics are static __inline__ functions (or macros, where an
    operand must be an immediate) written with inline asm, in the MSVC spelling
-   and with the MSVC types:
+   and with the MSVC types (layout and source compatible only: TCC passes a
+   16-byte union by reference as MSVC does, but returns it through a hidden
+   pointer where MSVC returns __m128 in xmm0, so a function returning __m128
+   cannot be called between TCC- and MSVC-compiled code):
      - __m128 is a 16-byte aligned union with the MSVC member names
        (m128_f32, m128_i32, ...).  TCC has no vector types.
      - Operands are loaded with movups, so a by-value __m128 need not be
@@ -286,6 +289,11 @@ static __inline__ float _mm_cvtss_f32(__m128 __a)
 #define _mm_cvt_ss2si _mm_cvtss_si32
 #define _mm_cvtt_ss2si _mm_cvttss_si32
 #define _mm_cvt_si2ss _mm_cvtsi32_ss
+/* the x64 names MSVC also has (intrin.h no longer declares them once
+   __SSE__ is defined, so they must be here) */
+#define _mm_cvtss_si64x _mm_cvtss_si64
+#define _mm_cvttss_si64x _mm_cvttss_si64
+#define _mm_cvtsi64x_ss _mm_cvtsi64_ss
 
 /* set (plain data movement, so plain C) */
 static __inline__ __m128 _mm_setzero_ps(void)
