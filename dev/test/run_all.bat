@@ -181,6 +181,11 @@ echo === a9\asm_gate.bat ===
 call a9\asm_gate.bat
 if errorlevel 1 set /a FAILED+=1
 
+rem dev\include xmmintrin.h / emmintrin.h: values must match MSVC.
+echo === a9\simd_gate.bat ===
+call a9\simd_gate.bat
+if errorlevel 1 set /a FAILED+=1
+
 rem === PR-N3A: path-sensitive temporary and reference lifetime gate ===
 echo === a9\manual\pr_n3a_temp_path.bat ===
 call a9\manual\pr_n3a_temp_path.bat

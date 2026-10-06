@@ -76,6 +76,11 @@ extern "C" {
    stub that would make <x86intrin.h> look supported. */
 #ifndef __TINYC__
 #include <x86intrin.h>
+#else
+/* TCC: the SSE / SSE2 intrinsics (TCC asm bodies).  They come before the
+   prototypes below, and the __SSE__ / __SSE2__ they define skip both those
+   prototypes and the placeholder types. */
+#include <emmintrin.h>
 #endif
 
 /* Before 4.9.2, x86intrin.h had broken versions of these. */
@@ -89,7 +94,7 @@ extern "C" {
 #endif
 
 #ifndef __MINGW_FORCE_SYS_INTRINS
-#ifndef __MMX__
+#if !defined(__MMX__) && !defined(__TCC_M64_DEFINED)
 typedef union __m64 { char v[7]; } __m64;
 #endif
 #ifndef __SSE__
