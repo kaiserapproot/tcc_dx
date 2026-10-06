@@ -123,6 +123,8 @@ static const struct {
 #define	DWARF_ABBREV_FORMAL_PARAMETER2		26
 // C++ reference types (tcc_dx). Appended last so the existing abbrev codes do not change.
 #define	DWARF_ABBREV_REFERENCE			27
+// C++ pointer to data member (tcc_dx), also appended last.
+#define	DWARF_ABBREV_PTR_TO_MEMBER		28
 
 /* all entries should have been generated with dwarf_uleb128 except
    has_children. All values are currently below 128 so this currently
@@ -305,6 +307,10 @@ static const unsigned char dwarf_abbrev_init[] = {
     DWARF_ABBREV_REFERENCE, DW_TAG_reference_type, 0,
           DW_AT_byte_size, DW_FORM_data1,
           DW_AT_type, DW_FORM_ref4,
+          0, 0,
+    DWARF_ABBREV_PTR_TO_MEMBER, DW_TAG_ptr_to_member_type, 0,
+          DW_AT_type, DW_FORM_ref4,
+          DW_AT_containing_type, DW_FORM_ref4,
           0, 0,
   0
 };
@@ -1747,8 +1753,10 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
             type &= ~VT_DEFSIGN;
         // C++ reference (tcc_dx) is VT_PTR | VT_REFERENCE. Walk through it like a pointer;
         // otherwise it matched no base type and "return 0" produced DW_AT_type 0x0.
+        // A member pointer (VT_PTR | VT_MPTR) is walked the same way: its type.ref
+        // is the member, whose type is the pointee.
         if (type == VT_PTR || type == (VT_PTR | VT_ARRAY)
-            || type == (VT_PTR | VT_REFERENCE))
+            || type == (VT_PTR | VT_REFERENCE) || type == (VT_PTR | VT_MPTR))
             t = t->type.ref;
         else
             break;
@@ -1916,6 +1924,45 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
 	    last_pos = dwarf_info_section->data_offset;
 	    e = t->type.ref;
 	    dwarf_data4(dwarf_info_section, 0);
+	}
+        else if (type == (VT_PTR | VT_MPTR)) {
+	    // C++ member pointer (tcc_dx).  It matched nothing here and got
+	    // DW_AT_type 0x0, which GDB rejects for the whole program ("Cannot
+	    // find DIE at 0x0", no breakpoint can be set).  A pointer to data
+	    // member holds the member offset in a pointer-sized slot, as the
+	    // Itanium layout GDB expects, so it is a DW_TAG_ptr_to_member_type.
+	    // A pointer to member function holds just the code address in 8
+	    // bytes, not the 16-byte {ptr, adj} pair (odd ptr = virtual) GDB
+	    // would read for one, so it is described as a function pointer.
+	    Sym *cls = t->type.ref->parent_class;
+	    int cls_type = 0;
+
+	    if (cls && (t->type.ref->type.t & VT_BTYPE) != VT_FUNC) {
+		Sym sym = {0};
+
+		sym.type.t = VT_STRUCT;
+		sym.type.ref = cls;
+		cls_type = tcc_get_dwarf_info(s1, &sym);
+	    }
+	    i = dwarf_info_section->data_offset;
+	    if (retval == debug_type)
+		retval = i;
+	    if (cls_type)
+		dwarf_data1(dwarf_info_section, DWARF_ABBREV_PTR_TO_MEMBER);
+	    else {
+		dwarf_data1(dwarf_info_section, DWARF_ABBREV_POINTER);
+		dwarf_data1(dwarf_info_section, PTR_SIZE);
+	    }
+	    if (last_pos != -1) {
+		tcc_debug_check_anon(s1, e, last_pos);
+		write32le(dwarf_info_section->data + last_pos,
+			  i - dwarf_info.start);
+	    }
+	    last_pos = dwarf_info_section->data_offset;
+	    e = t->type.ref;
+	    dwarf_data4(dwarf_info_section, 0);
+	    if (cls_type)
+		dwarf_data4(dwarf_info_section, cls_type - dwarf_info.start);
 	}
         else if (type == (VT_PTR | VT_ARRAY)) {
 	    int sib_pos, sub_type;
@@ -2118,6 +2165,12 @@ ST_FUNC void tcc_add_debug_info(TCCState *s1, int param, Sym *s, Sym *e)
     cstr_new (&debug_str);
     for (; s != e; s = s->prev) {
         if (!s->v || (s->r & VT_VALMASK) != VT_LOCAL)
+            continue;
+        // The parameters of a function type in a declarator (the int of
+        // int (*fp)(int)) stay on the local stack as VT_LOCAL symbols marked
+        // SYM_FIELD.  They are not variables; they showed up as a local named
+        // "<\x00>" (or the parameter's name) at frame offset 0.
+        if (s->v & SYM_FIELD)
             continue;
 	if (s1->dwarf) {
 	    tcc_debug_stabs(s1, get_tok_str(s->v, NULL),

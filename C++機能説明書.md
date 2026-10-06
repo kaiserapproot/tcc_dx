@@ -1,7 +1,7 @@
 ﻿# tpp (TCC 拡張版) C++ 機能説明書
 
 **対象**: `dev\tcc.exe`（tcc version 0.9.28rc、x86_64 Windows）
-**基準コミット**: `a401cea` にブランチ `feature/cpp-cref-bind-lvalue-conv` の修正を加えた状態（2026-10-06。型が違う算術型の左辺値を `const T&` に束縛するときの一時オブジェクトの修正を含む。行番号はこの時点の値）
+**基準コミット**: `ca6fa53` にブランチ `feature/dwarf-member-pointer` の修正を加えた状態（2026-10-06。メンバポインタの DWARF 出力の修正を含む。行番号はこの時点の値）
 **位置づけ**: TCC (Tiny C Compiler) に C++98 の一部機能を追加したもの。C++ コンパイラの置き換えではない。
 
 <!-- doc-sample-qualification: この行はサンプル検証スクリプトがこのファイルを見つけるための ASCII マーカー。消さないこと。 -->
@@ -1341,6 +1341,7 @@ int main()
 - メンバ関数ポインタ `void (Point::*pf)(int) = &Point::set;`、`(obj.*pf)(42)`。
 - 仮想関数へのメンバ関数ポインタは、オブジェクトの実際の型で呼び分ける。
 - 派生クラスのオブジェクトに基底クラスのメンバ関数ポインタを使える（単一継承のみ）。
+- `-gdwarf` のデバッグ情報にメンバポインタ型の変数を出せる。データメンバポインタは `DW_TAG_ptr_to_member_type` で、GDB では `&Point::x` と表示される。メンバ関数ポインタは関数ポインタとして出し、GDB では関数名付きのアドレスが表示される。
 
 **実装箇所**
 
@@ -1350,6 +1351,8 @@ int main()
 - `tccgen.c:1626` `cpp_emit_mptr_dmp_access()` — データメンバポインタのアクセス
 - `tccgen.c:1655` `cpp_emit_mptr_pmf_invoke()` — メンバ関数ポインタの呼び出し（仮想なら `cpp_prepare_virtual_member_call()` へ）
 - `tccgen.c:16221-16223` — `.*` / `->*` の入口
+- `tccdbg.c:1928` `tcc_get_dwarf_info()` — メンバポインタ型の DWARF（`tccdbg.c:311` の略語 `DWARF_ABBREV_PTR_TO_MEMBER`）
+- `tccdbg.c:2173` `tcc_add_debug_info()` — 関数型の宣言子の仮引数（`int (*fp)(int)` の `int`）をローカル変数として出さない
 
 **amateras での用途**
 
@@ -1384,6 +1387,7 @@ int main()
 
 - 多重継承のメンバ関数ポインタは未対応。
 - MSVC の 16 バイトのメンバ関数ポインタ形式とは互換性がない。
+- メンバ関数ポインタの中身は 8 バイトの関数アドレスだけで、GDB が想定する Itanium の形（16 バイト）と違う。そのためデバッグ情報では関数ポインタとして出しており、GDB の `ptype` は `int (*)(int)` のように表示する。
 
 ---
 
