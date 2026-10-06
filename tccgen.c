@@ -9789,6 +9789,39 @@ static void gen_cast(CType* type)
     if (vtop->r & VT_MUSTCAST)
         force_charshort_cast();
 
+    // C++: an rvalue binds to a reference to const through a temporary
+    // ([dcl.init.ref]).  Without this, f(35) for f(const int &) fell through to
+    // the plain cast below and passed 35 itself as the address (an access
+    // violation at run time), and f(35.0) did not compile.  The value is
+    // converted to T, stored in a fresh stack slot, and that lvalue is bound
+    // by the code that follows.  A new slot per binding, not
+    // get_temp_local_var(): once its address is taken the vstack no longer
+    // refers to the slot, so a recycled slot could be overwritten by the next
+    // argument.  Classes keep their current path, and so does a value that
+    // already is a reference (a call returning T&).
+    if (tcc_state->cpp && (type->t & VT_REFERENCE) && !(vtop->r & VT_LVAL)
+        && !(vtop->type.t & VT_REFERENCE)
+        && (pointed_type(type)->t & VT_BTYPE) != VT_STRUCT
+        && (pointed_type(type)->t & VT_BTYPE) != VT_FUNC
+        && !(pointed_type(type)->t & VT_ARRAY)) {
+        CType tt;
+        int size, align;
+
+        tt = *pointed_type(type);
+        if (!(tt.t & VT_CONSTANT))
+            tcc_error("cannot bind a non-const reference to an rvalue");
+        if (!local_stack)
+            tcc_error("cannot bind a reference to an rvalue outside a function");
+        tt.t &= ~(VT_CONSTANT | VT_VOLATILE);
+        size = type_size(&tt, &align);
+        gen_cast(&tt);
+        loc = (loc - size) & -align;
+        vset(&tt, VT_LOCAL | VT_LVAL, loc);
+        vswap();
+        vstore();
+        vpop();         // vstore leaves the stored value, not the slot
+        vset(&tt, VT_LOCAL | VT_LVAL, loc);
+    }
     /* C++: bind lvalue to reference (param / return) */
     if (tcc_state->cpp && (type->t & VT_REFERENCE) && (vtop->r & VT_LVAL)) {
         if (cpp_can_bind_lvalue_to_reference(type, &vtop->type)) {
@@ -10262,6 +10295,18 @@ static void verify_assign_cast(CType* dt)
         type1 = pointed_type(dt);
         if ((dt->t & VT_REFERENCE) && sbt != VT_PTR && sbt != VT_FUNC
             && cpp_can_bind_lvalue_to_reference(dt, st))
+            break;
+        // An arithmetic rvalue binds to a reference to const arithmetic T, and
+        // a pointer rvalue to a reference to a const pointer of that type,
+        // through a (converted) temporary, which gen_cast makes.  They used to
+        // fall into the pointer checks below: an integer-to-pointer warning,
+        // an incompatible-pointer warning, or (for a double) an error.
+        if (tcc_state->cpp && (dt->t & VT_REFERENCE) && !(vtop->r & VT_LVAL)
+            && !(st->t & VT_REFERENCE) && (type1->t & VT_CONSTANT)
+            && (((is_float(sbt) || is_integer_btype(sbt))
+                 && (is_float(type1->t & VT_BTYPE) || is_integer_btype(type1->t & VT_BTYPE)))
+                || (sbt == VT_PTR && (type1->t & VT_BTYPE) == VT_PTR
+                    && is_compatible_unqualified_types(type1, st))))
             break;
         /* accept implicit pointer to integer cast with warning */
         if (is_integer_btype(sbt)) {
