@@ -9837,7 +9837,7 @@ static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg)
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
 static void gen_cast(CType* type)
 {
-    int sbt, dbt, sf, df, c;
+    int sbt, dbt, sf, df, c, conv_lvalue;
     int dbt_bt, sbt_bt, ds, ss, bits, trunc;
     CType *pt;
     CType ref_pt;
@@ -9856,7 +9856,21 @@ static void gen_cast(CType* type)
     // refers to the slot, so a recycled slot could be overwritten by the next
     // argument.  Classes keep their current path, and so does a value that
     // already is a reference (a call returning T&).
-    if (tcc_state->cpp && (type->t & VT_REFERENCE) && !(vtop->r & VT_LVAL)
+    // An lvalue of another arithmetic type (an int variable for
+    // const double &, an unsigned for const int &) cannot bind directly
+    // either and goes through the same converted temporary.  It used to fail
+    // the lvalue binding below and fall through to the plain cast: the int
+    // was passed as the address (a hang or crash), and a double did not
+    // compile.
+    conv_lvalue = tcc_state->cpp && (type->t & VT_REFERENCE)
+        && (vtop->r & VT_LVAL) && !(vtop->type.t & VT_REFERENCE)
+        && (is_float(vtop->type.t & VT_BTYPE)
+            || is_integer_btype(vtop->type.t & VT_BTYPE))
+        && (is_float(pointed_type(type)->t & VT_BTYPE)
+            || is_integer_btype(pointed_type(type)->t & VT_BTYPE))
+        && !cpp_can_bind_lvalue_to_reference(type, &vtop->type);
+    if (tcc_state->cpp && (type->t & VT_REFERENCE)
+        && (!(vtop->r & VT_LVAL) || conv_lvalue)
         && !(vtop->type.t & VT_REFERENCE)
         && (pointed_type(type)->t & VT_BTYPE) != VT_STRUCT
         && (pointed_type(type)->t & VT_BTYPE) != VT_FUNC
@@ -9866,10 +9880,14 @@ static void gen_cast(CType* type)
 
         tt = *pointed_type(type);
         if (!(tt.t & VT_CONSTANT))
-            tcc_error("cannot bind a non-const reference to an rvalue");
+            tcc_error(conv_lvalue
+                      ? "cannot bind a non-const reference to an lvalue of another type or qualification"
+                      : "cannot bind a non-const reference to an rvalue");
         // const volatile T& is not a reference to const either ([dcl.init.ref]).
         if (tt.t & VT_VOLATILE)
-            tcc_error("cannot bind a volatile reference to an rvalue");
+            tcc_error(conv_lvalue
+                      ? "cannot bind a volatile reference to an lvalue of another type"
+                      : "cannot bind a volatile reference to an rvalue");
         if (!local_stack)
             tcc_error("cannot bind a reference to an rvalue outside a function");
         tt.t &= ~(VT_CONSTANT | VT_VOLATILE);
@@ -10356,17 +10374,20 @@ static void verify_assign_cast(CType* dt)
         if ((dt->t & VT_REFERENCE) && sbt != VT_PTR && sbt != VT_FUNC
             && cpp_can_bind_lvalue_to_reference(dt, st))
             break;
-        // An arithmetic rvalue binds to a reference to const arithmetic T, and
-        // a pointer rvalue to a reference to a const pointer of that type,
-        // through a (converted) temporary, which gen_cast makes.  They used to
-        // fall into the pointer checks below: an integer-to-pointer warning,
-        // an incompatible-pointer warning, or (for a double) an error.
-        if (tcc_state->cpp && (dt->t & VT_REFERENCE) && !(vtop->r & VT_LVAL)
+        // An arithmetic value (an rvalue, or an lvalue of another type, which
+        // the check above did not bind) binds to a reference to const
+        // arithmetic T, and a pointer rvalue to a reference to a const pointer
+        // of that type, through a (converted) temporary, which gen_cast makes.
+        // They used to fall into the pointer checks below: an
+        // integer-to-pointer warning, an incompatible-pointer warning, or (for
+        // a double) an error.
+        if (tcc_state->cpp && (dt->t & VT_REFERENCE)
             && !(st->t & VT_REFERENCE)
             && (type1->t & (VT_CONSTANT | VT_VOLATILE)) == VT_CONSTANT
             && (((is_float(sbt) || is_integer_btype(sbt))
                  && (is_float(type1->t & VT_BTYPE) || is_integer_btype(type1->t & VT_BTYPE)))
-                || (sbt == VT_PTR && (type1->t & VT_BTYPE) == VT_PTR
+                || (!(vtop->r & VT_LVAL)
+                    && sbt == VT_PTR && (type1->t & VT_BTYPE) == VT_PTR
                     && is_compatible_unqualified_types(type1, st))))
             break;
         /* accept implicit pointer to integer cast with warning */
