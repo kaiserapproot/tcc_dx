@@ -419,7 +419,8 @@ static int cpp_build_call_mangle(int v, int nb_args, char *mbuf, int buf_size)
     return pos;
 }
 
-static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
+static int cpp_arg_matches_param(CType *param, CType *arg, int arg_lvalue,
+                                 int *score_out)
 {
     int p_bt, a_bt;
     CType *pt;
@@ -452,6 +453,58 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int *score_out)
             if ((arg->t & VT_BTYPE) == VT_STRUCT
                 && cpp_can_bind_lvalue_to_reference(param, arg)) {
                 *score_out = 5;
+                return 1;
+            }
+            return 0;
+        }
+    }
+    // A reference to a non-class T (const int&, const PC&).  The parameter is
+    // a pointer inside TCC, so the arithmetic and pointer rules below never
+    // matched an int argument: f(const int &) / f(const double &) had no
+    // viable candidate and the last declared overload was called.
+    // [dcl.init.ref], [over.ics.ref]: an lvalue of T binds directly
+    // (identity; adding cv ranks just below, so f(int &) beats
+    // f(const int &) for a plain int).  Anything else needs a temporary,
+    // which only a const, non-volatile reference accepts, ranked like the
+    // conversion that fills it.
+    if (tcc_state->cpp && (param->t & VT_REFERENCE)) {
+        CType *at = arg;
+        int lv = arg_lvalue;
+
+        pt = pointed_type(param);
+        if (at->t & VT_REFERENCE) {
+            at = pointed_type(at);
+            lv = 1;
+        }
+        if (pt && (pt->t & VT_BTYPE) != VT_FUNC && !(pt->t & VT_ARRAY)
+            && (at->t & VT_BTYPE) != VT_STRUCT) {
+            int pq = pt->t & (VT_CONSTANT | VT_VOLATILE);
+            int aq = at->t & (VT_CONSTANT | VT_VOLATILE);
+            int related = is_compatible_unqualified_types(pt, at);
+
+            p_bt = pt->t & VT_BTYPE;
+            a_bt = at->t & VT_BTYPE;
+            if (lv && related) {
+                if (aq & ~pq)
+                    return 0;
+                *score_out = aq == pq ? 10 : 9;
+                return 1;
+            }
+            if (!(pq & VT_CONSTANT) || (pq & VT_VOLATILE))
+                return 0;
+            if (related) {
+                *score_out = 10;
+                return 1;
+            }
+            if ((is_float(p_bt) || is_integer_btype(p_bt))
+                && (is_float(a_bt) || is_integer_btype(a_bt))) {
+                *score_out = 1;
+                return 1;
+            }
+            // Kept from the generic ptr/ptr rule below, which used to
+            // accept any pointer here.
+            if (p_bt == VT_PTR && a_bt == VT_PTR) {
+                *score_out = 1;
                 return 1;
             }
             return 0;
@@ -574,7 +627,9 @@ static Sym *cpp_resolve_func_call(int v, int nb_args, Sym *cur)
                 break;
             }
 
-            if (cpp_arg_matches_param(&p->type, arg_type, &arg_score)) {
+            if (cpp_arg_matches_param(&p->type, arg_type,
+                                      !!(vtop[-nb_args + 1 + i].r & VT_LVAL),
+                                      &arg_score)) {
                 score += arg_score;
             } else {
                 match = 0;
@@ -636,7 +691,9 @@ static Sym *cpp_resolve_free_func_call(int v, int nb_args)
                 break;
             }
 
-            if (cpp_arg_matches_param(&p->type, arg_type, &arg_score)) {
+            if (cpp_arg_matches_param(&p->type, arg_type,
+                                      !!(vtop[-nb_args + 1 + i].r & VT_LVAL),
+                                      &arg_score)) {
                 score += arg_score;
             } else {
                 match = 0;
@@ -9810,6 +9867,9 @@ static void gen_cast(CType* type)
         tt = *pointed_type(type);
         if (!(tt.t & VT_CONSTANT))
             tcc_error("cannot bind a non-const reference to an rvalue");
+        // const volatile T& is not a reference to const either ([dcl.init.ref]).
+        if (tt.t & VT_VOLATILE)
+            tcc_error("cannot bind a volatile reference to an rvalue");
         if (!local_stack)
             tcc_error("cannot bind a reference to an rvalue outside a function");
         tt.t &= ~(VT_CONSTANT | VT_VOLATILE);
@@ -10302,7 +10362,8 @@ static void verify_assign_cast(CType* dt)
         // fall into the pointer checks below: an integer-to-pointer warning,
         // an incompatible-pointer warning, or (for a double) an error.
         if (tcc_state->cpp && (dt->t & VT_REFERENCE) && !(vtop->r & VT_LVAL)
-            && !(st->t & VT_REFERENCE) && (type1->t & VT_CONSTANT)
+            && !(st->t & VT_REFERENCE)
+            && (type1->t & (VT_CONSTANT | VT_VOLATILE)) == VT_CONSTANT
             && (((is_float(sbt) || is_integer_btype(sbt))
                  && (is_float(type1->t & VT_BTYPE) || is_integer_btype(type1->t & VT_BTYPE)))
                 || (sbt == VT_PTR && (type1->t & VT_BTYPE) == VT_PTR
@@ -11087,7 +11148,9 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
                     match = 0;
                     break;
                 }
-                if (!cpp_arg_matches_param(&p->type, arg_type, &arg_score)) {
+                if (!cpp_arg_matches_param(&p->type, arg_type,
+                                           !!(vtop[-nb_args + 1 + i].r & VT_LVAL),
+                                           &arg_score)) {
                     match = 0;
                     break;
                 }
@@ -15011,7 +15074,8 @@ static void cpp_emit_heap_ctor_call(Sym *class_sym, CType *ptype, int ptr_slot,
             ? resolved->type.ref->next : NULL;
         int cscore;
         int viable = p1 && p1->type.t != VT_VOID
-            && cpp_arg_matches_param(&p1->type, &vtop->type, &cscore);
+            && cpp_arg_matches_param(&p1->type, &vtop->type,
+                                     !!(vtop->r & VT_LVAL), &cscore);
         if (!viable) {
             // BUG-46: spill the source's ADDRESS so
             // cpp_reconstruct_copied_class_members can re-derive it
