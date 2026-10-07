@@ -2,13 +2,17 @@
 rem DWARF gate (PR #31 review): the tccdbg.c fixes must stay debuggable.
 rem Builds a C and a C++ source with -gdwarf-4 and with -gdwarf, runs them
 rem under dev\gdb.exe in batch mode and requires the exact values of a
-rem parameter, locals, a struct, a global, `*this` and reference parameters.
+rem parameter, locals, a struct, a global, `*this`, reference parameters and
+rem member pointers.
 rem What this pins down:
 rem   - locals: the frame offset was emitted unsigned, so gdb read
 rem     rbp+4294967272 ("Cannot access memory").
 rem   - C++: member functions were emitted as data members with DW_AT_type
 rem     0xffffffff and references with DW_AT_type 0 ("Dwarf Error"); gdb dropped
 rem     the whole unit and no breakpoint in it could be hit.
+rem   - C++ member pointers had DW_AT_type 0 too ("Cannot find DIE at 0x0"),
+rem     and the parameters of a function type in a declarator were listed as
+rem     locals ("<\x00>", "unused_param").
 rem The break lines are found by marker comment, so the sources can be edited.
 rem Sources are in a9\link\.  Exes and logs go to %TEMP%.
 setlocal EnableExtensions EnableDelayedExpansion
@@ -91,12 +95,24 @@ call :find_line dwarf_cpp.cpp DWARF_CPP_BREAK_MEMBER
 set "LMEM=!LINE!"
 call :find_line dwarf_cpp.cpp DWARF_CPP_BREAK_REF
 set "LREF=!LINE!"
-"%GDB%" -batch -ex "break dwarf_cpp.cpp:!LMEM!" -ex "break dwarf_cpp.cpp:!LREF!" -ex "run" -ex "print *this" -ex "print v" -ex "delete 1" -ex "continue" -ex "print local" -ex "print a" -ex "print out" "%EXE%" >"%LOG%" 2>&1
+call :find_line dwarf_cpp.cpp DWARF_CPP_BREAK_MPTR
+set "LMP=!LINE!"
+"%GDB%" -batch -ex "break dwarf_cpp.cpp:!LMEM!" -ex "break dwarf_cpp.cpp:!LREF!" -ex "break dwarf_cpp.cpp:!LMP!" -ex "run" -ex "print *this" -ex "print v" -ex "delete 1" -ex "continue" -ex "print local" -ex "print a" -ex "print out" -ex "continue" -ex "print pm" -ex "print pf" -ex "print p.*pm" -ex "info locals" "%EXE%" >"%LOG%" 2>&1
 call :expect_value "%LOG%" 1 "{total = 7, count = 0}"
 call :expect_value "%LOG%" 2 ".*: 7"
 call :expect_value "%LOG%" 3 "42"
 call :expect_value "%LOG%" 4 ".*{total = 42, count = 2}"
 call :expect_value "%LOG%" 5 ".*: 84"
+rem ( ) & < > in an expected value would break the echo in :expect_value and
+rem :forbid, so they are matched with "." there, and the "<\x00> = " local is
+rem searched for directly.
+call :expect_value "%LOG%" 6 ".pt::y"
+call :expect_value "%LOG%" 7 ".int .\*..int.. 0x[0-9a-f]* .*twice.*"
+call :expect_value "%LOG%" 8 "9"
+"%FINDSTR%" /c:"x00> = " "%LOG%" >nul 2>&1
+if not errorlevel 1 echo   unexpected: a local without a name
+if not errorlevel 1 set /a BAD+=1
+call :forbid "%LOG%" "unused_param"
 call :forbid_all "%LOG%"
 if "!BAD!"=="0" (
   echo DWARF_CPP_%SUF%=PASS
