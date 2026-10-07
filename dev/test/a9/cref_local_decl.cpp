@@ -2,12 +2,17 @@
 // of another arithmetic type, binds through a converted temporary
 // ([dcl.init.ref]), as an argument does.  TCC rejected these with "cannot
 // bind reference to this initializer".  A same-type lvalue and a call that
-// returns a reference must still bind directly (same address).
+// returns a reference must still bind directly (same address).  For a
+// reference to a pointer only the integer constant 0, and a pointer that adds
+// qualifiers (or to void), take a temporary; negative/cref_local_* reject the
+// rest.
 // The exit code names the first failure.
 
 static int g_value = 5;
 static int &ref_to_g() { return g_value; }
 static int by_ref(const int &x) { return x; }
+typedef int *PI;
+static int is_null(const PI &p) { return p == 0; }
 
 int main()
 {
@@ -15,6 +20,9 @@ int main()
     int i = 2;
     const char text[] = "a#b";
     typedef const char *PC;
+    typedef const void *PV;
+    char buf[4] = "xyz";
+    char *q = buf;
     int sum = 0;
     int k;
 
@@ -43,5 +51,12 @@ int main()
     if (&rr != &g_value) return 9;              /* T& result binds as-is */
     const int &call = by_ref(35);
     if (call != 35) return 10;                  /* call result */
+    const PI &np = 0;
+    if (np != 0) return 11;                     /* null pointer constant */
+    const PC &qc = q + 1;
+    if (*qc != 'y') return 12;                  /* char * -> const char * */
+    const PV &pv = &v;
+    if (pv != (const void *)&v) return 13;      /* int * -> const void * */
+    if (!is_null(0)) return 14;                 /* 0 as an argument */
     return 0;
 }
