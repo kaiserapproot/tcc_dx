@@ -18365,6 +18365,25 @@ static int decl_designator(init_params* p, CType* type, unsigned long c,
 }
 
 /* store a value or an expression directly in global data or in local array */
+// C++: does a reference declaration need a temporary for the value on vtop?
+// Yes for an rvalue of a non-class type and for an lvalue of another
+// arithmetic type: the same values gen_cast binds through a temporary for an
+// argument.  A class value keeps the error in init_putv.
+static int cpp_ref_init_needs_temp(CType *ref)
+{
+    CType *pt = pointed_type(ref);
+    int pbt = pt->t & VT_BTYPE;
+    int sbt = vtop->type.t & VT_BTYPE;
+
+    if (pbt == VT_STRUCT || pbt == VT_FUNC || (pt->t & VT_ARRAY)
+        || sbt == VT_STRUCT)
+        return 0;
+    if (!(vtop->r & VT_LVAL))
+        return 1;
+    return (is_float(sbt) || is_integer_btype(sbt))
+        && (is_float(pbt) || is_integer_btype(pbt));
+}
+
 static void init_putv(init_params* p, CType* type, unsigned long c)
 {
     int bt;
@@ -18383,6 +18402,16 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
     init_assert(p, c + size);
 
     if (sec) {
+        // A static or global reference cannot bind a temporary: it would have
+        // to be static as well, and gen_cast makes one on the stack (or none
+        // at file scope).  static const int &r = 35; used to store 35 itself
+        // as the address, and the program hung on the first read.
+        if (tcc_state->cpp && (dtype.t & VT_REFERENCE)
+            && !(vtop->type.t & VT_REFERENCE)
+            && !((vtop->r & VT_LVAL)
+                 && cpp_can_bind_lvalue_to_reference(&dtype, &vtop->type))
+            && cpp_ref_init_needs_temp(&dtype))
+            tcc_error("cannot bind a static or global reference to a temporary");
         /* XXX: not portable */
         /* XXX: generate error if incorrect relocation */
         gen_assign_cast(&dtype);
@@ -18577,6 +18606,16 @@ static void init_putv(init_params* p, CType* type, unsigned long c)
                 vtop->type = dtype;
                 /* plain pointer store; keeping VT_REFERENCE on the dest
                    would trigger the assign-through-reference path */
+                vtop->type.t &= ~VT_REFERENCE;
+                dtype.t &= ~VT_REFERENCE;
+            } else if (!(vtop->type.t & VT_REFERENCE)
+                       && cpp_ref_init_needs_temp(&dtype)) {
+                // const int &r = 35; or const double &r = i; binds through a
+                // converted temporary, as an argument does (gen_cast makes
+                // it in the function's frame, so it outlives the reference,
+                // and rejects a non-const or volatile reference).  This used
+                // to stop at the error below.
+                gen_assign_cast(&dtype);
                 vtop->type.t &= ~VT_REFERENCE;
                 dtype.t &= ~VT_REFERENCE;
             } else {
