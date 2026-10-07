@@ -311,6 +311,7 @@ static const unsigned char dwarf_abbrev_init[] = {
     DWARF_ABBREV_PTR_TO_MEMBER, DW_TAG_ptr_to_member_type, 0,
           DW_AT_type, DW_FORM_ref4,
           DW_AT_containing_type, DW_FORM_ref4,
+          DW_AT_use_location, DW_FORM_exprloc,
           0, 0,
   0
 };
@@ -1961,8 +1962,15 @@ static int tcc_get_dwarf_info(TCCState *s1, Sym *s)
 	    last_pos = dwarf_info_section->data_offset;
 	    e = t->type.ref;
 	    dwarf_data4(dwarf_info_section, 0);
-	    if (cls_type)
+	    if (cls_type) {
 		dwarf_data4(dwarf_info_section, cls_type - dwarf_info.start);
+		// DW_AT_use_location: the member's address is the object's
+		// address plus the offset the member pointer holds (the DWARF
+		// spec requires this attribute, GCC emits the same DW_OP_plus).
+		// A 1-byte expression encodes the same as exprloc and block1.
+		dwarf_data1(dwarf_info_section, 1);
+		dwarf_data1(dwarf_info_section, DW_OP_plus);
+	    }
 	}
         else if (type == (VT_PTR | VT_ARRAY)) {
 	    int sib_pos, sub_type;
