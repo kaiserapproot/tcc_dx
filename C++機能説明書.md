@@ -1351,8 +1351,8 @@ int main()
 - `tccgen.c:1626` `cpp_emit_mptr_dmp_access()` — データメンバポインタのアクセス
 - `tccgen.c:1655` `cpp_emit_mptr_pmf_invoke()` — メンバ関数ポインタの呼び出し（仮想なら `cpp_prepare_virtual_member_call()` へ）
 - `tccgen.c:16221-16223` — `.*` / `->*` の入口
-- `tccdbg.c:1928` `tcc_get_dwarf_info()` — メンバポインタ型の DWARF（`tccdbg.c:311` の略語 `DWARF_ABBREV_PTR_TO_MEMBER`）
-- `tccdbg.c:2173` `tcc_add_debug_info()` — 関数型の宣言子の仮引数（`int (*fp)(int)` の `int`）をローカル変数として出さない
+- `tccdbg.c:1929` `tcc_get_dwarf_info()` — メンバポインタ型の DWARF（`tccdbg.c:311` の略語 `DWARF_ABBREV_PTR_TO_MEMBER`。`DW_AT_use_location` は `DW_OP_plus`）
+- `tccdbg.c:2181` `tcc_add_debug_info()` — 関数型の宣言子の仮引数（`int (*fp)(int)` の `int`）をローカル変数として出さない
 
 **amateras での用途**
 
@@ -1387,7 +1387,7 @@ int main()
 
 - 多重継承のメンバ関数ポインタは未対応。
 - MSVC の 16 バイトのメンバ関数ポインタ形式とは互換性がない。
-- メンバ関数ポインタの中身は 8 バイトの関数アドレスだけで、GDB が想定する Itanium の形（16 バイト）と違う。そのためデバッグ情報では関数ポインタとして出しており、GDB の `ptype` は `int (*)(int)` のように表示する。
+- メンバ関数ポインタの中身は 8 バイトの関数アドレスだけで、GDB が想定する Itanium の形（16 バイト）と違う。そのためデバッグ情報では関数ポインタとして出しており、GDB の `ptype` は `int (*)(int)` のように表示する。この表示は値と関数名を確かめるためのもので、GDB から `print pf(3)` や `call pf(3)` のように直接呼ぶことは未対応（隠し引数の `this` が渡らない）。
 
 ---
 
