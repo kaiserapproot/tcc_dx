@@ -13,6 +13,9 @@ static int &ref_to_g() { return g_value; }
 static int by_ref(const int &x) { return x; }
 typedef int *PI;
 static int is_null(const PI &p) { return p == 0; }
+static int seven() { return 7; }
+typedef int (*FP)();
+static int call_fp(const FP &f) { return f(); }
 
 int main()
 {
@@ -58,5 +61,8 @@ int main()
     const PV &pv = &v;
     if (pv != (const void *)&v) return 13;      /* int * -> const void * */
     if (!is_null(0)) return 14;                 /* 0 as an argument */
+    const FP &fn = seven;
+    if (fn() != 7) return 15;                   /* function name -> pointer */
+    if (call_fp(seven) != 7) return 16;            /* ... as an argument */
     return 0;
 }
