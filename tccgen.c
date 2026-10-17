@@ -205,6 +205,8 @@ static void vdup(void);
 static int get_temp_local_var(int size, int align, int* r2);
 static void cast_error(CType* st, CType* dt);
 static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg);
+static int cpp_ptr_qual_convertible(CType *to, CType *from, int all_const);
+static int cpp_ref_ptr_conv_rank(CType *to, CType *from);
 static int is_integer_btype(int bt);
 /* MI: byte offset of a base subobject within a class (forward decl - defined
    with the member-call helpers).  Used by the derived->base upcast paths. */
@@ -490,6 +492,13 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int arg_lvalue,
                 *score_out = aq == pq ? 10 : 9;
                 return 1;
             }
+            // A pointer lvalue binding directly by a qualification conversion
+            // (char * for const PC &) ranks with adding cv.
+            if (lv && p_bt == VT_PTR && a_bt == VT_PTR && !(aq & ~pq)
+                && cpp_ptr_qual_convertible(pt, at, 1)) {
+                *score_out = 9;
+                return 1;
+            }
             if (!(pq & VT_CONSTANT) || (pq & VT_VOLATILE))
                 return 0;
             if (related) {
@@ -501,11 +510,17 @@ static int cpp_arg_matches_param(CType *param, CType *arg, int arg_lvalue,
                 *score_out = 1;
                 return 1;
             }
-            // Kept from the generic ptr/ptr rule below, which used to
-            // accept any pointer here.
-            if (p_bt == VT_PTR && a_bt == VT_PTR) {
+            // A pointer to bool is a conversion too ([conv.bool]).
+            if (p_bt == VT_BOOL && (a_bt == VT_PTR || a_bt == VT_FUNC)) {
                 *score_out = 1;
                 return 1;
+            }
+            // A pointer ranks by the conversion it needs; one that does not
+            // convert (double * for const PI &) is not viable.  This used to
+            // accept any pointer at score 1.
+            if (p_bt == VT_PTR && (a_bt == VT_PTR || a_bt == VT_FUNC)) {
+                *score_out = cpp_ref_ptr_conv_rank(pt, at);
+                return *score_out > 0;
             }
             return 0;
         }
@@ -9829,20 +9844,76 @@ static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg)
         return 0;
     if ((pt->t & VT_UNSIGNED) != (arg->t & VT_UNSIGNED))
         return 0;
+    // long and int are distinct types even where they have the same size, so
+    // a long lvalue gets a converted temporary for const int & (r keeps 3
+    // after l = 9).  Comparing VT_BTYPE alone bound r to l itself.
+    if ((pt->t ^ arg->t) & VT_LONG)
+        return 0;
     if ((arg->t & VT_CONSTANT) && !(pt->t & VT_CONSTANT))
         return 0;
-    // A pointer binds directly only to a reference to the same pointer type,
-    // pointed-to type included ([dcl.init.ref]).  Comparing VT_PTR alone bound
-    // const PC &r = p (char *p) to p itself, so r followed later stores to p,
-    // and bound a double * to const PI & (PI = int *).  Any other pointer goes
-    // through gen_cast's converted temporary, or is rejected there.
+    // A pointer binds directly to a reference to the same pointer type, or to
+    // one it reaches by a qualification conversion (const PC & for char *, as
+    // GCC and MSVC bind it in every mode: the reference then follows later
+    // stores to the pointer).  Comparing VT_PTR alone also bound a double *
+    // to const PI & (PI = int *).  Any other pointer goes through gen_cast's
+    // converted temporary (D * for const BP &), or is rejected there.
     if ((pt->t & VT_BTYPE) == VT_PTR) {
         CType at = *arg;
 
         at.t &= ~VT_REFERENCE;
-        return is_compatible_unqualified_types(pt, &at);
+        return cpp_ptr_qual_convertible(pt, &at, 1);
     }
     return 1;
+}
+
+// C++: does a pointer to FROM convert to a pointer to TO by a qualification
+// conversion alone ([conv.qual])?  cv may be added at a level only if const
+// is on every level above it (ALL_CONST), so a char * binds directly to
+// const PC & (const char * const &) but not to PC &: that would let
+// const char * values be stored through a char *.
+static int cpp_ptr_qual_convertible(CType *to, CType *from, int all_const)
+{
+    int tq = to->t & (VT_CONSTANT | VT_VOLATILE);
+    int fq = from->t & (VT_CONSTANT | VT_VOLATILE);
+
+    if (fq & ~tq)
+        return 0;
+    if (tq != fq && !all_const)
+        return 0;
+    if ((to->t & VT_BTYPE) == VT_PTR && (from->t & VT_BTYPE) == VT_PTR
+        && !((to->t | from->t) & (VT_ARRAY | VT_MPTR)))
+        return cpp_ptr_qual_convertible(pointed_type(to), pointed_type(from),
+                                        all_const && (tq & VT_CONSTANT));
+    return is_compatible_unqualified_types(to, from);
+}
+
+// C++: the rank of converting the pointer (or array, or function) FROM to the
+// pointer TO for a reference-to-const parameter, for overload resolution:
+// 9 for a qualification conversion (exact match), 3 for D * to B *, 2 for an
+// object pointer to void * (D * to B * is better, [over.ics.rank]), 0 if
+// there is no conversion.  These all used to score 1, so f(const PC &) and
+// f(const PV &) tied for a char * and the later declaration won.
+static int cpp_ref_ptr_conv_rank(CType *to, CType *from)
+{
+    CType *tp, *fp;
+
+    if ((to->t & VT_MPTR) || (from->t & VT_MPTR))
+        return (to->t & VT_MPTR) && (from->t & VT_MPTR)
+            && is_compatible_unqualified_types(to, from) ? 9 : 0;
+    tp = pointed_type(to);
+    fp = (from->t & VT_BTYPE) == VT_FUNC ? from : pointed_type(from);
+    if ((fp->t & (VT_CONSTANT | VT_VOLATILE))
+        & ~(tp->t & (VT_CONSTANT | VT_VOLATILE)))
+        return 0;
+    if (cpp_ptr_qual_convertible(tp, fp, 1))
+        return 9;
+    if ((tp->t & VT_BTYPE) == VT_STRUCT && (fp->t & VT_BTYPE) == VT_STRUCT
+        && tp->ref && fp->ref
+        && cpp_base_subobject_offset(fp->ref, tp->ref) >= 0)
+        return 3;
+    if ((tp->t & VT_BTYPE) == VT_VOID && (fp->t & VT_BTYPE) != VT_FUNC)
+        return 2;
+    return 0;
 }
 
 // C++: may the value on vtop bind to the reference REF through a converted
@@ -9863,15 +9934,23 @@ static int cpp_ref_temp_conv_ok(CType *ref)
     if ((is_float(pbt) || is_integer_btype(pbt))
         && (is_float(sbt) || is_integer_btype(sbt)))
         return 1;
-    // A pointer lvalue that cannot bind directly (char * for const PC &, D *
-    // for const BP &) gets a temporary holding the converted pointer, like an
-    // rvalue.  Other lvalues still have no conversion to a pointer.
+    // A pointer (an array, a function, a member pointer) converts to bool
+    // ([conv.bool]): const bool &b = p; holds p != 0.
+    if (pbt == VT_BOOL && (sbt == VT_PTR || sbt == VT_FUNC))
+        return 1;
+    // A pointer lvalue that cannot bind directly (D * for const BP &) gets a
+    // temporary holding the converted pointer, like an rvalue.  Other
+    // lvalues still have no conversion to a pointer.
     if (pbt != VT_PTR || ((vtop->r & VT_LVAL) && sbt != VT_PTR))
         return 0;
-    // A member pointer converts only from the same member pointer type.
-    if ((pt->t & VT_MPTR) || (st->t & VT_MPTR))
-        return (pt->t & VT_MPTR) && (st->t & VT_MPTR)
-            && is_compatible_unqualified_types(pt, st);
+    // A member pointer converts only from the same member pointer type, or
+    // from the integer constant 0, the null member pointer ([conv.mem]).
+    if ((pt->t & VT_MPTR) || (st->t & VT_MPTR)) {
+        if (!(st->t & VT_MPTR))
+            return (pt->t & VT_MPTR) && is_integer_btype(sbt)
+                && is_null_pointer(vtop);
+        return (pt->t & VT_MPTR) && is_compatible_unqualified_types(pt, st);
+    }
     pp = pointed_type(pt);
     // A function name decays to a pointer to it (call(f) for const FP &).
     // (void *)0 is not a null pointer constant in C++, only an integer 0.
@@ -9897,7 +9976,9 @@ static int cpp_ref_temp_conv_ok(CType *ref)
 
         return ofs >= 0 || ofs == CPP_BASE_AMBIGUOUS;
     }
-    return is_compatible_unqualified_types(pp, sp);
+    // A qualification conversion may add const below the first level too
+    // (char ** for const PCC &, PCC = const char * const *).
+    return cpp_ptr_qual_convertible(pp, sp, 1);
 }
 
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
@@ -9928,10 +10009,9 @@ static void gen_cast(CType* type)
     // the lvalue binding below and fall through to the plain cast: the int
     // was passed as the address (a hang or crash), and a double did not
     // compile.
-    // So does a pointer lvalue for a reference to another pointer type
-    // (char * for const PC &, D * for const BP &): the temporary holds the
-    // converted pointer, so the reference does not follow later stores to
-    // the source, and gen_cast adjusts a D * to its B subobject.
+    // So does a pointer lvalue for a reference to a pointer it cannot bind
+    // directly (D * for const BP &, where gen_cast adjusts it to the B
+    // subobject), or to bool (const bool &b = p; holds p != 0).
     conv_lvalue = tcc_state->cpp && (type->t & VT_REFERENCE)
         && (vtop->r & VT_LVAL) && !(vtop->type.t & VT_REFERENCE)
         && (((is_float(vtop->type.t & VT_BTYPE)
@@ -9939,7 +10019,8 @@ static void gen_cast(CType* type)
              && (is_float(pointed_type(type)->t & VT_BTYPE)
                  || is_integer_btype(pointed_type(type)->t & VT_BTYPE)))
             || ((vtop->type.t & VT_BTYPE) == VT_PTR
-                && (pointed_type(type)->t & VT_BTYPE) == VT_PTR))
+                && ((pointed_type(type)->t & VT_BTYPE) == VT_PTR
+                    || (pointed_type(type)->t & VT_BTYPE) == VT_BOOL)))
         && !cpp_can_bind_lvalue_to_reference(type, &vtop->type);
     if (tcc_state->cpp && (type->t & VT_REFERENCE)
         && (!(vtop->r & VT_LVAL) || conv_lvalue)

@@ -1,11 +1,11 @@
-// A pointer lvalue that is not the referenced pointer type binds to a
-// reference to const through a temporary holding the converted pointer
-// ([dcl.init.ref]): char * for const PC &, an array for const PC &, and D *
-// for const BP & with B a base of D ([conv.ptr]).  TCC compared only VT_PTR,
-// so it bound the reference to the source variable itself (it then followed
-// later stores to it) and skipped the move to the B subobject; an argument
-// D * for const BP & did not compile.  A pointer of the referenced type still
-// binds directly.  The exit code names the first failure.
+// A pointer lvalue binds to a reference to const pointer directly when it
+// reaches the referenced type by a qualification conversion: char * for
+// const PC & (GCC and MSVC bind it so in every mode, and the reference
+// follows later stores to the pointer).  An array for const PC &, and D * for
+// const BP & with B a base of D ([conv.ptr]), go through a temporary holding
+// the converted pointer.  TCC skipped the move to the B subobject, and an
+// argument D * for const BP & did not compile.  The exit code names the first
+// failure.
 
 typedef const char *PC;
 typedef char *P;
@@ -36,9 +36,10 @@ int main()
     D *pd = &d;
     D *pn = 0;
 
+    if ((void *)&rc != (void *)&p) return 13;   /* binds to p itself */
     p = b;
-    if (*rc != 'a') return 1;                   /* char * -> const char * */
-    if (first_after_store(g_p) != 'a') return 2;    /* ... as an argument */
+    if (*rc != 'x') return 1;                   /* char * -> const char * */
+    if (first_after_store(g_p) != 'x') return 2;    /* ... as an argument */
     a[0] = 'z';
     if (*ra != 'z') return 3;                   /* array -> const char * */
     if (*rp != 'x') return 4;                   /* same type binds to p */

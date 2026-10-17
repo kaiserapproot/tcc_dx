@@ -1,6 +1,9 @@
 // NEGATIVE test: must FAIL to compile.
-// char * to const char * needs a temporary, which a non-const reference
-// cannot bind ([dcl.init.ref]).  TCC bound PC & to the char * itself.
+// A char * binds directly to const PC & (const char * const &), but not to
+// PC &: char ** to const char ** is not a qualification conversion
+// ([conv.qual]), since storing a const char * through the reference would
+// put it in the char *.  A temporary does not help either, as the reference
+// is not const.  TCC bound PC & to the char * itself.
 typedef const char *PC;
 
 int main()
