@@ -9838,8 +9838,8 @@ static int cpp_can_bind_lvalue_to_reference(CType *ref, CType *arg)
 // temporary?  Only for the conversions such a temporary is made for:
 // arithmetic to arithmetic (an rvalue, or an lvalue of another type), and,
 // for an rvalue and a reference to a pointer T *, the integer constant 0 or
-// a pointer (or array) to T that adds no qualifiers to T, or to anything if
-// T is void.  Everything else is ill-formed ([dcl.init.ref]); it used to get
+// a pointer (or array) to T that adds no qualifiers to T, or to any object
+// type if T is void.  Everything else is ill-formed ([dcl.init.ref]); it used to get
 // a temporary after only a warning (const PI &r = 1; with PI = int *).
 static int cpp_ref_temp_conv_ok(CType *ref)
 {
@@ -9858,16 +9858,21 @@ static int cpp_ref_temp_conv_ok(CType *ref)
     if ((pt->t & VT_MPTR) || (st->t & VT_MPTR))
         return (pt->t & VT_MPTR) && (st->t & VT_MPTR)
             && is_compatible_unqualified_types(pt, st);
-    // (void *)0 is not a null pointer constant in C++, only an integer 0.
-    if (sbt != VT_PTR)
-        return is_null_pointer(vtop);
     pp = pointed_type(pt);
-    sp = pointed_type(st);
+    // A function name decays to a pointer to it (call(f) for const FP &).
+    // (void *)0 is not a null pointer constant in C++, only an integer 0.
+    if (sbt == VT_FUNC)
+        sp = st;
+    else if (sbt != VT_PTR)
+        return is_null_pointer(vtop);
+    else
+        sp = pointed_type(st);
     if ((sp->t & (VT_CONSTANT | VT_VOLATILE))
         & ~(pp->t & (VT_CONSTANT | VT_VOLATILE)))
         return 0;
+    // Only an object pointer converts to void *, not a function pointer.
     if ((pp->t & VT_BTYPE) == VT_VOID)
-        return 1;
+        return (sp->t & VT_BTYPE) != VT_FUNC;
     return is_compatible_unqualified_types(pp, sp);
 }
 
