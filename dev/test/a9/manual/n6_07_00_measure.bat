@@ -31,7 +31,9 @@ echo PUBLIC_API_CHANGE=NONE
 echo N6_07_00=NEXT
 echo.
 
-if not exist "!HARNESS!" (
+rem Always run msbuild (incremental): a harness exe left from an older
+rem build used to be reused and passed against stale libtcc sources.
+(
   if not defined VSCMD_VER (
     call "C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat" -arch=x64 >nul 2>&1
   )
