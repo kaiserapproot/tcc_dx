@@ -120,8 +120,9 @@ static long live_tcb_count(TCCState *s)
 }
 
 // Quiesce the host thread's N6 TLS before tcc_delete() (N6-07-04): print
-// what was live, clean it up, and check that none is left.  A state without
-// the TLS runtime has neither symbol and passes as is.
+// what was live, clean it up, and check that none is left.  Every caller's
+// probe uses the TLS runtime, so a missing entry point or a count that could
+// not be read is a failure, not a pass.
 static void host_cleanup_before_delete(TCCState *s, const char *probe,
                                        n6_06b_metrics *m)
 {
@@ -135,7 +136,7 @@ static void host_cleanup_before_delete(TCCState *s, const char *probe,
     after = live_tcb_count(s);
     printf("HOST_TLS_CLEANUP probe=%s live_before=%ld cleaned=%d live_after=%ld\n",
            probe, before, cleaned, after);
-    if (after > 0) {
+    if (!cleanup || before < 0 || after != 0) {
         m->host_cleanup_failed = 1;
         printf("HOST_TLS_CLEANUP_BEFORE_TCC_DELETE=NO probe=%s\n", probe);
     }
@@ -189,6 +190,12 @@ static int probe_tls_lifetime(const char *libpath, n6_06b_metrics *m)
     printf("AFTER_CALL2_OUTSTANDING=%ld\n", m->call2_outstanding);
     printf("AFTER_CALL2_DTOR_CALLS=%ld\n", m->call2_dtor_calls);
     printf("LIVE_TLS_BEFORE_HOST_CLEANUP=%ld\n", live_tcb_count(s));
+    // What the manual calls left, read before the host cleanup runs the TLS
+    // destructor.  These were AFTER_TCC_DELETE_*, printed after tcc_delete()
+    // but holding the same pre-cleanup values.
+    printf("BEFORE_HOST_CLEANUP_TLS_DTOR_COUNT=%d\n", m->call2_dtor);
+    printf("BEFORE_HOST_CLEANUP_OUTSTANDING=%ld\n", m->call2_outstanding);
+    printf("BEFORE_HOST_CLEANUP_DTOR_CALLS=%ld\n", m->call2_dtor_calls);
     fflush(stdout);
 
     host_cleanup_before_delete(s, "tls_lifetime", m);
@@ -196,11 +203,6 @@ static int probe_tls_lifetime(const char *libpath, n6_06b_metrics *m)
     fflush(stdout);
     tcc_delete(s);
     printf("TCC_DELETE_END\n");
-    // The values the manual calls left: tcc_delete() itself runs no TLS
-    // destructor (the host cleanup above did, before it).
-    printf("AFTER_TCC_DELETE_TLS_DTOR_COUNT=%d\n", m->call2_dtor);
-    printf("AFTER_TCC_DELETE_OUTSTANDING=%ld\n", m->call2_outstanding);
-    printf("AFTER_TCC_DELETE_DTOR_CALLS=%ld\n", m->call2_dtor_calls);
     fflush(stdout);
     return 0;
 }
