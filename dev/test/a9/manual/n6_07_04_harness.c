@@ -350,7 +350,10 @@ static int child_failed_relocate_delete(const char *libpath)
     printf("FAILED_RELOCATE_RUN_PTR_SET=%s\n", s->run_ptr ? "YES" : "NO");
     printf("FAILED_RELOCATE_COMPLETE_FLAG=%d\n", s->run_relocate_complete);
     fflush(stdout);
-    if (rc >= 0) {
+    // The gate is about the dangerous state only: run_ptr allocated, the
+    // relocation not complete.  A failure before the allocation would delete
+    // safely without testing anything.
+    if (rc != -1 || !s->run_ptr || s->run_relocate_complete != 0) {
         tcc_delete(s);
         return 3;
     }
