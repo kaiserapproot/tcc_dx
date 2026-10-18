@@ -1060,6 +1060,9 @@ struct TCCState {
     const char *run_main; /* entry for tcc_run() */
     void *run_ptr; /* runtime_memory */
     unsigned run_size; /* size of runtime_memory  */
+    /* set only when tcc_relocate() succeeded: run_ptr is allocated before
+       relocation and stays set when it fails, without executable code */
+    int run_relocate_complete;
 #ifdef _WIN64
     void *run_function_table; /* unwind data */
 #endif
