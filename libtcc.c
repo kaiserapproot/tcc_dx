@@ -935,8 +935,12 @@ LIBTCCAPI TCCState *tcc_new(void)
 LIBTCCAPI void tcc_delete(TCCState *s1)
 {
 #if defined _WIN32 && defined TCC_IS_NATIVE
-    /* N6-07-04: gate before symtab teardown and before run_ptr free. */
-    if (s1->run_ptr && tcc_cpp_tls_runtime_needed(s1)) {
+    /* N6-07-04: gate before symtab teardown and before run_ptr free.
+       Only after a successful tcc_relocate(): when it fails, run_ptr is set
+       but the gate's code was never copied or made executable, and calling
+       it was an access violation. */
+    if (s1->run_relocate_complete && s1->run_ptr
+        && tcc_cpp_tls_runtime_needed(s1)) {
         void (__cdecl *gate)(void);
 
         gate = (void (__cdecl *)(void))tcc_get_symbol(s1,

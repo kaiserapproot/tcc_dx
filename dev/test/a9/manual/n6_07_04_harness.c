@@ -327,6 +327,39 @@ static int case_e_tcc_run_delete(const char *libpath)
     return 0;
 }
 
+// Gate H child: tcc_relocate() fails on an undefined function in code that
+// needs the N6 TLS runtime.  run_ptr is allocated by then, but nothing was
+// copied or made executable, so tcc_delete() must not call the delete gate
+// in it (it used to jump there and die with an access violation).  Runs in a
+// child so that such a crash cannot take the gate harness down.
+static int child_failed_relocate_delete(const char *libpath)
+{
+    TCCState *s;
+    int rc;
+
+    harness_suppress_wer();
+    s = new_state_memory(libpath);
+    if (!s)
+        return 1;
+    if (compile_file(s, libpath, "n6_07_04_failed_relocate_probe.cpp") < 0) {
+        tcc_delete(s);
+        return 1;
+    }
+    rc = tcc_relocate(s);
+    printf("FAILED_RELOCATE_RC=%d\n", rc);
+    printf("FAILED_RELOCATE_RUN_PTR_SET=%s\n", s->run_ptr ? "YES" : "NO");
+    printf("FAILED_RELOCATE_COMPLETE_FLAG=%d\n", s->run_relocate_complete);
+    fflush(stdout);
+    if (rc >= 0) {
+        tcc_delete(s);
+        return 3;
+    }
+    tcc_delete(s);
+    printf("TCC_DELETE_AFTER_FAILED_RELOCATE_RETURNED=YES\n");
+    fflush(stdout);
+    return 0;
+}
+
 // Code without main must relocate in memory and expose its functions.  A
 // diagnostic line inserted in tccpe.c (55354c3c) made the startup symbol
 // unconditional, so tcc_relocate() failed with "undefined symbol 'main'".
@@ -382,6 +415,8 @@ int main(int argc, char **argv)
         return child_other_thread_live(libpath);
     if (argc > 2 && strcmp(argv[2], "child_post_delete_touch") == 0)
         return child_post_delete_touch(libpath);
+    if (argc > 2 && strcmp(argv[2], "child_failed_relocate_delete") == 0)
+        return child_failed_relocate_delete(libpath);
 
     printf("=== N6-07-04 gate A: no live TLS ===\n");
     if (case_a_no_tls(libpath) != 0)
@@ -456,6 +491,21 @@ int main(int argc, char **argv)
     printf("\n=== N6-07-04 gate G: relocate code without main ===\n");
     if (case_g_relocate_without_main(libpath) != 0)
         failed = 1;
+
+    printf("\n=== N6-07-04 gate H: tcc_delete after a failed tcc_relocate ===\n");
+    if (spawn_child(libpath, "child_failed_relocate_delete", &child_rc) != 0) {
+        printf("CHILD_SPAWN_FAILED=YES\n");
+        failed = 1;
+    } else {
+        printf("CHILD_EXIT_CODE=%lu\n", (unsigned long)child_rc);
+        if (child_rc == 0)
+            printf("TCC_DELETE_AFTER_FAILED_RELOCATE=PASS\n");
+        else {
+            printf("TCC_DELETE_AFTER_FAILED_RELOCATE=FAIL%s\n",
+                   is_access_violation(child_rc) ? " access_violation" : "");
+            failed = 1;
+        }
+    }
 
     printf("\n=== N6-07-04 FINAL ===\n");
     printf("BASE_COMMIT=2631937\n");
