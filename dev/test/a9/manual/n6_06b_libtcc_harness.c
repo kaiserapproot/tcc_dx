@@ -1,4 +1,8 @@
 // N6-06B-00: libtcc direct relocate contract measurement harness.
+// Since N6-07-04, tcc_delete() with live N6 TLS is fail-closed (abort), so
+// each probe records what is live first and then cleans up the host thread's
+// TLS before tcc_delete().  This harness predates that gate and used to
+// delete with TLS live; the fail-closed path itself is N6-07-04's gate B/D.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,8 +34,15 @@ typedef struct n6_06b_metrics {
     int worker_ctor_delta;
     int worker_dtor_delta;
     long worker_outstanding_after;
-    int pending_tls_at_delete;
-    int delete_live_completed;
+    int pending_tls_before_cleanup;
+    int delete_after_cleanup_completed;
+    long worker_live_after_join;
+    int worker_cleanup_ctor_delta;
+    int worker_cleanup_dtor_delta;
+    long worker_cleanup_live_after_join;
+    int worker_cleanup_delete_completed;
+    int host_cleanup_failed;
+    int check_failed;
     void *state_a_tcb;
     void *state_b_tcb;
     int state_b_tcb_stable;
@@ -100,6 +111,37 @@ static fn_i0 get_fn0(TCCState *s, const char *name)
     return fn;
 }
 
+static long live_tcb_count(TCCState *s)
+{
+    fn_l0 fn;
+
+    fn = (fn_l0)tcc_get_symbol(s, "__tcc_cpp_tls_n6_live_tcb_count_read");
+    return fn ? fn() : -1;
+}
+
+// Quiesce the host thread's N6 TLS before tcc_delete() (N6-07-04): print
+// what was live, clean it up, and check that none is left.  A state without
+// the TLS runtime has neither symbol and passes as is.
+static void host_cleanup_before_delete(TCCState *s, const char *probe,
+                                       n6_06b_metrics *m)
+{
+    fn_i0 cleanup;
+    long before, after;
+    int cleaned;
+
+    before = live_tcb_count(s);
+    cleanup = (fn_i0)tcc_get_symbol(s, "__tcc_cpp_tls_n6_cleanup_current_thread");
+    cleaned = cleanup ? cleanup() : 0;
+    after = live_tcb_count(s);
+    printf("HOST_TLS_CLEANUP probe=%s live_before=%ld cleaned=%d live_after=%ld\n",
+           probe, before, cleaned, after);
+    if (after > 0) {
+        m->host_cleanup_failed = 1;
+        printf("HOST_TLS_CLEANUP_BEFORE_TCC_DELETE=NO probe=%s\n", probe);
+    }
+    fflush(stdout);
+}
+
 static int probe_tls_lifetime(const char *libpath, n6_06b_metrics *m)
 {
     TCCState *s;
@@ -146,12 +188,16 @@ static int probe_tls_lifetime(const char *libpath, n6_06b_metrics *m)
     printf("AFTER_CALL2_TLS_DTOR_COUNT=%d\n", m->call2_dtor);
     printf("AFTER_CALL2_OUTSTANDING=%ld\n", m->call2_outstanding);
     printf("AFTER_CALL2_DTOR_CALLS=%ld\n", m->call2_dtor_calls);
+    printf("LIVE_TLS_BEFORE_HOST_CLEANUP=%ld\n", live_tcb_count(s));
     fflush(stdout);
 
+    host_cleanup_before_delete(s, "tls_lifetime", m);
     printf("TCC_DELETE_BEGIN\n");
     fflush(stdout);
     tcc_delete(s);
     printf("TCC_DELETE_END\n");
+    // The values the manual calls left: tcc_delete() itself runs no TLS
+    // destructor (the host cleanup above did, before it).
     printf("AFTER_TCC_DELETE_TLS_DTOR_COUNT=%d\n", m->call2_dtor);
     printf("AFTER_TCC_DELETE_OUTSTANDING=%ld\n", m->call2_outstanding);
     printf("AFTER_TCC_DELETE_DTOR_CALLS=%ld\n", m->call2_dtor_calls);
@@ -254,6 +300,7 @@ static int probe_manual_main(const char *libpath, n6_06b_metrics *m)
     if (dtor_calls_fn)
         printf("MANUAL_MAIN_DTOR_CALLS=%ld\n", m->manual_dtor_calls);
     fflush(stdout);
+    host_cleanup_before_delete(s, "manual_main", m);
     printf("TCC_DELETE_BEGIN\n");
     fflush(stdout);
     tcc_delete(s);
@@ -291,6 +338,8 @@ static int run_child_main_exit(const char *libpath)
 
 typedef struct {
     fn_i0 touch;
+    fn_i0 cleanup;      // NULL: leave the worker's TLS as the thread exits
+    int cleaned;
 } host_worker_ctx;
 
 static DWORD WINAPI host_worker_thread(LPVOID param)
@@ -303,58 +352,132 @@ static DWORD WINAPI host_worker_thread(LPVOID param)
     rc = ctx->touch();
     printf("HOST_WORKER_COMPILED_RETURN rc=%d tid=%lu\n", rc,
            (unsigned long)GetCurrentThreadId());
+    // Only the worker itself can clean up its TLS: once it has exited, the
+    // host's __tcc_cpp_tls_n6_cleanup_current_thread() sees its own thread.
+    if (ctx->cleanup) {
+        ctx->cleaned = ctx->cleanup();
+        printf("HOST_WORKER_SELF_CLEANUP rc=%d tid=%lu\n", ctx->cleaned,
+               (unsigned long)GetCurrentThreadId());
+    }
     fflush(stdout);
     return 0;
 }
 
-static int probe_host_worker(const char *libpath, n6_06b_metrics *m)
+// Runs one worker that touches TLS (and cleans it up itself before exiting
+// if WITH_CLEANUP) and measures the counters after the join.  Returns the
+// relocated state, or NULL on a setup failure.
+static TCCState *run_host_worker(const char *libpath, int with_cleanup,
+                                 int *ctor_delta, int *dtor_delta,
+                                 long *live_after, long *outstanding_after)
 {
     TCCState *s;
-    fn_i0 touch;
     fn_get_counters counters;
     host_worker_ctx ctx;
     HANDLE th;
-    int c0, d0;
+    int c0, d0, c1, d1;
 
     s = new_state_memory(libpath);
     if (!s)
-        return 1;
+        return NULL;
     if (compile_file(s, libpath, "n6_06b_probe_tls_touch.cpp") < 0
         || relocate_state(s) < 0) {
         tcc_delete(s);
-        return 1;
+        return NULL;
     }
-    touch = get_fn0(s, "touch_tls");
+    ZeroMemory(&ctx, sizeof(ctx));
+    ctx.touch = get_fn0(s, "touch_tls");
     counters = (fn_get_counters)get_fn0(s, "probe_get_tls_counters");
-    if (!touch || !counters) {
+    if (with_cleanup)
+        ctx.cleanup = get_fn0(s, "__tcc_cpp_tls_n6_cleanup_current_thread");
+    if (!ctx.touch || !counters || (with_cleanup && !ctx.cleanup)) {
         tcc_delete(s);
-        return 1;
+        return NULL;
     }
     counters(&c0, &d0, NULL, NULL, NULL);
-    ctx.touch = touch;
     th = CreateThread(NULL, 0, host_worker_thread, &ctx, 0, NULL);
     if (!th) {
         tcc_delete(s);
-        return 1;
+        return NULL;
     }
     WaitForSingleObject(th, INFINITE);
     CloseHandle(th);
-    counters(&m->worker_ctor_delta, &m->worker_dtor_delta,
-             &m->worker_outstanding_after, NULL, NULL);
-    m->worker_ctor_delta -= c0;
-    m->worker_dtor_delta -= d0;
+    counters(&c1, &d1, outstanding_after, NULL, NULL);
+    *ctor_delta = c1 - c0;
+    *dtor_delta = d1 - d0;
+    *live_after = live_tcb_count(s);
+    return s;
+}
+
+// The worker cleans up its own TLS before it exits; after the join nothing
+// is live and tcc_delete() completes.
+static int probe_host_worker_cleanup(const char *libpath, n6_06b_metrics *m)
+{
+    TCCState *s;
+
+    long outstanding;
+
+    s = run_host_worker(libpath, 1, &m->worker_cleanup_ctor_delta,
+                        &m->worker_cleanup_dtor_delta,
+                        &m->worker_cleanup_live_after_join, &outstanding);
+    if (!s)
+        return 1;
+    printf("HOST_WORKER_CLEANUP_TLS_CTOR=%d\n", m->worker_cleanup_ctor_delta);
+    printf("HOST_WORKER_CLEANUP_TLS_DTOR=%d\n", m->worker_cleanup_dtor_delta);
+    printf("HOST_WORKER_CLEANUP_LIVE_TLS_AFTER_JOIN=%ld\n",
+           m->worker_cleanup_live_after_join);
+    printf("HOST_WORKER_CLEANUP_OUTSTANDING_AFTER_JOIN=%ld\n", outstanding);
+    fflush(stdout);
+    if (m->worker_cleanup_ctor_delta != 1 || m->worker_cleanup_dtor_delta != 1
+        || m->worker_cleanup_live_after_join != 0 || outstanding != 0) {
+        // Not deleted: with TLS live it would fail closed and end the run.
+        printf("N6_06B_CHECK_FAIL=host_worker_cleanup\n");
+        fflush(stdout);
+        m->check_failed = 1;
+        return 0;
+    }
+    printf("TCC_DELETE_BEGIN\n");
+    fflush(stdout);
+    tcc_delete(s);
+    printf("TCC_DELETE_END\n");
+    m->worker_cleanup_delete_completed = 1;
+    printf("HOST_WORKER_CLEANUP_TCC_DELETE=COMPLETED\n");
+    fflush(stdout);
+    return 0;
+}
+
+// The original N6-06B-00 observation: a worker that does not clean up leaves
+// its TLS when it exits (no destructor, nothing reclaimed).  Only the worker
+// could clean it up, so tcc_delete() of this state would fail closed
+// (N6-07-04 gate D).  This one state is therefore kept until the process
+// exits, and the probe runs last.  A test-only exception, not a pattern for
+// using libtcc.
+static TCCState *g_retained_worker_observation_state;
+
+static int probe_host_worker_observe(const char *libpath, n6_06b_metrics *m)
+{
+    TCCState *s;
+
+    s = run_host_worker(libpath, 0, &m->worker_ctor_delta,
+                        &m->worker_dtor_delta, &m->worker_live_after_join,
+                        &m->worker_outstanding_after);
+    if (!s)
+        return 1;
+    g_retained_worker_observation_state = s;
     printf("MANUAL_WORKER_TLS_CTOR=%d\n", m->worker_ctor_delta);
     printf("MANUAL_WORKER_TLS_DTOR=%d\n", m->worker_dtor_delta);
     printf("MANUAL_WORKER_TLS_DTOR_AT_THREAD_EXIT=%s\n",
            m->worker_dtor_delta > 0 ? "YES" : "NO");
     printf("MANUAL_WORKER_TLS_RECLAIM_AT_THREAD_EXIT=%s\n",
            m->worker_outstanding_after <= 0 ? "YES" : "NO");
+    printf("HOST_WORKER_LIVE_TLS_AFTER_JOIN=%ld\n", m->worker_live_after_join);
+    printf("HOST_WORKER_OBSERVATION_STATE=RETAINED_UNTIL_PROCESS_EXIT\n");
     fflush(stdout);
-    printf("TCC_DELETE_BEGIN\n");
-    fflush(stdout);
-    tcc_delete(s);
-    printf("TCC_DELETE_END\n");
-    fflush(stdout);
+    if (m->worker_ctor_delta != 1 || m->worker_dtor_delta != 0
+        || m->worker_live_after_join < 1 || m->worker_outstanding_after <= 0) {
+        printf("N6_06B_CHECK_FAIL=host_worker_observe\n");
+        fflush(stdout);
+        m->check_failed = 1;
+    }
     return 0;
 }
 
@@ -381,17 +504,31 @@ static int probe_delete_live_tls(const char *libpath, n6_06b_metrics *m)
     }
     touch();
     counters(&c1, &d1, NULL, NULL, NULL);
-    m->pending_tls_at_delete = (d1 == 0 && c1 > 0);
-    printf("PENDING_TLS_DTOR_AT_TCC_DELETE=%s\n",
-           m->pending_tls_at_delete ? "YES" : "NO");
-    printf("PENDING_TLS_BEFORE_DELETE_CTOR=%d DTOR=%d\n", c1, d1);
+    // What a manual call leaves behind: the destructor is still pending when
+    // the call returns.  It used to be observed at tcc_delete(); that now
+    // fails closed (N6-07-04 gate B), so it is observed before the cleanup.
+    m->pending_tls_before_cleanup = (d1 == 0 && c1 > 0);
+    printf("PENDING_TLS_DTOR_BEFORE_HOST_CLEANUP=%s\n",
+           m->pending_tls_before_cleanup ? "YES" : "NO");
+    printf("PENDING_TLS_BEFORE_HOST_CLEANUP_CTOR=%d DTOR=%d\n", c1, d1);
     fflush(stdout);
+    host_cleanup_before_delete(s, "delete_live_tls", m);
+    counters(&c1, &d1, NULL, NULL, NULL);
+    printf("PENDING_TLS_AFTER_HOST_CLEANUP_CTOR=%d DTOR=%d\n", c1, d1);
+    // The pending destructor must have been observed, and the host cleanup
+    // (not tcc_delete) must be what ran it.
+    if (!m->pending_tls_before_cleanup || d1 < 1 || live_tcb_count(s) > 0) {
+        printf("N6_06B_CHECK_FAIL=delete_live_tls\n");
+        fflush(stdout);
+        m->check_failed = 1;
+        return 0;
+    }
     printf("TCC_DELETE_BEGIN\n");
     fflush(stdout);
     tcc_delete(s);
     printf("TCC_DELETE_END\n");
-    m->delete_live_completed = 1;
-    printf("TCC_DELETE_WITH_LIVE_TLS_COMPLETED=YES\n");
+    m->delete_after_cleanup_completed = 1;
+    printf("TCC_DELETE_AFTER_HOST_CLEANUP_COMPLETED=YES\n");
     fflush(stdout);
     return 0;
 }
@@ -438,6 +575,9 @@ static int probe_multi_state(const char *libpath, n6_06b_metrics *m)
            (m->state_a_tcb && m->state_b_tcb && m->state_a_tcb != m->state_b_tcb)
            ? "YES" : "NO");
     fflush(stdout);
+    // Each TCCState has its own runtime copy, so each is cleaned up with its
+    // own entry point before it is deleted.
+    host_cleanup_before_delete(sa, "multi_state_a", m);
     tcc_delete(sa);
     touch_b();
     cb(&c, &d, &o, NULL, &tcb_b2);
@@ -446,6 +586,13 @@ static int probe_multi_state(const char *libpath, n6_06b_metrics *m)
     printf("STATE_A_DELETE_AFFECTS_STATE_B=%s\n",
            m->state_b_tcb_stable ? "NO" : "YES");
     fflush(stdout);
+    if (!(m->state_a_tcb && m->state_b_tcb && m->state_a_tcb != m->state_b_tcb)
+        || !m->state_b_tcb_stable) {
+        printf("N6_06B_CHECK_FAIL=multi_state\n");
+        fflush(stdout);
+        m->check_failed = 1;
+    }
+    host_cleanup_before_delete(sb, "multi_state_b", m);
     tcc_delete(sb);
     return 0;
 }
@@ -526,11 +673,22 @@ static void print_authority(const n6_06b_metrics *m)
     }
     printf("HOST_WORKER_MANUAL_CALL_TLS_DTOR_AT_THREAD_EXIT=%s\n",
            m->worker_dtor_delta > 0 ? "YES" : "NO");
-    printf("PENDING_TLS_DTOR_AT_TCC_DELETE=%s\n",
-           m->pending_tls_at_delete ? "YES" : "NO");
+    printf("PENDING_TLS_DTOR_BEFORE_HOST_CLEANUP=%s\n",
+           m->pending_tls_before_cleanup ? "YES" : "NO");
     printf("PENDING_TLS_DTOR_CODE_POINTER_OWNED_BY_RELOCATED_IMAGE=YES\n");
-    printf("TCC_DELETE_WITH_LIVE_TLS_SAFE=%s\n",
-           m->delete_live_completed ? "OBSERVED_NO_CRASH" : "NOT_RUN");
+    printf("HOST_TLS_CLEANUP_BEFORE_TCC_DELETE=%s\n",
+           m->host_cleanup_failed ? "NO" : "YES");
+    printf("HOST_WORKER_LIVE_TLS_AFTER_JOIN=%ld\n", m->worker_live_after_join);
+    printf("HOST_WORKER_SELF_CLEANUP_TLS_DTOR=%d\n", m->worker_cleanup_dtor_delta);
+    printf("HOST_WORKER_SELF_CLEANUP_LIVE_TLS_AFTER_JOIN=%ld\n",
+           m->worker_cleanup_live_after_join);
+    printf("HOST_WORKER_SELF_CLEANUP_TCC_DELETE=%s\n",
+           m->worker_cleanup_delete_completed ? "COMPLETED" : "NOT_RUN");
+    printf("TCC_DELETE_AFTER_HOST_CLEANUP=%s\n",
+           m->delete_after_cleanup_completed ? "COMPLETED" : "NOT_RUN");
+    // Deleting with TLS live is no longer observed here: it fails closed,
+    // which N6-07-04 gate B (this thread) and gate D (another thread) check.
+    printf("TCC_DELETE_WITH_LIVE_TLS=FAIL_CLOSED_SEE_N6_07_04\n");
     printf("MULTI_TCCSTATE_TLS_ISOLATION=%s\n",
            (m->state_a_tcb && m->state_b_tcb && m->state_a_tcb != m->state_b_tcb)
            ? "YES" : "NO");
@@ -543,7 +701,14 @@ static void print_authority(const n6_06b_metrics *m)
     printf("N6_06B_DIRECT_RELOCATE=LIMITED\n");
     printf("N6_06B_IMPLEMENTATION_FEASIBLE=NO\n");
     printf("N6_06B_IMPLEMENTATION_START=NO\n");
-    printf("N6_06B_00_MEASUREMENT=PASS\n");
+    // PASS only when every observation was made and every check held.
+    if (m->host_cleanup_failed)
+        printf("N6_06B_00_MEASUREMENT=FAIL host_tls_cleanup\n");
+    else if (m->check_failed || !m->delete_after_cleanup_completed
+             || !m->worker_cleanup_delete_completed)
+        printf("N6_06B_00_MEASUREMENT=FAIL check\n");
+    else
+        printf("N6_06B_00_MEASUREMENT=PASS\n");
     fflush(stdout);
 }
 
@@ -566,8 +731,8 @@ static int run_all_probes(const char *libpath)
     if (probe_manual_main(libpath, &m) != 0)
         return 1;
 
-    printf("\n=== N6-06B-00 probe: host_worker ===\n");
-    if (probe_host_worker(libpath, &m) != 0)
+    printf("\n=== N6-06B-00 probe: host_worker_cleanup ===\n");
+    if (probe_host_worker_cleanup(libpath, &m) != 0)
         return 1;
 
     printf("\n=== N6-06B-00 probe: delete_live_tls ===\n");
@@ -585,6 +750,11 @@ static int run_all_probes(const char *libpath)
     } else {
         printf("CHILD_EXIT_CODE=%lu\n", (unsigned long)m.child_exit_rc);
     }
+
+    // Last: it keeps its TCCState (and the worker's TLS) until exit.
+    printf("\n=== N6-06B-00 probe: host_worker_observe (state retained) ===\n");
+    if (probe_host_worker_observe(libpath, &m) != 0)
+        return 1;
 
     print_authority(&m);
     return 0;
