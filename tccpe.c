@@ -1948,11 +1948,14 @@ static void pe_add_runtime(TCCState *s1, struct pe_info *pe)
 #endif
 
     /* grab the startup code from libtcc1.a */
+    tcc_diag_g1_emit_startsym(s1, "07_PE_BEFORE_SET_GLOBAL_SYM");
+    /* The diagnostic above used to sit between this if and set_global_sym,
+       so the if guarded only the diagnostic: tcc_relocate() of code without
+       main pulled __runmain in and failed with "undefined symbol 'main'". */
 #ifdef TCC_IS_NATIVE
     if (TCC_OUTPUT_MEMORY != s1->output_type || s1->run_main)
 #endif
-    tcc_diag_g1_emit_startsym(s1, "07_PE_BEFORE_SET_GLOBAL_SYM");
-    set_global_sym(s1, start_symbol, NULL, 0);
+        set_global_sym(s1, start_symbol, NULL, 0);
 
     if (0 == s1->nostdlib) {
         static const char * const libs[] = {

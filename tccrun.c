@@ -324,8 +324,11 @@ LIBTCCAPI int tcc_relocate(TCCState *s1)
     if (ptr_diff < 0)
         return -1;
     ret = tcc_relocate_ex(s1, s1->run_ptr, ptr_diff);
-    if (ret == 0)
+    if (ret == 0) {
         st_link(s1);
+        /* only now is the code in run_ptr copied and executable */
+        s1->run_relocate_complete = 1;
+    }
     return ret;
 }
 
