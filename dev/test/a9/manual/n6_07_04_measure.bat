@@ -29,7 +29,6 @@ rem build used to be reused and passed against stale libtcc sources.
   )
 )
 
-copy /Y "!ROOT!\tcc.exe" "!ROOT!\tcc.exe.n6_07_04.bak" >nul 2>&1
 "!HARNESS!" "!TCC_DEV_ROOT!" >"!LOG!" 2>&1
 set "HRC=!errorlevel!"
 type "!LOG!"
