@@ -327,6 +327,41 @@ static int case_e_tcc_run_delete(const char *libpath)
     return 0;
 }
 
+// Code without main must relocate in memory and expose its functions.  A
+// diagnostic line inserted in tccpe.c (55354c3c) made the startup symbol
+// unconditional, so tcc_relocate() failed with "undefined symbol 'main'".
+static int case_g_relocate_without_main(const char *libpath)
+{
+    TCCState *s;
+    fn_i0 answer;
+    int rc;
+
+    s = new_state_memory(libpath);
+    if (!s)
+        return 1;
+    if (tcc_compile_string(s, "int answer(void) { return 42; }\n") < 0) {
+        tcc_delete(s);
+        return 1;
+    }
+    rc = tcc_relocate(s);
+    printf("RELOCATE_WITHOUT_MAIN_RC=%d\n", rc);
+    if (rc < 0) {
+        tcc_delete(s);
+        printf("RELOCATE_WITHOUT_MAIN=FAIL\n");
+        return 1;
+    }
+    answer = (fn_i0)tcc_get_symbol(s, "answer");
+    rc = answer ? answer() : -1;
+    printf("GET_SYMBOL_WITHOUT_MAIN_RESULT=%d\n", rc);
+    tcc_delete(s);
+    if (rc != 42) {
+        printf("RELOCATE_WITHOUT_MAIN=FAIL\n");
+        return 1;
+    }
+    printf("RELOCATE_WITHOUT_MAIN=PASS\n");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *libpath;
@@ -417,6 +452,10 @@ int main(int argc, char **argv)
             failed = 1;
         }
     }
+
+    printf("\n=== N6-07-04 gate G: relocate code without main ===\n");
+    if (case_g_relocate_without_main(libpath) != 0)
+        failed = 1;
 
     printf("\n=== N6-07-04 FINAL ===\n");
     printf("BASE_COMMIT=2631937\n");
