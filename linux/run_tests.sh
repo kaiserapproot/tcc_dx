@@ -31,7 +31,10 @@ CRASHES=0
 GCC=$(command -v gcc)
 
 # Per-run work directory: parallel runs must not share logs or binaries.
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/tpp_linux_tests.XXXXXX") || exit 1
+# Created under linux/out (build output, not tracked) unless
+# TPP_TEST_TMPDIR names another place.
+mkdir -p "${TPP_TEST_TMPDIR:-$HERE/out}" || exit 1
+WORK=$(mktemp -d "${TPP_TEST_TMPDIR:-$HERE/out}/test.XXXXXX") || exit 1
 trap 'rm -rf "$WORK"' EXIT
 trap 'exit 130' INT TERM
 LOG=$WORK/err.log
@@ -65,19 +68,24 @@ cc_tpp() {
 }
 
 # Run a generated program (or tcc -run) with a timeout; stdout+stderr go
-# to $OUT.  Returns its exit code; signals and timeouts count as crashes.
+# to $OUT.  Returns its exit code.  Exit codes 124 and up are counted here
+# and never reach the caller as a plain result: 124 = timeout (crash),
+# 125-127 = timeout could not run the program (failure), >= 128 = signal
+# (crash).  1-123 are the program's own result; the caller decides.
 run_prog() { # $1 = label, rest = command
     label=$1; shift
     timeout 30 "$@" >"$OUT" 2>&1; ec=$?
     if [ $ec -eq 124 ]; then
-        cat "$OUT"; crash "$label (timeout)" $ec ""; return $ec
-    fi
-    if [ $ec -ge 128 ]; then
-        cat "$OUT"; crash "$label" $ec ""; return $ec
+        cat "$OUT"; crash "$label (timeout)" $ec ""
+    elif [ $ec -ge 125 ] && [ $ec -le 127 ]; then
+        cat "$OUT"; fail "EXEC FAIL $label exit=$ec (could not run)"
+    elif [ $ec -ge 128 ]; then
+        cat "$OUT"; crash "$label" $ec ""
     fi
     return $ec
 }
 
+# Exit code 0 required; 1-123 counted here, 124+ already by run_prog.
 expect_run_ok() { # $1 = label, rest = command
     run_prog "$@"; ec=$?
     [ $ec -eq 0 ] && return 0
@@ -219,6 +227,17 @@ if cc_tpp "dl_host.c" "$L/dl_host.c" -o "$W/dl_host" -ldl; then
         fi
     done
 fi
+# C .so that calls atexit(): the handler must run at dlclose (through
+# __cxa_finalize from linux/lib/dsohandle.c), not after the unmapping
+if cc_tpp "-shared so_atexit.c" -shared -fPIC "$L/so_atexit.c" -o "$W/libso_atexit.so" \
+   && cc_tpp dl_host_atexit.c "$L/dl_host_atexit.c" -o "$W/dl_host_atexit" -ldl; then
+    if expect_run_ok "atexit in .so + dlclose" "$W/dl_host_atexit" "$W/libso_atexit.so"; then
+        got=$(tr '\n' ' ' < "$OUT" | sed 's/ *$//')
+        if [ "$got" != "CLOSING SO_ATEXIT CLOSED" ]; then
+            fail "RUN FAIL atexit in .so: got \"$got\", want \"CLOSING SO_ATEXIT CLOSED\""
+        fi
+    fi
+fi
 # link-time .so (-L -l) + LD_LIBRARY_PATH
 if [ -f "$W/libso_direct.so" ] \
    && cc_tpp so_user.c "$L/so_user.c" -L"$W" -lso_direct -o "$W/so_user"; then
@@ -257,9 +276,12 @@ if cc_tpp exit_order.cpp "$LT/exit_order.cpp" -o "$WORK/exe/exit_order"; then
             else
                 run_prog "exit order ($mode, $how)" "$TCC" -run "$LT/exit_order.cpp" $arg
             fi
-            [ $? -ge 124 ] && continue
+            ec=$?
+            [ $ec -ge 124 ] && continue
             got=$(tr '\n' ' ' < "$OUT" | sed 's/ *$//')
-            if [ "$got" != "$EXPECT_ORDER" ]; then
+            if [ $ec -ne 0 ]; then
+                fail "RUN FAIL exit order ($mode, $how) exit=$ec, output \"$got\""
+            elif [ "$got" != "$EXPECT_ORDER" ]; then
                 fail "ORDER FAIL ($mode, $how): got \"$got\", want \"$EXPECT_ORDER\""
             fi
         done
@@ -291,13 +313,21 @@ else
                 -o "$exe" >"$LOG" 2>&1 \
                 || { cat "$LOG"; fail "BUILD FAIL link abi $pair"; continue; }
         fi
-        run_prog "abi caller=$caller callee=$callee" "$exe"; ec=$?
-        if [ $ec -eq 3 ]; then
-            # only the documented SSE+INTEGER eightbyte struct gap failed
-            echo "  [known gap, non-gating] abi caller=$caller callee=$callee:" \
-                 "mixed SSE/INTEGER 16-byte struct (see linux/README.md)"
-        elif [ $ec -ne 0 ] && [ $ec -lt 124 ]; then
-            cat "$OUT"; fail "RUN FAIL abi caller=$caller callee=$callee exit=$ec"
+        expect_run_ok "abi caller=$caller callee=$callee" "$exe"
+    done
+    # structs whose eightbytes mix SSE and INTEGER: tpp cannot pass them
+    # like gcc, so every by-value use must be rejected; CASE 0 (by pointer,
+    # 8-byte float+int struct) must still compile
+    for c in 0 1 2 3 4; do
+        "$TCC" -c -DCASE=$c "$A/abi_mixed_reject.c" -o "$W/mixed_$c.o" >"$LOG" 2>&1; ec=$?
+        if [ $ec -ge 128 ] || grep -q "internal error" "$LOG"; then
+            crash "abi_mixed_reject CASE=$c" $ec "$LOG"
+        elif [ $c = 0 ]; then
+            [ $ec -eq 0 ] || { cat "$LOG"; fail "COMPILE FAIL abi_mixed_reject CASE=0"; }
+        elif [ $ec -eq 0 ]; then
+            fail "NEGATIVE FAIL abi_mixed_reject CASE=$c was accepted"
+        elif ! grep -q "eightbytes mix SSE and INTEGER" "$LOG"; then
+            cat "$LOG"; fail "NEGATIVE FAIL abi_mixed_reject CASE=$c: unexpected error"
         fi
     done
 fi

@@ -5,7 +5,11 @@ typedef struct { int a, b; } S8;
 typedef struct { long a, b; } S16;
 typedef struct { float f; int i; } SFI;
 typedef struct { double a, b; } SDD;
-typedef struct { double d; long l; } SDL;
+typedef struct { float v[2]; } SF2;             /* SSE (array member) */
+typedef struct { float v[4]; } SF4;             /* SSE, SSE */
+typedef struct { double v[2]; } SD2;            /* SSE, SSE */
+typedef struct { int i[2]; float f[2]; } SIF;   /* INTEGER, SSE: rejected by tpp,
+                                                   see abi_mixed_reject.c */
 typedef struct { long a, b, c; } S24;           /* memory class */
 typedef struct { char c[3]; } S3;
 
@@ -24,7 +28,9 @@ long p_s8(S8 s);
 long p_s16(S16 s);
 double p_sfi(SFI s);
 double p_sdd(SDD s);
-double p_sdl(SDL s);
+double p_sf2(SF2 s);
+double p_sf4(SF4 s);
+double p_sd2(SD2 s);
 long p_s24(S24 s);
 long p_s3(S3 s);
 long p_spill(int a, int b, int c, int d, int e, int f, S16 s, S24 m, SDD dd);
@@ -33,7 +39,9 @@ S8 r_s8(int a, int b);
 S16 r_s16(long a, long b);
 SFI r_sfi(float f, int i);
 SDD r_sdd(double a, double b);
-SDL r_sdl(double d, long l);
+SF2 r_sf2(float a, float b);
+SF4 r_sf4(float a, float b, float c, float d);
+SD2 r_sd2(double a, double b);
 S24 r_s24(long a, long b, long c);
 S3 r_s3(int a, int b, int c);
 
