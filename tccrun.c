@@ -74,6 +74,18 @@ extern int tcc_compile_string(TCCState *s, const char *str);
 
 /* -run startup: walks .init_array/.fini_array around main and owns
    exit()/atexit().  Used on every target (there is no lib/runmain.c). */
+/* Exit order.  PE keeps .fini_array before the atexit list (FEAT-4G).
+   Elsewhere match glibc's exit(): atexit handlers (C++ global dtors are
+   registered there) first, then .fini_array. */
+#ifdef TCC_TARGET_PE
+# define RUNMAIN_EXIT_SEQ(v) \
+    "    tcc_run_dtors();\n" \
+    "    __run_on_exit(" v ");\n"
+#else
+# define RUNMAIN_EXIT_SEQ(v) \
+    "    __run_on_exit(" v ");\n" \
+    "    tcc_run_dtors();\n"
+#endif
 static int tcc_add_runmain(TCCState *s1)
 {
     CString cstr;
@@ -186,8 +198,7 @@ static int tcc_add_runmain(TCCState *s1)
         -1);
     }
     cstr_cat(&cstr,
-        "    tcc_run_dtors();\n"
-        "    __run_on_exit(code);\n"
+        RUNMAIN_EXIT_SEQ("code")
         "    frame.ip = (void *)exit;\n"
         "    frame.fp = 0;\n"
         "    frame.sp = 0;\n"
@@ -213,8 +224,7 @@ static int tcc_add_runmain(TCCState *s1)
         -1);
     }
     cstr_cat(&cstr,
-        "    tcc_run_dtors();\n"
-        "    __run_on_exit(ret);\n"
+        RUNMAIN_EXIT_SEQ("ret")
         "    return ret;\n"
         "}\n",
         -1);
