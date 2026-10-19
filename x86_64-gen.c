@@ -1225,7 +1225,9 @@ static X86_64_Mode classify_x86_64_arg(CType *ty, CType *ret, int *psize, int *p
         *palign = (align + 7) & ~7;
         *reg_count = 0; /* avoid compiler warning */
 
-        if (size > 16) {
+        /* VT_CPP_SRET: C++ class with a destructor, always returned
+           through the hidden pointer (see cpp_gfunc_sret in tccgen.c) */
+        if (size > 16 || (ty->t & VT_CPP_SRET)) {
             mode = x86_64_mode_memory;
         } else if ((ty->t & VT_BTYPE) == VT_STRUCT
                    && x86_64_struct_has_unaligned(ty, 0)) {

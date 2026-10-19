@@ -235,6 +235,25 @@ D3D の C++ ヘルパークラス・演算子も消える。`TCC_NO_FORCE_CINTER
 
 ---
 
+## 5A. macOS 版（x86_64）
+
+`./build_mac.sh` で `build/macos/tcc` を作る（Intel Mac、Xcode の SDK を使用）。
+C++ 機能は Windows 版と同じだが、次の点が違う。
+
+| 項目 | macOS 版 |
+|---|---|
+| 呼出規約 | x86-64 SysV（Linux 版と共通の分類規則）。仮想多重継承の this 調整 thunk は `this` を RDI で調整し、Mach-O では `jmp rel32` で実装へ飛ぶ。構造体を返す仮想関数を含む仮想多重継承は明示エラー（Linux 版と同じ） |
+| `long` | 64 ビット（LP64）。`f(long)` と `f(long long)` は別のマングル名になる |
+| グローバル ctor / dtor | dyld が `.init_array` を実行し、`.fini_array` は `__cxa_atexit` で登録する（PE のような独自エントリは使わない） |
+| `thread_local` | **コンパイル時の明示エラー**（`thread_local requires the x86-64 PE target`。Linux 版と同じ）。実行時ランタイムが Win32 の TLS API で書かれているため |
+| `-bt` / `-g -run` | Windows と同じく使えない（`bt-exe.o` / `bt-log.o` がない） |
+| 診断メッセージ | UTF-8 で表示する（ビルド時に CP932 のソースを UTF-8 に変換している） |
+| `wchar_t` | C++ TU では `tccdefs.h` が typedef する（mac の SDK は C++ では `wchar_t` を組み込み型とみなして定義しないため） |
+
+注意 7（ソースを CP932 として読む）は macOS 版も同じ。
+
+---
+
 ## 6. 参照実装との突き合わせ方
 
 C++ の挙動が疑わしいときは MSVC を参照実装として使う。

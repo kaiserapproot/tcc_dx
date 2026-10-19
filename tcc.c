@@ -336,6 +336,55 @@ static LONG CALLBACK tcc_crash_net_veh(EXCEPTION_POINTERS *ep)
     TerminateProcess(GetCurrentProcess(), 1);
     return EXCEPTION_CONTINUE_SEARCH;
 }
+#elif defined __APPLE__
+// C1 for macOS: the same last-resort net built on signals.  SIGSEGV /
+// SIGBUS inside the COMPILER (stack overflow included - the handler runs
+// on its own alternate stack) print the diagnostic and exit(1) instead of
+// dying with a signal.  Like the Windows net it stands down while tcc -run
+// executes user code (that program's signals are tccrun.c's business) and
+// is re-armed after tcc_run().
+#include <signal.h>
+#include <execinfo.h>
+
+static void tcc_crash_net_handler(int sig, siginfo_t *si, void *uc)
+{
+    // async-signal-safe output only: write(2) and backtrace_symbols_fd
+    static const char head[] =
+        "tcc: internal error: invalid memory access (this is a compiler "
+        "bug, not an error in the source being compiled)\n";
+    static void *frames[40];
+    int nf;
+
+    (void)sig, (void)si, (void)uc;
+    write(2, head, sizeof head - 1);
+    nf = backtrace(frames, 40);
+    backtrace_symbols_fd(frames, nf, 2);
+    _exit(1);
+}
+
+static void tcc_crash_net_arm(void)
+{
+    static char altstack[64 * 1024];
+    stack_t ss;
+    struct sigaction sa;
+
+    ss.ss_sp = altstack;
+    ss.ss_size = sizeof altstack;
+    ss.ss_flags = 0;
+    sigaltstack(&ss, NULL);
+    memset(&sa, 0, sizeof sa);
+    sa.sa_sigaction = tcc_crash_net_handler;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGBUS, &sa, NULL);
+}
+
+static void tcc_crash_net_disarm(void)
+{
+    signal(SIGSEGV, SIG_DFL);
+    signal(SIGBUS, SIG_DFL);
+}
 #endif
 
 int main(int argc0, char **argv0)
@@ -350,6 +399,8 @@ int main(int argc0, char **argv0)
 #ifdef _WIN32
     AddVectoredExceptionHandler(1, tcc_crash_net_veh);
     tcc_crash_net_armed = 1;
+#elif defined __APPLE__
+    tcc_crash_net_arm();
 #endif
 redo:
     argc = argc0, argv = argv0;
@@ -458,10 +509,14 @@ redo:
             // belong to tccrun.c's unhandled-exception filter, and a
             // vectored handler would see them first - stand down.
             tcc_crash_net_armed = 0;
+#elif defined __APPLE__
+            tcc_crash_net_disarm();
 #endif
             ret = tcc_run(s, argc, argv);
 #ifdef _WIN32
             tcc_crash_net_armed = 1;
+#elif defined __APPLE__
+            tcc_crash_net_arm();
 #endif
 #endif
         } else {

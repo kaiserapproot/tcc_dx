@@ -243,7 +243,7 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #ifndef CONFIG_SYSROOT
 # define CONFIG_SYSROOT ""
 #endif
-#if !defined CONFIG_TCCDIR && !defined _WIN32
+#if !defined CONFIG_TCCDIR && !defined _WIN32 && !defined __APPLE__
 # define CONFIG_TCCDIR "/usr/local/lib/tcc"
 #endif
 #ifndef CONFIG_LDDIR

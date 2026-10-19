@@ -126,6 +126,27 @@ static void tcc_add_systemdir(TCCState *s)
 #endif
 #endif
 
+#if defined __APPLE__ && !defined CONFIG_TCCDIR
+/* on macOS, like win32, the lib and includes are at the location of 'tcc' */
+#include <mach-o/dyld.h>
+#include <limits.h>
+static char *config_tccdir_apple(char *path, uint32_t size)
+{
+    char *p;
+    char buf[PATH_MAX];
+    if (_NSGetExecutablePath(path, &size) != 0)
+        return strcpy(path, ".");
+    if (realpath(path, buf))
+        strcpy(path, buf);
+    p = tcc_basename(path);
+    if (p > path)
+        --p;
+    *p = 0;
+    return path;
+}
+#define CONFIG_TCCDIR config_tccdir_apple(alloca(PATH_MAX), PATH_MAX)
+#endif
+
 /********************************************************/
 
 PUB_FUNC void tcc_enter_state(TCCState *s1)
