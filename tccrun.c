@@ -72,7 +72,8 @@ static int rt_get_caller_pc(addr_t *paddr, rt_frame *f, int level);
 static void rt_exit(rt_frame *f, int code);
 extern int tcc_compile_string(TCCState *s, const char *str);
 
-#ifdef TCC_TARGET_PE
+/* -run startup: walks .init_array/.fini_array around main and owns
+   exit()/atexit().  Used on every target (there is no lib/runmain.c). */
 static int tcc_add_runmain(TCCState *s1)
 {
     CString cstr;
@@ -86,6 +87,7 @@ static int tcc_add_runmain(TCCState *s1)
     tcc_add_cpp_runtime(s1);
     need_n6 = tcc_cpp_tls_runtime_needed(s1);
     cstr_new(&cstr);
+    cstr_cat(&cstr, "#ifndef _WIN32\n#define __cdecl\n#endif\n", -1);
     if (need_n6)
         cstr_cat(&cstr, "void abort(void);\n", -1);
     cstr_cat(&cstr,
@@ -233,7 +235,6 @@ static int tcc_add_runmain(TCCState *s1)
     s1->extern_c = saved_extern_c;
     return ret;
 }
-#endif
 
 /* ------------------------------------------------------------- */
 /* defined when included from lib/bt-exe.c */
@@ -399,12 +400,8 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     if (s1->nostdlib) {
         s1->run_main = top_sym = s1->elf_entryname ? s1->elf_entryname : "_start";
     } else {
-#ifdef TCC_TARGET_PE
         if (tcc_add_runmain(s1) < 0)
             return -1;
-#else
-        tcc_add_support(s1, "runmain.o");
-#endif
         s1->run_main = "_runmain";
         top_sym = "main";
     }
