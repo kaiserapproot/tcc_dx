@@ -43,7 +43,9 @@ long p_s8(S8 s) { return s.a * 10L + s.b; }
 long p_s16(S16 s) { return s.a * 10 + s.b; }
 double p_sfi(SFI s) { return s.f * 10 + s.i; }
 double p_sdd(SDD s) { return s.a * 10 + s.b; }
-double p_sdl(SDL s) { return s.d * 10 + s.l; }
+double p_sf2(SF2 s) { return s.v[0] * 10 + s.v[1]; }
+double p_sf4(SF4 s) { return s.v[0] * 1000 + s.v[1] * 100 + s.v[2] * 10 + s.v[3]; }
+double p_sd2(SD2 s) { return s.v[0] * 10 + s.v[1]; }
 long p_s24(S24 s) { return s.a * 100 + s.b * 10 + s.c; }
 long p_s3(S3 s) { return s.c[0] * 100 + s.c[1] * 10 + s.c[2]; }
 long p_spill(int a, int b, int c, int d, int e, int f, S16 s, S24 m, SDD dd)
@@ -54,7 +56,10 @@ S8 r_s8(int a, int b) { S8 s; s.a = a; s.b = b; return s; }
 S16 r_s16(long a, long b) { S16 s; s.a = a; s.b = b; return s; }
 SFI r_sfi(float f, int i) { SFI s; s.f = f; s.i = i; return s; }
 SDD r_sdd(double a, double b) { SDD s; s.a = a; s.b = b; return s; }
-SDL r_sdl(double d, long l) { SDL s; s.d = d; s.l = l; return s; }
+SF2 r_sf2(float a, float b) { SF2 s; s.v[0] = a; s.v[1] = b; return s; }
+SF4 r_sf4(float a, float b, float c, float d)
+{ SF4 s; s.v[0] = a; s.v[1] = b; s.v[2] = c; s.v[3] = d; return s; }
+SD2 r_sd2(double a, double b) { SD2 s; s.v[0] = a; s.v[1] = b; return s; }
 S24 r_s24(long a, long b, long c) { S24 s; s.a = a; s.b = b; s.c = c; return s; }
 S3 r_s3(int a, int b, int c) { S3 s; s.c[0] = a; s.c[1] = b; s.c[2] = c; return s; }
 

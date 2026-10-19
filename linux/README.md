@@ -49,11 +49,12 @@ Phase 4〜7 は Linux（ELF）固有の確認。
 | 2b | `-run a9/local_static_dtor.cpp` |
 | 3 | `a9/negative`: コンパイルエラーになることと、`.expected` のエラーメッセージを確認する。`.expected` がないテストは終了コードだけで判定し、その名前を `[exit-code only, no .expected]` として表示する。`.expected` が空なら失敗 |
 | 4 | `linux/tests/gl/x11_glx.cpp`: C++ のクラスから X11 ウィンドウと GLX コンテキストを作り、描画したピクセルを読み戻して確認する。ディスプレイがない環境ではスキップ |
-| 5 | ELF のリンク: 複数ファイルの C / C++（グローバル ctor / dtor と多重定義を別 TU に置く）、`-ar` で作った `.a`、`-shared` で直接作った `.so` と `-c` を経た `.so`、`dlopen` → `dlsym` → `dlclose` を 2 回（読み込みごとに `.init_array` / `.fini_array` が 1 回ずつ実行されること）、リンク時に `-l` で指定した `.so`、C++ の `.so`（ctor のみ）。C++ のデストラクタ実行時処理を含む `.so` が両方の経路で拒否されること |
+| 5 | ELF のリンク: 複数ファイルの C / C++（グローバル ctor / dtor と多重定義を別 TU に置く）、`-ar` で作った `.a`、`-shared` で直接作った `.so` と `-c` を経た `.so`、`dlopen` → `dlsym` → `dlclose` を 2 回（読み込みごとに `.init_array` / `.fini_array` が 1 回ずつ実行されること）、リンク時に `-l` で指定した `.so`、C++ の `.so`（ctor のみ）、`atexit` を呼ぶ C の `.so`（登録した関数が `dlclose` のときに実行され、終了時に落ちないこと）。C++ のデストラクタ実行時処理を含む `.so` が両方の経路で拒否されること |
 | 6 | 終了順序: `main` からの return と `exit()` のそれぞれで、`-o` と `-run` の両方が glibc と同じ順序（`atexit` で登録した関数 → C++ のグローバル dtor → `.fini_array`）になること |
-| 7 | SysV ABI の突き合わせ: gcc で作ったオブジェクトと tpp で作ったオブジェクトを、呼ぶ側・呼ばれる側を入れ替えて相互に呼ぶ（整数 7 個以上・double 9 個以上の引数、可変長引数、`va_copy`、各種構造体の値渡しと戻り値、スタックに溢れる構造体、コールバック）。gcc / GNU ld でのリンクも、tpp のオブジェクトを外部のリンカが扱えることの確認になる |
+| 7 | SysV ABI の突き合わせ: gcc で作ったオブジェクトと tpp で作ったオブジェクトを、呼ぶ側・呼ばれる側を入れ替えて相互に呼ぶ（整数 7 個以上・double 9 個以上の引数、可変長引数、`va_copy`、各種構造体の値渡しと戻り値（float / double の配列メンバを含む）、スタックに溢れる構造体、コールバック）。gcc / GNU ld でのリンクも、tpp のオブジェクトを外部のリンカが扱えることの確認になる。あわせて、SSE と INTEGER が混在する構造体の値渡し・戻り値の 4 通りが拒否され、ポインタ渡しと 8 バイト以下の混在は通ること（`abi_mixed_reject.c`） |
 
-作業ディレクトリは実行ごとに `mktemp -d` で作り、終了時に削除する（並列実行しても衝突しない）。
+作業ディレクトリは実行ごとに `linux/out/` の下へ `mktemp -d` で作り、終了時に削除する（並列実行しても衝突しない。`TPP_TEST_TMPDIR` で場所を変えられる）。
+生成したプログラムの終了コードは、0 以外をすべて数える: 1〜123 は失敗、124 はタイムアウト（クラッシュ扱い）、125〜127 は実行不能（失敗）、128 以上はシグナル（クラッシュ）。
 
 移植していないもの: `a9/manual/*.bat` などの Windows 専用ゲート（PE の TLS / 起動処理、SDK / DWARF / asm / SIMD）、
 `windows.h` を include するテスト（`WINONLY` で除外）、CUnit / CPPUnit。
@@ -74,7 +75,11 @@ Phase 4〜7 は Linux（ELF）固有の確認。
 - `include/stdarg.h` の Windows 以外の x86_64 部分は、`tccdefs.h` の `__builtin_va_*` を使う（Windows は `dev/include` を使うので影響しない）。
   `lib/va_list.c` は `__va_arg` に加えて、古い `stdarg.h` で作ったオブジェクト向けに `__va_start` も提供する。
 - `libtcc1.a` は、ビルドした tcc 自身で `lib/libtcc1.c`、`lib/va_list.c`、`lib/alloca86_64*.S`、`linux/lib/dsohandle.c` をコンパイルして作る。
-  `dsohandle.c` は、`atexit` が参照する `__dso_handle` を提供する（gcc の場合は crtbegin.o が提供するが、tcc は crtbegin.o をリンクしない）。
+  `dsohandle.c` は、gcc では crtbegin.o / crtbeginS.o が担う 2 つの役割を持つ（tcc はこれらをリンクしない）。
+  - `atexit` が参照する `__dso_handle` を提供する（`.so` ごとに別の値になる hidden シンボル）。
+  - `.fini_array` から `__cxa_finalize(__dso_handle)` を呼ぶ。これで、`.so` の中で `atexit` に登録した関数が `dlclose` のときに実行されて登録から外れる。
+    これがないと、登録が解放後のコードを指したまま残り、プロセスの終了時に SIGSEGV で落ちる。
+    実行ファイルでは、`exit()` が `.fini_array` より先に登録済みの関数をすべて実行して外すので、この呼び出しは何もしない。
 - `.eh_frame` の FDE の開始アドレスは、RELA の `r_addend` に置く（tccdbg.c）。以前はセクションのデータ側に置いていて、tpp 自身のリンカでは正しく
   リンクできたが、GNU ld は `r_addend` しか読まないので、すべての FDE が `.text+0` を指し、`overlapping FDEs` でリンクに失敗していた。
   tpp 自身のリンカはデータと `r_addend` を合算するので、tpp でリンクした結果は変わらない。
@@ -86,7 +91,7 @@ Phase 4〜7 は Linux（ELF）固有の確認。
 | グローバルの ctor / dtor | `.init_array` を glibc の crt が実行する。デストラクタは ctor の実行時に `atexit` で登録する | tpp が注入する起動コード（`_tcc_cpp_start`）が実行する |
 | 終了順序 | glibc と同じ（`atexit` で登録した関数、C++ のグローバル dtor → `.fini_array`）。`-run` も同じ順序にしている | `.fini_array` → `atexit` で登録した関数（FEAT-4G のまま変更しない） |
 | `-run` の起動処理 | `tcc_add_runmain`（Windows と共通。終了順序だけ上記のとおり異なる） | 同左 |
-| 共有ライブラリ（`.so` / DLL） | C++ のデストラクタ実行時処理を含むものは**明示エラー**（`-shared` で直接作る場合も、`-c` を経てリンクする場合も）。`dlclose` で登録を外す `__cxa_finalize`（gcc では crtbeginS.o が呼ぶ）がなく、解放後のコードがプロセス終了時に呼ばれるため。ctor だけの C++ や C の `.so` は使える | DLL は同じく明示エラー |
+| 共有ライブラリ（`.so` / DLL） | C++ のデストラクタ実行時処理を含むものは**明示エラー**（`-shared` で直接作る場合も、`-c` を経てリンクする場合も）。PE と同じ方針で、`-shared` でコンパイルした時点の拒否は `tccgen.c`（ターゲット共通）にある。`dsohandle.c` で `dlclose` 時の `__cxa_finalize` は行うようになったので、解除は可能だが、`tccgen.c` の変更と専用のテストが要るので別のガイドにする。ctor だけの C++ や C の `.so` は使える。C の `.so` の中で呼んだ `atexit` は、`dsohandle.c` の `__cxa_finalize` によって `dlclose` のときに実行される | DLL は同じく明示エラー |
 | 仮想多重継承の this 調整サンク | `sub rdi, imm32`（SysV の第 1 引数）。**構造体を返す仮想関数は明示エラー**（hidden pointer が第 1 引数になり、`this` が第 2 引数へずれるため。レジスタで返る小さい構造体も含めて安全側で拒否している） | `sub rcx, imm32` |
 | `thread_local`（C++） | **明示エラー**（`thread_local requires the x86-64 PE target`）。Windows の TLS ランタイムとサンクが Win64 専用のため | 対応（N6） |
 | `long` | 64 ビット（LP64）。名前修飾では `long` と `long long` を区別する | 32 ビット（LLP64） |
@@ -96,12 +101,15 @@ Phase 4〜7 は Linux（ELF）固有の確認。
 
 ### Linux（SysV）固有
 
-- **8 バイトごとに浮動小数点と整数が混在する 16 バイト以下の構造体の値渡し・戻り値が、gcc と互換でない**
-  （例: `struct { double d; long l; }`）。SysV ABI では 8 バイトごとに分類して `xmm0` と `rdi` のように渡すが、
-  tpp（tinycc から引き継いだ処理）は構造体全体を INTEGER にまとめて、整数レジスタ 2 本で渡す。
-  tpp 同士では一致するので動くが、gcc で作ったライブラリとの間では値が壊れる。Phase 7 で `[known gap, non-gating]` として表示している。
-  `struct { float f; int i; }` のような 8 バイト以下の混在、double だけ・整数だけの構造体、16 バイトを超える構造体は互換。
-  直すには `x86_64-gen.c` の引数・戻り値のコード生成を 8 バイト単位の分類に変える必要がある。
+- **8 バイトごとに浮動小数点と整数が混在する 16 バイト以下の構造体は、値渡しも戻り値も明示エラーになる**
+  （`passing or returning struct '...' by value is unsupported on this target: its eightbytes mix SSE and INTEGER classes`）。
+  例: `struct { double d; long l; }`、`struct { int id; float x, y, z; }`。
+  SysV ABI では 8 バイトごとに分類して `xmm0` と `rdi` のように渡すが、tpp（tinycc から引き継いだ処理）は構造体全体を
+  1 つの分類にまとめて渡すため、gcc で作ったコードとの間で値が黙って壊れていた。ポインタで渡すこと。
+  直すには `x86_64-gen.c` の引数・戻り値のコード生成と `tccgen.c` の戻り値処理を、8 バイト単位の分類に対応させる必要がある（別のガイド）。
+  拒否されないもの（gcc と互換）: 8 バイト以下の構造体（`struct { float f; int i; }` は INTEGER 1 つで gcc と同じ）、
+  float / double だけの構造体（配列メンバを含む。`struct { float v[4]; }` は SSE 2 つ）、整数だけの構造体、16 バイトを超える構造体（メモリ渡し）。
+  配列メンバは、以前は INTEGER に分類していて `struct { float v[2]; }` なども gcc と互換でなかったが、要素の型で分類するように直した。
 
 ### ターゲット共通（Windows 版の `dev\tcc.exe` でも同じ結果）
 

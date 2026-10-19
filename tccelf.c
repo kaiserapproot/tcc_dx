@@ -3354,11 +3354,11 @@ static void tcc_add_cpp_elf_runtime(TCCState *s1)
         return;
     if (!tcc_cpp_runtime_needed(s1))
         return;
-    /* Same contract as pe_add_runtime.  A DLL would need its handlers
-       run and dropped at dlclose (crtbeginS.o's __cxa_finalize, which tcc
-       does not link); with plain atexit they outlive the mapping and the
-       process crashes at exit.  Compiling with -shared is rejected in
-       tccgen; this also catches objects built with -c and linked here. */
+    /* Same contract as pe_add_runtime: compiling with -shared is rejected
+       in tccgen, and this also catches objects built with -c and linked
+       here.  (linux/lib/dsohandle.c now runs __cxa_finalize at dlclose,
+       which C atexit() in a .so relies on; enabling C++ destructors in a
+       DLL would also need the tccgen check lifted and its own tests.) */
     if (s1->output_type == TCC_OUTPUT_DLL) {
         tcc_error_noabort("C++ destructor runtime in DLL is unsupported");
         return;
