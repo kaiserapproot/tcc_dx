@@ -75,6 +75,16 @@ TCC (Tiny C Compiler) を **MSVC / Windows x64** でビルドし、段階的に 
 
 ---
 
+## macOS ビルド（x86_64）
+
+- `./build_mac.sh` でビルドし、テストまで実行する（`--no-test` を付けるとビルドだけ）。生成物は `build/macos/`（`tcc`、`include/`、`lib/libtcc1-64.a`。Windows の `dev/tcc.exe`・`dev/include/`・`dev/lib/` と同じ並び）。`tcc` は自分の置き場所から `include/` と `lib/` を探すので、ディレクトリごと移動しても動く。システムヘッダは Xcode の SDK（`xcrun --show-sdk-path`）を使う。
+- テストは `dev/test/run_all_mac.sh`。`run_all.bat` のうち Windows に依存しないフェーズ（1 / 2 / 2b / 3 / リンク / 4 / 5 = CPPUnit G7）と、`dev/test/macos/` の mac 専用テストを実行する。Win32 SDK・DWARF/gdb・thread_local のゲートは対象外。
+- CP932 のソース（`tccgen.c` など）は、**ビルド時に UTF-8 へ変換したコピーを clang に渡す**（リポジトリのファイルは書き換えない）。clang は CP932 を理解せず、2 バイト目が `0x5C` の文字（「表」「構」「ソ」など）をエスケープとして読み、文字列を壊すため。`#line` で元のファイルを指すので、診断やデバッグ情報は元のパスを指す。
+- mac では **thread_local はコンパイル時の明示エラー**になる（実行時ランタイムが Win32 の TLS API で書かれているため）。`-bt` と `-g -run` は、`bt-exe.o` / `bt-log.o` のソースがないので Windows と同じく使えない。
+- 共有ソースに mac 用の分岐を足すときは `TCC_TARGET_MACHO` / `__APPLE__` で囲み、PE の動作を変えない。Windows で検証できない変更を PE 側に入れない。
+
+---
+
 ## 必須ルール — ファイル / エンコーディング
 
 **既存ファイルは、今の文字コードのまま編集する。** このプロジェクトの日本語 Windows 環境では、MSVC は BOM のないソースを通常 CP932 として解釈し、BOM 付きのソースは UTF-8 として解釈する。ただし、使うコードページや `/source-charset`、`/utf-8` の指定によって動作は変わる。文字列リテラルとして出力されるバイト列は、実行文字セットにも依存する。この環境では、BOM のない UTF-8 で書いた日本語の文字列は、変換されずにそのまま出力されて文字化けした。2026-10 には、`tccgen.c` を CP932 から UTF-8 と誤読して保存したため（f94caf1）、置換文字 U+FFFD が 6742 個混入し、エラーと警告がすべて文字化けした（PR #45 で復元）。
