@@ -810,6 +810,16 @@ static void tcc_debug_frame_end(TCCState *s1, int size)
     dwarf_data4(eh_frame_section, 0); // length
     dwarf_data4(eh_frame_section,
 		fde_start - s1->eh_start + 4); // CIE Pointer
+#if SHT_RELX == SHT_RELA && defined TCC_TARGET_X86_64
+    /* RELA: the function offset belongs in r_addend.  tcc's own linker adds
+       the section data and r_addend alike, but GNU ld reads only r_addend:
+       with the offset in the data every FDE of a -c object started at
+       .text+0 ("overlapping FDEs", final link failed). */
+    put_elf_reloca(symtab_section, eh_frame_section,
+                   eh_frame_section->data_offset, R_X86_64_PC32,
+                   eh_section_sym, func_ind);
+    dwarf_data4(eh_frame_section, 0); // PC Begin (in r_addend)
+#else
 #if defined TCC_TARGET_I386
     dwarf_reloc(eh_frame_section, eh_section_sym, R_386_PC32);
 #elif defined TCC_TARGET_X86_64
@@ -822,6 +832,7 @@ static void tcc_debug_frame_end(TCCState *s1, int size)
     dwarf_reloc(eh_frame_section, eh_section_sym, R_RISCV_32_PCREL);
 #endif
     dwarf_data4(eh_frame_section, func_ind); // PC Begin
+#endif
     dwarf_data4(eh_frame_section, size); // PC Range
     dwarf_data1(eh_frame_section, 0); // Augmentation Length
 #if defined TCC_TARGET_I386

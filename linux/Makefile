@@ -54,11 +54,11 @@ $(OUT)/obj:
 	mkdir -p $@
 
 # Runtime headers: {B}/include is the first system include path.
-# linux/include/*.h override the shared ones (stdarg.h there is outdated).
-$(HDR_STAMP): $(wildcard $(TOP)/include/*.h) $(wildcard include/*.h)
+# linux/include holds Linux-only wrapper headers (sys/cdefs.h).
+$(HDR_STAMP): $(wildcard $(TOP)/include/*.h) $(wildcard include/*/*.h)
 	mkdir -p $(OUT)/include
 	cp -f $(TOP)/include/*.h $(OUT)/include/
-	cp -f include/*.h $(OUT)/include/
+	cp -rf include/. $(OUT)/include/
 
 # libtcc1.a is built by the freshly built tcc itself (as upstream does).
 LIB_C := libtcc1.c va_list.c

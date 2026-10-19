@@ -3344,16 +3344,25 @@ ST_FUNC void tccelf_add_crtend(TCCState *s1)
 #endif /* TCC_TARGET_UNIX */
 
 #ifndef TCC_TARGET_PE
-/* ELF executables and DLLs: the libc crt already walks .init_array /
-   .fini_array, so only C++ destructor registration needs a runtime.
-   -run (TCC_OUTPUT_MEMORY) gets __tcc_cpp_register_exit from
-   tcc_add_runmain instead. */
+/* ELF executables: the libc crt already walks .init_array / .fini_array,
+   so only C++ destructor registration needs a runtime.  -run
+   (TCC_OUTPUT_MEMORY) gets __tcc_cpp_register_exit from tcc_add_runmain
+   instead. */
 static void tcc_add_cpp_elf_runtime(TCCState *s1)
 {
     if (s1->output_type == TCC_OUTPUT_MEMORY || s1->output_type == TCC_OUTPUT_OBJ)
         return;
     if (!tcc_cpp_runtime_needed(s1))
         return;
+    /* Same contract as pe_add_runtime.  A DLL would need its handlers
+       run and dropped at dlclose (crtbeginS.o's __cxa_finalize, which tcc
+       does not link); with plain atexit they outlive the mapping and the
+       process crashes at exit.  Compiling with -shared is rejected in
+       tccgen; this also catches objects built with -c and linked here. */
+    if (s1->output_type == TCC_OUTPUT_DLL) {
+        tcc_error_noabort("C++ destructor runtime in DLL is unsupported");
+        return;
+    }
     tcc_add_cpp_runtime(s1);
     tcc_compile_injected_c_no_debug(s1,
         "extern int atexit(void (*)(void));\n"
