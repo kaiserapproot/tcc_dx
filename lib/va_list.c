@@ -4,39 +4,22 @@
 
 /* Avoid include files, they may not be available when cross compiling */
 extern void *memset(void *s, int c, __SIZE_TYPE__ n);
-extern void abort(void);
+extern void abort(void) __attribute__((noreturn));
 
 /* This should be in sync with our include/stdarg.h */
 enum __va_arg_type {
     __va_gen_reg, __va_float_reg, __va_stack
 };
 
-/* GCC compatible definition of va_list. */
-typedef struct {
-    unsigned int gp_offset;
-    unsigned int fp_offset;
-    union {
-        unsigned int overflow_offset;
-        char *overflow_arg_area;
-    };
-    char *reg_save_area;
-} __va_list_struct;
-
-void __va_start(__va_list_struct *ap, void *fp)
-{
-    memset(ap, 0, sizeof(__va_list_struct));
-    *ap = *(__va_list_struct *)((char *)fp - 16);
-    ap->overflow_arg_area = (char *)fp + ap->overflow_offset;
-    ap->reg_save_area = (char *)fp - 176 - 16;
-}
-
-void *__va_arg(__va_list_struct *ap,
-               enum __va_arg_type arg_type,
+/* __builtin_va_list is the GCC compatible va_list from tccdefs.h.
+   The declaration of __va_arg must match the one there. */
+void *__va_arg(__builtin_va_list ap,
+               int arg_type,
                int size, int align)
 {
     size = (size + 7) & ~7;
     align = (align + 7) & ~7;
-    switch (arg_type) {
+    switch ((enum __va_arg_type)arg_type) {
     case __va_gen_reg:
         if (ap->gp_offset + size <= 48) {
             ap->gp_offset += size;

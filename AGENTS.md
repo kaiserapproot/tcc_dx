@@ -18,6 +18,7 @@ TCC (Tiny C Compiler) を **MSVC / Windows x64** でビルドし、段階的に 
 | `dev/test/` | smoke / 回帰テスト |
 | `test/cppuniut/` | CPPUnit（MSVC） — TCC 駆動ハーネス |
 | `test/vs_test/` | CUnit（MSVC） |
+| `linux/` | Linux（WSL）ビルド — `make -C linux` / `make -C linux test`（[linux/README.md](linux/README.md)） |
 
 ---
 

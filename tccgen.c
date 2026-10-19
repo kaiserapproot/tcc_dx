@@ -324,7 +324,14 @@ static void mangle_append_type(CType *t, char *buf, int buf_size, int *pos)
         else
             c = 'i';
         break;
-    case VT_LLONG: c = (ty.t & VT_UNSIGNED) ? 'y' : 'L'; break;
+    case VT_LLONG:
+        // LP64 (non-PE x86_64): long is VT_LLONG | VT_LONG.  Without this
+        // f(long) and f(long long) got one symbol ("defined twice").
+        if (ty.t & VT_LONG)
+            c = (ty.t & VT_UNSIGNED) ? 'k' : 'l';
+        else
+            c = (ty.t & VT_UNSIGNED) ? 'y' : 'L';
+        break;
     case VT_FLOAT: c = 'f'; break;
     case VT_DOUBLE: c = 'd'; break;
     case VT_LDOUBLE: c = 'e'; break;
@@ -4110,13 +4117,13 @@ static void cpp_emit_vtable(Sym *class_sym)
    emission is deferred to cpp_finish_virtual_thunks: struct_decl may run in
    the middle of a function body (local class), where emitting at `ind` would
    splice bytes into the surrounding function's code stream. */
-/* The thunk body is literal x86-64 Win64 machine code: `this` is arg0 in RCX
-   and the sequence is sub rcx,imm32 / movabs rax / jmp rax.  Nothing about it
+/* The thunk body is literal x86-64 machine code: `this` is arg0 (RCX on
+   Win64, RDI on SysV) and the sequence is sub reg,imm32 / movabs rax / jmp rax.  Nothing about it
    is portable, so keep it behind an explicit target test instead of letting
    another target emit these bytes and produce garbage.  Only virtual multiple
    inheritance reaches it, which is what the diagnostic names.  (Building the
    compiler itself for Win32 proves nothing about these bytes running.) */
-#if defined(TCC_TARGET_X86_64) && defined(TCC_TARGET_PE)
+#if defined(TCC_TARGET_X86_64)
 #define CPP_VTHUNK_SUPPORTED 1
 #else
 #define CPP_VTHUNK_SUPPORTED 0
@@ -4158,7 +4165,13 @@ static Sym *cpp_new_virtual_thunk(Sym *class_sym, Sym *base_class,
     /* Fail here rather than at the emission point, so the diagnostic names the
        class being compiled instead of appearing at end of TU. */
     if (!CPP_VTHUNK_SUPPORTED)
-        tcc_error("virtual multiple inheritance requires the x86-64 PE target");
+        tcc_error("virtual multiple inheritance requires the x86-64 target");
+#ifndef TCC_TARGET_PE
+    /* SysV: a struct return passed by hidden pointer takes arg0 and moves
+       `this` to arg1, but the thunk always adjusts arg0. */
+    if ((impl->type.ref->type.t & VT_BTYPE) == VT_STRUCT)
+        tcc_error("virtual multiple inheritance with a struct return is unsupported on this target");
+#endif
     len = snprintf(buf, sizeof buf, "__cpp_vthunk_%d", thunk_serial++);
     if (len <= 0 || len >= (int)sizeof buf)
         tcc_error("internal error: virtual thunk name overflow");
@@ -4291,13 +4304,17 @@ static void cpp_emit_virtual_thunk_code(CppVThunk *t)
     int thunk_start;
 
 #if !CPP_VTHUNK_SUPPORTED
-    tcc_error("virtual multiple inheritance requires the x86-64 PE target");
+    tcc_error("virtual multiple inheritance requires the x86-64 target");
 #endif
     thunk_start = ind = cur_text_section->data_offset;
     put_extern_sym(t->thunk_sym, cur_text_section, ind, 0);
     /* sub rcx, imm32: move `this` (win64 arg0) from the base subobject back
        to the most-derived object before entering the override body. */
+#ifdef TCC_TARGET_PE
     o(0xe98148);
+#else
+    o(0xef8148); /* sub rdi, imm32 (SysV arg0) */
+#endif
     gen_le32(t->adjust);
     /* movabs rax, &impl; jmp rax.  The absolute 64-bit immediate lets the
        target use the generic R_DATA_PTR relocation macro - no per-target
@@ -13702,6 +13719,9 @@ static int parse_btype(CType* type, AttributeDef* ad, int ignore_label)
         case TOK_CPP_THREAD_LOCAL:
             if (!tcc_state->cpp)
                 tcc_error("thread_local is C++ only");
+#ifndef TCC_TARGET_PE
+            tcc_error("thread_local requires the x86-64 PE target");
+#endif
             g = VT_CPP_TLS;
             goto storage;
         storage:
