@@ -1,0 +1,62 @@
+/* SysV x86_64 ABI cross check between gcc and tpp objects.
+   abi_impl.c (callee) and abi_check.c (caller) are built by different
+   compilers in run_tests.sh Phase 6. */
+typedef struct { int a, b; } S8;
+typedef struct { long a, b; } S16;
+typedef struct { float f; int i; } SFI;
+typedef struct { double a, b; } SDD;
+typedef struct { float v[2]; } SF2;             /* SSE (array member) */
+typedef struct { float v[4]; } SF4;             /* SSE, SSE */
+typedef struct { double v[2]; } SD2;            /* SSE, SSE */
+typedef struct { int i[2]; float f[2]; } SIF;   /* INTEGER, SSE: rejected by tpp,
+                                                   see abi_mixed_reject.c */
+typedef struct { long a, b, c; } S24;           /* memory class */
+typedef struct { char c[3]; } S3;
+/* packed: unaligned members make the struct MEMORY class (stack / hidden
+   return pointer); packed but aligned stays in registers */
+typedef struct __attribute__((packed)) { char c; double d; } SPK;        /* 9 bytes, d at 1 */
+typedef struct __attribute__((packed)) { char c; int i; short s; } SPK2; /* 7 bytes, i at 1 */
+typedef struct __attribute__((packed)) { int a; int b; } SPKA;          /* aligned: INTEGER */
+
+long f_int8(int a, int b, int c, int d, int e, int f, int g, int h);
+double f_dbl10(double x1, double x2, double x3, double x4, double x5,
+               double x6, double x7, double x8, double x9, double x10);
+double f_mixed(int i1, double d1, int i2, double d2, int i3, double d3,
+               int i4, double d4, int i5, double d5, int i6, double d6,
+               int i7, double d7, double d8, double d9, long l8);
+long v_sum_i(int n, ...);
+double v_sum_d(int n, ...);
+double v_mixed(int n, ...);          /* pairs of (int, double) */
+long v_copy(int n, ...);             /* va_copy: both lists read separately */
+
+long p_s8(S8 s);
+long p_s16(S16 s);
+double p_sfi(SFI s);
+double p_sdd(SDD s);
+double p_sf2(SF2 s);
+double p_sf4(SF4 s);
+double p_sd2(SD2 s);
+long p_s24(S24 s);
+long p_s3(S3 s);
+double p_spk(SPK s);
+long p_spk2(SPK2 s);
+long p_spka(SPKA s);
+long p_spk_spill(int a, int b, int c, int d, int e, int f, SPK s, int g);
+long p_spill(int a, int b, int c, int d, int e, int f, S16 s, S24 m, SDD dd);
+
+S8 r_s8(int a, int b);
+S16 r_s16(long a, long b);
+SFI r_sfi(float f, int i);
+SDD r_sdd(double a, double b);
+SF2 r_sf2(float a, float b);
+SF4 r_sf4(float a, float b, float c, float d);
+SD2 r_sd2(double a, double b);
+S24 r_s24(long a, long b, long c);
+S3 r_s3(int a, int b, int c);
+SPK r_spk(char c, double d);
+SPK2 r_spk2(char c, int i, short s);
+SPKA r_spka(int a, int b);
+
+typedef double (*cb_t)(int, double, int, double, int, double, int, double,
+                       int, double, S16, SDD);
+double call_cb(cb_t cb);             /* callee calls back into the caller */

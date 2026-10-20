@@ -1723,6 +1723,16 @@ static void tcc_diag_g1_save_combined_source(CString *cstr)
     }
 }
 #else
+static int tcc_diag_g1_enabled(void)
+{
+    return 0;
+}
+
+static void tcc_diag_g1_save_combined_source(CString *cstr)
+{
+    (void)cstr;
+}
+
 ST_FUNC int tcc_diag_g1_profile(TCCState *s1)
 {
     (void)s1;
@@ -1779,6 +1789,9 @@ ST_FUNC void tcc_add_cpp_runtime(TCCState *s1)
         return;
     cstr_new(&cstr);
     cstr_cat(&cstr,
+        "#ifndef _WIN32\n"
+        "#define __cdecl\n"
+        "#endif\n"
         "typedef void (__cdecl *tcc_cpp_dtor_fn_t)(void);\n"
         "extern int __tcc_cpp_register_exit(tcc_cpp_dtor_fn_t);\n"
         "extern void abort(void);\n"
@@ -3331,9 +3344,38 @@ ST_FUNC void tccelf_add_crtend(TCCState *s1)
 #endif /* TCC_TARGET_UNIX */
 
 #ifndef TCC_TARGET_PE
+/* ELF executables: the libc crt already walks .init_array / .fini_array,
+   so only C++ destructor registration needs a runtime.  -run
+   (TCC_OUTPUT_MEMORY) gets __tcc_cpp_register_exit from tcc_add_runmain
+   instead. */
+static void tcc_add_cpp_elf_runtime(TCCState *s1)
+{
+    if (s1->output_type == TCC_OUTPUT_MEMORY || s1->output_type == TCC_OUTPUT_OBJ)
+        return;
+    if (!tcc_cpp_runtime_needed(s1))
+        return;
+    /* Same contract as pe_add_runtime: compiling with -shared is rejected
+       in tccgen, and this also catches objects built with -c and linked
+       here.  (linux/lib/dsohandle.c now runs __cxa_finalize at dlclose,
+       which C atexit() in a .so relies on; enabling C++ destructors in a
+       DLL would also need the tccgen check lifted and its own tests.) */
+    if (s1->output_type == TCC_OUTPUT_DLL) {
+        tcc_error_noabort("C++ destructor runtime in DLL is unsupported");
+        return;
+    }
+    tcc_add_cpp_runtime(s1);
+    tcc_compile_injected_c_no_debug(s1,
+        "extern int atexit(void (*)(void));\n"
+        "int __tcc_cpp_register_exit(void (*fn)(void))\n"
+        "{\n"
+        "    return atexit(fn);\n"
+        "}\n");
+}
+
 /* add tcc runtime libraries */
 ST_FUNC void tcc_add_runtime(TCCState *s1)
 {
+    tcc_add_cpp_elf_runtime(s1);
     s1->filetype = 0;
 
 #ifdef CONFIG_TCC_BCHECK
