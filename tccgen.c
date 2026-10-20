@@ -230,6 +230,9 @@ static int cpp_member_this_pending;
    depends on the overload the ARGUMENTS select, so the vtable load waits
    for the call's overload resolution (cpp_vdefer_field = first field). */
 static Sym *cpp_vdefer_field;
+/* A member call whose name has static and non-static overloads: `this` is
+   prepared, and dropped after overload resolution if a static one wins. */
+static Sym *cpp_smix_field;
 static Sym *cpp_last_resolved_field;   /* field cpp_resolve_member_func_call chose */
 /* BUG-14: while a member function global is being registered via
    external_sym, this points at its class so external_sym keeps it a distinct
@@ -4888,6 +4891,28 @@ static Sym *cpp_field_owner_class(Sym *cls, Sym *field)
     return NULL;
 }
 
+/* 1 when the class that declares the member function field has both
+   static and non-static member functions of that name: whether the call
+   passes `this` then depends on the overload the arguments select. */
+static int cpp_static_overload_mix(Sym *field)
+{
+    Sym *g;
+    int ns = 0, nn = 0;
+
+    if (!field || !field->parent_class
+        || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    for (g = field->parent_class->next; g; g = g->next) {
+        if (g->v != field->v || (g->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (g->type.t & VT_STATIC)
+            ns++;
+        else
+            nn++;
+    }
+    return ns && nn;
+}
+
 /* `obj.s` / `obj.B::s` for a STATIC member s (field found from cls): the
    object only names the class (its expression has already been
    evaluated); s is the class's global, as for `B::s`.  Reaching it as a
@@ -4921,19 +4946,17 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
 {
     CType qct;
     Sym *obj_cls, *field;
-    int ofs, cumofs;
+    int ofs, cumofs, smix;
 
     obj_cls = vtop->type.ref;
     if ((vtop->type.t & VT_BTYPE) != VT_STRUCT || !obj_cls)
         expect("struct or union");
     ofs = 0;
     if (qcls != obj_cls) {
+        /* An ambiguous base is still a base; whether a unique subobject
+           is needed depends on the member (a static one has none). */
         ofs = cpp_base_subobject_offset(obj_cls, qcls);
-        if (ofs == CPP_BASE_AMBIGUOUS)
-            tcc_error("'%s' is an ambiguous base of '%s'",
-                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
-                      get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
-        if (ofs < 0)
+        if (ofs < 0 && ofs != CPP_BASE_AMBIGUOUS)
             tcc_error("'%s' is not a base of '%s'",
                       get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
                       get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
@@ -4947,6 +4970,10 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
         Sym *fsym;
         CType dtor_obj;
 
+        if (ofs == CPP_BASE_AMBIGUOUS)
+            tcc_error("'%s' is an ambiguous base of '%s'",
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
+                      get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
         field = cpp_find_dtor_field(qcls);
         if (!field)
             tcc_error("no destructor for class '%s'",
@@ -4979,9 +5006,20 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
         return;
     }
     field = cpp_find_field_for_call(&qct, mem_tok, &cumofs);
-    if (field->type.t & VT_STATIC) {
+    smix = cpp_static_overload_mix(field);
+    if ((field->type.t & VT_STATIC) && !smix) {
         cpp_static_member_via_object(field, qcls, mem_tok);
         return;
+    }
+    /* a non-static member lives in a subobject, which must be unique */
+    if (ofs == CPP_BASE_AMBIGUOUS) {
+        if (smix)
+            tcc_error("'%s' through the ambiguous base '%s' has static and non-static overloads (unsupported)",
+                      get_tok_str(mem_tok, NULL),
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL));
+        tcc_error("'%s' is an ambiguous base of '%s'",
+                  get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
+                  get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
     }
     if ((field->type.t & VT_BTYPE) == VT_FUNC) {
         /* The qualifier names the path: move the object to the qualifying
@@ -5008,6 +5046,8 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
            `this` to that subobject */
         cpp_prepare_member_func_call(field);
         cpp_member_this_pending = 1;
+        if (smix)
+            cpp_smix_field = field;
         return;
     }
     gaddrof();
@@ -16967,7 +17007,8 @@ post_ops:
                                             qualifiers);
             } else {
             field = cpp_find_field_for_call(&vtop->type, mem_tok, &cumofs);
-            if (tcc_state->cpp && (field->type.t & VT_STATIC)) {
+            if (tcc_state->cpp && (field->type.t & VT_STATIC)
+                && !cpp_static_overload_mix(field)) {
                 cpp_static_member_via_object(field, vtop->type.ref, mem_tok);
             } else if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
                 if (field->type.ref && field->type.ref->f.func_virtual
@@ -16979,6 +17020,8 @@ post_ops:
                 cpp_member_this_pending = 1;
                 if (cpp_virtual_overload_set(field))
                     cpp_vdefer_field = field;
+                if (cpp_static_overload_mix(field))
+                    cpp_smix_field = field;
                 }
             } else {
                 gaddrof();
@@ -17133,7 +17176,7 @@ post_ops:
             int cpp_defer, cpp_i;
             int cpp_saved_this_pending;
             SValue cpp_saved_member_this;
-            Sym *cpp_saved_vdefer, *cpp_vres;
+            Sym *cpp_saved_vdefer, *cpp_vres, *cpp_saved_smix;
             TokenString* p, * p2;
 
             /* function call  */
@@ -17166,7 +17209,7 @@ post_ops:
                     /* overloaded virtual (cpp_vdefer_field): its globals
                        are not all registered yet, but the arguments must
                        stay unconverted until the overload is resolved */
-                    || cpp_vdefer_field);
+                    || cpp_vdefer_field || cpp_smix_field);
             // BUG-41: cpp_member_this / cpp_member_this_pending are single
             // globals, so a NESTED member call inside the argument list -
             // `insert(begin(), n, value)`, SimpleList.cpp:19 - consumed
@@ -17181,6 +17224,8 @@ post_ops:
             cpp_member_this_pending = 0;
             cpp_saved_vdefer = cpp_vdefer_field;
             cpp_vdefer_field = NULL;
+            cpp_saved_smix = cpp_smix_field;
+            cpp_smix_field = NULL;
             cpp_vres = NULL;
             next();
             sa = s->next; /* first parameter */
@@ -17387,6 +17432,19 @@ post_ops:
                     tcc_error("internal error: overloaded virtual resolved outside its class");
                 if (vf->type.ref && vf->type.ref->f.func_virtual)
                     cpp_emit_deferred_virtual_fn(vf, nb_args);
+            }
+            if (cpp_saved_smix) {
+                Sym *sf = cpp_vres;
+
+                if (!sf)
+                    sf = cpp_field_for_member_global(cpp_saved_smix,
+                                                     vtop[-nb_args].sym);
+                if (!sf)
+                    tcc_error("internal error: static / non-static overload not resolved");
+                /* a static member function takes no implicit object
+                   argument; the object expression was already evaluated */
+                if (sf->type.t & VT_STATIC)
+                    cpp_member_this_pending = 0;
             }
             if (cpp_member_this_pending) {
                 int na = nb_args;
