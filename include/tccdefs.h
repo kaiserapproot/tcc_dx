@@ -126,6 +126,10 @@
     #define _FORTIFY_SOURCE 0
     //#define __has_builtin(x) 0
     #define _Float16 short unsigned int /* fake type just for size & alignment (macOS Sequoia) */
+    /* TargetConditionals.h (pulled in by CoreGraphics, CoreVideo, ...) does
+       "#if !defined(__has_extension) || !__has_extension(...)", which is a
+       syntax error when __has_extension is undefined. */
+    #define __has_extension(x) 0
 
 #elif defined __ANDROID__
     #define  BIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD
@@ -253,6 +257,12 @@
     #ifndef __builtin_va_copy
     # define __builtin_va_copy(dest, src) (dest) = (src)
     #endif
+
+#if defined __APPLE__ && defined __cplusplus
+    /* wchar_t is a keyword in C++, so the macOS SDK does not typedef it
+       for C++ (sys/_types/_wchar_t.h); tcc has no built-in wchar_t. */
+    typedef __WCHAR_TYPE__ wchar_t;
+#endif
 
     /* TCC BBUILTIN AND BOUNDS ALIASES */
     #ifdef __leading_underscore

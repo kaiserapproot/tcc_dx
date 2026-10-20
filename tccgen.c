@@ -4493,6 +4493,7 @@ static void cpp_emit_virtual_thunk_code(CppVThunk *t)
     o(0xef8148); /* sub rdi, imm32 (SysV arg0) */
 #endif
     gen_le32(t->adjust);
+#ifndef TCC_TARGET_MACHO
     /* movabs rax, &impl; jmp rax.  The absolute 64-bit immediate lets the
        target use the generic R_DATA_PTR relocation macro - no per-target
        PC32 relocation constant is needed in this target-independent file
@@ -4502,6 +4503,13 @@ static void cpp_emit_virtual_thunk_code(CppVThunk *t)
     gen_le32(0);
     gen_le32(0);
     o(0xe0ff);
+#else
+    /* jmp rel32: Mach-O cannot rebase an absolute pointer inside __TEXT
+       ("invalid rel_offset .text"), so use the PC-relative form here. */
+    o(0xe9);
+    greloca(cur_text_section, t->impl_sym, ind, R_X86_64_PLT32, -4);
+    gen_le32(0);
+#endif
     /* o()/g() advance only ind; sync data_offset so later emissions
        (gen_inline_functions, FEAT-4G thunks) do not overwrite this code. */
     cur_text_section->data_offset = ind;
