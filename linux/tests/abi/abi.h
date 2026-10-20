@@ -12,6 +12,11 @@ typedef struct { int i[2]; float f[2]; } SIF;   /* INTEGER, SSE: rejected by tpp
                                                    see abi_mixed_reject.c */
 typedef struct { long a, b, c; } S24;           /* memory class */
 typedef struct { char c[3]; } S3;
+/* packed: unaligned members make the struct MEMORY class (stack / hidden
+   return pointer); packed but aligned stays in registers */
+typedef struct __attribute__((packed)) { char c; double d; } SPK;        /* 9 bytes, d at 1 */
+typedef struct __attribute__((packed)) { char c; int i; short s; } SPK2; /* 7 bytes, i at 1 */
+typedef struct __attribute__((packed)) { int a; int b; } SPKA;          /* aligned: INTEGER */
 
 long f_int8(int a, int b, int c, int d, int e, int f, int g, int h);
 double f_dbl10(double x1, double x2, double x3, double x4, double x5,
@@ -33,6 +38,10 @@ double p_sf4(SF4 s);
 double p_sd2(SD2 s);
 long p_s24(S24 s);
 long p_s3(S3 s);
+double p_spk(SPK s);
+long p_spk2(SPK2 s);
+long p_spka(SPKA s);
+long p_spk_spill(int a, int b, int c, int d, int e, int f, SPK s, int g);
 long p_spill(int a, int b, int c, int d, int e, int f, S16 s, S24 m, SDD dd);
 
 S8 r_s8(int a, int b);
@@ -44,6 +53,9 @@ SF4 r_sf4(float a, float b, float c, float d);
 SD2 r_sd2(double a, double b);
 S24 r_s24(long a, long b, long c);
 S3 r_s3(int a, int b, int c);
+SPK r_spk(char c, double d);
+SPK2 r_spk2(char c, int i, short s);
+SPKA r_spka(int a, int b);
 
 typedef double (*cb_t)(int, double, int, double, int, double, int, double,
                        int, double, S16, SDD);
