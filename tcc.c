@@ -344,21 +344,16 @@ static LONG CALLBACK tcc_crash_net_veh(EXCEPTION_POINTERS *ep)
 // executes user code (that program's signals are tccrun.c's business) and
 // is re-armed after tcc_run().
 #include <signal.h>
-#include <execinfo.h>
 
 static void tcc_crash_net_handler(int sig, siginfo_t *si, void *uc)
 {
-    // async-signal-safe output only: write(2) and backtrace_symbols_fd
+    // Keep the last-resort handler async-signal-safe: write and _exit only.
     static const char head[] =
         "tcc: internal error: invalid memory access (this is a compiler "
         "bug, not an error in the source being compiled)\n";
-    static void *frames[40];
-    int nf;
 
     (void)sig, (void)si, (void)uc;
     write(2, head, sizeof head - 1);
-    nf = backtrace(frames, 40);
-    backtrace_symbols_fd(frames, nf, 2);
     _exit(1);
 }
 
