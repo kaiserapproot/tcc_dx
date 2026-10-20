@@ -3877,6 +3877,38 @@ static Sym *cpp_find_virtual_dtor_in_chain(Sym *class_sym)
     return NULL;
 }
 
+static int is_compatible_func(CType* type1, CType* type2);
+
+/* C++98 10.3/2: a member function with the same name, parameter list and
+   cv-qualification as a virtual function of a base (direct or indirect,
+   primary or secondary) overrides it and is virtual without the keyword.
+   A same-name function with another signature only hides the base one. */
+static int cpp_overrides_base_virtual(Sym *class_sym, Sym *f)
+{
+    Sym *bf, *g;
+    int member_tok;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_overrides_base_virtual");
+    member_tok = f->v & ~SYM_FIELD;
+    for (bf = class_sym->next; bf; bf = bf->next) {
+        if (!cpp_is_base_field(bf) || !bf->parent_class)
+            continue;
+        for (g = bf->parent_class->next; g; g = g->next) {
+            if ((g->type.t & VT_BTYPE) != VT_FUNC)
+                continue;
+            if (!g->type.ref || !g->type.ref->f.func_virtual)
+                continue;
+            if ((g->v & ~SYM_FIELD) != member_tok)
+                continue;
+            if (is_compatible_func(&g->type, &f->type))
+                return 1;
+        }
+        if (cpp_overrides_base_virtual(bf->parent_class, f))
+            return 1;
+    }
+    return 0;
+}
+
 static void cpp_assign_virtual_slots(Sym *class_sym)
 {
     Sym *base_field, *base_class, *f;
@@ -3910,6 +3942,10 @@ static void cpp_assign_virtual_slots(Sym *class_sym)
             f->c = nslots++;
             continue;
         }
+        if (f->type.ref && !f->type.ref->f.func_virtual
+            && !f->type.ref->f.func_static_member
+            && cpp_overrides_base_virtual(class_sym, f))
+            f->type.ref->f.func_virtual = 1;
         if (!f->type.ref || !f->type.ref->f.func_virtual)
             continue;
         member_tok = f->v & ~SYM_FIELD;
@@ -11240,6 +11276,11 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
     obj_const = (type->t & VT_CONSTANT) ? 1 : 0;
     const_match = NULL;
     nonconst_match = NULL;
+    /* C++ name hiding: a member function of this class hides every base
+       member of the same name, whatever its signature.  The base class is
+       a leading anonymous member, so collect this class's own matches
+       (and its registry) first and only search the bases when there are
+       none; searching on the way returned B::f before reaching D::f. */
     s = class_sym;
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
@@ -11255,23 +11296,28 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
                 *cumofs = s->c;
                 return s;
             }
-            continue;
-        }
-        if ((s->type.t & VT_BTYPE) == VT_STRUCT
-            && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
-            ret = cpp_find_field_for_call(&s->type, v1, cumofs);
-            if (ret) {
-                /* cumofs is unused for VT_FUNC calls; only adjust for data members */
-                if ((ret->type.t & VT_BTYPE) != VT_FUNC)
-                    *cumofs += s->c;
-                return ret;
-            }
         }
     }
     cpp_match_registry_func_fields(class_sym, v1, &const_match, &nonconst_match);
-    ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
-    if (ret)
-        return ret;
+    if (const_match || nonconst_match) {
+        ret = cpp_pick_func_field(const_match, nonconst_match, obj_const, cumofs);
+        if (ret)
+            return ret;
+    } else {
+        s = class_sym;
+        while ((s = s->next) != NULL) {
+            if ((s->type.t & VT_BTYPE) == VT_STRUCT
+                && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
+                ret = cpp_find_field_for_call(&s->type, v1, cumofs);
+                if (ret) {
+                    /* cumofs is unused for VT_FUNC calls; only adjust for data members */
+                    if ((ret->type.t & VT_BTYPE) != VT_FUNC)
+                        *cumofs += s->c;
+                    return ret;
+                }
+            }
+        }
+    }
     if (!(v & SYM_FIELD))
         tcc_error("field not found: %s", get_tok_str(v, NULL));
     return NULL;
@@ -11708,11 +11754,20 @@ static Sym* find_field(CType* type, int v, int* cumofs)
             tcc_error("•sŠ®‘SŒ^ '%s' ‚ÌŽQÆ‰ðœ",
                 get_tok_str(s->v & ~SYM_STRUCT, 0));
     }
+    /* C++ name hiding: a base class is embedded as a leading anonymous
+       member, so searching it on the way would find B::f before the
+       derived D::f that hides it.  Look at this struct's own members
+       first, then inside the anonymous sub-structs/unions.  In C a name
+       cannot be both a direct member and a member of an anonymous
+       sub-struct, so no valid C lookup changes. */
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
             *cumofs = s->c;
             return s;
         }
+    }
+    s = type->ref;
+    while ((s = s->next) != NULL) {
         if ((s->type.t & VT_BTYPE) == VT_STRUCT
             && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
             /* try to find field in anonymous sub-struct/union */
