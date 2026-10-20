@@ -1528,10 +1528,18 @@ static void add_init_array_defines(TCCState *s1, const char *section_name)
     } else {
         end_offset = s->data_offset;
     }
+#ifdef TCC_TARGET_MACHO
+    /* C name __init_array_start is the symbol ___init_array_start */
+    snprintf(buf, sizeof(buf), "___%s_start", section_name + 1);
+    set_global_sym(s1, buf, s, 0);
+    snprintf(buf, sizeof(buf), "___%s_end", section_name + 1);
+    set_global_sym(s1, buf, s, end_offset);
+#else
     snprintf(buf, sizeof(buf), "__%s_start", section_name + 1);
     set_global_sym(s1, buf, s, 0);
     snprintf(buf, sizeof(buf), "__%s_end", section_name + 1);
     set_global_sym(s1, buf, s, end_offset);
+#endif
 }
 
 ST_FUNC void add_array (TCCState *s1, const char *sec, int c)
