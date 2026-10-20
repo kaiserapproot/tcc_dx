@@ -27,6 +27,13 @@ struct D5 : B5 { int f(int) { return 3; } };
    member access, also right before the ':' of a conditional */
 struct S6 { int B; int D; };
 
+/* the same base twice (D7 -> L7 -> A7 and D7 -> R7 -> A7): the qualifier
+   selects the path, so neither the call nor the data access is ambiguous */
+struct A7 { int value; A7() : value(1) {} int get() { return value; } };
+struct L7 : A7 { };
+struct R7 : A7 { };
+struct D7 : L7, R7 { };
+
 int main()
 {
     D d; D *pd = &d; D &rd = d;
@@ -56,6 +63,17 @@ int main()
         ps6->D = 6;
         if ((flag ? s6.B : 0) != 4 || (flag ? ps6->D : 0) != 6) return 13;
         if ((!flag ? 0 : s6.B) != 4) return 14;
+    }
+    {
+        D7 d7; D7 *pd7 = &d7;
+        ((L7 &)d7).value = 3;
+        ((R7 &)d7).value = 7;
+        if (d7.L7::get() != 3) return 15;
+        if (d7.R7::get() != 7) return 16;
+        if (pd7->R7::get() != 7 || pd7->L7::get() != 3) return 17;
+        if (d7.L7::value != 3 || d7.R7::value != 7) return 18;
+        d7.R7::value = 8;
+        if (((R7 &)d7).value != 8 || ((L7 &)d7).value != 3) return 19;
     }
     return 0;
 }

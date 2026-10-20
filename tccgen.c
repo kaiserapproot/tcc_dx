@@ -4860,8 +4860,28 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int qualifiers)
     cumofs = 0;
     field = cpp_find_field_for_call(&qct, mem_tok, &cumofs);
     if ((field->type.t & VT_BTYPE) == VT_FUNC) {
+        /* The qualifier names the path: move the object to the qualifying
+           class's subobject first, so cpp_prepare_member_func_call only
+           has to go from there to the declaring class.  Converting from
+           the complete object again would find a base that occurs twice
+           (D : L, R with L, R : A) ambiguous although `d.L::get()`
+           selects one. */
+        if (qcls != obj_cls) {
+            CType pt;
+
+            gaddrof();
+            vtop->type = char_pointer_type;
+            if (ofs) {
+                vpushi(ofs);
+                gen_op('+');
+            }
+            pt = qct;
+            mk_pointer(&pt);
+            vtop->type = pt;
+            indir();
+        }
         /* binds the declaring class's implementation directly and moves
-           `this` to that subobject of the object */
+           `this` to that subobject */
         cpp_prepare_member_func_call(field);
         cpp_member_this_pending = 1;
         return;
