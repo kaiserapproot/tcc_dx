@@ -48,6 +48,11 @@ double p_sf4(SF4 s) { return s.v[0] * 1000 + s.v[1] * 100 + s.v[2] * 10 + s.v[3]
 double p_sd2(SD2 s) { return s.v[0] * 10 + s.v[1]; }
 long p_s24(S24 s) { return s.a * 100 + s.b * 10 + s.c; }
 long p_s3(S3 s) { return s.c[0] * 100 + s.c[1] * 10 + s.c[2]; }
+double p_spk(SPK s) { return s.c * 10 + s.d; }
+long p_spk2(SPK2 s) { return s.c * 10000 + s.i * 10 + s.s; }
+long p_spka(SPKA s) { return s.a * 10 + s.b; }
+long p_spk_spill(int a, int b, int c, int d, int e, int f, SPK s, int g)
+{ return a + b + c + d + e + f + s.c * 100 + (long)s.d * 1000 + g * 10000; }
 long p_spill(int a, int b, int c, int d, int e, int f, S16 s, S24 m, SDD dd)
 { return a + b + c + d + e + f + s.a * 10 + s.b * 100 + m.a * 1000
          + m.b * 10000 + m.c * 100000 + (long)(dd.a * 1000000 + dd.b * 10000000); }
@@ -62,6 +67,9 @@ SF4 r_sf4(float a, float b, float c, float d)
 SD2 r_sd2(double a, double b) { SD2 s; s.v[0] = a; s.v[1] = b; return s; }
 S24 r_s24(long a, long b, long c) { S24 s; s.a = a; s.b = b; s.c = c; return s; }
 S3 r_s3(int a, int b, int c) { S3 s; s.c[0] = a; s.c[1] = b; s.c[2] = c; return s; }
+SPK r_spk(char c, double d) { SPK s; s.c = c; s.d = d; return s; }
+SPK2 r_spk2(char c, int i, short sh) { SPK2 s; s.c = c; s.i = i; s.s = sh; return s; }
+SPKA r_spka(int a, int b) { SPKA s; s.a = a; s.b = b; return s; }
 
 double call_cb(cb_t cb)
 { S16 s; SDD d; s.a = 3; s.b = 4; d.a = 0.25; d.b = 0.5;

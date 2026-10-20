@@ -228,15 +228,25 @@ if cc_tpp "dl_host.c" "$L/dl_host.c" -o "$W/dl_host" -ldl; then
     done
 fi
 # C .so that calls atexit(): the handler must run at dlclose (through
-# __cxa_finalize from linux/lib/dsohandle.c), not after the unmapping
-if cc_tpp "-shared so_atexit.c" -shared -fPIC "$L/so_atexit.c" -o "$W/libso_atexit.so" \
-   && cc_tpp dl_host_atexit.c "$L/dl_host_atexit.c" -o "$W/dl_host_atexit" -ldl; then
-    if expect_run_ok "atexit in .so + dlclose" "$W/dl_host_atexit" "$W/libso_atexit.so"; then
-        got=$(tr '\n' ' ' < "$OUT" | sed 's/ *$//')
-        if [ "$got" != "CLOSING SO_ATEXIT CLOSED" ]; then
-            fail "RUN FAIL atexit in .so: got \"$got\", want \"CLOSING SO_ATEXIT CLOSED\""
+# __cxa_finalize from linux/lib/dsohandle.c), not after the unmapping.
+# Built directly and via -c, loaded and closed twice.
+WANT_AT="CLOSING SO_ATEXIT CLOSED CLOSING SO_ATEXIT CLOSED"
+if cc_tpp dl_host_atexit.c "$L/dl_host_atexit.c" -o "$W/dl_host_atexit" -ldl; then
+    for mode in direct objects; do
+        so=$W/libso_atexit_$mode.so
+        if [ $mode = direct ]; then
+            cc_tpp "-shared so_atexit.c" -shared -fPIC "$L/so_atexit.c" -o "$so" || continue
+        else
+            cc_tpp "-c so_atexit.c" -fPIC -c "$L/so_atexit.c" -o "$W/so_atexit.o" || continue
+            cc_tpp "-shared so_atexit.o" -shared "$W/so_atexit.o" -o "$so" || continue
         fi
-    fi
+        if expect_run_ok "atexit in .so, dlopen x2 ($mode)" "$W/dl_host_atexit" "$so"; then
+            got=$(tr '\n' ' ' < "$OUT" | sed 's/ *$//')
+            if [ "$got" != "$WANT_AT" ]; then
+                fail "RUN FAIL atexit in .so ($mode): got \"$got\", want \"$WANT_AT\""
+            fi
+        fi
+    done
 fi
 # link-time .so (-L -l) + LD_LIBRARY_PATH
 if [ -f "$W/libso_direct.so" ] \

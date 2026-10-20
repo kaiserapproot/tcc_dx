@@ -1132,6 +1132,34 @@ static X86_64_Mode classify_x86_64_inner(CType *ty)
     return 0;
 }
 
+/* psABI 3.2.3: an object that contains unaligned fields has class MEMORY
+   (passed on the stack, returned through the hidden pointer), e.g.
+   struct __attribute__((packed)) { char c; double d; }.  Returns 1 when
+   a field of the struct at offset 'off' is placed below the alignment of
+   its own type.  Bit-fields are skipped (they never get a class of their
+   own). */
+static int x86_64_struct_has_unaligned(CType *ty, int off)
+{
+    Sym *f;
+    int align, foff;
+
+    if (ty->t & VT_ARRAY)
+        return x86_64_struct_has_unaligned(&ty->ref->type, off);
+    if ((ty->t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    for (f = ty->ref->next; f; f = f->next) {
+        if (f->type.t & VT_BITFIELD)
+            continue;
+        foff = off + f->c;
+        type_size(&f->type, &align);
+        if (align > 1 && foff % align)
+            return 1;
+        if (x86_64_struct_has_unaligned(&f->type, foff))
+            return 1;
+    }
+    return 0;
+}
+
 /* Class of each eightbyte of a struct as the SysV psABI (3.2.3) defines
    it: fields are merged per eightbyte, not over the whole struct. */
 static void classify_x86_64_eightbytes(CType *ty, int off, X86_64_Mode cls[2])
@@ -1198,6 +1226,9 @@ static X86_64_Mode classify_x86_64_arg(CType *ty, CType *ret, int *psize, int *p
         *reg_count = 0; /* avoid compiler warning */
 
         if (size > 16) {
+            mode = x86_64_mode_memory;
+        } else if ((ty->t & VT_BTYPE) == VT_STRUCT
+                   && x86_64_struct_has_unaligned(ty, 0)) {
             mode = x86_64_mode_memory;
         } else {
             mode = classify_x86_64_inner(ty);
