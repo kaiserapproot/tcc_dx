@@ -3846,6 +3846,24 @@ static int cpp_override_sig_match(Sym *g, Sym *f)
     return !p && !q;
 }
 
+/* 1 when base is reachable from derived through public base specifiers
+   only (an accessible base for a covariant return). */
+static int cpp_base_is_public(Sym *derived, Sym *base)
+{
+    Sym *bf;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_base_is_public");
+    for (bf = derived->next; bf; bf = bf->next) {
+        if (!cpp_is_base_field(bf) || !bf->parent_class)
+            continue;
+        if (bf->a.access != ACCESS_PUBLIC)
+            continue;
+        if (bf->parent_class == base || cpp_base_is_public(bf->parent_class, base))
+            return 1;
+    }
+    return 0;
+}
+
 /* The override's return type must be the same, or covariant: a pointer
    (reference) to a class derived from the class the overridden function
    returns a pointer (reference) to.  Only a base at offset 0 is accepted -
@@ -3863,10 +3881,24 @@ static void cpp_check_override_return(Sym *g, Sym *f)
         && (rg->t & VT_REFERENCE) == (rf->t & VT_REFERENCE)
         && (rg->ref->type.t & VT_BTYPE) == VT_STRUCT
         && (rf->ref->type.t & VT_BTYPE) == VT_STRUCT) {
-        ofs = cpp_base_subobject_offset(rf->ref->type.ref,
-                                        rg->ref->type.ref);
-        if (ofs == 0)
+        if (rf->ref->type.ref == rg->ref->type.ref)
+            ofs = 0;
+        else
+            ofs = cpp_base_subobject_offset(rf->ref->type.ref,
+                                            rg->ref->type.ref);
+        if (ofs == 0) {
+            /* the class in the override's return may be no more
+               cv-qualified, and the base must be accessible */
+            if ((rf->ref->type.t & (VT_CONSTANT | VT_VOLATILE))
+                & ~(rg->ref->type.t & (VT_CONSTANT | VT_VOLATILE)))
+                tcc_error("invalid covariant return type of '%s': more cv-qualified than the overridden function's",
+                          get_tok_str(f->v & ~SYM_FIELD, NULL));
+            if (rf->ref->type.ref != rg->ref->type.ref
+                && !cpp_base_is_public(rf->ref->type.ref, rg->ref->type.ref))
+                tcc_error("invalid covariant return type of '%s': the base class is not accessible",
+                          get_tok_str(f->v & ~SYM_FIELD, NULL));
             return;
+        }
         if (ofs > 0)
             tcc_error("covariant return type of '%s' through a non-primary base is unsupported",
                       get_tok_str(f->v & ~SYM_FIELD, NULL));
@@ -4711,6 +4743,21 @@ static int cpp_virtual_overload_set(Sym *field)
    pointer.  cpp_prepare_member_func_call already moved `this` to the
    declaring class's subobject and spilled it to memory (BUG-23), so it
    can be read here and still be passed as the first argument. */
+/* The field (same class, same name as field0) whose type matches the
+   member function global g that the call ends up calling, or NULL. */
+static Sym *cpp_field_for_member_global(Sym *field0, Sym *g)
+{
+    Sym *f;
+
+    if (!g || !field0 || !field0->parent_class)
+        return NULL;
+    for (f = field0->parent_class->next; f; f = f->next)
+        if (f->v == field0->v && (f->type.t & VT_BTYPE) == VT_FUNC
+            && is_compatible_types(&f->type, &g->type))
+            return f;
+    return NULL;
+}
+
 static void cpp_emit_deferred_virtual_fn(Sym *field, int nb_args)
 {
     CType fnptr_t, fnptr_pp, fnptr_ppp;
@@ -11528,7 +11575,12 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
             // remember the declaration even when the const filter or the
             // arg match rejects this candidate.
             own_declares = 1;
-            if (!!cpp_field_is_const(f) != !!want_const)
+            /* A const object can call only const members; a non-const one
+               can call both (C++), the non-const member winning a tie
+               (score below).  want_const comes from the first overload
+               the member access picked, which is const only when the
+               object is const or the class declares no non-const one. */
+            if (want_const && !cpp_field_is_const(f))
                 continue;
             p = f->type.ref->next;
             for (i = 0; i < nb_args; i++) {
@@ -11564,6 +11616,7 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
                 }
                 p = p->next;
             }
+            score = score * 2 + (cpp_field_is_const(f) ? 0 : 1);
             if (match && score > *best_score) {
                 *best_score = score;
                 *best = f;
@@ -13250,6 +13303,7 @@ do_decl:
     if (is_class && tok == ':') {
         Sym *base_class_sym, *base_field, **base_tail;
         CType base_type;
+        int base_access;
 
         next();
         /* Multiple inheritance: base subobjects are laid out in declaration
@@ -13259,8 +13313,13 @@ do_decl:
            keeps the single-base order identical to before. */
         base_tail = &s->next;
         for (;;) {
-            if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED)
+            /* default: private for `class`, public for `struct` */
+            base_access = is_class == 1 ? ACCESS_PRIVATE : ACCESS_PUBLIC;
+            if (tok == TOK_PUBLIC || tok == TOK_PRIVATE || tok == TOK_PROTECTED) {
+                base_access = tok == TOK_PUBLIC ? ACCESS_PUBLIC
+                    : tok == TOK_PROTECTED ? ACCESS_PROTECTED : ACCESS_PRIVATE;
                 next();
+            }
             if (tok < TOK_IDENT)
                 tcc_error("expected base class name");
             base_class_sym = struct_find(tok);
@@ -13271,7 +13330,7 @@ do_decl:
             base_type.ref = base_class_sym;
             base_field = cpp_class_sym_push(anon_sym++ | SYM_FIELD,
                                             &base_type, 0, 0);
-            base_field->a.access = ACCESS_PUBLIC;
+            base_field->a.access = base_access;
             base_field->parent_class = base_class_sym;
             base_field->next = *base_tail;
             *base_tail = base_field;
@@ -17057,8 +17116,16 @@ post_ops:
             cpp_member_this_pending = cpp_saved_this_pending;
             cpp_member_this = cpp_saved_member_this;
             if (cpp_saved_vdefer) {
-                Sym *vf = cpp_vres ? cpp_vres : cpp_saved_vdefer;
+                Sym *vf = cpp_vres;
 
+                /* the slot must belong to the function being called: map
+                   the final callee back to its field when the
+                   declaration-side resolution did not pick one */
+                if (!vf)
+                    vf = cpp_field_for_member_global(cpp_saved_vdefer,
+                                                     vtop[-nb_args].sym);
+                if (!vf)
+                    tcc_error("internal error: overloaded virtual call not resolved");
                 if (vf->parent_class != cpp_saved_vdefer->parent_class)
                     tcc_error("internal error: overloaded virtual resolved outside its class");
                 if (vf->type.ref && vf->type.ref->f.func_virtual)

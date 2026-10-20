@@ -61,6 +61,24 @@ struct L12 { virtual int a() { return 1; } };
 struct R12 { virtual int get() { return 2; } };
 struct M12 : L12, R12 { virtual int get(int x) { return x; } };
 
+/* 13: const and non-const virtual overloads: a non-const object can call
+   the const member (the arguments decide, not the first overload's cv) */
+struct B13 {
+    virtual int f(int *) { return 1; }
+    virtual int f(double) const { return 2; }
+};
+struct D13 : B13 { int f(double) const { return 3; } };
+
+/* 14: covariant return with LESS cv-qualification is valid */
+struct B14 {
+    virtual const B14 *cp() const { return this; }
+    virtual int id() const { return 1; }
+};
+struct D14 : B14 {
+    D14 *cp() const { return (D14 *)this; }
+    int id() const { return 2; }
+};
+
 int main()
 {
     D1 d1; B1 *b1 = &d1;
@@ -96,6 +114,15 @@ int main()
         if (p10->h(1) != 1 || p10->h(1.0) != 2) return 17;
         if (p11->k(1) != 5 || p11->k(1.0) != 6) return 18;
         if (r12->get() != 2 || m12.get(9) != 9) return 19;
+    }
+    {
+        B13 b13; D13 d13; B13 *p13 = &d13; const B13 &c13 = b13;
+        D14 d14; B14 *p14 = &d14;
+        if (b13.f(1.5) != 2) return 20;
+        if (b13.f((int *)0) != 1) return 21;
+        if (p13->f(1.5) != 3 || p13->f((int *)0) != 1) return 22;
+        if (c13.f(1.5) != 2) return 23;
+        if (p14->cp() != p14 || p14->cp()->id() != 2) return 24;
     }
     return 0;
 }
