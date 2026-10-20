@@ -221,8 +221,12 @@ static void view_key_down(id self, SEL cmd, id event)
         msg_id(msg(CLS("NSApplication"), "sharedApplication"),
                "terminate:", (id)0);
         break;
-    case 126: speed += 0.1f; break;   /* up */
-    case 125: speed -= 0.1f; break;   /* down */
+    case 126: /* up */
+    case 125: /* down */
+        CGLLockContext(cgl);
+        speed += key == 126 ? 0.1f : -0.1f;
+        CGLUnlockContext(cgl);
+        break;
     }
 }
 
