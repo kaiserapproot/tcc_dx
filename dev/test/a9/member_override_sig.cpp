@@ -79,6 +79,13 @@ struct D14 : B14 {
     int id() const { return 2; }
 };
 
+/* 15: covariant return through a private / protected base of the
+   overrider's own class: accessible inside that class, so valid */
+struct A15 { virtual int id() { return 7; } };
+struct B15 { virtual A15 *get() { return 0; } };
+struct D15 : private A15, public B15 { D15 *get() { return this; } };
+struct E15 : protected A15, public B15 { E15 *get() { return this; } };
+
 int main()
 {
     D1 d1; B1 *b1 = &d1;
@@ -123,6 +130,12 @@ int main()
         if (p13->f(1.5) != 3 || p13->f((int *)0) != 1) return 22;
         if (c13.f(1.5) != 2) return 23;
         if (p14->cp() != p14 || p14->cp()->id() != 2) return 24;
+    }
+    {
+        D15 d15; B15 *b15 = &d15; A15 *a15 = b15->get();
+        E15 e15; B15 *be15 = &e15; A15 *ae15 = be15->get();
+        if (!a15 || a15->id() != 7) return 25;
+        if (!ae15 || ae15->id() != 7) return 26;
     }
     return 0;
 }
