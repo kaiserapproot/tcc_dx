@@ -226,6 +226,11 @@ static int decl_once_flag;
 /* --- C++ Stage 3: this, member calls, default args --- */
 static SValue cpp_member_this;
 static int cpp_member_this_pending;
+/* A virtual call whose name has several overloads in its class: the slot
+   depends on the overload the ARGUMENTS select, so the vtable load waits
+   for the call's overload resolution (cpp_vdefer_field = first field). */
+static Sym *cpp_vdefer_field;
+static Sym *cpp_last_resolved_field;   /* field cpp_resolve_member_func_call chose */
 /* BUG-14: while a member function global is being registered via
    external_sym, this points at its class so external_sym keeps it a distinct
    Sym from a same-named method in another class and cpp_build_func_mangle
@@ -3816,20 +3821,82 @@ static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok)
 static Sym *cpp_find_virtual_field_by_name(Sym *class_sym, int member_tok);
 static Sym *cpp_get_anon_base_field(Sym *class_sym);
 
-static Sym *cpp_find_inherited_virtual_slot(Sym *class_sym, int member_tok)
+/* C++98 10.3/2: f overrides the base virtual g when the name, the
+   parameter list and the cv-qualification of the member function are the
+   same.  The return type does not take part (it is checked separately by
+   cpp_check_override_return: same type or covariant).  A same-name
+   function with another signature only hides g and needs its own slot. */
+static int cpp_override_sig_match(Sym *g, Sym *f)
 {
-    CPP_WALKER_DEPTH_GUARD("cpp_find_inherited_virtual_slot");
-    Sym *f, *base_field;
+    Sym *p, *q;
 
+    if ((g->v & ~SYM_FIELD) != (f->v & ~SYM_FIELD))
+        return 0;
+    if (!g->type.ref || !f->type.ref)
+        return 0;
+    if (!!g->type.ref->f.func_const != !!f->type.ref->f.func_const)
+        return 0;
+    if (g->type.ref->f.func_type != f->type.ref->f.func_type)
+        return 0;
+    p = g->type.ref->next;
+    q = f->type.ref->next;
+    for (; p && q; p = p->next, q = q->next)
+        if (!is_compatible_unqualified_types(&p->type, &q->type))
+            return 0;
+    return !p && !q;
+}
+
+/* The override's return type must be the same, or covariant: a pointer
+   (reference) to a class derived from the class the overridden function
+   returns a pointer (reference) to.  Only a base at offset 0 is accepted -
+   a non-primary base would need a return-adjusting thunk. */
+static void cpp_check_override_return(Sym *g, Sym *f)
+{
+    CType *rg, *rf;
+    int ofs;
+
+    rg = &g->type.ref->type;
+    rf = &f->type.ref->type;
+    if (is_compatible_types(rg, rf))
+        return;
+    if ((rg->t & VT_BTYPE) == VT_PTR && (rf->t & VT_BTYPE) == VT_PTR
+        && (rg->t & VT_REFERENCE) == (rf->t & VT_REFERENCE)
+        && (rg->ref->type.t & VT_BTYPE) == VT_STRUCT
+        && (rf->ref->type.t & VT_BTYPE) == VT_STRUCT) {
+        ofs = cpp_base_subobject_offset(rf->ref->type.ref,
+                                        rg->ref->type.ref);
+        if (ofs == 0)
+            return;
+        if (ofs > 0)
+            tcc_error("covariant return type of '%s' through a non-primary base is unsupported",
+                      get_tok_str(f->v & ~SYM_FIELD, NULL));
+    }
+    tcc_error("return type of '%s' differs from the virtual function it overrides",
+              get_tok_str(f->v & ~SYM_FIELD, NULL));
+}
+
+/* Slot lookup along the PRIMARY base chain (BUG-34: the overridden
+   function may sit further up than the direct base).  Matches by
+   signature, not by name: Derived::get(int) must not take the slot of
+   Base::get(), and with overloaded base virtuals only the matching one. */
+static Sym *cpp_find_inherited_virtual_slot(Sym *class_sym, Sym *f)
+{
+    Sym *g, *base_field;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_find_inherited_virtual_slot");
     if (!class_sym)
         return NULL;
-    f = cpp_find_virtual_field_by_name(class_sym, member_tok);
-    if (f)
-        return f;
+    for (g = class_sym->next; g; g = g->next) {
+        if ((g->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (!g->type.ref || !g->type.ref->f.func_virtual)
+            continue;
+        if (cpp_override_sig_match(g, f))
+            return g;
+    }
     base_field = cpp_get_anon_base_field(class_sym);
     if (base_field && base_field->parent_class)
-        return cpp_find_inherited_virtual_slot(base_field->parent_class,
-                                               member_tok);
+        return cpp_find_inherited_virtual_slot(base_field->parent_class, f);
     return NULL;
 }
 
@@ -3877,19 +3944,14 @@ static Sym *cpp_find_virtual_dtor_in_chain(Sym *class_sym)
     return NULL;
 }
 
-static int is_compatible_func(CType* type1, CType* type2);
-
-/* C++98 10.3/2: a member function with the same name, parameter list and
-   cv-qualification as a virtual function of a base (direct or indirect,
-   primary or secondary) overrides it and is virtual without the keyword.
-   A same-name function with another signature only hides the base one. */
-static int cpp_overrides_base_virtual(Sym *class_sym, Sym *f)
+/* The base virtual function that f overrides, searching every base
+   (direct or indirect, primary or secondary), or NULL.  Used to make f
+   virtual without the keyword (C++98 10.3/2). */
+static Sym *cpp_find_overridden_virtual(Sym *class_sym, Sym *f)
 {
     Sym *bf, *g;
-    int member_tok;
 
-    CPP_WALKER_DEPTH_GUARD("cpp_overrides_base_virtual");
-    member_tok = f->v & ~SYM_FIELD;
+    CPP_WALKER_DEPTH_GUARD("cpp_find_overridden_virtual");
     for (bf = class_sym->next; bf; bf = bf->next) {
         if (!cpp_is_base_field(bf) || !bf->parent_class)
             continue;
@@ -3898,21 +3960,21 @@ static int cpp_overrides_base_virtual(Sym *class_sym, Sym *f)
                 continue;
             if (!g->type.ref || !g->type.ref->f.func_virtual)
                 continue;
-            if ((g->v & ~SYM_FIELD) != member_tok)
-                continue;
-            if (is_compatible_func(&g->type, &f->type))
-                return 1;
+            if (cpp_override_sig_match(g, f))
+                return g;
         }
-        if (cpp_overrides_base_virtual(bf->parent_class, f))
-            return 1;
+        g = cpp_find_overridden_virtual(bf->parent_class, f);
+        if (g)
+            return g;
     }
-    return 0;
+    return NULL;
 }
 
 static void cpp_assign_virtual_slots(Sym *class_sym)
 {
     Sym *base_field, *base_class, *f;
-    int nslots, member_tok;
+    int nslots;
+    Sym *ovd;
 
     if (!class_sym)
         return;
@@ -3942,15 +4004,17 @@ static void cpp_assign_virtual_slots(Sym *class_sym)
             f->c = nslots++;
             continue;
         }
-        if (f->type.ref && !f->type.ref->f.func_virtual
-            && !f->type.ref->f.func_static_member
-            && cpp_overrides_base_virtual(class_sym, f))
-            f->type.ref->f.func_virtual = 1;
-        if (!f->type.ref || !f->type.ref->f.func_virtual)
+        if (!f->type.ref || f->type.ref->f.func_static_member)
             continue;
-        member_tok = f->v & ~SYM_FIELD;
+        ovd = cpp_find_overridden_virtual(class_sym, f);
+        if (ovd) {
+            cpp_check_override_return(ovd, f);
+            f->type.ref->f.func_virtual = 1;
+        }
+        if (!f->type.ref->f.func_virtual)
+            continue;
         if (base_class) {
-            Sym *bf = cpp_find_inherited_virtual_slot(base_class, member_tok);
+            Sym *bf = cpp_find_inherited_virtual_slot(base_class, f);
             if (bf) {
                 f->c = bf->c;
                 continue;
@@ -4009,6 +4073,19 @@ static Sym *cpp_find_virtual_by_slot(Sym *class_sym, int slot)
     return NULL;
 }
 
+/* Number of member functions class_sym itself declares under the field
+   token v1 (bases not included). */
+static int cpp_count_class_funcs_named(Sym *class_sym, int v1)
+{
+    Sym *g;
+    int n = 0;
+
+    for (g = class_sym->next; g; g = g->next)
+        if (g->v == v1 && (g->type.t & VT_BTYPE) == VT_FUNC)
+            n++;
+    return n;
+}
+
 static Sym *cpp_lookup_virtual_impl(Sym *field)
 {
     int v;
@@ -4029,6 +4106,24 @@ static Sym *cpp_lookup_virtual_impl(Sym *field)
             return NULL;
     } else {
         v = field->v & ~SYM_FIELD;
+        /* Overloaded virtuals share the name, and the first global of the
+           class found by name (the last overload declared) filled EVERY
+           slot of that name: p->f(1) ran f(double).  Bind the slot to the
+           global with the field's own signature, as cpp_lookup_member_func
+           does for direct calls; an overload not defined yet gets its own
+           extern (BUG-43 path, the link name carries the signature). */
+        for (s = sym_find(v); s; s = s->prev_tok) {
+            if ((s->type.t & VT_BTYPE) != VT_FUNC)
+                continue;
+            if (s->parent_class == class_sym
+                && is_compatible_types(&s->type, &field->type))
+                return s;
+        }
+        if (cpp_count_class_funcs_named(class_sym, field->v) > 1) {
+            if (field->type.ref->f.func_pure)
+                return NULL;
+            return cpp_make_member_func_extern(field, class_sym, v);
+        }
     }
     for (s = sym_find(v); s; s = s->prev_tok) {
         if ((s->type.t & VT_BTYPE) != VT_FUNC)
@@ -4317,6 +4412,8 @@ static void cpp_emit_secondary_vtables(Sym *class_sym)
                           get_tok_str(bfield->v & ~SYM_FIELD, NULL));
             ovr = cpp_find_virtual_field_by_name(class_sym,
                                                  bfield->v & ~SYM_FIELD);
+            if (ovr && !cpp_override_sig_match(bfield, ovr))
+                ovr = NULL;   /* same name, other signature: hides only */
             }
             if (ovr) {
                 impl = cpp_lookup_virtual_impl(ovr);
@@ -4585,6 +4682,57 @@ static void cpp_prepare_virtual_member_call(Sym *field, CType *obj_type)
      * overload-resolution path does not dereference a stale Sym. */
     vtop->sym = NULL;
     cpp_member_this_pending = 1;
+}
+
+/* 1 when the class that declares field has several member functions of
+   that name and at least one of them is virtual.  The vtable slot then
+   depends on the overload the arguments select, so it cannot be chosen
+   at the member access (that picked the first overload's slot). */
+static int cpp_virtual_overload_set(Sym *field)
+{
+    Sym *g;
+    int n = 0, nv = 0;
+
+    if (!field || !field->parent_class)
+        return 0;
+    for (g = field->parent_class->next; g; g = g->next) {
+        if (g->v != field->v || (g->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        n++;
+        if (g->type.ref && g->type.ref->f.func_virtual)
+            nv++;
+    }
+    return n > 1 && nv > 0;
+}
+
+/* Deferred virtual dispatch (cpp_vdefer_field): after the call's overload
+   resolution, replace the direct callee at vtop[-nb_args] by
+   vtable[field->c] of `this`, typed like a call through a function
+   pointer.  cpp_prepare_member_func_call already moved `this` to the
+   declaring class's subobject and spilled it to memory (BUG-23), so it
+   can be read here and still be passed as the first argument. */
+static void cpp_emit_deferred_virtual_fn(Sym *field, int nb_args)
+{
+    CType fnptr_t, fnptr_pp, fnptr_ppp;
+    SValue fn;
+
+    fnptr_t = field->type;
+    mk_pointer(&fnptr_t);
+    fnptr_pp = fnptr_t;
+    mk_pointer(&fnptr_pp);
+    fnptr_ppp = fnptr_pp;
+    mk_pointer(&fnptr_ppp);
+    vpushv(&cpp_member_this);
+    vtop->type = fnptr_ppp;
+    indir();                        /* lvalue T(**)() == vptr storage */
+    vpushi(field->c);
+    gen_op('+');                    /* &vtable[slot] */
+    indir();                        /* lvalue T(*)() == vtable[slot] */
+    vtop->type = field->type;       /* as the '(' handler does for a pointer */
+    vtop->sym = NULL;
+    fn = *vtop;
+    vtop--;
+    vtop[-nb_args] = fn;
 }
 
 /* FEAT-4C: peek `Class::Class(` at file/block scope without consuming
@@ -11198,6 +11346,9 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs, int want_a
     nonconst_match = NULL;
     any_const_match = NULL;
     any_nonconst_match = NULL;
+    /* C++ name hiding, as in cpp_find_field_for_call: an operator this
+       class declares hides the base class ones (the base is a leading
+       anonymous member and used to be searched first). */
     s = class_sym;
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
@@ -11219,15 +11370,19 @@ static Sym *cpp_find_operator_member(CType *type, int v, int *cumofs, int want_a
                 *cumofs = s->c;
                 return s;
             }
-            continue;
         }
-        if ((s->type.t & VT_BTYPE) == VT_STRUCT
-            && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
-            ret = cpp_find_operator_member(&s->type, v1, cumofs, want_args);
-            if (ret) {
-                if ((ret->type.t & VT_BTYPE) != VT_FUNC)
-                    *cumofs += s->c;
-                return ret;
+    }
+    if (!any_const_match && !any_nonconst_match) {
+        s = class_sym;
+        while ((s = s->next) != NULL) {
+            if ((s->type.t & VT_BTYPE) == VT_STRUCT
+                && s->v >= (SYM_FIRST_ANOM | SYM_FIELD)) {
+                ret = cpp_find_operator_member(&s->type, v1, cumofs, want_args);
+                if (ret) {
+                    if ((ret->type.t & VT_BTYPE) != VT_FUNC)
+                        *cumofs += s->c;
+                    return ret;
+                }
             }
         }
     }
@@ -11443,6 +11598,7 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
     Sym *class_sym, *best = NULL;
     int v1, want_const, best_score = -1;
 
+    cpp_last_resolved_field = NULL;
     if (!tcc_state->cpp || tcc_state->extern_c || !cur)
         return NULL;
     class_sym = cur->parent_class;
@@ -11464,6 +11620,7 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
                                &best, &best_score);
     if (!best)
         return NULL;
+    cpp_last_resolved_field = best;
     // A field inherited from a base belongs to that base, so its global
     // must be looked up (or created) under the declaring class.
     return cpp_member_func_global_exact(best, best->parent_class
@@ -16262,11 +16419,14 @@ tok_next:
                 indir();
                 cfield = cpp_find_field_for_call(&vtop->type, t, &ccumofs);
                 this_obj_type = vtop->type;
-                if (cfield->type.ref && cfield->type.ref->f.func_virtual) {
+                if (cfield->type.ref && cfield->type.ref->f.func_virtual
+                    && !cpp_virtual_overload_set(cfield)) {
                     cpp_prepare_virtual_member_call(cfield, &this_obj_type);
                 } else {
                     cpp_prepare_member_func_call(cfield);
                     cpp_member_this_pending = 1;
+                    if (cpp_virtual_overload_set(cfield))
+                        cpp_vdefer_field = cfield;
                 }
                 break;
             }
@@ -16495,12 +16655,15 @@ post_ops:
             }
             field = cpp_find_field_for_call(&vtop->type, mem_tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
-                if (field->type.ref && field->type.ref->f.func_virtual) {
+                if (field->type.ref && field->type.ref->f.func_virtual
+                    && !cpp_virtual_overload_set(field)) {
                     obj_type = vtop->type;
                     cpp_prepare_virtual_member_call(field, &obj_type);
                 } else {
                 cpp_prepare_member_func_call(field);
                 cpp_member_this_pending = 1;
+                if (cpp_virtual_overload_set(field))
+                    cpp_vdefer_field = field;
                 }
             } else {
                 gaddrof();
@@ -16654,6 +16817,7 @@ post_ops:
             int cpp_defer, cpp_i;
             int cpp_saved_this_pending;
             SValue cpp_saved_member_this;
+            Sym *cpp_saved_vdefer, *cpp_vres;
             TokenString* p, * p2;
 
             /* function call  */
@@ -16682,7 +16846,11 @@ post_ops:
             cpp_defer = tcc_state->cpp
                 && !tcc_state->reverse_funcargs
                 && (vtop->r & VT_SYM) && vtop->sym
-                && cpp_call_has_overloads(vtop->sym);
+                && (cpp_call_has_overloads(vtop->sym)
+                    /* overloaded virtual (cpp_vdefer_field): its globals
+                       are not all registered yet, but the arguments must
+                       stay unconverted until the overload is resolved */
+                    || cpp_vdefer_field);
             // BUG-41: cpp_member_this / cpp_member_this_pending are single
             // globals, so a NESTED member call inside the argument list -
             // `insert(begin(), n, value)`, SimpleList.cpp:19 - consumed
@@ -16695,6 +16863,9 @@ post_ops:
             cpp_saved_this_pending = cpp_member_this_pending;
             cpp_saved_member_this = cpp_member_this;
             cpp_member_this_pending = 0;
+            cpp_saved_vdefer = cpp_vdefer_field;
+            cpp_vdefer_field = NULL;
+            cpp_vres = NULL;
             next();
             sa = s->next; /* first parameter */
             nb_args = regsize = 0;
@@ -16814,6 +16985,7 @@ post_ops:
                 // would stick to the first declaration.
                 Sym *resolved = cpp_resolve_member_func_call(vtop[-nb_args].sym,
                                                              nb_args);
+                cpp_vres = cpp_last_resolved_field;
                 if (!resolved)
                     resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
                                                      vtop[-nb_args].sym);
@@ -16884,6 +17056,14 @@ post_ops:
             // by now.
             cpp_member_this_pending = cpp_saved_this_pending;
             cpp_member_this = cpp_saved_member_this;
+            if (cpp_saved_vdefer) {
+                Sym *vf = cpp_vres ? cpp_vres : cpp_saved_vdefer;
+
+                if (vf->parent_class != cpp_saved_vdefer->parent_class)
+                    tcc_error("internal error: overloaded virtual resolved outside its class");
+                if (vf->type.ref && vf->type.ref->f.func_virtual)
+                    cpp_emit_deferred_virtual_fn(vf, nb_args);
+            }
             if (cpp_member_this_pending) {
                 int na = nb_args;
 
