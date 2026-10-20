@@ -37,6 +37,7 @@ struct S7 {
     S7() : v(7) {}
     static int f(int n) { return n + 100; }
     int f(double n) { return v + (int)n; }
+    int h() { return f(1) + f(2.0); }   /* unqualified, inside a member */
 };
 struct T7 : S7 { };
 
@@ -48,6 +49,17 @@ int A8::x = 2;
 struct L8 : A8 { };
 struct R8 : A8 { };
 struct D8 : L8, R8 { };
+
+/* a const object can call static member functions; with static f(int)
+   and f(double) const, the arguments decide */
+struct C9 {
+    int v;
+    C9() : v(7) {}
+    static int only(int n) { return n + 100; }
+    static int f(int n) { return n + 200; }
+    int f(double n) const { return v + (int)n; }
+    int g(int n) const { return only(n) + f(n) + f(1.0); }
+};
 
 int main()
 {
@@ -85,6 +97,7 @@ int main()
         if (ps7->f(5) != 105 || ps7->f(2.0) != 9) return 13;
         if (s7.S7::f(6) != 106 || s7.S7::f(1.0) != 8) return 14;
         if (t7.f(4) != 104 || t7.S7::f(3.0) != 10) return 15;
+        if (s7.h() != 101 + 9 || t7.h() != 110) return 24;
     }
     {
         D8 d8;
@@ -92,6 +105,14 @@ int main()
         if (d8.x != 2) return 17;
         d8.x = 3;
         if (A8::x != 3) return 18;
+    }
+    {
+        const C9 c9; const C9 *pc9 = &c9; C9 m9;
+        if (c9.only(1) != 101 || c9.C9::only(2) != 102) return 19;
+        if (c9.f(3) != 203 || c9.C9::f(4) != 204) return 20;
+        if (c9.f(4.0) != 11 || pc9->f(5) != 205 || pc9->f(1.0) != 8) return 21;
+        if (m9.f(3) != 203 || m9.f(2.0) != 9) return 22;
+        if (c9.g(1) != 101 + 201 + 8) return 23;
     }
     return 0;
 }

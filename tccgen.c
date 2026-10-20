@@ -233,6 +233,12 @@ static Sym *cpp_vdefer_field;
 /* A member call whose name has static and non-static overloads: `this` is
    prepared, and dropped after overload resolution if a static one wins. */
 static Sym *cpp_smix_field;
+/* Whether the object of the member call being prepared is const
+   (cpp_prepare_member_func_call), and the value overload resolution of a
+   member call uses for it (-1: not a member call through an object, take
+   the bound overload's cv as before). */
+static int cpp_member_obj_const;
+static int cpp_resolve_obj_const = -1;
 static Sym *cpp_last_resolved_field;   /* field cpp_resolve_member_func_call chose */
 /* BUG-14: while a member function global is being registered via
    external_sym, this points at its class so external_sym keeps it a distinct
@@ -11770,7 +11776,12 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
             if ((s->type.t & VT_BTYPE) == VT_FUNC) {
-                if (cpp_field_is_const(s)) {
+                /* a static member function takes no object, so a const
+                   object can call it like a const member function; so can
+                   a constructor or destructor (C++98 12.1/4, 12.4/2: an
+                   object under construction is not const) */
+                if (cpp_field_is_const(s) || (s->type.t & VT_STATIC)
+                    || cpp_is_ctor_field(s) || cpp_is_dtor_field(s)) {
                     if (!const_match)
                         const_match = s;
                 } else {
@@ -11863,7 +11874,9 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
                (score below).  want_const comes from the first overload
                the member access picked, which is const only when the
                object is const or the class declares no non-const one. */
-            if (want_const && !cpp_field_is_const(f))
+            if (want_const && !cpp_field_is_const(f)
+                && !(f->type.t & VT_STATIC)
+                && !cpp_is_ctor_field(f) && !cpp_is_dtor_field(f))
                 continue;
             p = f->type.ref->next;
             for (i = 0; i < nb_args; i++) {
@@ -11951,7 +11964,10 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
     if (v1 == cpp_ctor_name_tok(class_sym->v & ~SYM_STRUCT))
         v1 = class_sym->v & ~SYM_STRUCT;
     v1 |= SYM_FIELD;
-    want_const = !!(cur->type.ref && cur->type.ref->f.func_const);
+    /* the object's constness when the call goes through an object; the
+       first overload's cv is wrong when it is a static function */
+    want_const = cpp_resolve_obj_const >= 0 ? cpp_resolve_obj_const
+        : !!(cur->type.ref && cur->type.ref->f.func_const);
     cpp_score_member_overloads(class_sym, v1, nb_args, want_const,
                                &best, &best_score);
     if (!best)
@@ -12328,6 +12344,7 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
     Sym *fsym;
 
     obj_type = vtop->type;
+    cpp_member_obj_const = !!(obj_type.t & VT_CONSTANT);
     test_lvalue();
     gaddrof();
     /* MI: a method inherited from a non-first base runs on that base's
@@ -16749,8 +16766,12 @@ tok_next:
             && tok == '('
             && (!s || sym_scope(s) == 0)) {
             Sym *mfn = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
+            /* a name with static and non-static overloads goes through
+               `this` too: whether it is passed is decided after overload
+               resolution (cpp_smix_field) */
             if (mfn && (mfn->type.t & VT_BTYPE) == VT_FUNC
-                && !(mfn->type.t & VT_STATIC)) {
+                && (!(mfn->type.t & VT_STATIC)
+                    || cpp_static_overload_mix(mfn))) {
                 CType this_obj_type;
                 Sym *cfield;
                 int  ccumofs;
@@ -16769,6 +16790,8 @@ tok_next:
                     cpp_member_this_pending = 1;
                     if (cpp_virtual_overload_set(cfield))
                         cpp_vdefer_field = cfield;
+                    if (cpp_static_overload_mix(cfield))
+                        cpp_smix_field = cfield;
                 }
                 break;
             }
@@ -17177,6 +17200,7 @@ post_ops:
             int cpp_saved_this_pending;
             SValue cpp_saved_member_this;
             Sym *cpp_saved_vdefer, *cpp_vres, *cpp_saved_smix;
+            int cpp_saved_obj_const;
             TokenString* p, * p2;
 
             /* function call  */
@@ -17226,6 +17250,7 @@ post_ops:
             cpp_vdefer_field = NULL;
             cpp_saved_smix = cpp_smix_field;
             cpp_smix_field = NULL;
+            cpp_saved_obj_const = cpp_saved_this_pending ? cpp_member_obj_const : -1;
             cpp_vres = NULL;
             next();
             sa = s->next; /* first parameter */
@@ -17344,8 +17369,12 @@ post_ops:
                 // already have a global, so a definition further down the
                 // TU (or in another one) would be invisible and the call
                 // would stick to the first declaration.
-                Sym *resolved = cpp_resolve_member_func_call(vtop[-nb_args].sym,
-                                                             nb_args);
+                Sym *resolved;
+
+                cpp_resolve_obj_const = cpp_saved_obj_const;
+                resolved = cpp_resolve_member_func_call(vtop[-nb_args].sym,
+                                                        nb_args);
+                cpp_resolve_obj_const = -1;
                 cpp_vres = cpp_last_resolved_field;
                 if (!resolved)
                     resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
