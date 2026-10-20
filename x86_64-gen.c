@@ -1096,7 +1096,12 @@ static X86_64_Mode classify_x86_64_inner(CType *ty)
 {
     X86_64_Mode mode;
     Sym *f;
-    
+
+    /* An array member is classified by its element type (psABI 3.2.3):
+       struct { float v[4]; } is SSE, not INTEGER as a VT_PTR would be. */
+    if (ty->t & VT_ARRAY)
+        return classify_x86_64_inner(&ty->ref->type);
+
     switch (ty->t & VT_BTYPE) {
     case VT_VOID: return x86_64_mode_none;
     
@@ -1127,6 +1132,82 @@ static X86_64_Mode classify_x86_64_inner(CType *ty)
     return 0;
 }
 
+/* psABI 3.2.3: an object that contains unaligned fields has class MEMORY
+   (passed on the stack, returned through the hidden pointer), e.g.
+   struct __attribute__((packed)) { char c; double d; }.  Returns 1 when
+   a field of the struct at offset 'off' is placed below the alignment of
+   its own type.  Bit-fields are skipped (they never get a class of their
+   own). */
+static int x86_64_struct_has_unaligned(CType *ty, int off)
+{
+    Sym *f;
+    int align, foff;
+
+    if (ty->t & VT_ARRAY)
+        return x86_64_struct_has_unaligned(&ty->ref->type, off);
+    if ((ty->t & VT_BTYPE) != VT_STRUCT)
+        return 0;
+    for (f = ty->ref->next; f; f = f->next) {
+        if (f->type.t & VT_BITFIELD)
+            continue;
+        foff = off + f->c;
+        type_size(&f->type, &align);
+        if (align > 1 && foff % align)
+            return 1;
+        if (x86_64_struct_has_unaligned(&f->type, foff))
+            return 1;
+    }
+    return 0;
+}
+
+/* Class of each eightbyte of a struct as the SysV psABI (3.2.3) defines
+   it: fields are merged per eightbyte, not over the whole struct. */
+static void classify_x86_64_eightbytes(CType *ty, int off, X86_64_Mode cls[2])
+{
+    Sym *f;
+    CType *et;
+    int i, n, esize, align, idx;
+
+    if (ty->t & VT_ARRAY) {
+        et = &ty->ref->type;
+        n = ty->ref->c;
+        esize = type_size(et, &align);
+        for (i = 0; i < n && esize > 0; i++)
+            classify_x86_64_eightbytes(et, off + i * esize, cls);
+        return;
+    }
+    if ((ty->t & VT_BTYPE) == VT_STRUCT) {
+        for (f = ty->ref->next; f; f = f->next)
+            classify_x86_64_eightbytes(&f->type, off + f->c, cls);
+        return;
+    }
+    idx = off / 8;
+    if (idx < 0 || idx > 1)
+        return;
+    cls[idx] = classify_x86_64_merge(cls[idx], classify_x86_64_inner(ty));
+}
+
+/* tcc merges the classes over the whole struct and passes it in one kind
+   of register.  When the psABI classes of the two eightbytes differ
+   (one SSE, one INTEGER: struct { double d; long l; }) gcc uses one xmm
+   and one general register, so the value would be silently corrupted at
+   the boundary.  Reject it rather than miscompile. */
+static void check_x86_64_struct_eightbytes(CType *ty, int size, X86_64_Mode mode)
+{
+    X86_64_Mode cls[2];
+    int i, n;
+
+    cls[0] = cls[1] = x86_64_mode_none;
+    classify_x86_64_eightbytes(ty, 0, cls);
+    n = size > 8 ? 2 : 1;
+    for (i = 0; i < n; i++)
+        if (cls[i] != x86_64_mode_none && cls[i] != mode)
+            tcc_error("passing or returning struct '%s' by value is unsupported "
+                      "on this target: its eightbytes mix SSE and INTEGER classes "
+                      "(SysV ABI); pass it by pointer",
+                      get_tok_str(ty->ref->v & ~SYM_STRUCT, NULL));
+}
+
 static X86_64_Mode classify_x86_64_arg(CType *ty, CType *ret, int *psize, int *palign, int *reg_count)
 {
     X86_64_Mode mode;
@@ -1146,8 +1227,14 @@ static X86_64_Mode classify_x86_64_arg(CType *ty, CType *ret, int *psize, int *p
 
         if (size > 16) {
             mode = x86_64_mode_memory;
+        } else if ((ty->t & VT_BTYPE) == VT_STRUCT
+                   && x86_64_struct_has_unaligned(ty, 0)) {
+            mode = x86_64_mode_memory;
         } else {
             mode = classify_x86_64_inner(ty);
+            if ((ty->t & VT_BTYPE) == VT_STRUCT
+                && (mode == x86_64_mode_integer || mode == x86_64_mode_sse))
+                check_x86_64_struct_eightbytes(ty, size, mode);
             switch (mode) {
             case x86_64_mode_integer:
                 if (size > 8) {

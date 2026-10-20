@@ -72,7 +72,20 @@ static int rt_get_caller_pc(addr_t *paddr, rt_frame *f, int level);
 static void rt_exit(rt_frame *f, int code);
 extern int tcc_compile_string(TCCState *s, const char *str);
 
+/* -run startup: walks .init_array/.fini_array around main and owns
+   exit()/atexit().  Used on every target (there is no lib/runmain.c). */
+/* Exit order.  PE keeps .fini_array before the atexit list (FEAT-4G).
+   Elsewhere match glibc's exit(): atexit handlers (C++ global dtors are
+   registered there) first, then .fini_array. */
 #ifdef TCC_TARGET_PE
+# define RUNMAIN_EXIT_SEQ(v) \
+    "    tcc_run_dtors();\n" \
+    "    __run_on_exit(" v ");\n"
+#else
+# define RUNMAIN_EXIT_SEQ(v) \
+    "    __run_on_exit(" v ");\n" \
+    "    tcc_run_dtors();\n"
+#endif
 static int tcc_add_runmain(TCCState *s1)
 {
     CString cstr;
@@ -86,6 +99,7 @@ static int tcc_add_runmain(TCCState *s1)
     tcc_add_cpp_runtime(s1);
     need_n6 = tcc_cpp_tls_runtime_needed(s1);
     cstr_new(&cstr);
+    cstr_cat(&cstr, "#ifndef _WIN32\n#define __cdecl\n#endif\n", -1);
     if (need_n6)
         cstr_cat(&cstr, "void abort(void);\n", -1);
     cstr_cat(&cstr,
@@ -184,8 +198,7 @@ static int tcc_add_runmain(TCCState *s1)
         -1);
     }
     cstr_cat(&cstr,
-        "    tcc_run_dtors();\n"
-        "    __run_on_exit(code);\n"
+        RUNMAIN_EXIT_SEQ("code")
         "    frame.ip = (void *)exit;\n"
         "    frame.fp = 0;\n"
         "    frame.sp = 0;\n"
@@ -211,8 +224,7 @@ static int tcc_add_runmain(TCCState *s1)
         -1);
     }
     cstr_cat(&cstr,
-        "    tcc_run_dtors();\n"
-        "    __run_on_exit(ret);\n"
+        RUNMAIN_EXIT_SEQ("ret")
         "    return ret;\n"
         "}\n",
         -1);
@@ -233,7 +245,6 @@ static int tcc_add_runmain(TCCState *s1)
     s1->extern_c = saved_extern_c;
     return ret;
 }
-#endif
 
 /* ------------------------------------------------------------- */
 /* defined when included from lib/bt-exe.c */
@@ -399,12 +410,8 @@ LIBTCCAPI int tcc_run(TCCState *s1, int argc, char **argv)
     if (s1->nostdlib) {
         s1->run_main = top_sym = s1->elf_entryname ? s1->elf_entryname : "_start";
     } else {
-#ifdef TCC_TARGET_PE
         if (tcc_add_runmain(s1) < 0)
             return -1;
-#else
-        tcc_add_support(s1, "runmain.o");
-#endif
         s1->run_main = "_runmain";
         top_sym = "main";
     }
