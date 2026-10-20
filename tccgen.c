@@ -3846,19 +3846,30 @@ static int cpp_override_sig_match(Sym *g, Sym *f)
     return !p && !q;
 }
 
-/* 1 when base is reachable from derived through public base specifiers
-   only (an accessible base for a covariant return). */
-static int cpp_base_is_public(Sym *derived, Sym *base)
+/* 1 when base is an accessible base of derived as seen from the members
+   of class ctx (C++98 11.2), for a covariant return declared in ctx.
+   A base step is accessible when it is public, when the step's class is
+   ctx itself (a class sees its own private / protected bases), or when it
+   is protected and ctx derives from the step's class.  Friendship is not
+   modelled (tpp has no friend access control), so a base accessible only
+   through friendship is still reported as not accessible. */
+static int cpp_base_accessible_from(Sym *derived, Sym *base, Sym *ctx)
 {
     Sym *bf;
+    int ok;
 
-    CPP_WALKER_DEPTH_GUARD("cpp_base_is_public");
+    CPP_WALKER_DEPTH_GUARD("cpp_base_accessible_from");
     for (bf = derived->next; bf; bf = bf->next) {
         if (!cpp_is_base_field(bf) || !bf->parent_class)
             continue;
-        if (bf->a.access != ACCESS_PUBLIC)
+        ok = bf->a.access == ACCESS_PUBLIC || derived == ctx;
+        if (!ok && bf->a.access == ACCESS_PROTECTED && ctx
+            && cpp_base_subobject_offset(ctx, derived) >= 0)
+            ok = 1;
+        if (!ok)
             continue;
-        if (bf->parent_class == base || cpp_base_is_public(bf->parent_class, base))
+        if (bf->parent_class == base
+            || cpp_base_accessible_from(bf->parent_class, base, ctx))
             return 1;
     }
     return 0;
@@ -3894,7 +3905,8 @@ static void cpp_check_override_return(Sym *g, Sym *f)
                 tcc_error("invalid covariant return type of '%s': more cv-qualified than the overridden function's",
                           get_tok_str(f->v & ~SYM_FIELD, NULL));
             if (rf->ref->type.ref != rg->ref->type.ref
-                && !cpp_base_is_public(rf->ref->type.ref, rg->ref->type.ref))
+                && !cpp_base_accessible_from(rf->ref->type.ref,
+                                             rg->ref->type.ref, f->parent_class))
                 tcc_error("invalid covariant return type of '%s': the base class is not accessible",
                           get_tok_str(f->v & ~SYM_FIELD, NULL));
             return;
