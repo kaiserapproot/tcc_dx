@@ -4794,6 +4794,93 @@ static void cpp_emit_deferred_virtual_fn(Sym *field, int nb_args)
     vtop[-nb_args] = fn;
 }
 
+static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs);
+static Sym *cpp_prepare_member_func_call(Sym *field);
+
+/* `obj.B::m` / `p->B::m`: with tok on the name after '.' / '->', consume
+   `B ::` when the name is a class followed by `::` and return the class,
+   leaving tok on the member name (*pmem_tok).  Anything else leaves the
+   token stream untouched and returns NULL (ordinary member access). */
+static Sym *cpp_parse_member_qualifier(int *pmem_tok)
+{
+    Sym *qcls;
+    int cls_tok;
+
+    cls_tok = tok;
+    if (cls_tok < TOK_UIDENT)
+        return NULL;
+    qcls = struct_find(cls_tok);
+    if (!qcls || (qcls->type.t & VT_BTYPE) != VT_STRUCT)
+        return NULL;
+    next();
+    if (tok != ':') {
+        unget_tok(cls_tok);
+        return NULL;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return NULL;
+    }
+    next();
+    if (tok < TOK_UIDENT)
+        tcc_error("expected member name after ::");
+    *pmem_tok = tok;
+    return qcls;
+}
+
+/* Qualified member access through the object on vtop (C++98 5.2.5/4):
+   the qualifying class must be the object's class or a base of it, the
+   member is looked up in that class, and a member function is called
+   without virtual dispatch (10.3/12), like `Base::f()` inside a member. */
+static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int qualifiers)
+{
+    CType qct;
+    Sym *obj_cls, *field;
+    int ofs, cumofs;
+
+    obj_cls = vtop->type.ref;
+    if ((vtop->type.t & VT_BTYPE) != VT_STRUCT || !obj_cls)
+        expect("struct or union");
+    ofs = 0;
+    if (qcls != obj_cls) {
+        ofs = cpp_base_subobject_offset(obj_cls, qcls);
+        if (ofs == CPP_BASE_AMBIGUOUS)
+            tcc_error("'%s' is an ambiguous base of '%s'",
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
+                      get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
+        if (ofs < 0)
+            tcc_error("'%s' is not a base of '%s'",
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
+                      get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
+    }
+    qct.t = VT_STRUCT | (vtop->type.t & VT_CONSTANT);
+    qct.ref = qcls;
+    cumofs = 0;
+    field = cpp_find_field_for_call(&qct, mem_tok, &cumofs);
+    if ((field->type.t & VT_BTYPE) == VT_FUNC) {
+        /* binds the declaring class's implementation directly and moves
+           `this` to that subobject of the object */
+        cpp_prepare_member_func_call(field);
+        cpp_member_this_pending = 1;
+        return;
+    }
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(ofs + cumofs);
+    gen_op('+');
+    vtop->type = field->type;
+    vtop->type.t |= qualifiers;
+    if (!(vtop->type.t & VT_ARRAY)) {
+        vtop->r |= VT_LVAL;
+#ifdef CONFIG_TCC_BCHECK
+        if (tcc_state->do_bounds_check)
+            vtop->r |= VT_MUSTBOUND;
+#endif
+    }
+}
+
 /* FEAT-4C: peek `Class::Class(` at file/block scope without consuming
  * the stream.  Returns 1 and sets *class_tok when matched. */
 static int cpp_peek_out_of_class_ctor(int *class_tok)
@@ -16716,14 +16803,21 @@ post_ops:
                 }
             } else {
             int mem_tok, operator_name;
+            Sym *qual_cls;
 
             mem_tok = tok;
             operator_name = 0;
+            qual_cls = NULL;
             if (tcc_state->cpp && tok == TOK_OPERATOR) {
                 next();
                 mem_tok = cpp_operator_field_tok(cpp_parse_operator_token());
                 operator_name = 1;
+            } else if (tcc_state->cpp) {
+                qual_cls = cpp_parse_member_qualifier(&mem_tok);
             }
+            if (qual_cls) {
+                cpp_qualified_member_access(qual_cls, mem_tok, qualifiers);
+            } else {
             field = cpp_find_field_for_call(&vtop->type, mem_tok, &cumofs);
             if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
                 if (field->type.ref && field->type.ref->f.func_virtual
@@ -16750,6 +16844,7 @@ post_ops:
                         vtop->r |= VT_MUSTBOUND;
 #endif
                 }
+            }
             }
             if (!operator_name)
                 next();
