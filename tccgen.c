@@ -4797,20 +4797,42 @@ static void cpp_emit_deferred_virtual_fn(Sym *field, int nb_args)
 static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs);
 static Sym *cpp_prepare_member_func_call(Sym *field);
 
+/* The class a name denotes: a class name, or a typedef of a class type. */
+static Sym *cpp_class_from_name(int t)
+{
+    Sym *s;
+
+    if (t < TOK_UIDENT)
+        return NULL;
+    s = struct_find(t);
+    if (s && (s->type.t & VT_BTYPE) == VT_STRUCT)
+        return s;
+    s = sym_find(t);
+    if (s && (s->type.t & VT_TYPEDEF)
+        && (s->type.t & VT_BTYPE) == VT_STRUCT && s->type.ref)
+        return s->type.ref;
+    return NULL;
+}
+
+#define CPP_QUAL_MEMBER    0  /* tok on the member name */
+#define CPP_QUAL_OPERATOR  1  /* operator name already consumed */
+#define CPP_QUAL_DTOR      2  /* `~`: tok on the class name after it */
+
 /* `obj.B::m` / `p->B::m`: with tok on the name after '.' / '->', consume
-   `B ::` when the name is a class followed by `::` and return the class,
-   leaving tok on the member name (*pmem_tok).  Anything else leaves the
-   token stream untouched and returns NULL (ordinary member access). */
-static Sym *cpp_parse_member_qualifier(int *pmem_tok)
+   `B ::` when the name is a class (or a typedef of one) followed by `::`
+   and return the class.  *pkind says what follows: a member name (left in
+   tok and *pmem_tok), an operator name (consumed, its field token in
+   *pmem_tok) or a destructor name (`~`, tok left on the name after it).
+   Anything else leaves the token stream untouched and returns NULL
+   (ordinary member access). */
+static Sym *cpp_parse_member_qualifier(int *pmem_tok, int *pkind)
 {
     Sym *qcls;
     int cls_tok;
 
     cls_tok = tok;
-    if (cls_tok < TOK_UIDENT)
-        return NULL;
-    qcls = struct_find(cls_tok);
-    if (!qcls || (qcls->type.t & VT_BTYPE) != VT_STRUCT)
+    qcls = cpp_class_from_name(cls_tok);
+    if (!qcls)
         return NULL;
     next();
     if (tok != ':') {
@@ -4824,17 +4846,78 @@ static Sym *cpp_parse_member_qualifier(int *pmem_tok)
         return NULL;
     }
     next();
+    if (tok == TOK_OPERATOR) {
+        next();
+        *pmem_tok = cpp_operator_field_tok(cpp_parse_operator_token());
+        *pkind = CPP_QUAL_OPERATOR;
+        return qcls;
+    }
+    if (tok == '~') {
+        next();
+        if (cpp_class_from_name(tok) != qcls)
+            tcc_error("destructor name after '%s::~' does not name '%s'",
+                      get_tok_str(cls_tok, NULL),
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL));
+        *pkind = CPP_QUAL_DTOR;
+        return qcls;
+    }
     if (tok < TOK_UIDENT)
         tcc_error("expected member name after ::");
     *pmem_tok = tok;
+    *pkind = CPP_QUAL_MEMBER;
     return qcls;
+}
+
+/* The class whose own member list holds field, searching cls and its
+   bases (field was found from cls). */
+static Sym *cpp_field_owner_class(Sym *cls, Sym *field)
+{
+    Sym *f, *r;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_field_owner_class");
+    for (f = cls->next; f; f = f->next)
+        if (f == field)
+            return cls;
+    for (f = cls->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !f->parent_class)
+            continue;
+        r = cpp_field_owner_class(f->parent_class, field);
+        if (r)
+            return r;
+    }
+    return NULL;
+}
+
+/* `obj.s` / `obj.B::s` for a STATIC member s (field found from cls): the
+   object only names the class (its expression has already been
+   evaluated); s is the class's global, as for `B::s`.  Reaching it as a
+   field read the object at the field's offset, and a static member
+   function got `this` as an extra argument. */
+static void cpp_static_member_via_object(Sym *field, Sym *cls, int mem_tok)
+{
+    Sym *owner, *ss;
+    int r;
+
+    owner = cpp_field_owner_class(cls, field);
+    ss = cpp_lookup_static_member(owner ? owner : cls, mem_tok);
+    if (!ss)
+        tcc_error("static member not found");
+    vpop();
+    r = ss->r;
+    if ((r & VT_VALMASK) < VT_CONST)
+        r = (r & ~VT_VALMASK) | VT_LOCAL;
+    vset(&ss->type, r, ss->c);
+    vtop->sym = ss;
+    if (r & VT_SYM)
+        vtop->c.i = 0;
 }
 
 /* Qualified member access through the object on vtop (C++98 5.2.5/4):
    the qualifying class must be the object's class or a base of it, the
    member is looked up in that class, and a member function is called
    without virtual dispatch (10.3/12), like `Base::f()` inside a member. */
-static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int qualifiers)
+static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
+                                        int qualifiers)
 {
     CType qct;
     Sym *obj_cls, *field;
@@ -4858,7 +4941,48 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int qualifiers)
     qct.t = VT_STRUCT | (vtop->type.t & VT_CONSTANT);
     qct.ref = qcls;
     cumofs = 0;
+    if (kind == CPP_QUAL_DTOR) {
+        /* `obj.B::~B()`: B's destructor, without virtual dispatch, on the
+           B subobject (completed by the '(' handler) */
+        Sym *fsym;
+        CType dtor_obj;
+
+        field = cpp_find_dtor_field(qcls);
+        if (!field)
+            tcc_error("no destructor for class '%s'",
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL));
+        if (qcls != obj_cls) {
+            CType pt;
+
+            gaddrof();
+            vtop->type = char_pointer_type;
+            if (ofs) {
+                vpushi(ofs);
+                gen_op('+');
+            }
+            pt = qct;
+            mk_pointer(&pt);
+            vtop->type = pt;
+            indir();
+        }
+        dtor_obj = vtop->type;
+        gaddrof();
+        mk_pointer(&vtop->type);
+        cpp_member_this = *vtop;
+        vpop();
+        cpp_spill_member_this();    /* BUG-23 */
+        fsym = cpp_lookup_member_func(field, &dtor_obj);
+        vset(&fsym->type, fsym->r | VT_SYM, 0);
+        vtop->sym = fsym;
+        vtop->r &= ~VT_LVAL;
+        cpp_member_this_pending = 1;
+        return;
+    }
     field = cpp_find_field_for_call(&qct, mem_tok, &cumofs);
+    if (field->type.t & VT_STATIC) {
+        cpp_static_member_via_object(field, qcls, mem_tok);
+        return;
+    }
     if ((field->type.t & VT_BTYPE) == VT_FUNC) {
         /* The qualifier names the path: move the object to the qualifying
            class's subobject first, so cpp_prepare_member_func_call only
@@ -16822,24 +16946,30 @@ post_ops:
                 next();
                 }
             } else {
-            int mem_tok, operator_name;
+            int mem_tok, operator_name, qual_kind;
             Sym *qual_cls;
 
             mem_tok = tok;
             operator_name = 0;
             qual_cls = NULL;
+            qual_kind = CPP_QUAL_MEMBER;
             if (tcc_state->cpp && tok == TOK_OPERATOR) {
                 next();
                 mem_tok = cpp_operator_field_tok(cpp_parse_operator_token());
                 operator_name = 1;
             } else if (tcc_state->cpp) {
-                qual_cls = cpp_parse_member_qualifier(&mem_tok);
+                qual_cls = cpp_parse_member_qualifier(&mem_tok, &qual_kind);
+                if (qual_cls && qual_kind == CPP_QUAL_OPERATOR)
+                    operator_name = 1;
             }
             if (qual_cls) {
-                cpp_qualified_member_access(qual_cls, mem_tok, qualifiers);
+                cpp_qualified_member_access(qual_cls, mem_tok, qual_kind,
+                                            qualifiers);
             } else {
             field = cpp_find_field_for_call(&vtop->type, mem_tok, &cumofs);
-            if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
+            if (tcc_state->cpp && (field->type.t & VT_STATIC)) {
+                cpp_static_member_via_object(field, vtop->type.ref, mem_tok);
+            } else if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
                 if (field->type.ref && field->type.ref->f.func_virtual
                     && !cpp_virtual_overload_set(field)) {
                     obj_type = vtop->type;
