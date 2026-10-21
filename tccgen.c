@@ -1175,6 +1175,7 @@ static int cpp_unget_scoped_after_class_tok(int cls_tok)
 }
 
 static int sym_scope(Sym* s);
+static Sym *cpp_lookup_member_field_opt(int v, Sym *class_sym);
 
 /* The identifier of a static data member's storage: `__tcc_<Class>__<m>`,
    the member-function link name form without the parameter suffix.  The
@@ -1221,6 +1222,7 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
     }
     if (!f) {
         Sym *found;
+        int nonstatic;
 
         /* any member of this name declared here hides the bases' ones,
            static or not (`struct D : A { int x; }` hides A's static x) */
@@ -1231,14 +1233,23 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
            this class too (`B::x` for A's x when B : A); the storage stays
            the declaring class's.  Reached through several bases it is
            still one entity (C++98 10.2/5); static members of DIFFERENT
-           classes are ambiguous. */
+           classes are ambiguous, and so is a static member of one base
+           with a non-static member of the same name in another (a base
+           without a static one may still declare the name). */
         found = NULL;
+        nonstatic = 0;
         for (f = class_sym->next; f; f = f->next) {
             if (!cpp_is_base_field(f) || !f->parent_class)
                 continue;
             s = cpp_lookup_static_member(f->parent_class, mem_v);
+            if (!s && cpp_lookup_member_field_opt(mem_v, f->parent_class))
+                nonstatic = 1;
             if (s && found && s != found)
                 tcc_error("'%s' is ambiguous in '%s': static members of different base classes",
+                          get_tok_str(mem_v, NULL),
+                          get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
+            if ((s || found) && nonstatic)
+                tcc_error("'%s' is ambiguous in '%s': static and non-static members of different base classes",
                           get_tok_str(mem_v, NULL),
                           get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
             if (s)
@@ -4997,6 +5008,49 @@ static int cpp_static_overload_mix(Sym *field)
     return ns && nn;
 }
 
+/* 1 when looking up the member name v in the scope of class cls is
+   ambiguous (C++98 10.2): cls does not declare v, and its bases yield
+   either different declarations or one non-static declaration through
+   several subobjects.  One static member reached through several paths is
+   a single entity and not ambiguous.  find_field / cpp_find_field_for_call
+   take the first base that has the name, so the qualified-name paths call
+   this before trusting their result. */
+static int cpp_member_name_ambiguous(Sym *cls, int v)
+{
+    Sym *f, *g, *first;
+    int v1;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_member_name_ambiguous");
+    v1 = v | SYM_FIELD;
+    for (f = cls->next; f; f = f->next)
+        if (f->v == v1)
+            return 0;
+    first = NULL;
+    for (f = cls->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !f->parent_class)
+            continue;
+        if (cpp_member_name_ambiguous(f->parent_class, v))
+            return 1;
+        g = cpp_lookup_member_field_opt(v, f->parent_class);
+        if (!g)
+            continue;
+        if (!first) {
+            first = g;
+            continue;
+        }
+        if (g != first || !(g->type.t & VT_STATIC))
+            return 1;
+    }
+    return 0;
+}
+
+static void cpp_member_name_check_ambiguous(Sym *cls, int v)
+{
+    if (cpp_member_name_ambiguous(cls, v))
+        tcc_error("'%s' is ambiguous in '%s': found in more than one base class",
+                  get_tok_str(v, NULL), get_tok_str(cls->v & ~SYM_STRUCT, NULL));
+}
+
 /* The global of the static member field found from cls (it may be
    declared by a base of cls). */
 static Sym *cpp_static_member_global(Sym *cls, Sym *field, int mem_tok)
@@ -5098,6 +5152,8 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
         cpp_member_this_pending = 1;
         return;
     }
+    if (kind == CPP_QUAL_MEMBER)
+        cpp_member_name_check_ambiguous(qcls, mem_tok);
     field = cpp_find_field_for_call(&qct, mem_tok, &cumofs);
     smix = cpp_static_overload_mix(field);
     if ((field->type.t & VT_STATIC) && !smix) {
@@ -17272,8 +17328,10 @@ post_ops:
             // class's subobject (cpp_qualified_member_access, as for
             // `this->Base::m`).  It used to go to the static lookup below.
             if (cpp_this_sym && cpp_cur_func_class) {
-                Sym *qd = cpp_lookup_member_field_opt(mem_tok, class_sym);
+                Sym *qd;
 
+                cpp_member_name_check_ambiguous(class_sym, mem_tok);
+                qd = cpp_lookup_member_field_opt(mem_tok, class_sym);
                 if (qd && (qd->type.t & VT_BTYPE) != VT_FUNC
                     && !(qd->type.t & VT_STATIC)
                     && (class_sym == cpp_cur_func_class
