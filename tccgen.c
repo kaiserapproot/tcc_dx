@@ -1174,11 +1174,44 @@ static int cpp_unget_scoped_after_class_tok(int cls_tok)
     return 1;
 }
 
+static int sym_scope(Sym* s);
+
+/* The identifier of a static data member's storage: `__tcc_<Class>__<m>`,
+   the member-function link name form without the parameter suffix.  The
+   plain member name was used before, so two classes could not both define
+   a static `x`, and a local or global `x` was taken for the member. */
+static int cpp_static_data_tok(Sym *class_sym, int mem_v)
+{
+    char buf[256];
+    char cn[128];
+    int len;
+
+    pstrcpy(cn, sizeof cn, get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
+    len = snprintf(buf, sizeof buf, "__tcc_%s__%s", cn,
+                   get_tok_str(mem_v & ~SYM_FIELD, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        tcc_error("static data member name too long");
+    return tok_alloc(buf, len)->tok;
+}
+
+/* 1 when class_sym itself declares v as a static data member. */
+static int cpp_class_static_data_field(Sym *class_sym, int v)
+{
+    Sym *f;
+
+    for (f = class_sym->next; f; f = f->next)
+        if (f->v == ((v & ~SYM_FIELD) | SYM_FIELD) && (f->type.t & VT_STATIC)
+            && (f->type.t & VT_BTYPE) != VT_FUNC)
+            return 1;
+    return 0;
+}
+
 static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
 {
     Sym *f, *s;
-    int v1;
+    int v1, dv;
 
+    CPP_WALKER_DEPTH_GUARD("cpp_lookup_static_member");
     if (!class_sym)
         return NULL;
     v1 = mem_v | SYM_FIELD;
@@ -1186,8 +1219,39 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
         if (f->v == v1 && (f->type.t & VT_STATIC))
             break;
     }
-    if (!f)
+    if (!f) {
+        /* not declared here: a static member of a base is a member of
+           this class too (`B::x` for A's x when B : A); the storage stays
+           the declaring class's */
+        for (f = class_sym->next; f; f = f->next) {
+            if (!cpp_is_base_field(f) || !f->parent_class)
+                continue;
+            s = cpp_lookup_static_member(f->parent_class, mem_v);
+            if (s)
+                return s;
+        }
         return NULL;
+    }
+    if ((f->type.t & VT_BTYPE) != VT_FUNC) {
+        /* a static data member: only the class-qualified global, never a
+           local or another class's member of the same name */
+        dv = cpp_static_data_tok(class_sym, mem_v);
+        for (s = sym_find(dv); s; s = s->prev_tok)
+            if (!sym_scope(s) && (s->type.t & VT_BTYPE) != VT_FUNC
+                && !(s->v & SYM_FIELD))
+                return s;
+        if (tcc_state->cpp && !tcc_state->extern_c && mem_v >= TOK_IDENT) {
+            CType dt;
+            AttributeDef ad;
+
+            /* BUG-33: declared here, defined later or in another TU */
+            dt = f->type;
+            dt.t = (dt.t & ~VT_STATIC) | VT_EXTERN;
+            memset(&ad, 0, sizeof ad);
+            return external_sym(dv, &dt, VT_LVAL, &ad);
+        }
+        return NULL;
+    }
     for (s = sym_find(mem_v); s; s = s->prev_tok) {
         if ((f->type.t & VT_BTYPE) == VT_FUNC) {
             if ((s->type.t & VT_BTYPE) == VT_FUNC && s->parent_class == class_sym)
@@ -4919,6 +4983,16 @@ static int cpp_static_overload_mix(Sym *field)
     return ns && nn;
 }
 
+/* The global of the static member field found from cls (it may be
+   declared by a base of cls). */
+static Sym *cpp_static_member_global(Sym *cls, Sym *field, int mem_tok)
+{
+    Sym *owner;
+
+    owner = cpp_field_owner_class(cls, field);
+    return cpp_lookup_static_member(owner ? owner : cls, mem_tok);
+}
+
 /* `obj.s` / `obj.B::s` for a STATIC member s (field found from cls): the
    object only names the class (its expression has already been
    evaluated); s is the class's global, as for `B::s`.  Reaching it as a
@@ -4926,11 +5000,10 @@ static int cpp_static_overload_mix(Sym *field)
    function got `this` as an extra argument. */
 static void cpp_static_member_via_object(Sym *field, Sym *cls, int mem_tok)
 {
-    Sym *owner, *ss;
+    Sym *ss;
     int r;
 
-    owner = cpp_field_owner_class(cls, field);
-    ss = cpp_lookup_static_member(owner ? owner : cls, mem_tok);
+    ss = cpp_static_member_global(cls, field, mem_tok);
     if (!ss)
         tcc_error("static member not found");
     vpop();
@@ -16844,7 +16917,7 @@ tok_next:
                    snprintf call inside reg_window() into "field not found"
                    whenever no earlier global call had implicitly declared it. */
                 mf = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
-            } else if (sym_scope(s) == 0 && cpp_this_sym) {
+            } else if (sym_scope(s) == 0) {
                 /* A global was found, but class scope outranks it.  Restrict
                    this to what cpp_push_member_var can actually emit: a
                    non-static data member reached through `this`.  A static
@@ -16854,8 +16927,17 @@ tok_next:
                    break. */
                 Sym *cand = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
                 if (cand && (cand->type.t & VT_BTYPE) != VT_FUNC
-                    && !(cand->type.t & VT_STATIC))
+                    && (cpp_this_sym || (cand->type.t & VT_STATIC)))
                     mf = cand;
+            }
+            /* a static data member is not reached through `this`: use its
+               class-qualified global and continue as a found symbol */
+            if (mf && (mf->type.t & VT_STATIC)
+                && (mf->type.t & VT_BTYPE) != VT_FUNC) {
+                s = cpp_static_member_global(cpp_cur_func_class, mf, t);
+                if (!s)
+                    tcc_error("static member not found");
+                mf = NULL;
             }
             if (mf) {
                 cpp_push_member_var(mf);
@@ -21166,6 +21248,12 @@ static int decl(int l)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_implicit_dtor(type.ref, 0);
 
+                    /* C++ static data member definition `T C::m ...;`:
+                       its storage is the class-qualified global */
+                    if (tcc_state->cpp && cpp_qualified_class
+                        && (type.t & VT_BTYPE) != VT_FUNC
+                        && cpp_class_static_data_field(cpp_qualified_class, v))
+                        v = cpp_static_data_tok(cpp_qualified_class, v);
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
                         /* as with GCC, uninitialized global arrays with no size
