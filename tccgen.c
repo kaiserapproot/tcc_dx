@@ -230,6 +230,15 @@ static int cpp_member_this_pending;
    depends on the overload the ARGUMENTS select, so the vtable load waits
    for the call's overload resolution (cpp_vdefer_field = first field). */
 static Sym *cpp_vdefer_field;
+/* A member call whose name has static and non-static overloads: `this` is
+   prepared, and dropped after overload resolution if a static one wins. */
+static Sym *cpp_smix_field;
+/* Whether the object of the member call being prepared is const
+   (cpp_prepare_member_func_call), and the value overload resolution of a
+   member call uses for it (-1: not a member call through an object, take
+   the bound overload's cv as before). */
+static int cpp_member_obj_const;
+static int cpp_resolve_obj_const = -1;
 static Sym *cpp_last_resolved_field;   /* field cpp_resolve_member_func_call chose */
 /* BUG-14: while a member function global is being registered via
    external_sym, this points at its class so external_sym keeps it a distinct
@@ -1165,11 +1174,45 @@ static int cpp_unget_scoped_after_class_tok(int cls_tok)
     return 1;
 }
 
+static int sym_scope(Sym* s);
+static Sym *cpp_lookup_member_field_opt(int v, Sym *class_sym);
+
+/* The identifier of a static data member's storage: `__tcc_<Class>__<m>`,
+   the member-function link name form without the parameter suffix.  The
+   plain member name was used before, so two classes could not both define
+   a static `x`, and a local or global `x` was taken for the member. */
+static int cpp_static_data_tok(Sym *class_sym, int mem_v)
+{
+    char buf[256];
+    char cn[128];
+    int len;
+
+    pstrcpy(cn, sizeof cn, get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
+    len = snprintf(buf, sizeof buf, "__tcc_%s__%s", cn,
+                   get_tok_str(mem_v & ~SYM_FIELD, NULL));
+    if (len <= 0 || len >= (int)sizeof buf)
+        tcc_error("static data member name too long");
+    return tok_alloc(buf, len)->tok;
+}
+
+/* 1 when class_sym itself declares v as a static data member. */
+static int cpp_class_static_data_field(Sym *class_sym, int v)
+{
+    Sym *f;
+
+    for (f = class_sym->next; f; f = f->next)
+        if (f->v == ((v & ~SYM_FIELD) | SYM_FIELD) && (f->type.t & VT_STATIC)
+            && (f->type.t & VT_BTYPE) != VT_FUNC)
+            return 1;
+    return 0;
+}
+
 static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
 {
     Sym *f, *s;
-    int v1;
+    int v1, dv;
 
+    CPP_WALKER_DEPTH_GUARD("cpp_lookup_static_member");
     if (!class_sym)
         return NULL;
     v1 = mem_v | SYM_FIELD;
@@ -1177,8 +1220,63 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
         if (f->v == v1 && (f->type.t & VT_STATIC))
             break;
     }
-    if (!f)
+    if (!f) {
+        Sym *found;
+        int nonstatic;
+
+        /* any member of this name declared here hides the bases' ones,
+           static or not (`struct D : A { int x; }` hides A's static x) */
+        for (f = class_sym->next; f; f = f->next)
+            if (f->v == v1)
+                return NULL;
+        /* not declared here: a static member of a base is a member of
+           this class too (`B::x` for A's x when B : A); the storage stays
+           the declaring class's.  Reached through several bases it is
+           still one entity (C++98 10.2/5); static members of DIFFERENT
+           classes are ambiguous, and so is a static member of one base
+           with a non-static member of the same name in another (a base
+           without a static one may still declare the name). */
+        found = NULL;
+        nonstatic = 0;
+        for (f = class_sym->next; f; f = f->next) {
+            if (!cpp_is_base_field(f) || !f->parent_class)
+                continue;
+            s = cpp_lookup_static_member(f->parent_class, mem_v);
+            if (!s && cpp_lookup_member_field_opt(mem_v, f->parent_class))
+                nonstatic = 1;
+            if (s && found && s != found)
+                tcc_error("'%s' is ambiguous in '%s': static members of different base classes",
+                          get_tok_str(mem_v, NULL),
+                          get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
+            if ((s || found) && nonstatic)
+                tcc_error("'%s' is ambiguous in '%s': static and non-static members of different base classes",
+                          get_tok_str(mem_v, NULL),
+                          get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
+            if (s)
+                found = s;
+        }
+        return found;
+    }
+    if ((f->type.t & VT_BTYPE) != VT_FUNC) {
+        /* a static data member: only the class-qualified global, never a
+           local or another class's member of the same name */
+        dv = cpp_static_data_tok(class_sym, mem_v);
+        for (s = sym_find(dv); s; s = s->prev_tok)
+            if (!sym_scope(s) && (s->type.t & VT_BTYPE) != VT_FUNC
+                && !(s->v & SYM_FIELD))
+                return s;
+        if (tcc_state->cpp && !tcc_state->extern_c && mem_v >= TOK_IDENT) {
+            CType dt;
+            AttributeDef ad;
+
+            /* BUG-33: declared here, defined later or in another TU */
+            dt = f->type;
+            dt.t = (dt.t & ~VT_STATIC) | VT_EXTERN;
+            memset(&ad, 0, sizeof ad);
+            return external_sym(dv, &dt, VT_LVAL, &ad);
+        }
         return NULL;
+    }
     for (s = sym_find(mem_v); s; s = s->prev_tok) {
         if ((f->type.t & VT_BTYPE) == VT_FUNC) {
             if ((s->type.t & VT_BTYPE) == VT_FUNC && s->parent_class == class_sym)
@@ -4800,6 +4898,348 @@ static void cpp_emit_deferred_virtual_fn(Sym *field, int nb_args)
     fn = *vtop;
     vtop--;
     vtop[-nb_args] = fn;
+}
+
+static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs);
+static Sym *cpp_prepare_member_func_call(Sym *field);
+
+/* The class a name denotes: a class name, or a typedef of a class type. */
+static Sym *cpp_class_from_name(int t)
+{
+    Sym *s;
+
+    if (t < TOK_UIDENT)
+        return NULL;
+    s = struct_find(t);
+    if (s && (s->type.t & VT_BTYPE) == VT_STRUCT)
+        return s;
+    s = sym_find(t);
+    if (s && (s->type.t & VT_TYPEDEF)
+        && (s->type.t & VT_BTYPE) == VT_STRUCT && s->type.ref)
+        return s->type.ref;
+    return NULL;
+}
+
+#define CPP_QUAL_MEMBER    0  /* tok on the member name */
+#define CPP_QUAL_OPERATOR  1  /* operator name already consumed */
+#define CPP_QUAL_DTOR      2  /* `~`: tok on the class name after it */
+
+/* `obj.B::m` / `p->B::m`: with tok on the name after '.' / '->', consume
+   `B ::` when the name is a class (or a typedef of one) followed by `::`
+   and return the class.  *pkind says what follows: a member name (left in
+   tok and *pmem_tok), an operator name (consumed, its field token in
+   *pmem_tok) or a destructor name (`~`, tok left on the name after it).
+   Anything else leaves the token stream untouched and returns NULL
+   (ordinary member access). */
+static Sym *cpp_parse_member_qualifier(int *pmem_tok, int *pkind)
+{
+    Sym *qcls;
+    int cls_tok;
+
+    cls_tok = tok;
+    qcls = cpp_class_from_name(cls_tok);
+    if (!qcls)
+        return NULL;
+    next();
+    if (tok != ':') {
+        unget_tok(cls_tok);
+        return NULL;
+    }
+    next();
+    if (tok != ':') {
+        unget_tok(':');
+        unget_tok(cls_tok);
+        return NULL;
+    }
+    next();
+    if (tok == TOK_OPERATOR) {
+        next();
+        *pmem_tok = cpp_operator_field_tok(cpp_parse_operator_token());
+        *pkind = CPP_QUAL_OPERATOR;
+        return qcls;
+    }
+    if (tok == '~') {
+        next();
+        if (cpp_class_from_name(tok) != qcls)
+            tcc_error("destructor name after '%s::~' does not name '%s'",
+                      get_tok_str(cls_tok, NULL),
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL));
+        *pkind = CPP_QUAL_DTOR;
+        return qcls;
+    }
+    if (tok < TOK_UIDENT)
+        tcc_error("expected member name after ::");
+    *pmem_tok = tok;
+    *pkind = CPP_QUAL_MEMBER;
+    return qcls;
+}
+
+/* The class whose own member list holds field, searching cls and its
+   bases (field was found from cls). */
+static Sym *cpp_field_owner_class(Sym *cls, Sym *field)
+{
+    Sym *f, *r;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_field_owner_class");
+    for (f = cls->next; f; f = f->next)
+        if (f == field)
+            return cls;
+    for (f = cls->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !f->parent_class)
+            continue;
+        r = cpp_field_owner_class(f->parent_class, field);
+        if (r)
+            return r;
+    }
+    return NULL;
+}
+
+/* 1 when the class that declares the member function field has both
+   static and non-static member functions of that name: whether the call
+   passes `this` then depends on the overload the arguments select. */
+static int cpp_static_overload_mix(Sym *field)
+{
+    Sym *g;
+    int ns = 0, nn = 0;
+
+    if (!field || !field->parent_class
+        || (field->type.t & VT_BTYPE) != VT_FUNC)
+        return 0;
+    for (g = field->parent_class->next; g; g = g->next) {
+        if (g->v != field->v || (g->type.t & VT_BTYPE) != VT_FUNC)
+            continue;
+        if (g->type.t & VT_STATIC)
+            ns++;
+        else
+            nn++;
+    }
+    return ns && nn;
+}
+
+/* 1 when looking up the member name v in the scope of class cls is
+   ambiguous (C++98 10.2): cls does not declare v, and its bases yield
+   either different declarations or one non-static declaration through
+   several subobjects.  One static member reached through several paths is
+   a single entity and not ambiguous.  find_field / cpp_find_field_for_call
+   take the first base that has the name, so the qualified-name paths call
+   this before trusting their result. */
+static int cpp_member_name_ambiguous(Sym *cls, int v)
+{
+    Sym *f, *g, *first;
+    int v1;
+
+    CPP_WALKER_DEPTH_GUARD("cpp_member_name_ambiguous");
+    v1 = v | SYM_FIELD;
+    for (f = cls->next; f; f = f->next)
+        if (f->v == v1)
+            return 0;
+    first = NULL;
+    for (f = cls->next; f; f = f->next) {
+        if (!cpp_is_base_field(f) || !f->parent_class)
+            continue;
+        if (cpp_member_name_ambiguous(f->parent_class, v))
+            return 1;
+        g = cpp_lookup_member_field_opt(v, f->parent_class);
+        if (!g)
+            continue;
+        if (!first) {
+            first = g;
+            continue;
+        }
+        if (g != first || !(g->type.t & VT_STATIC))
+            return 1;
+    }
+    return 0;
+}
+
+static void cpp_member_name_check_ambiguous(Sym *cls, int v)
+{
+    char name[64];
+    const char *s, *suffix;
+    int op;
+
+    if (!cpp_member_name_ambiguous(cls, v))
+        return;
+    /* an operator member lives under "__cpp_op_<suffix>": print it as
+       written in the source (operator tokens are all below 256) */
+    pstrcpy(name, sizeof name, get_tok_str(v, NULL));
+    if (!strncmp(name, "__cpp_op_", 9)) {
+        s = name + 9;
+        for (op = 1; op < 256; op++) {
+            suffix = cpp_operator_suffix(op);
+            if (suffix && !strcmp(suffix, s)) {
+                snprintf(name, sizeof name, "operator%s%s",
+                         get_tok_str(op, NULL), op == '[' ? "]" : "");
+                break;
+            }
+        }
+    }
+    tcc_error("'%s' is ambiguous in '%s': found in more than one base class",
+              name, get_tok_str(cls->v & ~SYM_STRUCT, NULL));
+}
+
+/* The global of the static member field found from cls (it may be
+   declared by a base of cls). */
+static Sym *cpp_static_member_global(Sym *cls, Sym *field, int mem_tok)
+{
+    Sym *owner;
+
+    owner = cpp_field_owner_class(cls, field);
+    return cpp_lookup_static_member(owner ? owner : cls, mem_tok);
+}
+
+/* `obj.s` / `obj.B::s` for a STATIC member s (field found from cls): the
+   object only names the class (its expression has already been
+   evaluated); s is the class's global, as for `B::s`.  Reaching it as a
+   field read the object at the field's offset, and a static member
+   function got `this` as an extra argument. */
+static void cpp_static_member_via_object(Sym *field, Sym *cls, int mem_tok)
+{
+    Sym *ss;
+    int r;
+
+    ss = cpp_static_member_global(cls, field, mem_tok);
+    if (!ss)
+        tcc_error("static member not found");
+    vpop();
+    r = ss->r;
+    if ((r & VT_VALMASK) < VT_CONST)
+        r = (r & ~VT_VALMASK) | VT_LOCAL;
+    vset(&ss->type, r, ss->c);
+    vtop->sym = ss;
+    if (r & VT_SYM)
+        vtop->c.i = 0;
+}
+
+/* Qualified member access through the object on vtop (C++98 5.2.5/4):
+   the qualifying class must be the object's class or a base of it, the
+   member is looked up in that class, and a member function is called
+   without virtual dispatch (10.3/12), like `Base::f()` inside a member. */
+static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
+                                        int qualifiers)
+{
+    CType qct;
+    Sym *obj_cls, *field;
+    int ofs, cumofs, smix;
+
+    obj_cls = vtop->type.ref;
+    if ((vtop->type.t & VT_BTYPE) != VT_STRUCT || !obj_cls)
+        expect("struct or union");
+    ofs = 0;
+    if (qcls != obj_cls) {
+        /* An ambiguous base is still a base; whether a unique subobject
+           is needed depends on the member (a static one has none). */
+        ofs = cpp_base_subobject_offset(obj_cls, qcls);
+        if (ofs < 0 && ofs != CPP_BASE_AMBIGUOUS)
+            tcc_error("'%s' is not a base of '%s'",
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
+                      get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
+    }
+    qct.t = VT_STRUCT | (vtop->type.t & VT_CONSTANT);
+    qct.ref = qcls;
+    cumofs = 0;
+    if (kind == CPP_QUAL_DTOR) {
+        /* `obj.B::~B()`: B's destructor, without virtual dispatch, on the
+           B subobject (completed by the '(' handler) */
+        Sym *fsym;
+        CType dtor_obj;
+
+        if (ofs == CPP_BASE_AMBIGUOUS)
+            tcc_error("'%s' is an ambiguous base of '%s'",
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
+                      get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
+        field = cpp_find_dtor_field(qcls);
+        if (!field)
+            tcc_error("no destructor for class '%s'",
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL));
+        if (qcls != obj_cls) {
+            CType pt;
+
+            gaddrof();
+            vtop->type = char_pointer_type;
+            if (ofs) {
+                vpushi(ofs);
+                gen_op('+');
+            }
+            pt = qct;
+            mk_pointer(&pt);
+            vtop->type = pt;
+            indir();
+        }
+        dtor_obj = vtop->type;
+        gaddrof();
+        mk_pointer(&vtop->type);
+        cpp_member_this = *vtop;
+        vpop();
+        cpp_spill_member_this();    /* BUG-23 */
+        fsym = cpp_lookup_member_func(field, &dtor_obj);
+        vset(&fsym->type, fsym->r | VT_SYM, 0);
+        vtop->sym = fsym;
+        vtop->r &= ~VT_LVAL;
+        cpp_member_this_pending = 1;
+        return;
+    }
+    /* member and operator names (the destructor kind returned above) */
+    if (kind == CPP_QUAL_MEMBER || kind == CPP_QUAL_OPERATOR)
+        cpp_member_name_check_ambiguous(qcls, mem_tok);
+    field = cpp_find_field_for_call(&qct, mem_tok, &cumofs);
+    smix = cpp_static_overload_mix(field);
+    if ((field->type.t & VT_STATIC) && !smix) {
+        cpp_static_member_via_object(field, qcls, mem_tok);
+        return;
+    }
+    /* a non-static member lives in a subobject, which must be unique */
+    if (ofs == CPP_BASE_AMBIGUOUS) {
+        if (smix)
+            tcc_error("'%s' through the ambiguous base '%s' has static and non-static overloads (unsupported)",
+                      get_tok_str(mem_tok, NULL),
+                      get_tok_str(qcls->v & ~SYM_STRUCT, NULL));
+        tcc_error("'%s' is an ambiguous base of '%s'",
+                  get_tok_str(qcls->v & ~SYM_STRUCT, NULL),
+                  get_tok_str(obj_cls->v & ~SYM_STRUCT, NULL));
+    }
+    if ((field->type.t & VT_BTYPE) == VT_FUNC) {
+        /* The qualifier names the path: move the object to the qualifying
+           class's subobject first, so cpp_prepare_member_func_call only
+           has to go from there to the declaring class.  Converting from
+           the complete object again would find a base that occurs twice
+           (D : L, R with L, R : A) ambiguous although `d.L::get()`
+           selects one. */
+        if (qcls != obj_cls) {
+            CType pt;
+
+            gaddrof();
+            vtop->type = char_pointer_type;
+            if (ofs) {
+                vpushi(ofs);
+                gen_op('+');
+            }
+            pt = qct;
+            mk_pointer(&pt);
+            vtop->type = pt;
+            indir();
+        }
+        /* binds the declaring class's implementation directly and moves
+           `this` to that subobject */
+        cpp_prepare_member_func_call(field);
+        cpp_member_this_pending = 1;
+        if (smix)
+            cpp_smix_field = field;
+        return;
+    }
+    gaddrof();
+    vtop->type = char_pointer_type;
+    vpushi(ofs + cumofs);
+    gen_op('+');
+    vtop->type = field->type;
+    vtop->type.t |= qualifiers;
+    if (!(vtop->type.t & VT_ARRAY)) {
+        vtop->r |= VT_LVAL;
+#ifdef CONFIG_TCC_BCHECK
+        if (tcc_state->do_bounds_check)
+            vtop->r |= VT_MUSTBOUND;
+#endif
+    }
 }
 
 /* FEAT-4C: peek `Class::Class(` at file/block scope without consuming
@@ -11507,7 +11947,12 @@ static Sym *cpp_find_field_for_call(CType *type, int v, int *cumofs)
     while ((s = s->next) != NULL) {
         if (s->v == v1) {
             if ((s->type.t & VT_BTYPE) == VT_FUNC) {
-                if (cpp_field_is_const(s)) {
+                /* a static member function takes no object, so a const
+                   object can call it like a const member function; so can
+                   a constructor or destructor (C++98 12.1/4, 12.4/2: an
+                   object under construction is not const) */
+                if (cpp_field_is_const(s) || (s->type.t & VT_STATIC)
+                    || cpp_is_ctor_field(s) || cpp_is_dtor_field(s)) {
                     if (!const_match)
                         const_match = s;
                 } else {
@@ -11600,7 +12045,9 @@ static void cpp_score_member_overloads(Sym *class_sym, int v1, int nb_args,
                (score below).  want_const comes from the first overload
                the member access picked, which is const only when the
                object is const or the class declares no non-const one. */
-            if (want_const && !cpp_field_is_const(f))
+            if (want_const && !cpp_field_is_const(f)
+                && !(f->type.t & VT_STATIC)
+                && !cpp_is_ctor_field(f) && !cpp_is_dtor_field(f))
                 continue;
             p = f->type.ref->next;
             for (i = 0; i < nb_args; i++) {
@@ -11688,7 +12135,10 @@ static Sym *cpp_resolve_member_func_call(Sym *cur, int nb_args)
     if (v1 == cpp_ctor_name_tok(class_sym->v & ~SYM_STRUCT))
         v1 = class_sym->v & ~SYM_STRUCT;
     v1 |= SYM_FIELD;
-    want_const = !!(cur->type.ref && cur->type.ref->f.func_const);
+    /* the object's constness when the call goes through an object; the
+       first overload's cv is wrong when it is a static function */
+    want_const = cpp_resolve_obj_const >= 0 ? cpp_resolve_obj_const
+        : !!(cur->type.ref && cur->type.ref->f.func_const);
     cpp_score_member_overloads(class_sym, v1, nb_args, want_const,
                                &best, &best_score);
     if (!best)
@@ -12065,6 +12515,7 @@ static Sym *cpp_prepare_member_func_call(Sym *field)
     Sym *fsym;
 
     obj_type = vtop->type;
+    cpp_member_obj_const = !!(obj_type.t & VT_CONSTANT);
     test_lvalue();
     gaddrof();
     /* MI: a method inherited from a non-first base runs on that base's
@@ -16486,8 +16937,12 @@ tok_next:
             && tok == '('
             && (!s || sym_scope(s) == 0)) {
             Sym *mfn = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
+            /* a name with static and non-static overloads goes through
+               `this` too: whether it is passed is decided after overload
+               resolution (cpp_smix_field) */
             if (mfn && (mfn->type.t & VT_BTYPE) == VT_FUNC
-                && !(mfn->type.t & VT_STATIC)) {
+                && (!(mfn->type.t & VT_STATIC)
+                    || cpp_static_overload_mix(mfn))) {
                 CType this_obj_type;
                 Sym *cfield;
                 int  ccumofs;
@@ -16506,6 +16961,8 @@ tok_next:
                     cpp_member_this_pending = 1;
                     if (cpp_virtual_overload_set(cfield))
                         cpp_vdefer_field = cfield;
+                    if (cpp_static_overload_mix(cfield))
+                        cpp_smix_field = cfield;
                 }
                 break;
             }
@@ -16558,7 +17015,7 @@ tok_next:
                    snprintf call inside reg_window() into "field not found"
                    whenever no earlier global call had implicitly declared it. */
                 mf = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
-            } else if (sym_scope(s) == 0 && cpp_this_sym) {
+            } else if (sym_scope(s) == 0) {
                 /* A global was found, but class scope outranks it.  Restrict
                    this to what cpp_push_member_var can actually emit: a
                    non-static data member reached through `this`.  A static
@@ -16568,8 +17025,17 @@ tok_next:
                    break. */
                 Sym *cand = cpp_lookup_member_field_opt(t, cpp_cur_func_class);
                 if (cand && (cand->type.t & VT_BTYPE) != VT_FUNC
-                    && !(cand->type.t & VT_STATIC))
+                    && (cpp_this_sym || (cand->type.t & VT_STATIC)))
                     mf = cand;
+            }
+            /* a static data member is not reached through `this`: use its
+               class-qualified global and continue as a found symbol */
+            if (mf && (mf->type.t & VT_STATIC)
+                && (mf->type.t & VT_BTYPE) != VT_FUNC) {
+                s = cpp_static_member_global(cpp_cur_func_class, mf, t);
+                if (!s)
+                    tcc_error("static member not found");
+                mf = NULL;
             }
             if (mf) {
                 cpp_push_member_var(mf);
@@ -16723,17 +17189,31 @@ post_ops:
                 next();
                 }
             } else {
-            int mem_tok, operator_name;
+            int mem_tok, operator_name, qual_kind;
+            Sym *qual_cls;
 
             mem_tok = tok;
             operator_name = 0;
+            qual_cls = NULL;
+            qual_kind = CPP_QUAL_MEMBER;
             if (tcc_state->cpp && tok == TOK_OPERATOR) {
                 next();
                 mem_tok = cpp_operator_field_tok(cpp_parse_operator_token());
                 operator_name = 1;
+            } else if (tcc_state->cpp) {
+                qual_cls = cpp_parse_member_qualifier(&mem_tok, &qual_kind);
+                if (qual_cls && qual_kind == CPP_QUAL_OPERATOR)
+                    operator_name = 1;
             }
+            if (qual_cls) {
+                cpp_qualified_member_access(qual_cls, mem_tok, qual_kind,
+                                            qualifiers);
+            } else {
             field = cpp_find_field_for_call(&vtop->type, mem_tok, &cumofs);
-            if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
+            if (tcc_state->cpp && (field->type.t & VT_STATIC)
+                && !cpp_static_overload_mix(field)) {
+                cpp_static_member_via_object(field, vtop->type.ref, mem_tok);
+            } else if (tcc_state->cpp && (field->type.t & VT_BTYPE) == VT_FUNC) {
                 if (field->type.ref && field->type.ref->f.func_virtual
                     && !cpp_virtual_overload_set(field)) {
                     obj_type = vtop->type;
@@ -16743,6 +17223,8 @@ post_ops:
                 cpp_member_this_pending = 1;
                 if (cpp_virtual_overload_set(field))
                     cpp_vdefer_field = field;
+                if (cpp_static_overload_mix(field))
+                    cpp_smix_field = field;
                 }
             } else {
                 gaddrof();
@@ -16758,6 +17240,7 @@ post_ops:
                         vtop->r |= VT_MUSTBOUND;
 #endif
                 }
+            }
             }
             if (!operator_name)
                 next();
@@ -16868,6 +17351,32 @@ post_ops:
                     continue;           // the '(' case completes the call
                 }
             }
+            // `Self::m` / `Base::m` for a NON-static data member inside a
+            // member function: the member of *this, through the named
+            // class's subobject (cpp_qualified_member_access, as for
+            // `this->Base::m`).  It used to go to the static lookup below.
+            if (cpp_this_sym && cpp_cur_func_class) {
+                Sym *qd;
+
+                cpp_member_name_check_ambiguous(class_sym, mem_tok);
+                qd = cpp_lookup_member_field_opt(mem_tok, class_sym);
+                if (qd && (qd->type.t & VT_BTYPE) != VT_FUNC
+                    && !(qd->type.t & VT_STATIC)
+                    && (class_sym == cpp_cur_func_class
+                        || cpp_base_subobject_offset(cpp_cur_func_class, class_sym)
+                           != CPP_BASE_NOT_FOUND)) {
+                    int qq;
+
+                    vpop();
+                    vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
+                    vtop->sym = cpp_this_sym;
+                    indir();
+                    qq = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
+                    cpp_qualified_member_access(class_sym, mem_tok,
+                                                CPP_QUAL_MEMBER, qq);
+                    continue;
+                }
+            }
             ss = cpp_lookup_static_member(class_sym, mem_tok);
             if (!ss)
                 tcc_error("static member not found");
@@ -16896,7 +17405,8 @@ post_ops:
             int cpp_defer, cpp_i;
             int cpp_saved_this_pending;
             SValue cpp_saved_member_this;
-            Sym *cpp_saved_vdefer, *cpp_vres;
+            Sym *cpp_saved_vdefer, *cpp_vres, *cpp_saved_smix;
+            int cpp_saved_obj_const;
             TokenString* p, * p2;
 
             /* function call  */
@@ -16929,7 +17439,7 @@ post_ops:
                     /* overloaded virtual (cpp_vdefer_field): its globals
                        are not all registered yet, but the arguments must
                        stay unconverted until the overload is resolved */
-                    || cpp_vdefer_field);
+                    || cpp_vdefer_field || cpp_smix_field);
             // BUG-41: cpp_member_this / cpp_member_this_pending are single
             // globals, so a NESTED member call inside the argument list -
             // `insert(begin(), n, value)`, SimpleList.cpp:19 - consumed
@@ -16944,6 +17454,9 @@ post_ops:
             cpp_member_this_pending = 0;
             cpp_saved_vdefer = cpp_vdefer_field;
             cpp_vdefer_field = NULL;
+            cpp_saved_smix = cpp_smix_field;
+            cpp_smix_field = NULL;
+            cpp_saved_obj_const = cpp_saved_this_pending ? cpp_member_obj_const : -1;
             cpp_vres = NULL;
             next();
             sa = s->next; /* first parameter */
@@ -17062,8 +17575,12 @@ post_ops:
                 // already have a global, so a definition further down the
                 // TU (or in another one) would be invisible and the call
                 // would stick to the first declaration.
-                Sym *resolved = cpp_resolve_member_func_call(vtop[-nb_args].sym,
-                                                             nb_args);
+                Sym *resolved;
+
+                cpp_resolve_obj_const = cpp_saved_obj_const;
+                resolved = cpp_resolve_member_func_call(vtop[-nb_args].sym,
+                                                        nb_args);
+                cpp_resolve_obj_const = -1;
                 cpp_vres = cpp_last_resolved_field;
                 if (!resolved)
                     resolved = cpp_resolve_func_call(vtop[-nb_args].sym->v, nb_args,
@@ -17150,6 +17667,19 @@ post_ops:
                     tcc_error("internal error: overloaded virtual resolved outside its class");
                 if (vf->type.ref && vf->type.ref->f.func_virtual)
                     cpp_emit_deferred_virtual_fn(vf, nb_args);
+            }
+            if (cpp_saved_smix) {
+                Sym *sf = cpp_vres;
+
+                if (!sf)
+                    sf = cpp_field_for_member_global(cpp_saved_smix,
+                                                     vtop[-nb_args].sym);
+                if (!sf)
+                    tcc_error("internal error: static / non-static overload not resolved");
+                /* a static member function takes no implicit object
+                   argument; the object expression was already evaluated */
+                if (sf->type.t & VT_STATIC)
+                    cpp_member_this_pending = 0;
             }
             if (cpp_member_this_pending) {
                 int na = nb_args;
@@ -20842,6 +21372,12 @@ static int decl(int l)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_implicit_dtor(type.ref, 0);
 
+                    /* C++ static data member definition `T C::m ...;`:
+                       its storage is the class-qualified global */
+                    if (tcc_state->cpp && cpp_qualified_class
+                        && (type.t & VT_BTYPE) != VT_FUNC
+                        && cpp_class_static_data_field(cpp_qualified_class, v))
+                        v = cpp_static_data_tok(cpp_qualified_class, v);
                     if (((type.t & VT_EXTERN) && (!has_init || l != VT_CONST))
                         || (type.t & VT_BTYPE) == VT_FUNC
                         /* as with GCC, uninitialized global arrays with no size
