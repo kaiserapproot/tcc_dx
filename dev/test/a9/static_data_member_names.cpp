@@ -17,6 +17,28 @@ int K::arr[3] = { 1, 2, 3 };
 struct K2 { static int x; };
 int K2::x = 1;
 
+/* a non-static member of the derived class hides the base's static one,
+   also for the qualified `D3::x` inside a member */
+struct A3 { static int x; };
+int A3::x = 17;
+struct D3 : A3 {
+    int x;
+    D3() : x(42) {}
+    int get() { return D3::x; }
+    int bget() { return A3::x; }
+};
+
+/* `Base::m` / `Self::m` for non-static data members inside a member */
+struct A4 { int y; A4() : y(3) {} };
+struct D4 : A4 { int y; D4() : y(5) {} int g() { return A4::y * 10 + D4::y; } };
+
+/* the same static member reached twice (diamond) is not ambiguous */
+struct S5 { static int x; };
+int S5::x = 9;
+struct L5 : S5 { };
+struct R5 : S5 { };
+struct D5 : L5, R5 { int g() { return D5::x + x; } };
+
 int main()
 {
     A a; C c; B b;
@@ -36,5 +58,12 @@ int main()
     if (K::N != 3 || K::arr[2] != 3) return 9;
     if (K::sget() != 50 + 3) return 10;     /* K has no x: the global */
     if (K2::x != 1) return 11;
+    {
+        D3 d3; D4 d4; D5 d5;
+        if (d3.x != 42 || d3.get() != 42 || d3.bget() != 17) return 12;
+        if (d3.A3::x != 17 || A3::x != 17) return 13;
+        if (d4.g() != 35) return 14;
+        if (D5::x != 9 || d5.g() != 18) return 15;
+    }
     return 0;
 }

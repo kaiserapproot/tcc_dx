@@ -1220,17 +1220,31 @@ static Sym *cpp_lookup_static_member(Sym *class_sym, int mem_v)
             break;
     }
     if (!f) {
+        Sym *found;
+
+        /* any member of this name declared here hides the bases' ones,
+           static or not (`struct D : A { int x; }` hides A's static x) */
+        for (f = class_sym->next; f; f = f->next)
+            if (f->v == v1)
+                return NULL;
         /* not declared here: a static member of a base is a member of
            this class too (`B::x` for A's x when B : A); the storage stays
-           the declaring class's */
+           the declaring class's.  Reached through several bases it is
+           still one entity (C++98 10.2/5); static members of DIFFERENT
+           classes are ambiguous. */
+        found = NULL;
         for (f = class_sym->next; f; f = f->next) {
             if (!cpp_is_base_field(f) || !f->parent_class)
                 continue;
             s = cpp_lookup_static_member(f->parent_class, mem_v);
+            if (s && found && s != found)
+                tcc_error("'%s' is ambiguous in '%s': static members of different base classes",
+                          get_tok_str(mem_v, NULL),
+                          get_tok_str(class_sym->v & ~SYM_STRUCT, NULL));
             if (s)
-                return s;
+                found = s;
         }
-        return NULL;
+        return found;
     }
     if ((f->type.t & VT_BTYPE) != VT_FUNC) {
         /* a static data member: only the class-qualified global, never a
@@ -17251,6 +17265,30 @@ post_ops:
                     // garbage arguments (crashed at run time)
                     cpp_member_this_pending = 1;
                     continue;           // the '(' case completes the call
+                }
+            }
+            // `Self::m` / `Base::m` for a NON-static data member inside a
+            // member function: the member of *this, through the named
+            // class's subobject (cpp_qualified_member_access, as for
+            // `this->Base::m`).  It used to go to the static lookup below.
+            if (cpp_this_sym && cpp_cur_func_class) {
+                Sym *qd = cpp_lookup_member_field_opt(mem_tok, class_sym);
+
+                if (qd && (qd->type.t & VT_BTYPE) != VT_FUNC
+                    && !(qd->type.t & VT_STATIC)
+                    && (class_sym == cpp_cur_func_class
+                        || cpp_base_subobject_offset(cpp_cur_func_class, class_sym)
+                           != CPP_BASE_NOT_FOUND)) {
+                    int qq;
+
+                    vpop();
+                    vset(&cpp_this_sym->type, cpp_this_sym->r, cpp_this_sym->c);
+                    vtop->sym = cpp_this_sym;
+                    indir();
+                    qq = vtop->type.t & (VT_CONSTANT | VT_VOLATILE);
+                    cpp_qualified_member_access(class_sym, mem_tok,
+                                                CPP_QUAL_MEMBER, qq);
+                    continue;
                 }
             }
             ss = cpp_lookup_static_member(class_sym, mem_tok);
