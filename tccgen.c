@@ -5046,9 +5046,28 @@ static int cpp_member_name_ambiguous(Sym *cls, int v)
 
 static void cpp_member_name_check_ambiguous(Sym *cls, int v)
 {
-    if (cpp_member_name_ambiguous(cls, v))
-        tcc_error("'%s' is ambiguous in '%s': found in more than one base class",
-                  get_tok_str(v, NULL), get_tok_str(cls->v & ~SYM_STRUCT, NULL));
+    char name[64];
+    const char *s, *suffix;
+    int op;
+
+    if (!cpp_member_name_ambiguous(cls, v))
+        return;
+    /* an operator member lives under "__cpp_op_<suffix>": print it as
+       written in the source (operator tokens are all below 256) */
+    pstrcpy(name, sizeof name, get_tok_str(v, NULL));
+    if (!strncmp(name, "__cpp_op_", 9)) {
+        s = name + 9;
+        for (op = 1; op < 256; op++) {
+            suffix = cpp_operator_suffix(op);
+            if (suffix && !strcmp(suffix, s)) {
+                snprintf(name, sizeof name, "operator%s%s",
+                         get_tok_str(op, NULL), op == '[' ? "]" : "");
+                break;
+            }
+        }
+    }
+    tcc_error("'%s' is ambiguous in '%s': found in more than one base class",
+              name, get_tok_str(cls->v & ~SYM_STRUCT, NULL));
 }
 
 /* The global of the static member field found from cls (it may be
@@ -5152,7 +5171,8 @@ static void cpp_qualified_member_access(Sym *qcls, int mem_tok, int kind,
         cpp_member_this_pending = 1;
         return;
     }
-    if (kind == CPP_QUAL_MEMBER)
+    /* member and operator names (the destructor kind returned above) */
+    if (kind == CPP_QUAL_MEMBER || kind == CPP_QUAL_OPERATOR)
         cpp_member_name_check_ambiguous(qcls, mem_tok);
     field = cpp_find_field_for_call(&qct, mem_tok, &cumofs);
     smix = cpp_static_overload_mix(field);
