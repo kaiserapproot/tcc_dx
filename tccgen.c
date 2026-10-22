@@ -2733,6 +2733,7 @@ typedef struct CppGlobalDynEntry {
     TokenString *ctor_args; /* NULL for default ctor or dtor entry */
     int is_dtor;
     int is_copy_init; /* N7-CROSS-01B: saved init expr tokens */
+    int dtor_reg_only; /* initialized by its initializer: register the dtor only */
     Sym *wrapper_sym;
 } CppGlobalDynEntry;
 
@@ -3248,6 +3249,18 @@ static int cpp_tok_starts_type_name(int v)
     return s != NULL;
 }
 
+/* A class with no user constructor whose objects still need destruction
+   (a user destructor, or an implicit one because a member or base has
+   one).  Its global objects need no construction code, but they must be
+   registered like constructed ones: the destructor is registered by the
+   startup thunk (cpp_emit_global_dyn_thunk), and nothing ran it for such
+   objects before. */
+static int cpp_class_dtor_only(Sym *class_sym)
+{
+    return class_sym && !cpp_find_ctor_field(class_sym)
+        && cpp_class_requires_destruction(class_sym);
+}
+
 static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is_dtor)
 {
     CppGlobalDynEntry *ent;
@@ -3266,6 +3279,7 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
     ent->ctor_args = ctor_args;
     ent->is_dtor = is_dtor;
     ent->is_copy_init = 0;
+    ent->dtor_reg_only = 0;
     ent->wrapper_sym = NULL;
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     if (!is_dtor) {
@@ -3282,10 +3296,27 @@ static void cpp_register_global_dyn(Sym *obj_sym, TokenString *ctor_args, int is
             ent->ctor_args = NULL;
             ent->is_dtor = 1;
             ent->is_copy_init = 0;
+            ent->dtor_reg_only = 0;
             ent->wrapper_sym = NULL;
             dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
         }
     }
+}
+
+/* A global object with an initializer list (`A g = { 1 };`, or an array
+   of them) is initialized statically, but its destructor must still run
+   at exit (C++98 3.6.3), and nothing registered it.  Register it like a
+   default-constructed global, so the destructor is registered at startup
+   in definition order, but its startup thunk calls no constructor: the
+   initializer already gave the object its value. */
+static void cpp_register_global_static_init(Sym *obj_sym)
+{
+    int first;
+
+    first = nb_cpp_global_dyns;
+    cpp_register_global_dyn(obj_sym, NULL, 0);
+    if (nb_cpp_global_dyns > first)
+        cpp_global_dyns[first]->dtor_reg_only = 1;
 }
 
 static void cpp_register_global_copy_init(Sym *obj_sym, TokenString *init_expr)
@@ -3308,6 +3339,7 @@ static void cpp_register_global_copy_init(Sym *obj_sym, TokenString *init_expr)
     ent->ctor_args = init_expr;
     ent->is_dtor = 0;
     ent->is_copy_init = 1;
+    ent->dtor_reg_only = 0;
     ent->wrapper_sym = NULL;
     cpp_global_copy_init_reg_count++;
     dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
@@ -3323,6 +3355,7 @@ static void cpp_register_global_copy_init(Sym *obj_sym, TokenString *init_expr)
         ent->ctor_args = NULL;
         ent->is_dtor = 1;
         ent->is_copy_init = 0;
+        ent->dtor_reg_only = 0;
         ent->wrapper_sym = NULL;
         dynarray_add(&cpp_global_dyns, &nb_cpp_global_dyns, ent);
     }
@@ -3369,21 +3402,44 @@ static int cpp_emit_dtor_call_at(Sym *class_sym, SValue *obj_addr_in)
 static int cpp_emit_global_dtor_call(Sym *obj_sym)
 {
     Sym *class_sym;
-    SValue obj_addr;
+    CType elem_type, elem_ptr;
+    int flat_count, elem_size, elem_align, i, nb_args;
 
-    class_sym = obj_sym->type.ref;
-    if (!cpp_find_dtor_field(class_sym))
+    /* An array's type.ref is its element type, not the class: arrays of
+       class objects were never destroyed.  Like cpp_emit_global_ctor_call,
+       take the element class and count, and destroy the elements in the
+       reverse order of their construction (C++98 12.4/10, 12.6.2). */
+    class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
+    if (!class_sym || !cpp_find_dtor_field(class_sym) || flat_count <= 0)
         return 0;
-    /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
-       section offset; passing it skewed the object address by c bytes.
-       Forming the address is pure vstack bookkeeping (VT_CONST|VT_SYM). */
-    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
-    vtop->sym = obj_sym;
-    gaddrof();
-    mk_pointer(&vtop->type);    /* BUG-16: see cpp_emit_local_dtor. */
-    obj_addr = *vtop;
-    vpop();
-    return cpp_emit_dtor_call_at(class_sym, &obj_addr);
+    elem_type = obj_sym->type;
+    while (elem_type.t & VT_ARRAY)
+        elem_type = *pointed_type(&elem_type);
+    elem_size = type_size(&elem_type, &elem_align);
+    elem_ptr = elem_type;
+    mk_pointer(&elem_ptr);
+    nb_args = 0;
+    for (i = flat_count - 1; i >= 0; i--) {
+        /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
+           section offset; passing it skewed the object address by c bytes.
+           Forming the address is pure vstack bookkeeping (VT_CONST|VT_SYM). */
+        vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+        vtop->sym = obj_sym;
+        gaddrof();
+        vtop->type = char_pointer_type;
+        if (i != 0) {
+            vpushi((addr_t)i * elem_size);
+            gen_op('+');
+        }
+        vtop->type = elem_ptr;      /* BUG-16: see cpp_emit_local_dtor. */
+        /* the address of an element past the first is computed in a
+           register: keep it on the vstack (visible to the register
+           allocator) while the call is emitted, as
+           cpp_emit_global_ctor_call does, and drop it afterwards */
+        nb_args = cpp_emit_dtor_call_at(class_sym, vtop);
+        vpop();
+    }
+    return nb_args;
 }
 
 /* returns the gfunc_call arg count (this + ctor args) so the thunk can
@@ -3398,7 +3454,7 @@ static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
 static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
 {
     Sym *class_sym;
-    CType elem_type;
+    CType elem_type, elem_ptr;
     int flat_count;
     int elem_size;
     int elem_align;
@@ -3412,6 +3468,8 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
     while (elem_type.t & VT_ARRAY)
         elem_type = *pointed_type(&elem_type);
     elem_size = type_size(&elem_type, &elem_align);
+    elem_ptr = elem_type;
+    mk_pointer(&elem_ptr);
     nb_args = 0;
     for (i = 0; i < flat_count; i++) {
         // addend 0: obj_sym->c is the ELF symbol index for globals, not a
@@ -3419,11 +3477,16 @@ static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
         vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
         vtop->sym = obj_sym;
         gaddrof();
-        mk_pointer(&vtop->type);
+        // The byte offset is added to a char *: mk_pointer on the array
+        // type gave a pointer to the WHOLE array, so `+ i * elem_size`
+        // was scaled by the array size and every element past the first
+        // was constructed outside the array (memory corruption).
+        vtop->type = char_pointer_type;
         if (i != 0) {
-            vpushi((addr_t)(i * elem_size));
+            vpushi((addr_t)i * elem_size);
             gen_op('+');
         }
+        vtop->type = elem_ptr;
         nb_args = cpp_emit_ctor_call_at(class_sym, vtop, arg_toks);
         vpop();
     }
@@ -3731,7 +3794,9 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
     sub_imm_off = ind;
     gen_le32(0x20);
 
-    nb_call_args = cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
+    nb_call_args = 0;
+    if (!ent->dtor_reg_only)
+        nb_call_args = cpp_emit_global_ctor_call(ent->obj_sym, ent->ctor_args);
     dtor_wrapper = cpp_find_global_dtor_wrapper(ent->obj_sym);
     if (dtor_wrapper)
         cpp_emit_local_static_dtor_registration(dtor_wrapper);
@@ -20792,7 +20857,8 @@ static int decl(int l)
                 && tok >= TOK_UIDENT
                 && cpp_in_user_source_file()
                 && (cpp_find_ctor_field(global_class_sym)
-                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
+                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym)
+                    || cpp_class_dtor_only(global_class_sym))) {
                 int saved_var_tok = tok;
                 int obj_r = VT_LVAL | VT_CONST;
                 Sym *obj_sym;
@@ -20829,7 +20895,8 @@ static int decl(int l)
                               once-only guarded construction, not this path.) */
                            && !(btype.t & (VT_EXTERN | VT_TYPEDEF))
                            && (cpp_class_has_default_ctor(global_class_sym)
-                               || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
+                               || cpp_class_has_implicit_default_ctor_viable(global_class_sym)
+                               || cpp_class_dtor_only(global_class_sym))) {
                     cpp_ensure_synthetic_odr(global_class_sym);
                     decl_initializer_alloc(&type, &ad, obj_r,
                         0, saved_var_tok, 1);
@@ -21336,6 +21403,23 @@ static int decl(int l)
                                 tcc_error("function-local static implicit destructor is unsupported");
                         }
                     }
+                    // The elements of a local automatic class array are never
+                    // destroyed at scope exit.  cpp_validate_local_automatic_class_array
+                    // rejects that only for the arrays it constructs (no initializer,
+                    // element class with a default ctor), so an initialized array, or
+                    // one of a class with a destructor but no constructor, compiled
+                    // with the element destructors silently skipped.
+                    if (tcc_state->cpp
+                        && l == VT_LOCAL
+                        && (type.t & VT_ARRAY)
+                        && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))) {
+                        Sym *local_array_class;
+
+                        local_array_class = cpp_type_class_sym(&type, NULL);
+                        if (local_array_class
+                            && cpp_class_requires_destruction(local_array_class))
+                            tcc_error("destruction of local class array is unsupported");
+                    }
                     if (has_init && (type.t & VT_VLA))
                         tcc_error("‰Â•Ï’·”z—ñ‚Í‰Šú‰»‚Å‚«‚Ü‚¹‚ñ");
                     if (tcc_state->cpp
@@ -21459,6 +21543,20 @@ static int decl(int l)
                         if (!global_copy_init_done)
                             decl_initializer_alloc(&type, &ad, r, has_init, v, l == VT_CONST);
                         if (tcc_state->cpp
+                            && l == VT_CONST
+                            && has_init
+                            && !global_copy_init_done
+                            && !(type.t & (VT_TYPEDEF | VT_CPP_TLS))
+                            && cpp_in_user_source_file()) {
+                            global_class_sym = cpp_type_class_sym(&type, NULL);
+                            if (global_class_sym
+                                && cpp_class_requires_destruction(global_class_sym)) {
+                                obj_sym = sym_find(v);
+                                if (obj_sym)
+                                    cpp_register_global_static_init(obj_sym);
+                            }
+                        }
+                        if (tcc_state->cpp
                             && l == VT_LOCAL
                             && !has_init
                             && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
@@ -21486,18 +21584,25 @@ static int decl(int l)
                         }
                         // N7-02-03: `A g[N];` parses `[N]` in type_decl after the
                         // FEAT-4G scalar gate, so register startup ctor thunks here.
+                        // Also a non-array object the gate did not take: the gate
+                        // wants `;` or `(` right after the name, so the out-of-class
+                        // definition of a static data member `W S::m;` came here and
+                        // was neither constructed nor destroyed.  Every object the
+                        // gate registers leaves the declaration loop there.  A global
+                        // copy-init `W g = f();` clears has_init but is registered.
                         if (tcc_state->cpp
                             && l == VT_CONST
                             && !has_init
-                            && (type.t & VT_ARRAY)
+                            && !global_copy_init_done
                             && !(type.t & (VT_TYPEDEF | VT_CPP_TLS))
                             && cpp_in_user_source_file()) {
                             global_class_sym = cpp_type_class_sym(&type, NULL);
                             if (global_class_sym
-                                && (cpp_find_ctor_field(global_class_sym)
-                                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))
-                                && (cpp_class_has_default_ctor(global_class_sym)
-                                    || cpp_class_has_implicit_default_ctor_viable(global_class_sym))) {
+                                && (((cpp_find_ctor_field(global_class_sym)
+                                      || cpp_class_has_implicit_default_ctor_viable(global_class_sym))
+                                     && (cpp_class_has_default_ctor(global_class_sym)
+                                         || cpp_class_has_implicit_default_ctor_viable(global_class_sym)))
+                                    || cpp_class_dtor_only(global_class_sym))) {
                                 Sym *obj_sym;
 
                                 cpp_ensure_synthetic_odr(global_class_sym);
