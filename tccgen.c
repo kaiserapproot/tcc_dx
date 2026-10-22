@@ -1912,17 +1912,25 @@ static Sym *cpp_type_class_sym(CType *type, int *flat_count)
 {
     CType elem;
     int n;
+    int too_many;
 
     elem = *type;
     n = 1;
+    too_many = 0;
     while (elem.t & VT_ARRAY) {
         if (!elem.ref || elem.ref->c < 0)
             return NULL;
-        n *= elem.ref->c;
+        /* the count is an int (flat_count): do not overflow it */
+        if (elem.ref->c > 0 && n > 0x7fffffff / elem.ref->c)
+            too_many = 1;
+        else
+            n *= elem.ref->c;
         elem = *pointed_type(&elem);
     }
     if ((elem.t & VT_BTYPE) != VT_STRUCT || !elem.ref)
         return NULL;
+    if (too_many)
+        tcc_error("too many elements in class array");
     if (flat_count)
         *flat_count = n;
     return elem.ref;
@@ -1945,7 +1953,8 @@ static int cpp_class_would_have_synthetic_dtor(Sym *class_sym)
 
 static int cpp_in_user_source_file(void)
 {
-    /* Primary TU only: skip FEAT-4F/4G during #include expansion.
+    /* Primary TU only (the N7-CROSS-01C diagnostic reports it; FEAT-4G
+     * registration uses cpp_global_dyn_decl_allowed() now).
      * current_filename is unset during source compile (libtcc.c), so
      * strcmp against it always failed and silently skipped ctor calls. */
     if (!file || !file->filename)
@@ -1964,12 +1973,23 @@ static int cpp_allow_local_class_direct_init(void)
        `T c(a);` did not parse as a ctor call at all.  Shape follows
        cpp_global_copy_init_decl_allowed(); synthetic replay files stay out
        except the deferred user inline body that G7-01-FIX re-enabled.
-       FEAT-4F/4G keep cpp_in_user_source_file() - not widened here. */
+       FEAT-4G registration follows the same rule since PR #53
+       (cpp_global_dyn_decl_allowed). */
     if (!file || !file->filename)
         return 0;
     if (cpp_is_synthetic_source_file(file->filename))
         return cpp_user_inline_feat4b_replay;
     return 1;
+}
+
+/* decl() scope of a local automatic object: a block-scope declaration
+   (VT_LOCAL) or a C++ for-init declaration `for (A a[2]; ...)`, which
+   decl() receives as VT_JMP.  The local class array checks and element
+   construction tested VT_LOCAL only, so a for-init array skipped them:
+   its elements were neither constructed nor destroyed. */
+static int cpp_decl_local_auto_scope(int l)
+{
+    return l == VT_LOCAL || (l == VT_JMP && cpp_for_init_decl);
 }
 
 /* C++: scan class_sym's member chain for the destructor field. */
@@ -2763,8 +2783,19 @@ static int cpp_global_copy_init_decl_allowed(void)
         return 0;
     if (cpp_is_synthetic_source_file(file->filename))
         return 0;
-    /* Real primary TU and real #include files; FEAT-4F/4G stay primary-only. */
+    /* Real primary TU and real #include files. */
     return 1;
+}
+
+/* FEAT-4G: a namespace-scope object whose construction or destruction is
+   registered for startup / exit.  Same rule as global copy-init: the real
+   primary TU and real #include files.  The primary-only gate left an
+   object defined in a header neither constructed nor destroyed.  Synthetic
+   replay files stay out, and so does the startup replay, which must not
+   register a declaration a second time. */
+static int cpp_global_dyn_decl_allowed(void)
+{
+    return cpp_global_copy_init_decl_allowed();
 }
 
 static void cpp_diag_global_copy_init_gate(int has_init, int scope_is_const,
@@ -3399,47 +3430,23 @@ static int cpp_emit_dtor_call_at(Sym *class_sym, SValue *obj_addr_in)
 
 /* returns the gfunc_call arg count so the thunk can size its scratch
    area (0 when the class has no dtor and no call was emitted). */
+static int cpp_emit_global_elem_calls(Sym *obj_sym, Sym *class_sym,
+                                      int flat_count, TokenString *arg_toks,
+                                      int is_dtor);
+
 static int cpp_emit_global_dtor_call(Sym *obj_sym)
 {
     Sym *class_sym;
-    CType elem_type, elem_ptr;
-    int flat_count, elem_size, elem_align, i, nb_args;
+    int flat_count;
 
     /* An array's type.ref is its element type, not the class: arrays of
-       class objects were never destroyed.  Like cpp_emit_global_ctor_call,
-       take the element class and count, and destroy the elements in the
-       reverse order of their construction (C++98 12.4/10, 12.6.2). */
+       class objects were never destroyed.  Take the element class and
+       count; the elements are destroyed in the reverse order of their
+       construction (C++98 12.4/10, 12.6.2). */
     class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
     if (!class_sym || !cpp_find_dtor_field(class_sym) || flat_count <= 0)
         return 0;
-    elem_type = obj_sym->type;
-    while (elem_type.t & VT_ARRAY)
-        elem_type = *pointed_type(&elem_type);
-    elem_size = type_size(&elem_type, &elem_align);
-    elem_ptr = elem_type;
-    mk_pointer(&elem_ptr);
-    nb_args = 0;
-    for (i = flat_count - 1; i >= 0; i--) {
-        /* addend 0: obj_sym->c is the ELF symbol index for globals, not a
-           section offset; passing it skewed the object address by c bytes.
-           Forming the address is pure vstack bookkeeping (VT_CONST|VT_SYM). */
-        vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
-        vtop->sym = obj_sym;
-        gaddrof();
-        vtop->type = char_pointer_type;
-        if (i != 0) {
-            vpushi((addr_t)i * elem_size);
-            gen_op('+');
-        }
-        vtop->type = elem_ptr;      /* BUG-16: see cpp_emit_local_dtor. */
-        /* the address of an element past the first is computed in a
-           register: keep it on the vstack (visible to the register
-           allocator) while the call is emitted, as
-           cpp_emit_global_ctor_call does, and drop it afterwards */
-        nb_args = cpp_emit_dtor_call_at(class_sym, vtop);
-        vpop();
-    }
-    return nb_args;
+    return cpp_emit_global_elem_calls(obj_sym, class_sym, flat_count, NULL, 1);
 }
 
 /* returns the gfunc_call arg count (this + ctor args) so the thunk can
@@ -3454,41 +3461,105 @@ static int cpp_emit_ctor_call_at(Sym *class_sym, SValue *obj_addr_in,
 static int cpp_emit_global_ctor_call(Sym *obj_sym, TokenString *arg_toks)
 {
     Sym *class_sym;
-    CType elem_type, elem_ptr;
     int flat_count;
-    int elem_size;
-    int elem_align;
-    int i;
-    int nb_args;
 
     class_sym = cpp_type_class_sym(&obj_sym->type, &flat_count);
     if (!class_sym || !cpp_find_ctor_field(class_sym) || flat_count <= 0)
         return 0;
+    return cpp_emit_global_elem_calls(obj_sym, class_sym, flat_count,
+                                      arg_toks, 0);
+}
+
+/* Calls the constructor (is_dtor == 0: first element to last) or the
+   destructor (last to first) of each element of the global object
+   obj_sym, from a startup / exit thunk.  An array is walked by a loop at
+   run time over an index in the thunk frame (loc), not by one call per
+   element: unrolling made `A g[100000];` megabytes of code.  The thunks
+   size their frame from loc.  Returns the gfunc_call arg count. */
+static int cpp_emit_global_elem_calls(Sym *obj_sym, Sym *class_sym,
+                                      int flat_count, TokenString *arg_toks,
+                                      int is_dtor)
+{
+    CType elem_type, elem_ptr, index_type;
+    SValue index;
+    int elem_size;
+    int elem_align;
+    int nb_args;
+    int loop_top;
+    int exit_jmp;
+
     elem_type = obj_sym->type;
     while (elem_type.t & VT_ARRAY)
         elem_type = *pointed_type(&elem_type);
     elem_size = type_size(&elem_type, &elem_align);
     elem_ptr = elem_type;
     mk_pointer(&elem_ptr);
-    nb_args = 0;
-    for (i = 0; i < flat_count; i++) {
-        // addend 0: obj_sym->c is the ELF symbol index for globals, not a
-        // section offset; passing it skewed the object address by c bytes.
-        vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
-        vtop->sym = obj_sym;
-        gaddrof();
-        // The byte offset is added to a char *: mk_pointer on the array
-        // type gave a pointer to the WHOLE array, so `+ i * elem_size`
-        // was scaled by the array size and every element past the first
-        // was constructed outside the array (memory corruption).
-        vtop->type = char_pointer_type;
-        if (i != 0) {
-            vpushi((addr_t)i * elem_size);
-            gen_op('+');
-        }
-        vtop->type = elem_ptr;
-        nb_args = cpp_emit_ctor_call_at(class_sym, vtop, arg_toks);
+    loop_top = 0;
+    exit_jmp = 0;
+    if (flat_count > 1) {
+        /* pointer-sized, so index * elem_size cannot overflow */
+        index_type.t = PTR_SIZE == 8 ? VT_LLONG : VT_INT;
+        index_type.ref = NULL;
+        loc = (loc - PTR_SIZE) & -PTR_SIZE;
+        vset(&index_type, VT_LOCAL | VT_LVAL, loc);
+        index = *vtop;
         vpop();
+        /* ctor: i = 0; while (i < n) { call(&a[i]); i++; }
+           dtor: i = n; while (i > 0) { i--; call(&a[i]); } */
+        vpushv(&index);
+        vpushi(is_dtor ? flat_count : 0);
+        vstore();
+        vpop();
+        loop_top = ind;
+        vpushv(&index);
+        vpushi(is_dtor ? 0 : flat_count);
+        gen_op(is_dtor ? TOK_GT : TOK_LT);
+        exit_jmp = gvtst(1, 0);
+        if (is_dtor) {
+            vpushv(&index);
+            vpushv(&index);
+            vpushi(1);
+            gen_op('-');
+            vstore();
+            vpop();
+        }
+    }
+    // addend 0: obj_sym->c is the ELF symbol index for globals, not a
+    // section offset; passing it skewed the object address by c bytes.
+    vset(&obj_sym->type, obj_sym->r | VT_SYM, 0);
+    vtop->sym = obj_sym;
+    gaddrof();
+    // The byte offset is added to a char *: mk_pointer on the array
+    // type gave a pointer to the WHOLE array, so the offset was scaled
+    // by the array size and every element past the first was
+    // constructed outside the array (memory corruption).
+    vtop->type = char_pointer_type;
+    if (flat_count > 1) {
+        vpushv(&index);
+        vpushi(elem_size);
+        gen_op('*');
+        gen_op('+');
+    }
+    vtop->type = elem_ptr;      /* BUG-16: see cpp_emit_local_dtor. */
+    // the address of an element past the first is computed in a
+    // register: keep it on the vstack (visible to the register
+    // allocator) while the call is emitted, and drop it afterwards
+    if (is_dtor)
+        nb_args = cpp_emit_dtor_call_at(class_sym, vtop);
+    else
+        nb_args = cpp_emit_ctor_call_at(class_sym, vtop, arg_toks);
+    vpop();
+    if (flat_count > 1) {
+        if (!is_dtor) {
+            vpushv(&index);
+            vpushv(&index);
+            vpushi(1);
+            gen_op('+');
+            vstore();
+            vpop();
+        }
+        gjmp_addr(loop_top);
+        gsym(exit_jmp);
     }
     return nb_args;
 }
@@ -3608,10 +3679,12 @@ static void cpp_emit_dtor_thunk(Sym *wrapper, Sym *obj_sym)
     scratch = nb_call_args * 8;
     if (scratch < 32)
         scratch = 32;
-    scratch = (scratch + 15) & -16;
 #else
     scratch = 0;
 #endif
+    /* frame slots below rbp (loc: the array loop index, spills) sit
+       above the staged arguments */
+    scratch = (scratch - loc + 15) & -16;
     write32le(cur_text_section->data + sub_imm_off, scratch);
     o(0xc9);
     o(0xc3);
@@ -3808,7 +3881,9 @@ static void cpp_emit_global_dyn_thunk(CppGlobalDynEntry *ent)
     scratch = nb_call_args * 8;
     if (scratch < 32)
         scratch = 32;
-    scratch = (scratch + 15) & -16;
+    /* frame slots below rbp (loc: the array loop index, spills) sit
+       above the staged arguments */
+    scratch = (scratch - loc + 15) & -16;
     write32le(cur_text_section->data + sub_imm_off, scratch);
 
     o(0xc9);
@@ -20855,7 +20930,7 @@ static int decl(int l)
                 && global_class_sym
                 && !(btype.t & VT_CPP_TLS)
                 && tok >= TOK_UIDENT
-                && cpp_in_user_source_file()
+                && cpp_global_dyn_decl_allowed()
                 && (cpp_find_ctor_field(global_class_sym)
                     || cpp_class_has_implicit_default_ctor_viable(global_class_sym)
                     || cpp_class_dtor_only(global_class_sym))) {
@@ -21410,7 +21485,7 @@ static int decl(int l)
                     // one of a class with a destructor but no constructor, compiled
                     // with the element destructors silently skipped.
                     if (tcc_state->cpp
-                        && l == VT_LOCAL
+                        && cpp_decl_local_auto_scope(l)
                         && (type.t & VT_ARRAY)
                         && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))) {
                         Sym *local_array_class;
@@ -21436,7 +21511,7 @@ static int decl(int l)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF | VT_ARRAY)))
                         cpp_validate_explicit_dtor_members(type.ref);
                     if (tcc_state->cpp && !has_init
-                        && l == VT_LOCAL
+                        && cpp_decl_local_auto_scope(l)
                         && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF)))
                         cpp_validate_local_automatic_class_array(&type, 1);
                     if (tcc_state->cpp && !has_init
@@ -21445,7 +21520,7 @@ static int decl(int l)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF)))
                         cpp_validate_local_static_class_array(&type, 1);
                     if (tcc_state->cpp && !has_init
-                        && (l == VT_LOCAL || l == VT_CONST)
+                        && (cpp_decl_local_auto_scope(l) || l == VT_CONST)
                         && !(type.t & (VT_EXTERN | VT_TYPEDEF)))
                         cpp_validate_decl_default_initialization(&type);
                     if (tcc_state->cpp
@@ -21547,7 +21622,7 @@ static int decl(int l)
                             && has_init
                             && !global_copy_init_done
                             && !(type.t & (VT_TYPEDEF | VT_CPP_TLS))
-                            && cpp_in_user_source_file()) {
+                            && cpp_global_dyn_decl_allowed()) {
                             global_class_sym = cpp_type_class_sym(&type, NULL);
                             if (global_class_sym
                                 && cpp_class_requires_destruction(global_class_sym)) {
@@ -21557,7 +21632,7 @@ static int decl(int l)
                             }
                         }
                         if (tcc_state->cpp
-                            && l == VT_LOCAL
+                            && cpp_decl_local_auto_scope(l)
                             && !has_init
                             && !(type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
                             && (type.t & VT_ARRAY)
@@ -21595,7 +21670,7 @@ static int decl(int l)
                             && !has_init
                             && !global_copy_init_done
                             && !(type.t & (VT_TYPEDEF | VT_CPP_TLS))
-                            && cpp_in_user_source_file()) {
+                            && cpp_global_dyn_decl_allowed()) {
                             global_class_sym = cpp_type_class_sym(&type, NULL);
                             if (global_class_sym
                                 && (((cpp_find_ctor_field(global_class_sym)
