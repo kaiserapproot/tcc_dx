@@ -20973,6 +20973,12 @@ static int decl(int l)
                                || cpp_class_has_implicit_default_ctor_viable(global_class_sym)
                                || cpp_class_dtor_only(global_class_sym))) {
                     cpp_ensure_synthetic_odr(global_class_sym);
+                    /* No user ctor: the implicit default ctor must be
+                       well-formed, as for a local `A a;`.  A member or
+                       base without one was accepted here and destroyed
+                       without ever being constructed. */
+                    if (cpp_class_dtor_only(global_class_sym))
+                        cpp_validate_implicit_default_ctor(global_class_sym, 0);
                     decl_initializer_alloc(&type, &ad, obj_r,
                         0, saved_var_tok, 1);
                     obj_sym = sym_find(saved_var_tok);
@@ -21681,6 +21687,9 @@ static int decl(int l)
                                 Sym *obj_sym;
 
                                 cpp_ensure_synthetic_odr(global_class_sym);
+                                /* see the FEAT-4G gate: no user ctor */
+                                if (cpp_class_dtor_only(global_class_sym))
+                                    cpp_validate_implicit_default_ctor(global_class_sym, 0);
                                 obj_sym = sym_find(v);
                                 if (obj_sym)
                                     cpp_register_global_dyn(obj_sym, NULL, 0);
