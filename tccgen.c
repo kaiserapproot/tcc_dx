@@ -20943,6 +20943,11 @@ static int decl(int l)
                     next();
                     if (tok != ')' && !cpp_tok_starts_type_name(tok)) {
                         TokenString *arg_toks;
+                        /* No user ctor: the startup thunk would call none,
+                           and `A g(5);` (or the copy `A g(h);`) was taken
+                           for constructed and only destroyed at exit. */
+                        if (cpp_class_dtor_only(global_class_sym))
+                            tcc_error("class has no constructor taking arguments");
                         arg_toks = cpp_save_paren_expr_tokens();
                         decl_initializer_alloc(&type, &ad, obj_r,
                             0, saved_var_tok, 1);
