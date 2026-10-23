@@ -1533,6 +1533,9 @@ void gfunc_call(int nb_args)
 
 #define FUNC_PROLOG_SIZE 11
 
+/* the function returns through the hidden pointer saved at func_vc */
+static int func_ret_mem;
+
 static void push_arg_reg(int i) {
     loc -= 8;
     gen_modrm64(0x89, arg_regs[i], VT_LOCAL, NULL, loc);
@@ -1555,6 +1558,7 @@ void gfunc_prolog(Sym *func_sym)
     func_sub_sp_offset = ind;
     func_ret_sub = 0;
     ret_mode = classify_x86_64_arg(&func_vt, NULL, &size, &align, &reg_count);
+    func_ret_mem = ret_mode == x86_64_mode_memory;
 
     if (func_var) {
         int seen_reg_num, seen_sse_num, seen_stack_size;
@@ -1701,6 +1705,11 @@ void gfunc_epilog(void)
     if (tcc_state->do_bounds_check)
         gen_bounds_epilog();
 #endif
+    /* The SysV ABI returns the hidden pointer in %rax.  Code run after
+       the result is stored (C++ destructors at return) may clobber it,
+       so reload it here, where every return path meets. */
+    if (func_ret_mem)
+        gen_modrm64(0x8b, TREG_RAX, VT_LOCAL, NULL, func_vc);
     o(0xc9); /* leave */
     if (func_ret_sub == 0) {
         o(0xc3); /* ret */
