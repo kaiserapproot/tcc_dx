@@ -26,5 +26,8 @@ int main(void)
     if (w != 97 || w != L'a') { printf("w = %d\n", (int)w); bad = 1; }
     if (s[0] != L'a' || s[1] != 98) { printf("s = %d %d\n", (int)s[0], (int)s[1]); bad = 1; }
     if (classify(s[0]) != 1 || classify(s[1]) != 2) { printf("classify failed\n"); bad = 1; }
+    /* non-ASCII: wchar_t is 32-bit on Linux / macOS, so the value must survive as is */
+    if (L'\u3042' != 0x3042) { printf("L'\\u3042' = %d\n", (int)L'\u3042'); bad = 1; }
+    if (L'\U0001F600' != 0x1F600) { printf("L'\\U0001F600' = %d\n", (int)L'\U0001F600'); bad = 1; }
     return bad;
 }
