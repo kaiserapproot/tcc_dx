@@ -16453,8 +16453,10 @@ tok_next:
     case TOK_LCHAR:
 #ifdef TCC_TARGET_PE
         t = VT_SHORT | VT_UNSIGNED;
-        goto push_tokc;
+#else
+        t = VT_INT; /* nwchar_t; must not fall through into TOK_TRUE */
 #endif
+        goto push_tokc;
     case TOK_TRUE:
     case TOK_FALSE:
         /* FEAT-BOOL: C++ boolean literals -> _Bool constant 1 / 0.  Only
