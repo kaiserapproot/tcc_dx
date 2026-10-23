@@ -1,0 +1,5 @@
+ctor a
+ctor b
+main end
+dtor b
+dtor a
