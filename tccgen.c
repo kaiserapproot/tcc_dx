@@ -2015,7 +2015,7 @@ static int cpp_class_return_needs_sret(CType *type)
     if (!tcc_state->cpp || !type
         || (type->t & VT_BTYPE) != VT_STRUCT || !type->ref)
         return 0;
-    return cpp_find_dtor_field(type->ref) != NULL;
+    return cpp_class_requires_destruction(type->ref);
 }
 
 static int cpp_gfunc_sret(CType *type, int variadic, CType *ret,

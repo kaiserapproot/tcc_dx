@@ -254,6 +254,8 @@ link_expect() { # tag, sources...
 }
 link_expect static_dtor_link \
     macos/link/static_dtor_link_a.cpp macos/link/static_dtor_link_b.cpp
+link_expect implicit_dtor_sret \
+    macos/link/implicit_dtor_sret_a.cpp macos/link/implicit_dtor_sret_b.cpp
 # negative: the link (not just -c) must fail with the .expected text
 for f in macos/negative/*.c macos/negative/*.cpp; do
     [ -f "$f" ] || continue
