@@ -2141,9 +2141,27 @@ static void cpp_note_class_temp(CType *type, int slot)
     int guard_index;
 
     if (!tcc_state->cpp || !type || (type->t & VT_BTYPE) != VT_STRUCT
-        || !type->ref || !cpp_find_dtor_field(type->ref)
-        || nocode_wanted)
+        || !type->ref || nocode_wanted)
         return;
+    /* The implicit destructor of a class is made the first time one of
+       its objects is destroyed.  A temporary (a call result, say) can
+       be the first object of the class this TU meets, so decide by the
+       declarations and make the destructor now; otherwise the temporary
+       was never registered and never destroyed. */
+    if (!cpp_find_dtor_field(type->ref)) {
+        if (!cpp_class_requires_destruction(type->ref))
+            return;
+        cpp_ensure_synthetic_odr(type->ref);
+        if (!cpp_find_dtor_field(type->ref)) {
+            /* It could not be made: the only reason today is a class
+               array member whose elements need destruction, which the
+               validation reports as unsupported, like it does for a
+               local of the class.  Never let such a temporary through
+               silently - it would simply never be destroyed. */
+            cpp_validate_implicit_dtor(type->ref, 0);
+            tcc_error("internal error: implicit destructor of a class temporary was not made");
+        }
+    }
     if (nb_cpp_temp_objects >= CPP_MAX_TEMP_OBJECTS)
         tcc_error("too many live class temporaries");
     guard_index = cpp_alloc_temp_guard_index();
