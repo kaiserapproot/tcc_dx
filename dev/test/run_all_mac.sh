@@ -256,6 +256,34 @@ link_expect static_dtor_link \
     macos/link/static_dtor_link_a.cpp macos/link/static_dtor_link_b.cpp
 link_expect implicit_dtor_sret \
     macos/link/implicit_dtor_sret_a.cpp macos/link/implicit_dtor_sret_b.cpp
+
+# interop/: ABI agreement with clang.  The clang++ side goes into a dylib,
+# the tcc side (main) links against it, and the program checks both
+# directions of the call (stdout "... ok" lines, exit 0).
+echo "=== clang interop ==="
+CXX=${CXX:-clang++}
+interop_expect() { # tag, clang source, tcc source
+    tag=$1
+    if ! "$CXX" -arch x86_64 -w -dynamiclib "$2" -o "$WORK/lib$tag.dylib" >"$LOG" 2>&1; then
+        echo "  $tag=CLANG_BUILD_FAIL"; cat "$LOG"; FAILED=$((FAILED + 1)); return
+    fi
+    "$TCC" "$3" -L"$WORK" -l"$tag" -o "$WORK/$tag" >"$LOG" 2>&1
+    ec=$?
+    if is_crash $ec "$LOG"; then
+        echo "  $tag=TCC_CRASH rc=$ec"; cat "$LOG"
+        CRASHES=$((CRASHES + 1)); FAILED=$((FAILED + 1)); return
+    elif [ $ec -ne 0 ]; then
+        echo "  $tag=BUILD_FAIL"; cat "$LOG"; FAILED=$((FAILED + 1)); return
+    fi
+    DYLD_LIBRARY_PATH="$WORK" "$WORK/$tag" >"$WORK/$tag.out" 2>&1
+    ec=$?
+    if [ $ec -ne 0 ]; then
+        echo "  $tag=RUN_FAIL exit=$ec"; cat "$WORK/$tag.out"; FAILED=$((FAILED + 1))
+    else
+        echo "  $tag=PASS"
+    fi
+}
+interop_expect byval macos/interop/byval_clang.cpp macos/interop/byval_tcc.cpp
 # negative: the link (not just -c) must fail with the .expected text
 for f in macos/negative/*.c macos/negative/*.cpp; do
     [ -f "$f" ] || continue
