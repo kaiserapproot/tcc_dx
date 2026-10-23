@@ -159,9 +159,21 @@ build_must_fail() { # tag, pattern, sources...
 # mixed_link.bat only compiles the two TUs (-c foo.cpp bar.c); the objects
 # are then linked here and run.  bar.c's main returns its "class" (1).
 echo "=== a2/mixed_link ==="
-if (cd "$WORK" && "$TCC" -c "$HERE/a2/foo.cpp" "$HERE/a2/bar.c") >"$LOG" 2>&1; then
+(cd "$WORK" && "$TCC" -c "$HERE/a2/foo.cpp" "$HERE/a2/bar.c") >"$LOG" 2>&1
+ec=$?
+if is_crash $ec "$LOG"; then
+    echo "  MIXED_COMPILE=TCC_CRASH rc=$ec"; cat "$LOG"
+    CRASHES=$((CRASHES + 1)); FAILED=$((FAILED + 1))
+elif [ $ec -ne 0 ]; then
+    echo "  MIXED_COMPILE=FAIL"; cat "$LOG"; FAILED=$((FAILED + 1))
+else
     echo "  MIXED_COMPILE=PASS"
-    if ! "$TCC" "$WORK/foo.o" "$WORK/bar.o" -o "$WORK/mixed" >"$LOG" 2>&1; then
+    "$TCC" "$WORK/foo.o" "$WORK/bar.o" -o "$WORK/mixed" >"$LOG" 2>&1
+    ec=$?
+    if is_crash $ec "$LOG"; then
+        echo "  MIXED_LINK=TCC_CRASH rc=$ec"; cat "$LOG"
+        CRASHES=$((CRASHES + 1)); FAILED=$((FAILED + 1))
+    elif [ $ec -ne 0 ]; then
         echo "  MIXED_LINK=BUILD_FAIL"; cat "$LOG"; FAILED=$((FAILED + 1))
     else
         "$WORK/mixed"
@@ -169,8 +181,6 @@ if (cd "$WORK" && "$TCC" -c "$HERE/a2/foo.cpp" "$HERE/a2/bar.c") >"$LOG" 2>&1; t
         if [ $ec -eq 1 ]; then echo "  MIXED_LINK=PASS"
         else echo "  MIXED_LINK=RUN_FAIL exit=$ec (expected 1)"; FAILED=$((FAILED + 1)); fi
     fi
-else
-    echo "  MIXED_COMPILE=FAIL"; cat "$LOG"; FAILED=$((FAILED + 1))
 fi
 
 # The Windows-only cases of dcl_link.bat (two TUs including windows.h, GUIDs)
@@ -213,13 +223,23 @@ link_expect() { # tag, sources...
     objs=
     for s in "$@"; do
         o="$WORK/$(basename "${s%.*}").o"
-        if ! "$TCC" -c "$s" -o "$o" >"$LOG" 2>&1; then
+        "$TCC" -c "$s" -o "$o" >"$LOG" 2>&1
+        ec=$?
+        if is_crash $ec "$LOG"; then
+            echo "  $tag=TCC_CRASH rc=$ec compiling $s"; cat "$LOG"
+            CRASHES=$((CRASHES + 1)); FAILED=$((FAILED + 1)); return
+        elif [ $ec -ne 0 ]; then
             echo "  $tag=COMPILE_FAIL $s"; cat "$LOG"; FAILED=$((FAILED + 1)); return
         fi
         objs="$objs $o"
     done
     # $objs is split on purpose: WORK comes from mktemp and has no blanks
-    if ! "$TCC" $objs -o "$WORK/$tag" >"$LOG" 2>&1; then
+    "$TCC" $objs -o "$WORK/$tag" >"$LOG" 2>&1
+    ec=$?
+    if is_crash $ec "$LOG"; then
+        echo "  $tag=TCC_CRASH rc=$ec linking"; cat "$LOG"
+        CRASHES=$((CRASHES + 1)); FAILED=$((FAILED + 1)); return
+    elif [ $ec -ne 0 ]; then
         echo "  $tag=LINK_FAIL"; cat "$LOG"; FAILED=$((FAILED + 1)); return
     fi
     "$WORK/$tag" >"$WORK/$tag.out" 2>&1
