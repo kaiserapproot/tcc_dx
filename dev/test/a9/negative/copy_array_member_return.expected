@@ -1,0 +1,1 @@
+implicit copy of an array member whose elements have a copy constructor is unsupported
