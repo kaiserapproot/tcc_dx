@@ -218,6 +218,7 @@ static int cpp_base_subobject_offset(Sym *obj_class, Sym *target_class);
 static int cpp_is_base_field(Sym *f);
 static int cpp_is_class_data_member(Sym *f);
 static int cpp_class_requires_destruction(Sym *class_sym);
+static int cpp_class_needs_copy_repair(Sym *class_sym);
 static void cpp_emit_local_static_dtor_registration(Sym *wrapper_sym);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
@@ -2627,7 +2628,9 @@ static int cpp_spill_return_value(CType *func_type, CType *spill_type,
     *is_reference = (func_type->t & VT_REFERENCE) != 0;
     direct_class = !*is_reference
         && (func_type->t & VT_BTYPE) == VT_STRUCT
-        && func_type->ref && cpp_find_dtor_field(func_type->ref);
+        && func_type->ref
+        && (cpp_find_dtor_field(func_type->ref)
+            || cpp_class_needs_copy_repair(func_type->ref));
     if (*is_reference) {
         /* Match gfunc_return(): a reference result is represented by the
            bound object's address, not by a copied object. */
@@ -2650,8 +2653,19 @@ static int cpp_spill_return_value(CType *func_type, CType *spill_type,
         if (!(vtop->r & VT_LVAL)
             && (vtop->r & VT_VALMASK) == VT_LOCAL)
             vtop->r |= VT_LVAL;
-        if (!(vtop->r & VT_LVAL))
-            tcc_error("internal error: class return value is not addressable");
+        if (!(vtop->r & VT_LVAL)) {
+            /* a register-returned call result: park it in a local so
+               the copy below has a source address */
+            size = type_size(spill_type, &align);
+            if (size <= 0 || align <= 0)
+                tcc_error("internal error: invalid return spill type");
+            loc = (loc - size) & -align;
+            vset(spill_type, VT_LOCAL | VT_LVAL, loc);
+            vswap();
+            vstore();
+            vpop();
+            vset(spill_type, VT_LOCAL | VT_LVAL, loc);
+        }
         gaddrof();
         mk_pointer(&vtop->type);
         src_ptype = vtop->type;
@@ -2668,6 +2682,9 @@ static int cpp_spill_return_value(CType *func_type, CType *spill_type,
                 indir();
                 vstore();
                 vpop();
+                cpp_reconstruct_copied_class_members(func_type->ref,
+                                                     &src_ptype, func_vc,
+                                                     src_slot, 0, 0);
             }
             *return_prepared = 1;
             return 0;
@@ -6094,6 +6111,75 @@ static int cpp_class_requires_destruction(Sym *class_sym)
         if (cpp_is_class_data_member(f)
             && f->type.ref
             && cpp_class_requires_destruction(f->type.ref))
+            return 1;
+    }
+    return 0;
+}
+
+/* C++: does the class declare a copy constructor (a constructor whose
+   first parameter is a reference to the class itself)? */
+static int cpp_class_declares_copy_ctor(Sym *class_sym)
+{
+    Sym *f;
+    Sym *p;
+    CType *pt;
+    int class_name_tok;
+
+    class_name_tok = class_sym->v & ~SYM_STRUCT;
+    for (f = class_sym->next; f; f = f->next) {
+        if ((f->v & ~SYM_FIELD) != class_name_tok)
+            continue;
+        if ((f->type.t & VT_BTYPE) != VT_FUNC || !f->type.ref)
+            continue;
+        p = f->type.ref->next;
+        if (!p || !(p->type.t & VT_REFERENCE))
+            continue;
+        pt = pointed_type(&p->type);
+        if ((pt->t & VT_BTYPE) == VT_STRUCT && pt->ref == class_sym)
+            return 1;
+    }
+    return 0;
+}
+
+/* C++: does copying an object of this class need more than a flat byte
+   copy, because the class, a base or a class-type member (recursively)
+   declares a copy constructor?  Where this holds, a flat copy must be
+   followed by cpp_reconstruct_copied_class_members (the BUG-46 repair),
+   or a member owning a resource is aliased into a double free.  An array
+   member counts when its element class does; the repair cannot rebuild
+   array elements yet and rejects such a copy instead of aliasing it. */
+static int cpp_class_needs_copy_repair(Sym *class_sym)
+{
+    Sym *f;
+    CType elem;
+
+    if (!class_sym)
+        return 0;
+    CPP_WALKER_DEPTH_GUARD("cpp_class_needs_copy_repair");
+    if (cpp_class_declares_copy_ctor(class_sym))
+        return 1;
+    for (f = class_sym->next; f; f = f->next) {
+        if (f->type.t & (VT_STATIC | VT_EXTERN | VT_TYPEDEF))
+            continue;
+        if ((f->type.t & VT_BTYPE) == VT_FUNC)
+            continue;
+        if (f->type.t & VT_REFERENCE)
+            continue;
+        if (f->type.t & VT_ARRAY) {
+            if (cpp_class_member_array_elem_class(f, &elem)
+                && cpp_class_needs_copy_repair(elem.ref))
+                return 1;
+            continue;
+        }
+        if (cpp_is_base_field(f)) {
+            if (f->parent_class
+                && cpp_class_needs_copy_repair(f->parent_class))
+                return 1;
+            continue;
+        }
+        if (cpp_is_class_data_member(f)
+            && f->type.ref
+            && cpp_class_needs_copy_repair(f->type.ref))
             return 1;
     }
     return 0;
@@ -15906,12 +15992,20 @@ static void cpp_reconstruct_copied_class_members(Sym *class_sym,
                                                  int src_base_ofs)
 {
     Sym *f;
+    CType elem;
 
     CPP_WALKER_DEPTH_GUARD("cpp_reconstruct_copied_class_members");
     for (f = class_sym->next; f; f = f->next) {
-        if ((f->type.t & VT_BTYPE) != VT_STRUCT || !f->type.ref)
-            continue;
         if (f->type.t & VT_STATIC)
+            continue;
+        /* The flat copy has already aliased the array elements; there is
+           no per-element rebuild yet, so refuse rather than leave two
+           objects owning the same resources. */
+        if ((f->type.t & VT_ARRAY)
+            && cpp_class_member_array_elem_class(f, &elem)
+            && cpp_class_needs_copy_repair(elem.ref))
+            tcc_error("implicit copy of an array member whose elements have a copy constructor is unsupported");
+        if ((f->type.t & VT_BTYPE) != VT_STRUCT || !f->type.ref)
             continue;
         if (cpp_is_base_field(f)) {
             /* A secondary base is not safe to treat as offset zero.  The
@@ -18897,6 +18991,7 @@ again:
         int return_is_reference;
         int return_prepared;
         int return_direct_dtor;
+        int return_copy_repair;
         int return_slot;
 
         return_bottom = NULL;
@@ -18904,6 +18999,7 @@ again:
         return_is_reference = 0;
         return_prepared = 0;
         return_direct_dtor = 0;
+        return_copy_repair = 0;
         return_slot = 0;
         b = (func_vt.t & VT_BTYPE) != VT_VOID;
         if (tcc_state->cpp
@@ -18916,6 +19012,13 @@ again:
                 tcc_error("return by value of a class requiring destruction is unsupported");
             return_direct_dtor = 1;
         }
+        if (tcc_state->cpp
+            && b && tok != ';'
+            && !(func_vt.t & VT_REFERENCE)
+            && (func_vt.t & VT_BTYPE) == VT_STRUCT
+            && func_vt.ref
+            && cpp_class_needs_copy_repair(func_vt.ref))
+            return_copy_repair = 1;
         if (tok != ';') {
             gexpr();
             if (b) {
@@ -18934,8 +19037,8 @@ again:
         if (tcc_state->cpp) {
             return_bottom = cpp_return_dtor_bottom();
             return_has_dtors = cpp_scope_has_local_dtor(return_bottom);
-            if (b && (return_direct_dtor || return_has_dtors
-                      || nb_cpp_temp_objects))
+            if (b && (return_direct_dtor || return_copy_repair
+                      || return_has_dtors || nb_cpp_temp_objects))
                 return_slot = cpp_spill_return_value(&func_vt,
                                                      &return_spill_type,
                                                      &return_is_reference,
