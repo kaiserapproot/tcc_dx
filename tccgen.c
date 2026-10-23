@@ -219,6 +219,10 @@ static int cpp_is_base_field(Sym *f);
 static int cpp_is_class_data_member(Sym *f);
 static int cpp_class_requires_destruction(Sym *class_sym);
 static int cpp_class_needs_copy_repair(Sym *class_sym);
+static int cpp_class_arg_by_invisible_ref(Sym *class_sym);
+static void cpp_pass_class_arg_by_ref(CType *type);
+static CType *cpp_params_to_invisible_ref(Sym *sym);
+static void cpp_params_restore_from_invisible_ref(Sym *sym, CType *saved);
 static void cpp_emit_local_static_dtor_registration(Sym *wrapper_sym);
 /* --- C++ Stage 2: mangling, references, qualified names --- */
 static Sym *cpp_qualified_class;
@@ -6169,6 +6173,140 @@ static int cpp_class_needs_copy_repair(Sym *class_sym)
             return 1;
     }
     return 0;
+}
+
+/* C++: is an object of this class passed to a function by value through
+   an invisible reference (Itanium C++ ABI 3.1.2.3; the Windows x64 ABI
+   does the same for such classes)?  That is the case when copying or
+   destroying it is not trivial: the class, a base or a member declares a
+   copy constructor or a destructor, or the class is polymorphic.  The
+   caller then builds the argument object itself, passes its address and
+   destroys it at the end of the full expression; the callee reads the
+   parameter through that address.  Both sides decide with this one
+   predicate, which looks only at the declarations, so a caller compiled
+   before the callee (or by another compiler) agrees with the callee.
+   Trivial classes keep the platform's ordinary struct passing. */
+static int cpp_class_arg_by_invisible_ref(Sym *class_sym)
+{
+    if (!class_sym || !tcc_state->cpp)
+        return 0;
+    return cpp_class_needs_copy_repair(class_sym)
+        || cpp_class_requires_destruction(class_sym)
+        || cpp_type_has_virtual(class_sym);
+}
+
+/* C++: vtop holds a class object going to a parameter that
+   cpp_class_arg_by_invisible_ref accepts.  Copy-construct it into a fresh
+   temporary of this frame (a user copy constructor when one is viable,
+   else the flat copy plus the BUG-46 memberwise rebuild), register the
+   temporary with the other temporaries of the full expression - the
+   caller owns and destroys the argument object - and leave its address
+   on vtop in place of the object. */
+static void cpp_pass_class_arg_by_ref(CType *type)
+{
+    Sym *class_sym;
+    CType ptype;
+    int size;
+    int align;
+    int slot;
+    int src_slot;
+    int dst_slot;
+
+    class_sym = type->ref;
+    size = type_size(type, &align);
+    if (size <= 0 || align <= 0)
+        tcc_error("internal error: invalid class argument type");
+    if (!(vtop->r & VT_LVAL)) {
+        /* a register-returned call result: park it so it has an address */
+        loc = (loc - size) & -align;
+        vset(type, VT_LOCAL | VT_LVAL, loc);
+        vswap();
+        vstore();
+        vpop();
+        vset(type, VT_LOCAL | VT_LVAL, loc);
+    }
+    gaddrof();
+    mk_pointer(&vtop->type);
+    ptype = vtop->type;
+    src_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    loc = (loc - size) & -align;
+    slot = loc;
+    vset(type, VT_LOCAL | VT_LVAL, slot);
+    gaddrof();
+    vtop->type = ptype;
+    dst_slot = cpp_spill_ptr_to_temp(&ptype);
+
+    if (!cpp_emit_copied_class_subobject(class_sym, &ptype, dst_slot,
+                                         src_slot, 0, 0)) {
+        vset(&ptype, VT_LOCAL | VT_LVAL, dst_slot);
+        indir();
+        vset(&ptype, VT_LOCAL | VT_LVAL, src_slot);
+        indir();
+        vstore();
+        vpop();
+        cpp_reconstruct_copied_class_members(class_sym, &ptype, dst_slot,
+                                             src_slot, 0, 0);
+    }
+    cpp_ensure_synthetic_odr(class_sym);
+    cpp_note_class_temp(type, slot);
+
+    vset(type, VT_LOCAL | VT_LVAL, slot);
+    gaddrof();
+    vtop->type = ptype;
+}
+
+/* C++: before gfunc_prolog, give every parameter that is passed by
+   invisible reference the type "reference to the class", so the prolog
+   takes a pointer from the caller and the body reads the object through
+   it (a reference parameter is neither copied nor destroyed here: the
+   caller owns the object).  The declared types are put back right after
+   the prolog, because declarations, mangling and the call sites keep
+   using them.  Returns the saved types, NULL when nothing changed. */
+static CType *cpp_params_to_invisible_ref(Sym *sym)
+{
+    Sym *p;
+    CType *saved;
+    int n;
+    int changed;
+
+    if (!tcc_state->cpp || !sym->type.ref)
+        return NULL;
+    n = 0;
+    for (p = sym->type.ref->next; p; p = p->next)
+        n++;
+    if (n == 0)
+        return NULL;
+    saved = tcc_mallocz(n * sizeof(CType));
+    changed = 0;
+    n = 0;
+    for (p = sym->type.ref->next; p; p = p->next, n++) {
+        saved[n] = p->type;
+        if ((p->type.t & VT_BTYPE) != VT_STRUCT || !p->type.ref
+            || !cpp_class_arg_by_invisible_ref(p->type.ref))
+            continue;
+        mk_pointer(&p->type);
+        p->type.t |= VT_REFERENCE;
+        changed = 1;
+    }
+    if (!changed) {
+        tcc_free(saved);
+        return NULL;
+    }
+    return saved;
+}
+
+static void cpp_params_restore_from_invisible_ref(Sym *sym, CType *saved)
+{
+    Sym *p;
+    int n;
+
+    if (!saved)
+        return;
+    n = 0;
+    for (p = sym->type.ref->next; p; p = p->next, n++)
+        p->type = saved[n];
+    tcc_free(saved);
 }
 // G7: default-construct a class-type data member (0-arg ctor on
 // this->member).  A class with no user-declared constructor has no
@@ -15373,6 +15511,9 @@ static void gfunc_param_typed(Sym* func, Sym* arg)
         if (!(type.t & VT_REFERENCE))
             type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
         gen_assign_cast(&type);
+        if (tcc_state->cpp && (type.t & VT_BTYPE) == VT_STRUCT
+            && type.ref && cpp_class_arg_by_invisible_ref(type.ref))
+            cpp_pass_class_arg_by_ref(&type);
     }
 }
 
@@ -20497,6 +20638,7 @@ static void gen_function(Sym* sym)
     struct scope f = { 0 };
     Sym *this_param;
     Sym *saved_param_next;
+    CType *byref_param_types;
     cur_scope = root_scope = &f;
     nocode_wanted = 0;
 
@@ -20579,7 +20721,9 @@ static void gen_function(Sym* sym)
 
     if (cpp_class_return_needs_sret(&func_vt))
         func_vt.t |= VT_CPP_SRET;
+    byref_param_types = cpp_params_to_invisible_ref(sym);
     gfunc_prolog(sym);
+    cpp_params_restore_from_invisible_ref(sym, byref_param_types);
     func_vt.t &= ~VT_CPP_SRET;
     cpp_init_temp_guards();
     tcc_debug_prolog_epilog(tcc_state, 0);
