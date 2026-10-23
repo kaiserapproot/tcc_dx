@@ -2413,14 +2413,26 @@ static void cpp_emit_local_state_dtors(int top, int bottom)
     }
 }
 
+/* The local stack also holds the parameters of every function type
+   declared in the block (post_type keeps them there, SYM_FIELD set,
+   VT_LOCAL | VT_LVAL, offset 0): `int (*fp)(T)` leaves a T parameter
+   placeholder behind that is not an object and must not be destroyed. */
+static int cpp_is_param_placeholder(Sym *s)
+{
+    return (s->v & SYM_FIELD) != 0;
+}
+
 static void cpp_call_scope_dtors_between(Sym *top, Sym *bottom)
 {
     Sym *s;
 
     if (!tcc_state->cpp || !top || !bottom || top == bottom)
         return;
-    for (s = top; s && s != bottom; s = s->prev)
+    for (s = top; s && s != bottom; s = s->prev) {
+        if (cpp_is_param_placeholder(s))
+            continue;
         cpp_emit_local_dtor(s);
+    }
     if (s != bottom)
         tcc_error("invalid C++ local scope metadata");
 }
@@ -2439,6 +2451,8 @@ static int cpp_scope_has_local_dtor_between(Sym *top, Sym *bottom)
     if (!tcc_state->cpp || !top)
         return 0;
     for (s = top; s && s != bottom; s = s->prev) {
+        if (cpp_is_param_placeholder(s))
+            continue;
         if ((s->r & VT_VALMASK) != VT_LOCAL)
             continue;
         if ((s->type.t & VT_BTYPE) != VT_STRUCT || !s->type.ref)
