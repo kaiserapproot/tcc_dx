@@ -485,13 +485,18 @@ static void n4_seed_symbol_reuse_2(void)
     A second(73);
 }
 
-/* By-value `A param` is copy-constructed and destroyed when the call
- * completes (PR #61 onwards).  Expected observation:
- *   caller arg(70)                    : ctor 1
- *   copy-construct param(70)          : ctor 2
- *   local(74) built, destroyed by goto: ctor 3 / dtor 1  (log: 74)
- *   param destroyed at end of call    : dtor 2           (log: 74,70)
- *   arg destroyed at end of block     : dtor 3           (log: 74,70,70)
+/* By-value `A param` is a temporary that the caller copy-constructs and
+ * destroys at the end of the full-expression containing the call (PR #61
+ * onwards).  Expected observation:
+ *   caller arg(70)                          : ctor 1
+ *   copy-construct param(70)                : ctor 2
+ *   local(74) built, destroyed by goto      : ctor 3 / dtor 1  (log: 74)
+ *   param destroyed, end of full-expression : dtor 2           (log: 74,70)
+ *   arg destroyed at end of block           : dtor 3           (log: 74,70,70)
+ * arg and param share id 70, so counts and the log alone cannot tell
+ * "param destroyed, arg alive" from the reverse.  live_objects[] (filled
+ * in construction order, so [0] = arg, [1] = param once local is gone)
+ * is checked by address to pin down which object is still alive.
  * The purpose of this case is still that symbol slots reused from the
  * seed functions never trigger a false dtor (invalid_dtor == 0,
  * double_dtor == 0, ctor_count == dtor_count); the copy construction is
@@ -506,8 +511,9 @@ static int n4_run_symbol_reuse(A param)
         goto n4_g18_out;
     }
 n4_g18_out:
-    /* alive: caller's arg and this function's param. */
-    if (alive != 2 || dtor_count != 1 || invalid_dtor != 0
+    /* alive: caller's arg ([0]) and this function's param ([1]). */
+    if (alive != 2 || live_objects[1] != &param
+        || dtor_count != 1 || invalid_dtor != 0
         || log_count != 1 || logv[0] != 74 || param.test() != 70)
         result = 1;
     return result;
@@ -526,8 +532,10 @@ static int check_symbol_reuse(void)
         A arg(70);
         if (n4_run_symbol_reuse(arg) != 0)
             result |= 1;
-        /* param has been destroyed by now (2nd dtor, logs 70). */
-        if (alive != 1 || ctor_count != 3 || dtor_count != 2
+        /* param has been destroyed by now (2nd dtor, logs 70); the one
+         * object still alive must be arg itself, not the param copy. */
+        if (alive != 1 || live_objects[0] != &arg
+            || ctor_count != 3 || dtor_count != 2
             || invalid_dtor != 0 || double_dtor != 0
             || log_count != 2 || logv[0] != 74 || logv[1] != 70)
             result |= 2;
