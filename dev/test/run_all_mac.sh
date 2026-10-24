@@ -128,6 +128,52 @@ for f in a9/negative/*.cpp; do
     fi
 done
 
+# === PR-N4 goto lifetime (port of a9/manual/pr_n4_goto_lifetime.bat) ===
+# The sources have no #include, so the gate is platform-neutral.  Cases
+# 1-13 and 15-18 of pr_n4_goto_lifetime.cpp must exit 0 (18 is
+# SYMBOL_REUSE_NO_FALSE_DTOR); the pr_n4_goto_unsafe_*.cpp sources must be
+# rejected with the "goto into a scope requiring initialization" diagnostic
+# (fail-closed) and must never crash the compiler.
+echo "=== a9/manual/pr_n4_goto_lifetime ==="
+N4_EXE="$WORK/pr_n4_goto_lifetime"
+N4_FAILED=0
+"$TCC" a9/manual/pr_n4_goto_lifetime.cpp -o "$N4_EXE" >"$LOG" 2>&1
+ec=$?
+if [ $ec -ne 0 ]; then
+    cat "$LOG"
+    if is_crash $ec "$LOG"; then CRASHES=$((CRASHES + 1)); fi
+    echo "  PR_N4_GOTO_LIFETIME=COMPILE_FAIL"; FAILED=$((FAILED + 1))
+else
+    for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 15 16 17 18; do
+        "$N4_EXE" "$n" >/dev/null 2>&1
+        rc=$?
+        if [ $rc -ne 0 ]; then
+            echo "  PR_N4 case $n=FAIL exit=$rc"; N4_FAILED=1
+        fi
+    done
+    for f in a9/manual/pr_n4_goto_unsafe.cpp \
+             a9/manual/pr_n4_goto_unsafe_scalar.cpp \
+             a9/manual/pr_n4_goto_unsafe_reference.cpp \
+             a9/manual/pr_n4_goto_unsafe_aggregate.cpp \
+             a9/manual/pr_n4_goto_unsafe_lca.cpp; do
+        "$TCC" -c "$f" -o "$WORK/n4_unsafe.o" >"$LOG" 2>&1
+        ec=$?
+        if is_crash $ec "$LOG"; then
+            echo "  $f=CRASH exit=$ec"; cat "$LOG"
+            CRASHES=$((CRASHES + 1)); N4_FAILED=1
+        elif [ $ec -eq 0 ]; then
+            echo "  $f=FAIL (accepted, expected fail-closed)"; N4_FAILED=1
+        elif ! grep -F -q "goto into a scope requiring initialization is unsupported" "$LOG"; then
+            echo "  $f=WRONG_DIAGNOSTIC"; cat "$LOG"; N4_FAILED=1
+        fi
+    done
+    if [ $N4_FAILED -ne 0 ]; then
+        echo "  PR_N4_GOTO_LIFETIME=FAIL"; FAILED=$((FAILED + 1))
+    else
+        echo "  PR_N4_GOTO_LIFETIME=PASS"
+    fi
+fi
+
 # === multi-TU link gates (a2/mixed_link.bat, a9/*_link.bat) ===
 build_run_ok() { # tag, sources...
     tag=$1; shift
