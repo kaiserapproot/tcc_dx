@@ -485,6 +485,17 @@ static void n4_seed_symbol_reuse_2(void)
     A second(73);
 }
 
+/* By-value `A param` is copy-constructed and destroyed when the call
+ * completes (PR #61 onwards).  Expected observation:
+ *   caller arg(70)                    : ctor 1
+ *   copy-construct param(70)          : ctor 2
+ *   local(74) built, destroyed by goto: ctor 3 / dtor 1  (log: 74)
+ *   param destroyed at end of call    : dtor 2           (log: 74,70)
+ *   arg destroyed at end of block     : dtor 3           (log: 74,70,70)
+ * The purpose of this case is still that symbol slots reused from the
+ * seed functions never trigger a false dtor (invalid_dtor == 0,
+ * double_dtor == 0, ctor_count == dtor_count); the copy construction is
+ * only part of the baseline. */
 static int n4_run_symbol_reuse(A param)
 {
     int result;
@@ -495,7 +506,8 @@ static int n4_run_symbol_reuse(A param)
         goto n4_g18_out;
     }
 n4_g18_out:
-    if (alive != 1 || dtor_count != 1 || invalid_dtor != 0
+    /* alive: caller's arg and this function's param. */
+    if (alive != 2 || dtor_count != 1 || invalid_dtor != 0
         || log_count != 1 || logv[0] != 74 || param.test() != 70)
         result = 1;
     return result;
@@ -514,14 +526,15 @@ static int check_symbol_reuse(void)
         A arg(70);
         if (n4_run_symbol_reuse(arg) != 0)
             result |= 1;
-        if (alive != 1 || ctor_count != 2 || dtor_count != 1
+        /* param has been destroyed by now (2nd dtor, logs 70). */
+        if (alive != 1 || ctor_count != 3 || dtor_count != 2
             || invalid_dtor != 0 || double_dtor != 0
-            || log_count != 1 || logv[0] != 74)
+            || log_count != 2 || logv[0] != 74 || logv[1] != 70)
             result |= 2;
     }
-    if (alive != 0 || ctor_count != 2 || dtor_count != 2
+    if (alive != 0 || ctor_count != 3 || dtor_count != 3
         || invalid_dtor != 0 || double_dtor != 0
-        || log_count != 2 || logv[0] != 74 || logv[1] != 70
+        || log_count != 3 || logv[0] != 74 || logv[1] != 70 || logv[2] != 70
         || ctor_count != dtor_count)
         result |= 4;
     return result;
